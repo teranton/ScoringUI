@@ -4,8 +4,7 @@ import JoukkueTulokset from './JoukkueTulokset';
 import RyhmaJako from './RyhmaJako';
 import { teema } from './teema';
 
-// TÄHÄN SE MESTARI-SHEETIN APPS SCRIPT URL, JOKA PALAUTTAA KISALISTAN
-const MESTARI_API_URL = "https://script.google.com/macros/s/AKfycbyjyGDXxaIxj0RYxGc6JnYte9hck1N3I-M-Ql2t_AFhVAOO-dc8R3p4UhxMnJz-rspu/exec";
+const MESTARI_API_URL = "https://script.google.com/macros/s/AKfycbyjyGDXxaIxj0RYxGc6JnYte9hck1N3I-M-Ql2t_AFhVAOO-dc8R3p4UhxMnJz-rspu/exec"; // Pidetään kisalista vielä Apps Scriptissä, se on kevyt
 
 export default function App() {
   const [kisat, setKisat] = useState([]);
@@ -13,12 +12,11 @@ export default function App() {
   const [aktiivinenSivu, setAktiivinenSivu] = useState('joukkueet');
   const [ladataanKisalista, setLadataanKisalista] = useState(true);
 
-  // KISAKOHTAINEN DATA JA TILA
-  const [kisaData, setKisaData] = useState(null);
+  const [kisaCache, setKisaCache] = useState({});
   const [ladataanKisaa, setLadataanKisaa] = useState(false);
   const [virhe, setVirhe] = useState(null);
 
-  // 1. Haetaan yleinen kisalista etusivulle heti alussa
+  // 1. Haetaan yleinen kisalista etusivulle
   useEffect(() => {
     async function haeKisalista() {
       try {
@@ -27,11 +25,6 @@ export default function App() {
         setKisat(data);
       } catch (error) {
         console.error("Virhe kisalistan haussa:", error);
-        // Testidataa localhostia varten
-        setKisat([
-          { id: "kisa_01", nimi: "Kesäcup 1 — Skeet", pvm: "15.05.2026", tila: "Päättynyt", apiUrl: "URL1" },
-          { id: "kisa_02", nimi: "Heinäkuun Compak", pvm: "12.07.2026", tila: "Käynnissä", apiUrl: "URL2" }
-        ]);
       } finally {
         setLadataanKisalista(false);
       }
@@ -39,61 +32,66 @@ export default function App() {
     haeKisalista();
   }, []);
 
-  // 2. KESKITETTY DATAHAKU: Haetaan valitun kisan tiedot vain kerran + taustapäivitys
+  // 2. SUORA REUNATON CSV-HAKU GOOGLESTA (Ei endpointia!)
   useEffect(() => {
-    if (!valittuKisa) {
-      setKisaData(null);
-      return;
-    }
+    if (!valittuKisa) return;
 
-    setLadataanKisaa(true);
+    // Oletetaan, että Mestari-Sheetissä "apiUrl"-sarakkeessa on nyt kisan GOOGLE_SHEETS_ID
+    const sheetId = valittuKisa.apiUrl; 
+
+    if (!kisaCache[sheetId]) {
+      setLadataanKisaa(true);
+    }
     setVirhe(null);
 
-    async function haeKisanKaikkiData() {
+    async function haeSuoratCsvData() {
       try {
-        const response = await fetch(valittuKisa.apiUrl);
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-        setKisaData(data);
+        // Rakennetaan suorat Google Visualization URL-osoitteet molemmille välilehdille
+        // Käytetään tq-rajapintaa, joka palauttaa puhtaan CSV:n
+        const urlJoukkueet = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=NEW_Joukkue`;
+        const urlErat = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=Ryhmäjako`;
+
+        // Haetaan molemmat taustalla täysin rinnakkain (Supernopea!)
+        const [resJoukkueet, resErat] = await Promise.all([
+          fetch(urlJoukkueet).then(r => r.text()),
+          fetch(urlErat).then(r => r.text()).catch(() => "") // Jos erävälilehteä ei ole, ei kaaduta
+        ]);
+
+        // Muutetaan Googlen palauttamat standardi-CSV-lainausmerkit ja pilkut meidän parserille sopivaksi,
+        // TAI mukautetaan parseri lukemaan standardia CSV-muotoa (kts. Vaihe 3 alta)
+        const valmisDataOlio = {
+          joukkueetCsvRaw: resJoukkueet,
+          eratCsvRaw: resErat
+        };
+
+        setKisaCache(prevCache => ({
+          ...prevCache,
+          [sheetId]: valmisDataOlio
+        }));
+
       } catch (err) {
-        console.error("Virhe kisan datan haussa:", err);
-        setVirhe("Yhteys Google Sheetsiin epäonnistui. Yritetään uudelleen taustalla...");
+        console.error("Suora CSV haku epäonnistui:", err);
+        setVirhe("Tietojen haku epäonnistui. Varmista, että Sheets on jaettu 'Anyone with link' -oikeudella.");
       } finally {
         setLadataanKisaa(false);
       }
     }
 
-    // Ensimmäinen haku heti
-    haeKisanKaikkiData();
-
-    // Automaattinen taustapäivitys 30 sekunnin välein kisan ollessa auki
-    const intervalli = setInterval(haeKisanKaikkiData, 30000);
+    haeSuoratCsvData();
+    const intervalli = setInterval(haeSuoratCsvData, 20000); // Voidaan tihentää jopa 20 sekuntiin, koska se on niin nopeaa
     return () => clearInterval(intervalli);
   }, [valittuKisa]);
 
-  if (ladataanKisalista) {
-    return <div style={{ fontFamily: teema.fontti, padding: '20px' }}>Ladataan tulospalvelua...</div>;
-  }
+  if (ladataanKisalista) return <div style={{ fontFamily: teema.fontti, padding: '20px' }}>Ladataan...</div>;
 
-  // NÄKYMÄ 1: ETUSIVU (Kisalista)
   if (!valittuKisa) {
     return (
       <div style={tyylit.KokoSivu}>
-        <header style={tyylit.Ylapalkki}>
-          <h1 style={tyylit.KisanOtsikko}>🎯 TT TULOSPALVELU</h1>
-        </header>
-
-        <h3 style={{ fontFamily: teema.fontti }}>Valitse kilpailu:</h3>
+        <header style={tyylit.Ylapalkki}><h1 style={tyylit.KisanOtsikko}>🎯 TULOSPALVELU</h1></header>
         <div style={tyylit.KisaListaRuudukko}>
           {kisat.map(kisa => (
-            <div
-              key={kisa.id}
-              onClick={() => setValittuKisa(kisa)}
-              style={kisa.tila === 'Käynnissä' ? tyylit.KisaKorttiLive : tyylit.KisaKortti}
-            >
-              <div style={tyylit.KisaPvm}>{kisa.pvm} {kisa.tila === 'Käynnissä' && "🔴 LIVE"}</div>
+            <div key={kisa.id} onClick={() => setValittuKisa(kisa)} style={tyylit.KisaKortti}>
               <div style={tyylit.KisaNimiLinkki}>{kisa.nimi}</div>
-              <div style={tyylit.KisaTila}>{kisa.tila}</div>
             </div>
           ))}
         </div>
@@ -101,15 +99,13 @@ export default function App() {
     );
   }
 
-  // NÄKYMÄ 2: VALITTU KISA (Ohjausnäkymä)
-  // POISTETAAN se ehto, joka esti sivun näyttämisen jos kisaData oli null!
+  const nykyisenKisanData = kisaCache[valittuKisa.apiUrl];
+
   return (
     <div style={tyylit.KokoSivu}>
       <header style={tyylit.Ylapalkki}>
         <button onClick={() => setValittuKisa(null)} style={tyylit.TakaisinNappi}>⬅️ ETUSIVU</button>
-        <h1 style={tyylit.KisanOtsikko}>
-          {valittuKisa.nimi} {ladataanKisaa && "🔄"} {/* Pieni indikaattori yläkulmaan */}
-        </h1>
+        <h1 style={tyylit.KisanOtsikko}>{valittuKisa.nimi} {ladataanKisaa && "🔄"}</h1>
         {virhe && <div style={tyylit.VirheIlmoitus}>{virhe}</div>}
       </header>
 
@@ -118,32 +114,92 @@ export default function App() {
         <button onClick={() => setAktiivinenSivu('joukkueet')} style={aktiivinenSivu === 'joukkueet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>🏆 JOUKKUETULOKSET</button>
       </nav>
 
-      <main style={tyylit.SisaltoAlue}>
-        <div style={{ display: aktiivinenSivu === 'erakirjaus' ? 'block' : 'none' }}>
-          <RyhmaJako data={kisaData} />
-        </div>
-        <div style={{ display: aktiivinenSivu === 'joukkueet' ? 'block' : 'none' }}>
-          <JoukkueTulokset data={kisaData} />
-        </div>
-      </main>
+      {ladataanKisaa && !nykyisenKisanData ? (
+        <div style={{ fontFamily: teema.fontti }}>Haetaan reaaliaikaista CSV-dataa suoraan Googlesta...</div>
+      ) : (
+        <main style={tyylit.SisaltoAlue}>
+          <div style={{ display: aktiivinenSivu === 'erakirjaus' ? 'block' : 'none' }}>
+            <RyhmaJako data={nykyisenKisanData} />
+          </div>
+          <div style={{ display: aktiivinenSivu === 'joukkueet' ? 'block' : 'none' }}>
+            <JoukkueTulokset data={nykyisenKisanData} />
+          </div>
+        </main>
+      )}
     </div>
   );
 }
 
+// (Tyylit pysyvät samana kuin aiemmin...)
 const tyylit = {
-  KokoSivu: { padding: '15px', fontFamily: teema.fontti, background: '#fff', color: teema.tekstiTumma, minHeight: '100vh' },
-  Ylapalkki: { borderBottom: `3px solid ${teema.paavari}`, paddingBottom: '10px', marginBottom: '15px' },
-  KisanOtsikko: { margin: 0, fontSize: '1.4em', fontWeight: 'bold', textTransform: 'uppercase' },
+  KokoSivu: { 
+    padding: '15px', 
+    fontFamily: teema.fontti, 
+    background: '#fff', 
+    color: teema.tekstiTumma, 
+    minHeight: '100vh',
+    display: 'flex',          // Muutetaan koko sivu flex-laatikoksi
+    flexDirection: 'column',  // Elementit pinotaan allekkain
+    gap: '10px'               // Automaattinen väli elementtien väliin
+  },
+  Ylapalkki: { 
+    borderBottom: `3px solid ${teema.paavari}`, 
+    paddingBottom: '12px', 
+    marginBottom: '5px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '5px'
+  },
+  KisanOtsikko: { 
+    margin: 0, 
+    fontSize: '1.4em', 
+    fontWeight: 'bold', 
+    textTransform: 'uppercase',
+    lineHeight: '1.2'        // Varmistetaan ettei riviväli riko asettelua
+  },
+  NaviPalkki: { 
+    display: 'flex', 
+    gap: '8px', 
+    marginTop: '5px',
+    marginBottom: '15px',
+    flexWrap: 'wrap'          // Jos napit eivät mahdu kännykän ruudulle, ne tippuvat nätisti seuraavalle riville
+  },
+  NaviNappi: { 
+    background: '#fff', 
+    color: teema.tekstiTumma, 
+    border: `1px solid ${teema.tekstiTumma}`, 
+    padding: '8px 14px', 
+    cursor: 'pointer', 
+    fontWeight: 'bold' 
+  },
+  NaviNappiAktiivinen: { 
+    background: teema.paavari, 
+    color: teema.tekstiVaalea, 
+    border: `1px solid ${teema.paavari}`, 
+    padding: '8px 14px', 
+    cursor: 'pointer', 
+    fontWeight: 'bold' 
+  },
+  TakaisinNappi: { 
+    background: teema.paavari, 
+    color: teema.tekstiVaalea, 
+    border: 'none', 
+    padding: '6px 12px', 
+    cursor: 'pointer', 
+    fontWeight: 'bold',
+    fontSize: '0.9em'
+  },
+  SisaltoAlue: { 
+    marginTop: '0px',
+    flex: 1                   // Ottaa lopun tilan sivusta itselleen
+  },
+  VirheIlmoitus: { 
+    color: '#cc0000', 
+    fontSize: '0.85em', 
+    marginTop: '5px' 
+  },
   KisaListaRuudukko: { display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '600px' },
   KisaKortti: { border: `1px solid ${teema.tekstiTumma}`, padding: '10px', cursor: 'pointer', background: teema.taustaHarmaa },
-  KisaKorttiLive: { border: '2px solid #ff0000', padding: '10px', cursor: 'pointer', background: '#fff9f9' },
-  KisaPvm: { fontSize: '0.8em', color: '#666', fontWeight: 'bold' },
-  KisaNimiLinkki: { fontSize: '1.1em', fontWeight: 'bold', margin: '4px 0', textDecoration: 'underline' },
-  KisaTila: { fontSize: '0.8em', textTransform: 'uppercase' },
-  TakaisinNappi: { background: teema.paavari, color: teema.tekstiVaalea, border: 'none', padding: '5px 10px', cursor: 'pointer', marginBottom: '10px', fontWeight: 'bold' },
-  NaviPalkki: { display: 'flex', gap: '5px', marginBottom: '20px' },
-  NaviNappi: { background: '#fff', color: teema.tekstiTumma, border: `1px solid ${teema.tekstiTumma}`, padding: '8px 12px', cursor: 'pointer', fontWeight: 'bold' },
-  NaviNappiAktiivinen: { background: teema.paavari, color: teema.tekstiVaalea, border: `1px solid ${teema.paavari}`, padding: '8px 12px', cursor: 'pointer', fontWeight: 'bold' },
-  VirheIlmoitus: { color: '#cc0000', fontSize: '0.85em', marginTop: '5px' },
-  SisaltoAlue: { marginTop: '10px' }
+  KisaNimiLinkki: { fontSize: '1.1em', fontWeight: 'bold' }
 };
