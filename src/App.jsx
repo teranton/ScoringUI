@@ -184,7 +184,7 @@ export default function App() {
   };
 
   if (ladataanKisalista) {
-    return <div style={tyylit.LatausKeskitys}>Ladataan kilpailurekisteriä...</div>;
+    return <div style={tyylit.LatausKeskitys}>Ladataan kilpailuja...</div>;
   }
 
   // --- NÄKYMÄ 1: ETUSIVU ---
@@ -192,8 +192,8 @@ export default function App() {
     return (
       <div style={tyylit.KokoSivu}>
         <header style={tyylit.EtusivunOtsikkoAlue}>
-          <h1 style={tyylit.EtusivunOtsikko}>🎯 Kilpailurekisteri</h1>
-          <p style={tyylit.EtusivunAliotsikko}>Valitse kilpailu nähdäksesi reaaliaikaiset tulokset</p>
+          <h1 style={tyylit.EtusivunOtsikko}>🎯 TT Tulospalvelu</h1>
+          <p style={tyylit.EtusivunAliotsikko}>Valitse kilpailu nähdäksesi tulokset</p>
         </header>
 
         {virhe && <div style={tyylit.VirheIlmoitus}>{virhe}</div>}
