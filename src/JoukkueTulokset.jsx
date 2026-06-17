@@ -6,7 +6,7 @@ export default function JoukkueTulokset({ data }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
 
   if (!data || !data.joukkueetCsvRaw) {
-    return <div style={{ fontFamily: teema.fontti }}>Ladataan dynaamista tulosdataa...</div>;
+    return <div style={tyylit.Lataus}>Ladataan tulosdataa...</div>;
   }
 
   const toggleJoukkue = (joukkueNimi) => {
@@ -18,18 +18,13 @@ export default function JoukkueTulokset({ data }) {
 
   // 1. PARSITAAN GOOGLE-CSV
   const raakaRivit = data.joukkueetCsvRaw.split('\n');
-  
-  const siivoaSolu = (solu) => {
-    if (!solu) return "";
-    return solu.replace(/^"|"$/g, '').trim();
-  };
+  const siivoaSolu = (solu) => (!solu ? "" : solu.replace(/^"|"$/g, '').trim());
 
   const kaikkiJoukkueet = [];
   let currentTeam = null;
 
   for (let i = 1; i < raakaRivit.length; i++) {
     if (!raakaRivit[i]) continue;
-    
     const row = raakaRivit[i].split(',').map(siivoaSolu);
     if (!row[0] && !row[1] && !row[2]) continue; 
 
@@ -39,22 +34,22 @@ export default function JoukkueTulokset({ data }) {
     const category = row[3];
     const yhteistulos = row[28] || "0"; 
 
-    const erat = [];
+    // Tallennetaan erät kiinteään 24-paikkaiseen taulukkoon indeksin mukaan (1-24)
+    // Näin varmistetaan, että sarakkeet pysyvät aina täydellisesti kohdakkain!
+    const eratMap = {};
     for (let col = 4; col <= 27; col++) {
-      if (row[col] !== undefined && row[col] !== "") {
-        erat.push({ numero: col - 3, pisteet: row[col] });
-      }
+      const eraNum = col - 3;
+      eratMap[eraNum] = row[col] !== undefined ? row[col] : "";
     }
 
     if (teamName !== "" && shooterName === "") {
       if (currentTeam) kaikkiJoukkueet.push(currentTeam);
-      
       currentTeam = {
         sijoitus: ranking,
         joukkue: teamName,
         sarja: category,
         kokonaistulos: yhteistulos,
-        erat: erat, 
+        erat: eratMap, 
         ampujat: []
       };
     } 
@@ -63,7 +58,7 @@ export default function JoukkueTulokset({ data }) {
         nimi: shooterName,
         sarja: category,
         kokonaistulos: yhteistulos,
-        erat: erat 
+        erat: eratMap 
       });
     }
   }
@@ -77,87 +72,100 @@ export default function JoukkueTulokset({ data }) {
     sarjat[j.sarja].push(j); 
   });
 
-  const haeRivinVari = (s) => { 
-    if (s === 1) return teema.kulta; 
-    if (s === 2) return teema.hopea; 
-    if (s === 3) return teema.pronssi; 
-    return teema.paavari; 
+  const mitaliVarit = { 1: '#d4af37', 2: '#aaa9ad', 3: '#b0722a' };
+
+  // Apufunktio erätaulukon luomiseen (jaetaan 24 erää kahteen 12 erän riviin, jotta mahtuu mobiiliin)
+  const renderöiEräTaulukko = (erat) => {
+    const rivit = [[1,2,3,4,5,6,7,8,9,10,11,12], [13,14,15,16,17,18,19,20,21,22,23,24]];
+    
+    return (
+      <div style={tyylit.TaulukkoSäiliö}>
+        {rivit.map((rivi, rIdx) => (
+          <table key={rIdx} style={tyylit.Taulukko}>
+            <thead>
+              <tr>
+                <th style={tyylit.OtsikkoSoluMuted}>Erä</th>
+                {rivi.map(n => <th key={n} style={tyylit.OtsikkoSolu}>{n}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={tyylit.DataSoluMuted}>Pst</td>
+                {rivi.map(n => <td key={n} style={tyylit.DataSolu}>{erat[n] || '-'}</td>)}
+              </tr>
+            </tbody>
+          </table>
+        ))}
+      </div>
+    );
   };
 
   // 3. PIIRRETÄÄN KÄYTTÖLIITTYMÄ
   return (
-    <div style={{ fontFamily: teema.fontti }}>
+    <div style={tyylit.SivuSäiliö}>
       {Object.keys(sarjat).map(sarjaNimi => (
-        <div key={sarjaNimi} style={{ marginBottom: '30px' }}>
-          <h2 style={tyylit.SarjaOtsikko}>SARJA: {sarjaNimi}</h2>
-          <div style={tyylit.lista}>
+        <div key={sarjaNimi} style={{ marginBottom: '35px' }}>
+          <h2 style={tyylit.SarjaOtsikko}>Sarja {sarjaNimi}</h2>
+          
+          <div style={tyylit.Lista}>
             {sarjat[sarjaNimi].map((joukkueAlkio, indeksi) => {
               
               const sarjaSijoitus = indeksi + 1; 
-              const rivinTaustavari = haeRivinVari(sarjaSijoitus);
+              const mitaliVari = mitaliVarit[sarjaSijoitus];
               const onAuki = !!avatutJoukkueet[joukkueAlkio.joukkue];
-
-              // Luodaan pilkulla erotettu lista ampujien nimistä päänäkymää varten
               const jasenetTeksti = joukkueAlkio.ampujat.map(a => a.nimi).join(', ');
 
-              return (
-                <div key={indeksi} style={{ ...tyylit.kortti, borderColor: rivinTaustavari }}>
-                  
-                  {/* JOUKKUEEN KLIKATTAVA PÄÄRIVI */}
-                  <div 
-                    onClick={() => toggleJoukkue(joukkueAlkio.joukkue)} 
-                    style={{ ...tyylit.joukkueRivi, background: rivinTaustavari }}
-                  >
-                    <span style={tyylit.sijoitus}>#{joukkueAlkio.sijoitus}</span>
-                    
-                    <div style={tyylit.joukkueTekstiAlue}>
-                      <span style={tyylit.nimi}>
-                        {joukkueAlkio.joukkue} <span style={{ fontSize: '0.75em', fontWeight: 'normal', opacity: 0.8 }}>{onAuki ? '▼' : '▶'}</span>
-                      </span>
-                      {/* --- UUSI OSIO: JÄSENTEN NIMET NÄKYY TÄSSÄ SUORAAN --- */}
-                      <span style={tyylit.jasenetLista}>
-                        {jasenetTeksti || "Ei ladattuja jäseniä"}
-                      </span>
-                    </div>
+              const korttiDynaaminenTyyli = {
+                borderLeft: mitaliVari ? `5px solid ${mitaliVari}` : `5px solid ${teema.paavari || '#1a4a75'}`
+              };
 
-                    <span style={tyylit.pisteet}>{joukkueAlkio.kokonaistulos}</span>
+              const sijoitusDynaaminenTyyli = {
+                background: mitaliVari ? mitaliVari : '#f0f0f0',
+                color: mitaliVari ? '#fff' : '#555',
+                fontWeight: mitaliVari ? 'bold' : 'normal'
+              };
+
+              return (
+                <div key={indeksi} style={{ ...tyylit.Kortti, ...korttiDynaaminenTyyli }}>
+                  
+                  {/* JOUKKUEEN PÄÄRIVI */}
+                  <div onClick={() => toggleJoukkue(joukkueAlkio.joukkue)} style={tyylit.JoukkueRivi}>
+                    <span style={{ ...tyylit.SijoitusPallo, ...sijoitusDynaaminenTyyli }}>
+                      {joukkueAlkio.sijoitus}
+                    </span>
+                    <div style={tyylit.TekstiAlue}>
+                      <span style={tyylit.JoukkueNimi}>
+                        {joukkueAlkio.joukkue} <span style={tyylit.NuoliIcon}>{onAuki ? '▼' : '▶'}</span>
+                      </span>
+                      <span style={tyylit.JasenetLista}>{jasenetTeksti}</span>
+                    </div>
+                    <span style={tyylit.Pisteet}>{joukkueAlkio.kokonaistulos}</span>
                   </div>
                   
-                  {/* HAITARIOSIO: ERÄTULOKSET */}
+                  {/* HAITARIOSIO (ERÄTAULUKOT) */}
                   {onAuki && (
-                    <div style={tyylit.ampujatSektio}>
+                    <div style={tyylit.AmpujatSektio}>
                       
-                      {/* Joukkueen eräkohtaiset yhteistulokset */}
-                      {joukkueAlkio.erat.length > 0 && (
-                        <div style={tyylit.joukkueEratPalkki}>
-                          <div style={{ fontWeight: 'bold', marginBottom: '3px', fontSize: '0.85em', color: '#555' }}>JOUKKUEEN ERÄPISTEET:</div>
-                          <div style={tyylit.eraRulla}>
-                            {joukkueAlkio.erat.map(e => (
-                              <span key={e.numero} style={tyylit.eraPalloJoukkue}>
-                                {e.numero}:<strong>{e.pisteet}</strong>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {/* JOUKKUEEN ERÄPÖYTÄKIRJA */}
+                      <div style={tyylit.OsioLaatikko}>
+                        <div style={tyylit.SektioOtsikko}>Joukkueen yhteispisteet erittäin</div>
+                        {renderöiEräTaulukko(joukkueAlkio.erat)}
+                      </div>
 
-                      {/* Ampujat riveittäin erätuloksineen */}
-                      {joukkueAlkio.ampujat.map((ampuja, aIndeksi) => (
-                        <div key={aIndeksi} style={tyylit.ampujaKortti}>
-                          <div style={tyylit.ampujaPerustiedot}>
-                            <span style={tyylit.ampujaNimi}>• {ampuja.nimi}</span>
-                            <span style={tyylit.ampujaYhteensa}>{ampuja.kokonaistulos}</span>
+                      {/* AMPUJIEN ERÄPÖYTÄKIRJAT */}
+                      <div style={{ marginTop: '15px' }}>
+                        <div style={tyylit.SektioOtsikko}>Ampujakohtaiset tulokset</div>
+                        {joukkueAlkio.ampujat.map((ampuja, aIndeksi) => (
+                          <div key={aIndeksi} style={tyylit.AmpujaRiviLaatikko}>
+                            <div style={tyylit.AmpujaYlaosa}>
+                              <span style={tyylit.AmpujaNimi}>• {ampuja.nimi}</span>
+                              <span style={tyylit.AmpujaYhteensa}>Yht: {ampuja.kokonaistulos}</span>
+                            </div>
+                            {renderöiEräTaulukko(ampuja.erat)}
                           </div>
-                          
-                          <div style={tyylit.eraRulla}>
-                            {ampuja.erat.map(e => (
-                              <span key={e.numero} style={tyylit.eraPalloAmpuja}>
-                                {e.pisteet}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+
                     </div>
                   )}
 
@@ -171,28 +179,35 @@ export default function JoukkueTulokset({ data }) {
   );
 }
 
-const tyylit = { 
-  SarjaOtsikko: { fontSize: '1.2em', borderBottom: '2px solid #000', paddingBottom: '4px', maxWidth: '600px', marginBottom: '15px', fontWeight: 'bold', marginTop: '20px' }, 
-  lista: { display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '600px' }, 
-  kortti: { border: '1px solid', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }, 
+// --- TYYLIT KOMPAKTILLE JA SELKEÄLLE ERÄTAULUKOLLE ---
+const tyylit = {
+  SivuSäiliö: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: '#222' },
+  Lataus: { fontFamily: 'sans-serif', padding: '20px', color: '#666' },
+  SarjaOtsikko: { fontSize: '1.3em', fontWeight: '700', borderBottom: '1px solid #e5e7eb', paddingBottom: '8px', maxWidth: '600px', marginBottom: '16px', color: '#111827' }, 
+  Lista: { display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '600px' }, 
+  Kortti: { background: '#ffffff', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', overflow: 'hidden' }, 
+  JoukkueRivi: { display: 'flex', alignItems: 'center', padding: '12px 14px', cursor: 'pointer', userSelect: 'none', gap: '14px' }, 
+  SijoitusPallo: { width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.9em', flexShrink: 0 },
+  TekstiAlue: { flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }, 
+  JoukkueNimi: { fontSize: '1.1em', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '6px' }, 
+  NuoliIcon: { fontSize: '0.7em', color: '#9ca3af' },
+  JasenetLista: { fontSize: '0.85em', color: '#4b5563' }, 
+  Pisteet: { width: '65px', textAlign: 'right', fontSize: '1.3em', fontWeight: '700', fontFamily: 'monospace' }, 
   
-  // Päivitetty riviasettelu flex-suunnalle allekkain teksteille
-  joukkueRivi: { display: 'flex', alignItems: 'center', color: teema.tekstiVaalea, padding: '8px 10px', fontWeight: 'bold', cursor: 'pointer', userSelect: 'none' }, 
-  sijoitus: { width: '40px', fontSize: '1.1em' }, 
-  joukkueTekstiAlue: { flex: 1, display: 'flex', flexDirection: 'column', gap: '1px' },
-  nimi: { fontSize: '1.1em', lineHeight: '1.2' }, 
+  // Avautuvan osion taustat ja asettelu
+  AmpujatSektio: { padding: '14px', background: '#f9fafb', borderTop: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: '12px' }, 
+  OsioLaatikko: { background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #e5e7eb' },
+  AmpujaRiviLaatikko: { background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #e5e7eb', marginBottom: '8px' },
+  AmpujaYlaosa: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' },
+  AmpujaNimi: { fontWeight: '600', color: '#374151', fontSize: '0.95em' },
+  AmpujaYhteensa: { fontWeight: '700', color: '#111827', fontSize: '0.95em', fontFamily: 'monospace' },
+  SektioOtsikko: { fontWeight: '600', marginBottom: '6px', fontSize: '0.75em', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' },
   
-  // Tyyli suoralle nimilistalle päänäkymässä
-  jasenetLista: { fontSize: '0.78em', fontWeight: 'normal', opacity: 0.95, color: 'rgba(255, 255, 255, 0.9)', letterSpacing: '0.3px' },
-  
-  pisteet: { width: '60px', textAlign: 'right', fontSize: '1.3em', fontWeight: 'bold' }, 
-  ampujatSektio: { padding: '10px', background: '#fcfcfc', borderTop: '1px solid #eee' }, 
-  joukkueEratPalkki: { marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #eee' },
-  ampujaKortti: { marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px dashed #eee' },
-  ampujaPerustiedot: { display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '0.95em', marginBottom: '4px' },
-  ampujaNimi: { color: '#222' },
-  ampujaYhteensa: { color: teema.tekstiTumma },
-  eraRulla: { display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '2px' },
-  eraPalloJoukkue: { background: '#e1ecf4', color: '#1a4a75', padding: '2px 5px', fontSize: '0.75em', borderRadius: '3px', border: '1px solid #b3d4fc' },
-  eraPalloAmpuja: { background: '#f0f0f0', color: '#333', minWidth: '18px', textAlign: 'center', padding: '2px 4px', fontSize: '0.8em', borderRadius: '2px' }
+  // --- UUDET TAULUKKOTYYLIT RUUDUKOLLE ---
+  TaulukkoSäiliö: { display: 'flex', flexDirection: 'column', gap: '6px', overflowX: 'auto' },
+  Taulukko: { width: '100%', borderCollapse: 'collapse', marginTop: '2px', fontSize: '0.8em', fontFamily: 'monospace' },
+  OtsikkoSolu: { background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', padding: '3px 2px', textAlign: 'center', fontWeight: '600', minWidth: '22px' },
+  OtsikkoSoluMuted: { background: '#e5e7eb', color: '#4b5563', border: '1px solid #e5e7eb', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold', width: '32px' },
+  DataSolu: { border: '1px solid #e5e7eb', padding: '3px 2px', textAlign: 'center', color: '#111827', background: '#fff' },
+  DataSoluMuted: { background: '#f9fafb', color: '#6b7280', border: '1px solid #e5e7eb', padding: '3px 4px', textAlign: 'center', fontSize: '0.8em' }
 };
