@@ -20,7 +20,6 @@ export default function App() {
   const [virhe, setVirhe] = useState(null);
 
   const avaaKisaNakyma = (kisa) => {
-    // Asetetaan oletussivu alustavasti tyhjäksi, oikea sivu päätetään statuksen mukaan alempana
     setAktiivinenSivu('tulokset');
     setValittuKisa(kisa);
     window.history.pushState(
@@ -79,6 +78,20 @@ export default function App() {
     const osat = pvmStr.split('-');
     if (osat.length !== 3) return pvmStr;
     return `${parseInt(osat[2], 10)}.${parseInt(osat[1], 10)}.${osat[0]}`;
+  };
+
+  // Tutkii onko nykyhetki ylittänyt kisan aloituspäivän klo 10:00 rajapyykin
+  const laskeOnkoIlmoittautuminenPaattynyt = (alkuStr) => {
+    if (!alkuStr) return true;
+    const aloitusPaiva = parsiPaivamaara(alkuStr);
+    if (!aloitusPaiva) return true;
+
+    // Asetetaan takarajaksi aloituspäivä klo 10:00:00
+    const takaraja = new Date(aloitusPaiva.getTime());
+    takaraja.setHours(10, 0, 0, 0);
+
+    const nykyhetki = new Date();
+    return nykyhetki >= takaraja;
   };
 
   // 1. HAETAAN KILPAILUREKISTERI
@@ -309,16 +322,19 @@ export default function App() {
   
   const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
   const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
+  const onkoIlmoittautuminenAikaIkkunaOhi = laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm);
 
   // SÄÄNNÖT ERI SIVUJEN NÄKYVYYDELLE
-  const onkoTuloksetSallittu = !onkoKisaTulossa; // Vain kun 'kaynnissa' tai 'paattynyt'
-  const onkoIlmoittautuneita = !onkoKisaPaattynyt && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
+  const onkoTuloksetSallittu = !onkoKisaTulossa; 
+  const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
   const onkoEraluetteloa = !onkoKisaPaattynyt;
   const onkoJoukkueKisa = !onkoKisaTulossa && hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
 
-  // Pakotetaan oikeat välilehdet jos tila muuttuu tai avataan suoraan tiettyyn tilaan
+  // Estetään käyttäjää jäämästä loukkuun piilotetulle välilehdelle
   if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'erakirjaus') {
-    setAktiivinenSivu('ilmoittautuneet');
+    setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : 'erakirjaus');
+  } else if (!onkoIlmoittautuneita && aktiivinenSivu === 'ilmoittautuneet') {
+    setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
   } else if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && aktiivinenSivu !== 'joukkueet') {
     setAktiivinenSivu('tulokset');
   }
