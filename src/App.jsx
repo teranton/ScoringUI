@@ -19,6 +19,27 @@ export default function App() {
   const [ladataanKisaa, setLadataanKisaa] = useState(false);
   const [virhe, setVirhe] = useState(null);
 
+  const avaaKisaNakyma = (kisa) => {
+    setAktiivinenSivu('tulokset');
+    setValittuKisa(kisa);
+    window.history.pushState(
+      { view: 'competition', competitionId: kisa.id },
+      '',
+      `${window.location.pathname}${window.location.search}#kisa-${kisa.id}`
+    );
+  };
+
+  const palaaEtusivulle = () => {
+    if (window.history.state?.view === 'competition') {
+      window.history.back();
+      return;
+    }
+
+    setValittuKisa(null);
+    setAktiivinenSivu('tulokset');
+    window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
+  };
+
   const parsiPaivamaara = (pvmStr) => {
     if (!pvmStr) return null;
     const osat = pvmStr.split('.');
@@ -117,6 +138,21 @@ export default function App() {
     haeKisalistaCsv();
   }, []);
 
+  useEffect(() => {
+    // Alustetaan appin etusivutila selaimen historiassa.
+    if (!window.history.state?.view) {
+      window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
+    }
+
+    const kasitteleSelaimenTakaisin = () => {
+      setValittuKisa(null);
+      setAktiivinenSivu('tulokset');
+    };
+
+    window.addEventListener('popstate', kasitteleSelaimenTakaisin);
+    return () => window.removeEventListener('popstate', kasitteleSelaimenTakaisin);
+  }, []);
+
   // 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
   // 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
   useEffect(() => {
@@ -158,8 +194,14 @@ export default function App() {
           haeCsv(urlIlmoittautuneet)
         ]);
 
-        // Valitaan se data, joka palautti oikeasti rivejä (otsikkorivin lisäksi)
-        const parhainHenkiloData = hasCsvDataRows(resTuloksetY, 2) ? resTuloksetY : resTuloksetYleinen;
+        // Valitaan vain sellainen henkilodata, jossa on oikeasti dataa.
+        const onkoTuloksetYDataa = hasCsvDataRows(resTuloksetY, 2);
+        const onkoTuloksetYleinenDataa = hasCsvDataRows(resTuloksetYleinen, 2);
+        const parhainHenkiloData = onkoTuloksetYDataa
+          ? resTuloksetY
+          : onkoTuloksetYleinenDataa
+            ? resTuloksetYleinen
+            : "";
 
         setKisaCache(prevCache => ({
           ...prevCache,
@@ -247,8 +289,7 @@ export default function App() {
                 key={kisa.id} 
                 onClick={() => {
                   if (!kisa.apiUrl) return;
-                  setAktiivinenSivu('tulokset');
-                  setValittuKisa(kisa);
+                  avaaKisaNakyma(kisa);
                 }} 
                 style={tyylit.UusiKisaKortti}
               >
@@ -277,7 +318,7 @@ export default function App() {
   return (
     <div style={tyylit.KokoSivu}>
       <header style={tyylit.Ylapalkki}>
-        <button onClick={() => setValittuKisa(null)} style={tyylit.TakaisinNappi}>⬅️ ETUSIVU</button>
+        <button onClick={palaaEtusivulle} style={tyylit.TakaisinNappi}>⬅️ ETUSIVU</button>
         <h1 style={tyylit.KisanOtsikko}>
           {valittuKisa.nimi} {ladataanKisaa && "🔄"}
         </h1>
