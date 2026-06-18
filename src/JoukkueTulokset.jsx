@@ -6,6 +6,19 @@ import { parseCsvRows } from './utils/csv';
 export default function JoukkueTulokset({ data }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
 
+  const onkoAliTulosPuuttuu = (arvo) => {
+    const teksti = String(arvo ?? '').trim().toUpperCase();
+    return teksti === '' || teksti === '-' || teksti === '—' || teksti === 'N/A';
+  };
+
+  const onkoJoukkueValmis = (joukkue) => {
+    if (!joukkue.ampujat || joukkue.ampujat.length === 0) return false;
+
+    return joukkue.ampujat.every((ampuja) =>
+      Object.values(ampuja.erat || {}).every((tulos) => !onkoAliTulosPuuttuu(tulos))
+    );
+  };
+
   if (!data || !data.joukkueetCsvRaw) {
     return <div style={tyylit.Lataus}>Ladataan tulosdataa...</div>;
   }
@@ -117,6 +130,7 @@ export default function JoukkueTulokset({ data }) {
               const sarjaSijoitus = indeksi + 1; 
               const mitaliVari = mitaliVarit[sarjaSijoitus];
               const onAuki = !!avatutJoukkueet[joukkueAlkio.joukkue];
+              const joukkueValmis = onkoJoukkueValmis(joukkueAlkio);
               const jasenetTeksti = joukkueAlkio.ampujat.map(a => a.nimi).join(', ');
 
               const korttiDynaaminenTyyli = {
@@ -140,6 +154,13 @@ export default function JoukkueTulokset({ data }) {
                     <div style={tyylit.TekstiAlue}>
                       <span style={tyylit.JoukkueNimi}>
                         {joukkueAlkio.joukkue} <span style={tyylit.NuoliIcon}>{onAuki ? '▼' : '▶'}</span>
+                        <span
+                          style={{
+                            ...tyylit.ValmiusPiste,
+                            background: joukkueValmis ? '#16a34a' : '#dc2626'
+                          }}
+                          title={joukkueValmis ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
+                        />
                       </span>
                       <span style={tyylit.JasenetLista}>{jasenetTeksti}</span>
                     </div>
@@ -194,6 +215,7 @@ const tyylit = {
   SijoitusPallo: { width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.9em', flexShrink: 0 },
   TekstiAlue: { flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }, 
   JoukkueNimi: { fontSize: '1.1em', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '6px' }, 
+  ValmiusPiste: { width: '9px', height: '9px', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' },
   NuoliIcon: { fontSize: '0.7em', color: '#9ca3af' },
   JasenetLista: { fontSize: '0.85em', color: '#4b5563' }, 
   Pisteet: { width: '65px', textAlign: 'right', fontSize: '1.3em', fontWeight: '700', fontFamily: 'monospace' }, 
