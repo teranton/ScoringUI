@@ -20,6 +20,7 @@ export default function App() {
   const [virhe, setVirhe] = useState(null);
 
   const avaaKisaNakyma = (kisa) => {
+    // Asetetaan oletussivu alustavasti tyhjäksi, oikea sivu päätetään statuksen mukaan alempana
     setAktiivinenSivu('tulokset');
     setValittuKisa(kisa);
     window.history.pushState(
@@ -73,7 +74,6 @@ export default function App() {
     return date;
   };
 
-  // Muuttaa "2025-08-31" muotoon "31.8.2025"
   const muotoileIsoPaivamaaraSuomeksi = (pvmStr) => {
     if (!pvmStr || !pvmStr.includes('-')) return pvmStr;
     const osat = pvmStr.split('-');
@@ -81,7 +81,7 @@ export default function App() {
     return `${parseInt(osat[2], 10)}.${parseInt(osat[1], 10)}.${osat[0]}`;
   };
 
-  // 1. HAETAAN KILPAILUREKISTERI JA JÄRJESTETÄÄN VANHIMMASTA UUSIMPAAN
+  // 1. HAETAAN KILPAILUREKISTERI
   useEffect(() => {
     async function haeKisalistaCsv() {
       try {
@@ -116,7 +116,6 @@ export default function App() {
           }
         }
 
-        // KRONOLOGINEN JÄRJESTYS
         parsitutKisat.sort((a, b) => {
           const kaannaDate = (pvmStr) => {
             if (!pvmStr) return '9999-12-31';
@@ -131,7 +130,7 @@ export default function App() {
         console.error("Virhe kilpailurekisterin haussa:", error);
         setVirhe("Kilpailurekisterin lataus epäonnistui.");
       } finally {
-        setLadataanKisalista(false); // ✅ KORJATTU TÄMÄ RIVI (lisätty sulut)
+        setLadataanKisalista(false);
       }
     }
     
@@ -139,7 +138,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Alustetaan appin etusivutila selaimen historiassa.
     if (!window.history.state?.view) {
       window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
     }
@@ -305,18 +303,23 @@ export default function App() {
     );
   }
 
-  // --- NÄKYMÄ 2: VALITUN KISAN TULOKSET ---
+  // --- NÄKYMÄ 2: VALITUN KISAN NÄKYMÄ ---
   const nykyisenKisanData = kisaCache[valittuKisa.apiUrl];
   const kisanStatusInfo = laskeKisanStatusJaTyyli(valittuKisa.alkuPvm, valittuKisa.loppuPvm);
+  
+  const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
   const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
 
-  // Määritetään näkyvyydet kisan statuksen perusteella
+  // SÄÄNNÖT ERI SIVUJEN NÄKYVYYDELLE
+  const onkoTuloksetSallittu = !onkoKisaTulossa; // Vain kun 'kaynnissa' tai 'paattynyt'
   const onkoIlmoittautuneita = !onkoKisaPaattynyt && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
   const onkoEraluetteloa = !onkoKisaPaattynyt;
-  const onkoJoukkueKisa = hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
+  const onkoJoukkueKisa = !onkoKisaTulossa && hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
 
-  // Varmistetaan, ettei päättyneissä kisoissa voida jäädä loukkuun piilotetuille sivuille
-  if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && aktiivinenSivu !== 'joukkueet') {
+  // Pakotetaan oikeat välilehdet jos tila muuttuu tai avataan suoraan tiettyyn tilaan
+  if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'erakirjaus') {
+    setAktiivinenSivu('ilmoittautuneet');
+  } else if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && aktiivinenSivu !== 'joukkueet') {
     setAktiivinenSivu('tulokset');
   }
 
@@ -334,7 +337,9 @@ export default function App() {
       </header>
 
       <nav style={tyylit.NaviPalkki}>
-        <button onClick={() => setAktiivinenSivu('tulokset')} style={aktiivinenSivu === 'tulokset' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>🏆 TULOKSET</button>
+        {onkoTuloksetSallittu && (
+          <button onClick={() => setAktiivinenSivu('tulokset')} style={aktiivinenSivu === 'tulokset' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>🏆 TULOKSET</button>
+        )}
         
         {onkoIlmoittautuneita && (
           <button onClick={() => setAktiivinenSivu('ilmoittautuneet')} style={aktiivinenSivu === 'ilmoittautuneet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>📝 ILMOITTAUTUNEET</button>
@@ -350,17 +355,15 @@ export default function App() {
       </nav>
 
       {ladataanKisaa && !nykyisenKisanData ? (
-        <div style={{ fontFamily: 'sans-serif', padding: '10px' }}>Haetaan tuloksia...</div>
+        <div style={{ fontFamily: 'sans-serif', padding: '10px' }}>Haetaan tietoja...</div>
       ) : (
         <main style={tyylit.SisaltoAlue}>
-          {aktiivinenSivu === 'tulokset' && nykyisenKisanData && (
+          {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (
             <HenkiloTulokset rawCsv={nykyisenKisanData.henkilotCsvRaw} />
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} />
           )}
-          
-          {/* Suojattu näkyvyys: renderöidään vain jos sivu on aktiivinen JA kisa EI ole päättynyt */}
           {aktiivinenSivu === 'erakirjaus' && onkoEraluetteloa && (
             <div style={{ display: 'block' }}>
               <RyhmaJako data={nykyisenKisanData} />
