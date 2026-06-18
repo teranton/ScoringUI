@@ -13,7 +13,6 @@ export default function HenkiloTulokset({ rawCsv }) {
   const rivit = useMemo(() => parseCsvRows(rawCsv), [rawCsv]);
   if (rivit.length < 2) return <div style={tyylit.Viesti}>Ei tulosdataa.</div>;
 
-  // 1. ETSITÄÄN OTSIKOIDEN PAIKAT
   const otsikot = rivit[0].map((o) => String(o || '').toUpperCase());
   
   const idxNimi = otsikot.indexOf('NIMI');
@@ -38,7 +37,6 @@ export default function HenkiloTulokset({ rawCsv }) {
     const parsedAmpujat = [];
     const sarjatSet = new Set();
 
-    // 2. PARSITAAN RIVIT TAULUKKOON
     for (let i = 1; i < rivit.length; i++) {
       const row = rivit[i];
       if (!row[idxNimi]) continue;
@@ -54,7 +52,7 @@ export default function HenkiloTulokset({ rawCsv }) {
       });
 
       const ampuja = {
-        id: `${row[idxNimi] || ''}|${idxSarja !== -1 ? row[idxSarja] || '' : 'Y'}|${i}`,
+        id: `${row[idxNimi] || 'ampuja'}|${idxSarja !== -1 ? row[idxSarja] || 'Y' : 'Y'}|${i}`,
         alkuperainenSija: row[idxSija] || i.toString(),
         nimi: row[idxNimi],
         sarja: idxSarja !== -1 ? row[idxSarja] : "Y",
@@ -73,7 +71,6 @@ export default function HenkiloTulokset({ rawCsv }) {
     return { ampujat: parsedAmpujat, loydetytSarjat: sarjatSet };
   }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, otsikot, rivit]);
 
-  // 3. SUODATUS JA JÄRJESTYS
   const naytettavatAmpujat = useMemo(() => {
     if (sarjaSuodatin === 'KAIKKI') {
       return ampujat.map((a) => ({
@@ -103,26 +100,26 @@ export default function HenkiloTulokset({ rawCsv }) {
         const edellinen = array[index - 1];
         const edellinenTulos = parseInt(edellinen.tulos, 10) || 0;
         const edellinenRatko = parseInt(edellinen.ratko, 10) || 0;
-
         if (edellinenTulos === tulosNum && edellinenRatko === ratkoNum) {
           sija = parseInt(edellinen.laskettuSija || `${index}`, 10) || index;
         }
       }
-
       return { ...ampuja, laskettuSija: sija.toString() };
     });
   }, [ampujat, sarjaSuodatin]);
 
-  const haeMitaliTyyli = (sijaStr) => {
-    switch (sijaStr) {
-      case "1": return { color: '#d4af37', emoji: '🥇 ' };
-      case "2": return { color: '#7f8c8d', emoji: '🥈 ' };
-      case "3": return { color: '#cd7f32', emoji: '🥉 ' };
-      default: return { color: '#5f6368', emoji: '' };
-    }
+  const haeSijoitusRivinTausta = (sijaStr, onAuki, index) => {
+    if (onAuki) return '#f1f3f4';
+
+    const sija = parseInt(sijaStr, 10);
+    if (sija === 1) return '#d4af37';
+    if (sija === 2) return '#aaa9ad';
+    if (sija === 3) return '#b0722a';
+
+    return index % 2 === 0 ? '#ffffff' : '#f8f9fa';
   };
 
-  const taulukonSarakkeet = 5 + (idxLa !== -1 ? 1 : 0) + (idxSu !== -1 ? 1 : 0);
+  const sarakeMaara = 5 + (idxLa !== -1 ? 1 : 0) + (idxSu !== -1 ? 1 : 0);
 
   return (
     <div style={tyylit.Alue}>
@@ -134,23 +131,22 @@ export default function HenkiloTulokset({ rawCsv }) {
         ))}
       </div>
 
-      {/* TIIVIS TULOSTAULUKKO NEUTRAALEILLA VÄREILLÄ */}
+      {/* TAULUKKO-SÄILIÖ JOKA ESTÄÄ SIVUVUODON */}
       <div style={tyylit.TaulukkoSäiliö}>
         <table style={tyylit.Taulukko}>
           <thead>
             <tr style={tyylit.OtsikkoRivi}>
-              <th style={{ ...tyylit.Th, width: '40px', textAlign: 'center' }}>#</th>
-              <th style={tyylit.Th}>Nimi</th>
+              <th style={{ ...tyylit.Th, ...tyylit.SijaSarake, textAlign: 'center' }}>#</th>
+              <th style={{ ...tyylit.Th, textAlign: 'left' }}>Nimi</th>
               <th style={tyylit.Th}>Sarja</th>
               <th style={tyylit.Th}>Seura</th>
-              {idxLa !== -1 && <th style={{ ...tyylit.Th, textAlign: 'center' }}>LA</th>}
-              {idxSu !== -1 && <th style={{ ...tyylit.Th, textAlign: 'center' }}>SU</th>}
-              <th style={{ ...tyylit.Th, textAlign: 'right', paddingRight: '16px' }}>Yht.</th>
+              {idxLa !== -1 && <th style={{ ...tyylit.Th, ...tyylit.SuppeaSarake, textAlign: 'center' }}>LA</th>}
+              {idxSu !== -1 && <th style={{ ...tyylit.Th, ...tyylit.SuppeaSarake, textAlign: 'center' }}>SU</th>}
+              <th style={{ ...tyylit.Th, ...tyylit.YhteensaSarake, textAlign: 'right', paddingRight: '12px' }}>Yht.</th>
             </tr>
           </thead>
           <tbody>
             {naytettavatAmpujat.map((ampuja, index) => {
-              const mitali = haeMitaliTyyli(ampuja.laskettuSija);
               const onAuki = valittuAmpujaId === ampuja.id;
 
               return (
@@ -158,30 +154,34 @@ export default function HenkiloTulokset({ rawCsv }) {
                   <tr 
                     style={{
                       ...tyylit.DataRivi,
-                      background: onAuki ? '#f1f3f4' : (index % 2 === 0 ? '#ffffff' : '#f8f9fa')
+                      background: haeSijoitusRivinTausta(ampuja.laskettuSija, onAuki, index)
                     }}
                     onClick={() => setValittuAmpujaId(onAuki ? null : ampuja.id)}
                   >
-                    <td style={{ ...tyylit.Td, textAlign: 'center', color: mitali.color, fontWeight: '700' }}>
+                    <td style={{ ...tyylit.Td, ...tyylit.SijaSarake, textAlign: 'center', fontWeight: '700', color: '#3c4043' }}>
                       {ampuja.laskettuSija}
                     </td>
-                    <td style={{ ...tyylit.Td, fontWeight: '600', color: '#202124' }}>
-                      {mitali.emoji}{ampuja.nimi}
+                    
+                    <td style={{ ...tyylit.Td, ...tyylit.NimiSolu }}>
+                      {ampuja.nimi}
                       {ampuja.ratko && <span style={tyylit.RatkoBadge}>({ampuja.ratko})</span>}
                     </td>
+
                     <td style={tyylit.Td}><span style={tyylit.SarjaTag}>{ampuja.sarja}</span></td>
                     <td style={{ ...tyylit.Td, color: '#5f6368' }}>{ampuja.seura || '—'}</td>
-                    {idxLa !== -1 && <td style={{ ...tyylit.Td, textAlign: 'center', color: '#5f6368' }}>{ampuja.la || '—'}</td>}
-                    {idxSu !== -1 && <td style={{ ...tyylit.Td, textAlign: 'center', color: '#5f6368' }}>{ampuja.su || '—'}</td>}
-                    {/* Tulosnumero on nyt voimakkaan tumma grafiitti, ei sininen */}
-                    <td style={{ ...tyylit.Td, textAlign: 'right', fontWeight: '900', color: '#1a1f2c', paddingRight: '16px', fontSize: '1.15em' }}>
+                    
+                    {idxLa !== -1 && <td style={{ ...tyylit.Td, ...tyylit.SuppeaSarake, textAlign: 'center', color: '#5f6368' }}>{ampuja.la || '—'}</td>}
+                    {idxSu !== -1 && <td style={{ ...tyylit.Td, ...tyylit.SuppeaSarake, textAlign: 'center', color: '#5f6368' }}>{ampuja.su || '—'}</td>}
+                    
+                    <td style={{ ...tyylit.Td, ...tyylit.YhteensaSarake, textAlign: 'right', fontWeight: '900', color: '#1a1f2c', paddingRight: '12px', fontSize: '1.1em' }}>
                       {ampuja.tulos}
                     </td>
                   </tr>
 
+                  {/* ISTUNNON/ERÄN TARKEMMAT TIEDOT (KLIKKAUSLAAJENNUS) */}
                   {onAuki && ampuja.sarjat.length > 0 && (
                     <tr>
-                      <td colSpan={taulukonSarakkeet} style={tyylit.LaajennusSolu}>
+                      <td colSpan={sarakeMaara} style={tyylit.LaajennusSolu}>
                         <div style={tyylit.SarjaRuudukko}>
                           {ampuja.sarjat.map((s, sIdx) => (
                             <div key={`${ampuja.id}-${s.numero}-${sIdx}`} style={tyylit.SarjaSolu}>
@@ -204,26 +204,29 @@ export default function HenkiloTulokset({ rawCsv }) {
 }
 
 const tyylit = {
-  Alue: { width: '100%' },
-  Viesti: { padding: '30px 20px', color: '#5f6368', textAlign: 'center', fontFamily: 'sans-serif' },
-  SuodatinPalkki: { display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 2px 14px 2px', marginBottom: '8px', scrollbarWidth: 'none' },
-  SuodatinNappi: { background: '#f1f3f4', border: 'none', padding: '8px 16px', borderRadius: '20px', fontSize: '0.85em', fontWeight: '600', color: '#3c4043', cursor: 'pointer', whiteSpace: 'nowrap' },
-  SuodatinNappiAktiivinen: { background: '#202124', border: 'none', padding: '8px 16px', borderRadius: '20px', fontSize: '0.85em', fontWeight: '600', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' },
+  Alue: { width: '100%', boxSizing: 'border-box' },
+  Viesti: { padding: '20px', color: '#5f6368', textAlign: 'center', fontFamily: 'sans-serif' },
+  SuodatinPalkki: { display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 2px 10px 2px', marginBottom: '4px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' },
+  SuodatinNappi: { background: '#f1f3f4', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#3c4043', cursor: 'pointer' },
+  SuodatinNappiAktiivinen: { background: '#202124', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#fff', cursor: 'pointer' },
   
-  TaulukkoSäiliö: { width: '100%', overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid #e8eaed', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' },
-  Taulukko: { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', fontSize: '0.9em' },
-  OtsikkoRivi: { background: '#f8f9fa', borderBottom: '2px solid #e8eaed' },
-  Th: { padding: '12px 10px', fontWeight: '700', color: '#5f6368', fontSize: '0.85em', textTransform: 'uppercase', letterSpacing: '0.02em' },
-  DataRivi: { borderBottom: '1px solid #f1f3f4', cursor: 'pointer', transition: 'background 0.1s ease' },
-  Td: { padding: '10px 10px', verticalAlign: 'middle' },
-  
-  // Sarjatagi muutettu siistiksi harmaaksi sinisen sijaan
+  // Taulukko pysyy ruudun sisalla, mutta sallii vaakavierityksen jos sarakkeita on paljon.
+  TaulukkoSäiliö: { width: '100%', maxWidth: '100%', overflowX: 'auto', background: '#ffffff', borderRadius: '8px', border: '1px solid #e8eaed' },
+  Taulukko: { width: '100%', tableLayout: 'auto', borderCollapse: 'collapse', fontFamily: '-apple-system, sans-serif', fontSize: '0.85em' },
+  OtsikkoRivi: { background: '#f8f9fa', borderBottom: '1px solid #e8eaed' },
+  Th: { padding: '10px 6px', fontWeight: '700', color: '#5f6368', fontSize: '0.8em', textTransform: 'uppercase', textAlign: 'left' },
+  DataRivi: { borderBottom: '1px solid #f1f3f4', cursor: 'pointer' },
+  Td: { padding: '10px 6px', verticalAlign: 'middle', textAlign: 'left' },
+  SijaSarake: { width: '42px', minWidth: '42px' },
+  SuppeaSarake: { width: '54px', minWidth: '54px' },
+  YhteensaSarake: { width: '70px', minWidth: '70px' },
+  NimiSolu: { minWidth: '220px', fontWeight: '600', color: '#202124', whiteSpace: 'nowrap' },
+
   SarjaTag: { background: '#f1f3f4', color: '#3c4043', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '0.8em' },
-  RatkoBadge: { color: '#d93025', fontWeight: '700', marginLeft: '6px', fontSize: '0.85em' },
-  
-  LaajennusSolu: { background: '#f8f9fa', padding: '10px 16px', borderBottom: '1px solid #e8eaed' },
-  SarjaRuudukko: { display: 'flex', gap: '6px', flexWrap: 'wrap' },
-  SarjaSolu: { background: '#ffffff', border: '1px solid #dadce0', borderRadius: '6px', textAlign: 'center', minWidth: '42px', padding: '3px 6px' },
-  SarjaSoluNumero: { fontSize: '0.65em', color: '#70757a', fontWeight: '600' },
-  SarjaSoluArvo: { fontSize: '0.9em', fontWeight: '700', color: '#202124' }
+  RatkoBadge: { color: '#d93025', fontWeight: '700', marginLeft: '4px' },
+  LaajennusSolu: { background: '#f8f9fa', padding: '8px' },
+  SarjaRuudukko: { display: 'flex', gap: '4px', flexWrap: 'wrap' },
+  SarjaSolu: { background: '#ffffff', border: '1px solid #dadce0', borderRadius: '4px', textAlign: 'center', minWidth: '36px', padding: '2px 4px' },
+  SarjaSoluNumero: { fontSize: '0.6em', color: '#70757a' },
+  SarjaSoluArvo: { fontSize: '0.85em', fontWeight: '700', color: '#202124' }
 };
