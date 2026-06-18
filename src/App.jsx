@@ -237,8 +237,8 @@ export default function App() {
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
     if (!alku) return 'Päivämäärä ei tiedossa';
-    if (!loppu || alku === loppu) return `💿 ${alku}`;
-    return `💿 ${alku} – ${loppu}`;
+    if (!loppu || alku === loppu) return `📅 ${alku}`;
+    return `📅 ${alku} – ${loppu}`;
   };
 
   const laskeKisanStatusJaTyyli = (alkuStr, loppuStr) => {
