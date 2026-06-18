@@ -154,7 +154,6 @@ export default function App() {
   }, []);
 
   // 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
-  // 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
   useEffect(() => {
     if (!valittuKisa || !valittuKisa.apiUrl) return;
 
@@ -177,11 +176,9 @@ export default function App() {
 
     async function haeSuoratCsvData() {
       try {
-        // Haetaan kaksi yleisintä variaatiota henkilökohtaisille tuloksille
         const urlTuloksetY = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Tulokset Y')}`;
         const urlTuloksetYleinen = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Tulokset')}`;
         
-        // Muut tunnetut välilehdet
         const urlJoukkueet = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('NEW_Joukkue')}`;
         const urlErat = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Ryhmäjako')}`;
         const urlIlmoittautuneet = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Ilmoittautuneet')}`;
@@ -194,7 +191,6 @@ export default function App() {
           haeCsv(urlIlmoittautuneet)
         ]);
 
-        // Valitaan vain sellainen henkilodata, jossa on oikeasti dataa.
         const onkoTuloksetYDataa = hasCsvDataRows(resTuloksetY, 2);
         const onkoTuloksetYleinenDataa = hasCsvDataRows(resTuloksetYleinen, 2);
         const parhainHenkiloData = onkoTuloksetYDataa
@@ -248,7 +244,7 @@ export default function App() {
   };
 
   const laskeKisanStatusJaTyyli = (alkuStr, loppuStr) => {
-    if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' } };
+    if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
 
     const nollatunnit = (d) => { d.setHours(0,0,0,0); return d; };
 
@@ -257,12 +253,12 @@ export default function App() {
     const loppuDate = loppuStr ? parsiPaivamaara(loppuStr) : alkuDate;
 
     if (!alkuDate || !loppuDate) {
-      return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' } };
+      return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
     }
 
-    if (tanaandDate < alkuDate) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' } };
-    if (tanaandDate > loppuDate) return { teksti: "Päättynyt", tyyli: { background: '#f1f3f4', color: '#3c4043' } };
-    return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' } };
+    if (tanaandDate < alkuDate) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+    if (tanaandDate > loppuDate) return { teksti: "Päättynyt", tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
+    return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
   };
 
   if (ladataanKisalista) {
@@ -274,7 +270,6 @@ export default function App() {
     return (
       <div style={tyylit.KokoSivu}>
         <header style={tyylit.EtusivunOtsikkoAlue}>
-          {/* ✅ TIKKATAULU VAIHDETTU RIKKINÄISEEN SAVIKIEKKOON JA TEKSTI PÄIVITETTY */}
           <h1 style={tyylit.EtusivunOtsikko}>🎯 TT Tulospalvelu</h1>
           <p style={tyylit.EtusivunAliotsikko}>Tämänkin voi tehdä helpommin</p>
         </header>
@@ -312,8 +307,18 @@ export default function App() {
 
   // --- NÄKYMÄ 2: VALITUN KISAN TULOKSET ---
   const nykyisenKisanData = kisaCache[valittuKisa.apiUrl];
-  const onkoIlmoittautuneita = nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
+  const kisanStatusInfo = laskeKisanStatusJaTyyli(valittuKisa.alkuPvm, valittuKisa.loppuPvm);
+  const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
+
+  // Määritetään näkyvyydet kisan statuksen perusteella
+  const onkoIlmoittautuneita = !onkoKisaPaattynyt && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
+  const onkoEraluetteloa = !onkoKisaPaattynyt;
   const onkoJoukkueKisa = hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
+
+  // Varmistetaan, ettei päättyneissä kisoissa voida jäädä loukkuun piilotetuille sivuille
+  if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && aktiivinenSivu !== 'joukkueet') {
+    setAktiivinenSivu('tulokset');
+  }
 
   return (
     <div style={tyylit.KokoSivu}>
@@ -330,10 +335,15 @@ export default function App() {
 
       <nav style={tyylit.NaviPalkki}>
         <button onClick={() => setAktiivinenSivu('tulokset')} style={aktiivinenSivu === 'tulokset' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>🏆 TULOKSET</button>
+        
         {onkoIlmoittautuneita && (
           <button onClick={() => setAktiivinenSivu('ilmoittautuneet')} style={aktiivinenSivu === 'ilmoittautuneet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>📝 ILMOITTAUTUNEET</button>
         )}
-        <button onClick={() => setAktiivinenSivu('erakirjaus')} style={aktiivinenSivu === 'erakirjaus' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>⚙️ ERÄLUETTELO</button>
+        
+        {onkoEraluetteloa && (
+          <button onClick={() => setAktiivinenSivu('erakirjaus')} style={aktiivinenSivu === 'erakirjaus' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>⚙️ ERÄLUETTELO</button>
+        )}
+        
         {onkoJoukkueKisa && (
           <button onClick={() => setAktiivinenSivu('joukkueet')} style={aktiivinenSivu === 'joukkueet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>👥 JOUKKUETULOKSET</button>
         )}
@@ -349,12 +359,18 @@ export default function App() {
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} />
           )}
-          <div style={{ display: aktiivinenSivu === 'erakirjaus' ? 'block' : 'none' }}>
-            <RyhmaJako data={nykyisenKisanData} />
-          </div>
-          <div style={{ display: aktiivinenSivu === 'joukkueet' ? 'block' : 'none' }}>
-            <JoukkueTulokset data={nykyisenKisanData} />
-          </div>
+          
+          {/* Suojattu näkyvyys: renderöidään vain jos sivu on aktiivinen JA kisa EI ole päättynyt */}
+          {aktiivinenSivu === 'erakirjaus' && onkoEraluetteloa && (
+            <div style={{ display: 'block' }}>
+              <RyhmaJako data={nykyisenKisanData} />
+            </div>
+          )}
+          {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
+            <div style={{ display: 'block' }}>
+              <JoukkueTulokset data={nykyisenKisanData} />
+            </div>
+          )}
         </main>
       )}
     </div>
