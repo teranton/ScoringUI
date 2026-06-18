@@ -233,8 +233,8 @@ export default function App() {
       <div style={tyylit.KokoSivu}>
         <header style={tyylit.EtusivunOtsikkoAlue}>
           {/* ✅ TIKKATAULU VAIHDETTU RIKKINÄISEEN SAVIKIEKKOON JA TEKSTI PÄIVITETTY */}
-          <h1 style={tyylit.EtusivunOtsikko}>💥🎯 TT Tulospalvelu</h1>
-          <p style={tyylit.EtusivunAliotsikko}>Reaaliaikainen tulospalvelu ja eräluettelot</p>
+          <h1 style={tyylit.EtusivunOtsikko}>🎯 TT Tulospalvelu</h1>
+          <p style={tyylit.EtusivunAliotsikko}>Tämänkin voi tehdä helpommin</p>
         </header>
         
         {virhe && <div style={tyylit.VirheIlmoitus}>{virhe}</div>}
