@@ -1,49 +1,52 @@
 // src/Ilmoittautuneet.jsx
-import React from 'react';
+import React, { useMemo } from 'react';
+import { parseCsvRows } from './utils/csv';
 
 export default function Ilmoittautuneet({ rawCsv }) {
-  // Jos dataa ei ole tai välilehti on tyhjä, ei piirretä mitään
+  // Jos dataa ei ole tai valilehti on tyhja, ei piirreta mitaan.
   if (!rawCsv || rawCsv.trim().length < 10) return null;
 
-  const raakaRivit = rawCsv.split('\n');
-  const siivoaSolu = (solu) => (!solu ? "" : solu.replace(/^"|"$/g, '').trim());
+  const sarjat = useMemo(() => {
+    const raakaRivit = parseCsvRows(rawCsv);
+    const osallistujat = [];
 
-  const otsikot = raakaRivit[0].split(',').map(siivoaSolu);
-  const osallistujat = [];
+    for (let i = 1; i < raakaRivit.length; i++) {
+      const row = raakaRivit[i];
+      if (!row) continue;
 
-  for (let i = 1; i < raakaRivit.length; i++) {
-    if (!raakaRivit[i]) continue;
-    const row = raakaRivit[i].split(',').map(siivoaSolu);
-    
-    // Tarkistetaan että rivillä on nimen tynkää
-    if (!row[0] && !row[1]) continue;
+      // Tarkistetaan etta rivilla on nimen tynkaa.
+      if (!row[0] && !row[1]) continue;
 
-    osallistujat.push({
-      nimi: row[0] || "",
-      seura: row[1] || "",
-      sarja: row[2] || ""
+      osallistujat.push({
+        id: `${row[0] || 'osallistuja'}-${row[2] || 'sarja'}-${i}`,
+        nimi: row[0] || '',
+        seura: row[1] || '',
+        sarja: row[2] || ''
+      });
+    }
+
+    // Ryhmitellaan osallistujat sarjoittain luettavuuden vuoksi.
+    const ryhmitellytSarjat = {};
+    osallistujat.forEach((o) => {
+      if (!o.sarja) return;
+      if (!ryhmitellytSarjat[o.sarja]) ryhmitellytSarjat[o.sarja] = [];
+      ryhmitellytSarjat[o.sarja].push(o);
     });
-  }
 
-  // Ryhmitellään osallistujat sarjoittain luettavuuden vuoksi
-  const sarjat = {};
-  osallistujat.forEach(o => {
-    if (!o.sarja) return;
-    if (!sarjat[o.sarja]) sarjat[o.sarja] = [];
-    sarjat[o.sarja].push(o);
-  });
+    return ryhmitellytSarjat;
+  }, [rawCsv]);
 
   return (
     <div style={tyylit.Säiliö}>
       <h2 style={tyylit.PääOtsikko}>Ilmoittautuneet osallistujat</h2>
       <p style={tyylit.InfoTeksti}>Tämä lista poistuu näkyvistä automaattisesti, kun kilpailu alkaa.</p>
-      
-      {Object.keys(sarjat).map(sarja => (
+
+      {Object.keys(sarjat).map((sarja) => (
         <div key={sarja} style={tyylit.SarjaLohko}>
           <h3 style={tyylit.SarjaOtsikko}>Sarja {sarja} ({sarjat[sarja].length} ampujaa)</h3>
           <div style={tyylit.Lista}>
-            {sarjat[sarja].map((o, idx) => (
-              <div key={idx} style={tyylit.Rivi}>
+            {sarjat[sarja].map((o) => (
+              <div key={o.id} style={tyylit.Rivi}>
                 <span style={tyylit.Nimi}>{o.nimi}</span>
                 <span style={tyylit.Seura}>{o.seura}</span>
               </div>

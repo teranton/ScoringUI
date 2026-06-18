@@ -5,6 +5,7 @@ import JoukkueTulokset from './JoukkueTulokset';
 import RyhmaJako from './RyhmaJako';
 import Ilmoittautuneet from './Ilmoittautuneet'; 
 import { teema } from './teema';
+import { hasCsvDataRows, parseCsvRows } from './utils/csv';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
@@ -17,6 +18,39 @@ export default function App() {
   const [kisaCache, setKisaCache] = useState({}); 
   const [ladataanKisaa, setLadataanKisaa] = useState(false);
   const [virhe, setVirhe] = useState(null);
+
+  const parsiPaivamaara = (pvmStr) => {
+    if (!pvmStr) return null;
+    const osat = pvmStr.split('.');
+    if (osat.length !== 3) return null;
+
+    const paiva = parseInt(osat[0], 10);
+    const kuukausi = parseInt(osat[1], 10);
+    const vuosi = parseInt(osat[2], 10);
+
+    if (
+      !Number.isInteger(paiva) ||
+      !Number.isInteger(kuukausi) ||
+      !Number.isInteger(vuosi) ||
+      kuukausi < 1 ||
+      kuukausi > 12 ||
+      paiva < 1 ||
+      paiva > 31
+    ) {
+      return null;
+    }
+
+    const date = new Date(vuosi, kuukausi - 1, paiva);
+    if (
+      date.getFullYear() !== vuosi ||
+      date.getMonth() !== kuukausi - 1 ||
+      date.getDate() !== paiva
+    ) {
+      return null;
+    }
+
+    return date;
+  };
 
   // Muuttaa "2025-08-31" muotoon "31.8.2025"
   const muotoileIsoPaivamaaraSuomeksi = (pvmStr) => {
@@ -35,15 +69,16 @@ export default function App() {
         
         const url = `https://docs.google.com/spreadsheets/d/${REKISTERI_SHEET_ID}/gviz/tq?tqx=out:csv`;
         const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Kilpailurekisterin haku epäonnistui: ${response.status}`);
+        }
         const csvText = await response.text();
 
-        const raakaRivit = csvText.split(/\r?\n/).filter(r => r.trim() !== "");
-        const siivoaSolu = (solu) => (!solu ? "" : solu.replace(/^"|"$/g, '').trim());
+        const raakaRivit = parseCsvRows(csvText);
         const parsitutKisat = [];
 
         for (let i = 0; i < raakaRivit.length; i++) {
-          const riviTeksti = raakaRivit[i];
-          const row = riviTeksti.split(',').map(siivoaSolu);
+          const row = raakaRivit[i];
           
           if (i === 0 && (row[1]?.toLowerCase().includes('nimi') || row[0]?.toLowerCase().includes('id'))) {
             continue;
@@ -83,7 +118,7 @@ export default function App() {
   }, []);
 
   // 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
-// 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
+  // 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
   useEffect(() => {
     if (!valittuKisa || !valittuKisa.apiUrl) return;
 
@@ -93,6 +128,16 @@ export default function App() {
       setLadataanKisaa(true);
     }
     setVirhe(null);
+
+    const haeCsv = async (url) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return "";
+        return await response.text();
+      } catch {
+        return "";
+      }
+    };
 
     async function haeSuoratCsvData() {
       try {
@@ -106,18 +151,15 @@ export default function App() {
         const urlIlmoittautuneet = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Ilmoittautuneet')}`;
 
         const [resTuloksetY, resTuloksetYleinen, resJoukkueet, resErat, resIlmoittautuneet] = await Promise.all([
-          fetch(urlTuloksetY).then(r => r.text()).catch(() => ""),
-          fetch(urlTuloksetYleinen).then(r => r.text()).catch(() => ""),
-          fetch(urlJoukkueet).then(r => r.text()).catch(() => ""),
-          fetch(urlErat).then(r => r.text()).catch(() => ""),
-          fetch(urlIlmoittautuneet).then(r => r.text()).catch(() => "")
+          haeCsv(urlTuloksetY),
+          haeCsv(urlTuloksetYleinen),
+          haeCsv(urlJoukkueet),
+          haeCsv(urlErat),
+          haeCsv(urlIlmoittautuneet)
         ]);
 
         // Valitaan se data, joka palautti oikeasti rivejä (otsikkorivin lisäksi)
-        let parhainHenkiloData = resTuloksetY;
-        if (!resTuloksetY || resTuloksetY.toLowerCase().includes("error") || resTuloksetY.trim().split('\n').length < 2) {
-          parhainHenkiloData = resTuloksetYleinen;
-        }
+        const parhainHenkiloData = hasCsvDataRows(resTuloksetY, 2) ? resTuloksetY : resTuloksetYleinen;
 
         setKisaCache(prevCache => ({
           ...prevCache,
@@ -138,8 +180,23 @@ export default function App() {
     }
 
     haeSuoratCsvData();
-    const intervalli = setInterval(haeSuoratCsvData, 20000); 
-    return () => clearInterval(intervalli);
+    const kasitteleNakymattomyys = () => {
+      if (!document.hidden) {
+        haeSuoratCsvData();
+      }
+    };
+
+    const intervalli = setInterval(() => {
+      if (!document.hidden) {
+        haeSuoratCsvData();
+      }
+    }, 20000);
+
+    document.addEventListener('visibilitychange', kasitteleNakymattomyys);
+    return () => {
+      clearInterval(intervalli);
+      document.removeEventListener('visibilitychange', kasitteleNakymattomyys);
+    };
   }, [valittuKisa]);
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
@@ -150,15 +207,16 @@ export default function App() {
 
   const laskeKisanStatusJaTyyli = (alkuStr, loppuStr) => {
     if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' } };
-    const parsiPaivamaara = (pvmStr) => {
-      const osat = pvmStr.split('.');
-      return new Date(parseInt(osat[2]), parseInt(osat[1]) - 1, parseInt(osat[0]));
-    };
+
     const nollatunnit = (d) => { d.setHours(0,0,0,0); return d; };
 
     const tanaandDate = nollatunnit(new Date());
     const alkuDate = parsiPaivamaara(alkuStr);
     const loppuDate = loppuStr ? parsiPaivamaara(loppuStr) : alkuDate;
+
+    if (!alkuDate || !loppuDate) {
+      return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' } };
+    }
 
     if (tanaandDate < alkuDate) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' } };
     if (tanaandDate > loppuDate) return { teksti: "Päättynyt", tyyli: { background: '#f1f3f4', color: '#3c4043' } };
@@ -214,7 +272,7 @@ export default function App() {
   // --- NÄKYMÄ 2: VALITUN KISAN TULOKSET ---
   const nykyisenKisanData = kisaCache[valittuKisa.apiUrl];
   const onkoIlmoittautuneita = nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
-  const onkoJoukkueKisa = nykyisenKisanData?.joukkueetCsvRaw?.trim().split('\n').length > 2;
+  const onkoJoukkueKisa = hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
 
   return (
     <div style={tyylit.KokoSivu}>

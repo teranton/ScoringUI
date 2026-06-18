@@ -1,6 +1,7 @@
 // src/JoukkueTulokset.jsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { teema } from './teema';
+import { parseCsvRows } from './utils/csv';
 
 export default function JoukkueTulokset({ data }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
@@ -16,61 +17,64 @@ export default function JoukkueTulokset({ data }) {
     }));
   };
 
-  // 1. PARSITAAN GOOGLE-CSV
-  const raakaRivit = data.joukkueetCsvRaw.split('\n');
-  const siivoaSolu = (solu) => (!solu ? "" : solu.replace(/^"|"$/g, '').trim());
+  const { sarjat } = useMemo(() => {
+    // 1. PARSITAAN GOOGLE-CSV
+    const raakaRivit = parseCsvRows(data.joukkueetCsvRaw);
 
-  const kaikkiJoukkueet = [];
-  let currentTeam = null;
+    const parsedJoukkueet = [];
+    let currentTeam = null;
 
-  for (let i = 1; i < raakaRivit.length; i++) {
-    if (!raakaRivit[i]) continue;
-    const row = raakaRivit[i].split(',').map(siivoaSolu);
-    if (!row[0] && !row[1] && !row[2]) continue; 
+    for (let i = 1; i < raakaRivit.length; i++) {
+      const row = raakaRivit[i];
+      if (!row || (!row[0] && !row[1] && !row[2])) continue;
 
-    const ranking = row[0];
-    const teamName = row[1];
-    const shooterName = row[2];
-    const category = row[3];
-    const yhteistulos = row[28] || "0"; 
+      const ranking = row[0] || '';
+      const teamName = row[1] || '';
+      const shooterName = row[2] || '';
+      const category = row[3] || '';
+      const yhteistulos = row[28] || "0";
 
-    // Tallennetaan erät kiinteään 24-paikkaiseen taulukkoon indeksin mukaan (1-24)
-    // Näin varmistetaan, että sarakkeet pysyvät aina täydellisesti kohdakkain!
-    const eratMap = {};
-    for (let col = 4; col <= 27; col++) {
-      const eraNum = col - 3;
-      eratMap[eraNum] = row[col] !== undefined ? row[col] : "";
+      // Tallennetaan erät kiinteään 24-paikkaiseen taulukkoon indeksin mukaan (1-24).
+      const eratMap = {};
+      for (let col = 4; col <= 27; col++) {
+        const eraNum = col - 3;
+        eratMap[eraNum] = row[col] !== undefined ? row[col] : "";
+      }
+
+      if (teamName !== "" && shooterName === "") {
+        if (currentTeam) parsedJoukkueet.push(currentTeam);
+        currentTeam = {
+          id: `${teamName}|${category}|${i}`,
+          sijoitus: ranking,
+          joukkue: teamName,
+          sarja: category,
+          kokonaistulos: yhteistulos,
+          erat: eratMap,
+          ampujat: []
+        };
+      } else if (shooterName !== "" && currentTeam) {
+        currentTeam.ampujat.push({
+          id: `${currentTeam.id}|${shooterName}|${currentTeam.ampujat.length}`,
+          nimi: shooterName,
+          sarja: category,
+          kokonaistulos: yhteistulos,
+          erat: eratMap
+        });
+      }
     }
 
-    if (teamName !== "" && shooterName === "") {
-      if (currentTeam) kaikkiJoukkueet.push(currentTeam);
-      currentTeam = {
-        sijoitus: ranking,
-        joukkue: teamName,
-        sarja: category,
-        kokonaistulos: yhteistulos,
-        erat: eratMap, 
-        ampujat: []
-      };
-    } 
-    else if (shooterName !== "" && currentTeam) {
-      currentTeam.ampujat.push({
-        nimi: shooterName,
-        sarja: category,
-        kokonaistulos: yhteistulos,
-        erat: eratMap 
-      });
-    }
-  }
-  if (currentTeam) kaikkiJoukkueet.push(currentTeam);
+    if (currentTeam) parsedJoukkueet.push(currentTeam);
 
-  // 2. RYHMITELLÄÄN SARJOITTAIN
-  const sarjat = {};
-  kaikkiJoukkueet.forEach(j => { 
-    if (!j.sarja) return;
-    if (!sarjat[j.sarja]) sarjat[j.sarja] = []; 
-    sarjat[j.sarja].push(j); 
-  });
+    // 2. RYHMITELLÄÄN SARJOITTAIN
+    const ryhmitellytSarjat = {};
+    parsedJoukkueet.forEach((j) => {
+      if (!j.sarja) return;
+      if (!ryhmitellytSarjat[j.sarja]) ryhmitellytSarjat[j.sarja] = [];
+      ryhmitellytSarjat[j.sarja].push(j);
+    });
+
+    return { sarjat: ryhmitellytSarjat };
+  }, [data.joukkueetCsvRaw]);
 
   const mitaliVarit = { 1: '#d4af37', 2: '#aaa9ad', 3: '#b0722a' };
 
@@ -126,7 +130,7 @@ export default function JoukkueTulokset({ data }) {
               };
 
               return (
-                <div key={indeksi} style={{ ...tyylit.Kortti, ...korttiDynaaminenTyyli }}>
+                <div key={joukkueAlkio.id} style={{ ...tyylit.Kortti, ...korttiDynaaminenTyyli }}>
                   
                   {/* JOUKKUEEN PÄÄRIVI */}
                   <div onClick={() => toggleJoukkue(joukkueAlkio.joukkue)} style={tyylit.JoukkueRivi}>
@@ -148,15 +152,15 @@ export default function JoukkueTulokset({ data }) {
                       
                       {/* JOUKKUEEN ERÄPÖYTÄKIRJA */}
                       <div style={tyylit.OsioLaatikko}>
-                        <div style={tyylit.SektioOtsikko}>Joukkueen yhteispisteet erittäin</div>
+                        <div style={tyylit.SektioOtsikko}>Joukkueen yhteispisteet</div>
                         {renderöiEräTaulukko(joukkueAlkio.erat)}
                       </div>
 
                       {/* AMPUJIEN ERÄPÖYTÄKIRJAT */}
                       <div style={{ marginTop: '15px' }}>
                         <div style={tyylit.SektioOtsikko}>Ampujakohtaiset tulokset</div>
-                        {joukkueAlkio.ampujat.map((ampuja, aIndeksi) => (
-                          <div key={aIndeksi} style={tyylit.AmpujaRiviLaatikko}>
+                        {joukkueAlkio.ampujat.map((ampuja) => (
+                          <div key={ampuja.id} style={tyylit.AmpujaRiviLaatikko}>
                             <div style={tyylit.AmpujaYlaosa}>
                               <span style={tyylit.AmpujaNimi}>• {ampuja.nimi}</span>
                               <span style={tyylit.AmpujaYhteensa}>Yht: {ampuja.kokonaistulos}</span>
