@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import JoukkueTulokset from './JoukkueTulokset';
 import RyhmaJako from './RyhmaJako';
-import Ilmoittautuneet from './Ilmoittautuneet'; 
+import Ilmoittautuneet from './Ilmoittautuneet';
 import { teema } from './teema';
 import { hasCsvDataRows, parseCsvRows } from './utils/csv';
 
@@ -15,7 +15,7 @@ export default function App() {
   const [aktiivinenSivu, setAktiivinenSivu] = useState('tulokset');
   const [ladataanKisalista, setLadataanKisalista] = useState(true);
 
-  const [kisaCache, setKisaCache] = useState({}); 
+  const [kisaCache, setKisaCache] = useState({});
   const [ladataanKisaa, setLadataanKisaa] = useState(false);
   const [virhe, setVirhe] = useState(null);
 
@@ -100,7 +100,7 @@ export default function App() {
       try {
         setLadataanKisalista(true);
         setVirhe(null);
-        
+
         const url = `https://docs.google.com/spreadsheets/d/${REKISTERI_SHEET_ID}/gviz/tq?tqx=out:csv`;
         const response = await fetch(url);
         if (!response.ok) {
@@ -113,7 +113,7 @@ export default function App() {
 
         for (let i = 0; i < raakaRivit.length; i++) {
           const row = raakaRivit[i];
-          
+
           if (i === 0 && (row[1]?.toLowerCase().includes('nimi') || row[0]?.toLowerCase().includes('id'))) {
             continue;
           }
@@ -146,7 +146,7 @@ export default function App() {
         setLadataanKisalista(false);
       }
     }
-    
+
     haeKisalistaCsv();
   }, []);
 
@@ -168,7 +168,7 @@ export default function App() {
   useEffect(() => {
     if (!valittuKisa || !valittuKisa.apiUrl) return;
 
-    const sheetId = valittuKisa.apiUrl; 
+    const sheetId = valittuKisa.apiUrl;
 
     if (!kisaCache[sheetId]) {
       setLadataanKisaa(true);
@@ -185,48 +185,113 @@ export default function App() {
       }
     };
 
-    async function haeSuoratCsvData() {
+// Korvaa App.jsx sisällä oleva haeSuoratCsvData tällä optimoidulla versiolla:
+
+async function haeSuoratCsvData() {
+  try {
+    // 1. Selvitetään status heti alussa, jotta tiedetään mitä ladataan
+    const kisanStatusInfo = laskeKisanStatusJaTyyli(valittuKisa.alkuPvm, valittuKisa.loppuPvm);
+    const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
+    const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
+    const onkoIlmoittautuminenAikaIkkunaOhi = laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm);
+
+    // Apufunktio yksittäisen CSV:n hakuun
+    const haeCsv = async (sheetName) => {
       try {
-        const urlTuloksetY = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Tulokset Y')}`;
-        const urlTuloksetYleinen = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Tulokset')}`;
-        
-        const urlJoukkueet = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('NEW_Joukkue')}`;
-        const urlErat = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Ryhmäjako')}`;
-        const urlIlmoittautuneet = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Ilmoittautuneet')}`;
-
-        const [resTuloksetY, resTuloksetYleinen, resJoukkueet, resErat, resIlmoittautuneet] = await Promise.all([
-          haeCsv(urlTuloksetY),
-          haeCsv(urlTuloksetYleinen),
-          haeCsv(urlJoukkueet),
-          haeCsv(urlErat),
-          haeCsv(urlIlmoittautuneet)
-        ]);
-
-        const onkoTuloksetYDataa = hasCsvDataRows(resTuloksetY, 2);
-        const onkoTuloksetYleinenDataa = hasCsvDataRows(resTuloksetYleinen, 2);
-        const parhainHenkiloData = onkoTuloksetYDataa
-          ? resTuloksetY
-          : onkoTuloksetYleinenDataa
-            ? resTuloksetYleinen
-            : "";
-
-        setKisaCache(prevCache => ({
-          ...prevCache,
-          [sheetId]: {
-            henkilotCsvRaw: parhainHenkiloData,
-            joukkueetCsvRaw: resJoukkueet,
-            eratCsvRaw: resErat,
-            ilmoittautuneetCsvRaw: resIlmoittautuneet
-          }
-        }));
-
-      } catch (err) {
-        console.error("Datan haku epäonnistui:", err);
-        setVirhe("Tietojen haku epäonnistui. Tarkista kisasheetin asetukset.");
-      } finally {
-        setLadataanKisaa(false);
+        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+        const response = await fetch(url);
+        if (!response.ok) return "";
+        return await response.text();
+      } catch {
+        return "";
       }
+    };
+
+    // 2. Rakennetaan dynaaminen lista ladattavista välilehdistä
+    const latausJonot = [];
+    const avaimet = [];
+
+    // ILMOITTAUTUNEET: Vain jos kisa on tulossa EIKÄ aikaraja (klo 10) ole umpeutunut
+    if (onkoKisaTulossa && !onkoIlmoittautuminenAikaIkkunaOhi) {
+      latausJonot.push(haeCsv('Ilmoittautuneet'));
+      avaimet.push('ilmoittautuneetCsvRaw');
     }
+
+    // ERÄLUETTELO / RYHMÄJAKO: Tarvitaan ennen kisaa ja kisan aikana
+    if (!onkoKisaPaattynyt) {
+      latausJonot.push(haeCsv('Ryhmäjako'));
+      avaimet.push('eratCsvRaw');
+    }
+
+    // TULOKSET & SPEKSIT: Vain kun kisa on käynnissä tai päättynyt
+    if (!onkoKisaTulossa) {
+      latausJonot.push(haeCsv('Tulokset Y'));
+      avaimet.push('tuloksetYCsvRaw');
+
+      latausJonot.push(haeCsv('Tulokset'));
+      avaimet.push('tuloksetYleinenCsvRaw');
+
+      latausJonot.push(haeCsv('NEW_Joukkue'));
+      avaimet.push('joukkueetCsvRaw');
+
+      latausJonot.push(haeCsv('KISANSPEKSIT'));
+      avaimet.push('speksitCsvRaw');
+    }
+
+    // 3. Suoritetaan vain tarvittavat haut rinnakkain
+    const tulokset = await Promise.all(latausJonot);
+
+    // 4. Muutetaan tulokset objektiksi avainten perusteella
+    const uusiData = {
+      henkilotCsvRaw: "",
+      joukkueetCsvRaw: "",
+      eratCsvRaw: "",
+      ilmoittautuneetCsvRaw: "",
+      speksitCsvRaw: ""
+    };
+
+    // Jos kisaCachessa oli jo jotain (esim. aiemmalta sivulta), pidetään ne pohjalla
+    const vanhaData = kisaCache[sheetId] || {};
+
+    tulokset.forEach((teksti, indeksi) => {
+      const avain = avaimet[indeksi];
+      uusiData[avain] = teksti;
+    });
+
+    // Erityislogiikka Tulokset Y vs Tavalliset tulokset, kuten aiemminkin
+    if (!onkoKisaTulossa) {
+      const resTuloksetY = uusiData.tuloksetYCsvRaw;
+      const resTuloksetYleinen = uusiData.tuloksetYleinenCsvRaw;
+      
+      const onkoTuloksetYDataa = hasCsvDataRows(resTuloksetY, 2);
+      const onkoTuloksetYleinenDataa = hasCsvDataRows(resTuloksetYleinen, 2);
+      
+      uusiData.henkilotCsvRaw = onkoTuloksetYDataa
+        ? resTuloksetY
+        : onkoTuloksetYleinenDataa
+          ? resTuloksetYleinen
+          : "";
+    }
+
+    // Päivitetään välimuisti yhdistämällä uudet tiedot ja mahdolliset vanhat säilytettävät tiedot
+    setKisaCache(prevCache => ({
+      ...prevCache,
+      [sheetId]: {
+        henkilotCsvRaw: uusiData.henkilotCsvRaw || vanhaData.henkilotCsvRaw || "",
+        joukkueetCsvRaw: uusiData.joukkueetCsvRaw || vanhaData.joukkueetCsvRaw || "",
+        eratCsvRaw: uusiData.eratCsvRaw || vanhaData.eratCsvRaw || "",
+        ilmoittautuneetCsvRaw: uusiData.ilmoittautuneetCsvRaw || vanhaData.ilmoittautuneetCsvRaw || "",
+        speksitCsvRaw: uusiData.speksitCsvRaw || vanhaData.speksitCsvRaw || ""
+      }
+    }));
+
+  } catch (err) {
+    console.error("Datan haku epäonnistui:", err);
+    setVirhe("Tietojen haku epäonnistui. Tarkista kisasheetin asetukset.");
+  } finally {
+    setLadataanKisaa(false);
+  }
+}
 
     haeSuoratCsvData();
     const kasitteleNakymattomyys = () => {
@@ -257,7 +322,7 @@ export default function App() {
   const laskeKisanStatusJaTyyli = (alkuStr, loppuStr) => {
     if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
 
-    const nollatunnit = (d) => { d.setHours(0,0,0,0); return d; };
+    const nollatunnit = (d) => { d.setHours(0, 0, 0, 0); return d; };
 
     const tanaandDate = nollatunnit(new Date());
     const alkuDate = parsiPaivamaara(alkuStr);
@@ -281,22 +346,22 @@ export default function App() {
     return (
       <div style={tyylit.KokoSivu}>
         <header style={tyylit.EtusivunOtsikkoAlue}>
-          <h1 style={tyylit.EtusivunOtsikko}>🎯 TT Tulospalvelu</h1>
+          <h1 style={tyylit.EtusivunOtsikko}>🎯 T&T Tulospalvelu</h1>
           <p style={tyylit.EtusivunAliotsikko}>Tämänkin voi tehdä helpommin</p>
         </header>
-        
+
         {virhe && <div style={tyylit.VirheIlmoitus}>{virhe}</div>}
-        
+
         <div style={tyylit.KisaListaRuudukko}>
           {kisat.map(kisa => {
             const statusData = laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm);
             return (
-              <div 
-                key={kisa.id} 
+              <div
+                key={kisa.id}
                 onClick={() => {
                   if (!kisa.apiUrl) return;
                   avaaKisaNakyma(kisa);
-                }} 
+                }}
                 style={tyylit.UusiKisaKortti}
               >
                 <div style={tyylit.KorttiVasenLohko}>
@@ -319,13 +384,13 @@ export default function App() {
   // --- NÄKYMÄ 2: VALITUN KISAN NÄKYMÄ ---
   const nykyisenKisanData = kisaCache[valittuKisa.apiUrl];
   const kisanStatusInfo = laskeKisanStatusJaTyyli(valittuKisa.alkuPvm, valittuKisa.loppuPvm);
-  
+
   const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
   const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
   const onkoIlmoittautuminenAikaIkkunaOhi = laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm);
 
   // SÄÄNNÖT ERI SIVUJEN NÄKYVYYDELLE
-  const onkoTuloksetSallittu = !onkoKisaTulossa; 
+  const onkoTuloksetSallittu = !onkoKisaTulossa;
   const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
   const onkoEraluetteloa = !onkoKisaPaattynyt;
   const onkoJoukkueKisa = !onkoKisaTulossa && hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
@@ -356,15 +421,15 @@ export default function App() {
         {onkoTuloksetSallittu && (
           <button onClick={() => setAktiivinenSivu('tulokset')} style={aktiivinenSivu === 'tulokset' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>🏆 TULOKSET</button>
         )}
-        
+
         {onkoIlmoittautuneita && (
           <button onClick={() => setAktiivinenSivu('ilmoittautuneet')} style={aktiivinenSivu === 'ilmoittautuneet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>📝 ILMOITTAUTUNEET</button>
         )}
-        
+
         {onkoEraluetteloa && (
           <button onClick={() => setAktiivinenSivu('erakirjaus')} style={aktiivinenSivu === 'erakirjaus' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>⚙️ ERÄLUETTELO</button>
         )}
-        
+
         {onkoJoukkueKisa && (
           <button onClick={() => setAktiivinenSivu('joukkueet')} style={aktiivinenSivu === 'joukkueet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>👥 JOUKKUETULOKSET</button>
         )}
@@ -375,7 +440,10 @@ export default function App() {
       ) : (
         <main style={tyylit.SisaltoAlue}>
           {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (
-            <HenkiloTulokset rawCsv={nykyisenKisanData.henkilotCsvRaw} />
+            <HenkiloTulokset
+              rawCsv={nykyisenKisanData.henkilotCsvRaw}
+              speksitCsv={nykyisenKisanData.speksitCsvRaw} // UUSI PROP
+            />
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} />

@@ -2,9 +2,45 @@
 import React, { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 
-export default function HenkiloTulokset({ rawCsv }) {
+export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('KAIKKI');
+
+  // 1. Parsitaan asemakohtaiset maksimit KISANSPEKSIT-datasta (alue J3:K)
+  const asemaMaksimit = useMemo(() => {
+    const maksimit = {};
+    if (!speksitCsv || typeof speksitCsv !== 'string' || speksitCsv.trim().length < 2) {
+      return maksimit;
+    }
+
+    try {
+      const speksiRivit = parseCsvRows(speksitCsv);
+      if (!Array.isArray(speksiRivit)) return maksimit;
+      
+      speksiRivit.forEach((rivi) => {
+        // Varmistetaan, että rivi on olemassa ja siinä on tarvittavat sarakkeet
+        if (!rivi || rivi.length < 11) return; 
+        
+        const raakaAsema = rivi[9];
+        const raakaMaksimi = rivi[10];
+
+        if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
+          const asemaTunnus = raakaAsema.toString().trim();
+          const maksimiArvo = parseInt(raakaMaksimi, 10);
+
+          if (asemaTunnus && !isNaN(maksimiArvo)) {
+            // Puhdistetaan otsikko pelkäksi numeroksi (esim. "Asema 1" -> "1")
+            const asemaNumero = asemaTunnus.replace(/\D/g, ''); 
+            maksimit[asemaNumero || asemaTunnus] = maksimiArvo;
+          }
+        }
+      });
+    } catch (e) {
+      console.error("Virhe speksien parsinnoissa:", e);
+    }
+
+    return maksimit;
+  }, [speksitCsv]);
 
   if (!rawCsv || rawCsv.trim().length < 10 || rawCsv.toLowerCase().includes("html") || rawCsv.toLowerCase().includes("error")) {
     return <div style={tyylit.Viesti}>Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.</div>;
@@ -208,13 +244,11 @@ export default function HenkiloTulokset({ rawCsv }) {
     }
   };
 
-  // Lasketaan dynaaminen sarakemäärä colspania varten mobiilissa ja työpöydällä
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 600;
   const sarakeMaara = (onMobiili ? 3 : 5) + (idxLa !== -1 ? 1 : 0) + (idxSu !== -1 ? 1 : 0);
 
   return (
     <div style={tyylit.Alue}>
-      {/* SARJASUODATIN-PILLERIT */}
       <div style={tyylit.SuodatinPalkki}>
         <button onClick={() => { setSarjaSuodatin('KAIKKI'); setValittuAmpujaId(null); }} style={sarjaSuodatin === 'KAIKKI' ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>KAIKKI</button>
         {Array.from(loydetytSarjat).sort().map(sarja => (
@@ -222,7 +256,6 @@ export default function HenkiloTulokset({ rawCsv }) {
         ))}
       </div>
 
-      {/* TAULUKKO-SÄILIÖ JOKA ESTÄÄ SIVUVUODON */}
       <div style={tyylit.TaulukkoSäiliö}>
         <table style={tyylit.Taulukko}>
           <thead>
@@ -262,7 +295,6 @@ export default function HenkiloTulokset({ rawCsv }) {
                           <span key={`${ampuja.id}-${status}`} style={{ ...tyylit.StatusLabel, ...haeStatusLabelTyyli(status) }}>{status}</span>
                         ))}
                       </div>
-                      {/* Mobiilinäkymässä tuodaan seura ja sarja pienenä nimen alle */}
                       <div style={tyylit.MobiiliAliTiedot}>
                         <span style={tyylit.MobiiliSarja}>{ampuja.sarja}</span> {ampuja.seura}
                       </div>
@@ -279,17 +311,40 @@ export default function HenkiloTulokset({ rawCsv }) {
                     </td>
                   </tr>
 
-                  {/* ISTUNNON/ERÄN TARKEMMAT TIEDOT (KLIKKAUSLAAJENNUS) */}
+                  {/* ISTUNNON/ERÄN TARKEMMAT TIEDOT LAAJENNUSVÄRITYKSELLÄ */}
                   {onAuki && ampuja.sarjat.length > 0 && (
                     <tr>
                       <td colSpan={sarakeMaara} style={tyylit.LaajennusSolu}>
                         <div style={tyylit.SarjaRuudukko}>
-                          {ampuja.sarjat.map((s, sIdx) => (
-                            <div key={`${ampuja.id}-${s.numero}-${sIdx}`} style={tyylit.SarjaSolu}>
-                              <div style={tyylit.SarjaSoluNumero}>S{s.numero}</div>
-                              <div style={tyylit.SarjaSoluArvo}>{s.tulos}</div>
-                            </div>
-                          ))}
+                          {ampuja.sarjat.map((s, sIdx) => {
+                            // Verrataan laukauksen numeroa kisaspeksien maksimiin
+                            const puhdistettuNumero = s.numero.replace(/\D/g, '');
+                            const maksimiTulos = asemaMaksimit[puhdistettuNumero] || asemaMaksimit[s.numero];
+                            
+                            const ampujaTulosNum = parseInt(s.tulos, 10);
+                            const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
+
+                            return (
+                              <div 
+                                key={`${ampuja.id}-${s.numero}-${sIdx}`} 
+                                style={{
+                                  ...tyylit.SarjaSolu,
+                                  borderColor: onkoMaksimiOsuma ? '#f5c2c2' : '#dadce0',
+                                  background: onkoMaksimiOsuma ? '#fce8e6' : '#ffffff' // Kevyt punertava tausta maksimille
+                                }}
+                              >
+                                <div style={tyylit.SarjaSoluNumero}>S{s.numero}</div>
+                                <div 
+                                  style={{
+                                    ...tyylit.SarjaSoluArvo,
+                                    color: onkoMaksimiOsuma ? '#b3261e' : '#202124' // Teksti punaiseksi maksimilla
+                                  }}
+                                >
+                                  {s.tulos}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </td>
                     </tr>
@@ -304,7 +359,6 @@ export default function HenkiloTulokset({ rawCsv }) {
   );
 }
 
-// Tunnistetaan mobiilinäyttö
 const onMobiiliYhteys = typeof window !== 'undefined' && window.innerWidth < 600;
 
 const tyylit = {
@@ -313,37 +367,26 @@ const tyylit = {
   SuodatinPalkki: { display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 2px 10px 2px', marginBottom: '4px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' },
   SuodatinNappi: { background: '#f1f3f4', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#3c4043', cursor: 'pointer' },
   SuodatinNappiAktiivinen: { background: '#202124', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#fff', cursor: 'pointer' },
-  
-  // Pysäytetään sivuvuoto pakottamalla taulukko containerin leveydelle
   TaulukkoSäiliö: { width: '100%', maxWidth: '100%', overflowX: 'hidden', background: '#ffffff', borderRadius: '8px', border: '1px solid #e8eaed' },
   Taulukko: { width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontFamily: '-apple-system, sans-serif', fontSize: '0.85em' },
   OtsikkoRivi: { background: '#f8f9fa', borderBottom: '1px solid #e8eaed' },
   Th: { padding: '10px 6px', fontWeight: '700', color: '#5f6368', fontSize: '0.8em', textTransform: 'uppercase', textAlign: 'left' },
   DataRivi: { borderBottom: '1px solid #f1f3f4', cursor: 'pointer' },
   Td: { padding: '10px 6px', verticalAlign: 'middle', textAlign: 'left', overflow: 'hidden' },
-  
-  // Sarakkeiden optimoidut leveydet
   SijaSarake: { width: '35px', minWidth: '35px' },
   SuppeaSarake: { width: '45px', minWidth: '45px' },
   YhteensaSarake: { width: '55px', minWidth: '55px' },
-  
-  // Nimen katkaisutyylit (Katoaa vaakasuuntainen venyminen)
   NimiSolu: { width: 'auto', overflow: 'hidden' },
   NimiTeksti: { fontWeight: '600', color: '#202124', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-
-  // Työpöytäkohtaiset sarakkeet piilotetaan mobiilissa
   DesktopSarake: { display: onMobiiliYhteys ? 'none' : 'table-cell' },
-  
-  // Mobiilisarake nimen alle
   MobiiliAliTiedot: { display: onMobiiliYhteys ? 'block' : 'none', fontSize: '0.8em', color: '#70757a', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   MobiiliSarja: { fontWeight: 'bold', background: '#f1f3f4', padding: '1px 4px', borderRadius: '3px', marginRight: '4px', color: '#3c4043' },
-
   SarjaTag: { background: '#f1f3f4', color: '#3c4043', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '0.8em' },
   RatkoBadge: { display: 'inline-block', marginLeft: '4px', color: '#5f6368', fontWeight: '600', fontSize: '0.85em' },
   StatusLabel: { display: 'inline-block', marginLeft: '4px', padding: '1px 6px', borderRadius: '999px', fontSize: '0.72em', fontWeight: '700', letterSpacing: '0.02em' },
   LaajennusSolu: { background: '#f8f9fa', padding: '8px' },
   SarjaRuudukko: { display: 'flex', gap: '4px', flexWrap: 'wrap' },
-  SarjaSolu: { background: '#ffffff', border: '1px solid #dadce0', borderRadius: '4px', textAlign: 'center', minWidth: '36px', padding: '2px 4px' },
+  SarjaSolu: { background: '#ffffff', border: '1px solid #dadce0', borderRadius: '4px', textAlign: 'center', minWidth: '36px', padding: '2px 4px', transition: 'all 0.15s ease' },
   SarjaSoluNumero: { fontSize: '0.6em', color: '#70757a' },
-  SarjaSoluArvo: { fontSize: '0.85em', fontWeight: '700', color: '#202124' }
+  SarjaSoluArvo: { fontSize: '0.85em', fontWeight: '700' }
 };
