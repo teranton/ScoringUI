@@ -6,6 +6,44 @@ import { parseCsvRows } from './utils/csv';
 export default function JoukkueTulokset({ data }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
 
+  // 1. HAETAAN KISASPEKSIT (Ratojen määrä ja asemakohtaiset maksimit)
+// 1. HAETAAN KISASPEKSIT (Vain ne radat, joiden maksimi > 0)
+  const speksit = useMemo(() => {
+    const maksimit = {};
+    let ratojenMaara = 0;
+
+    if (data?.speksitCsvRaw) {
+      try {
+        const speksiRivit = parseCsvRows(data.speksitCsvRaw);
+        speksiRivit.forEach((rivi) => {
+          if (!rivi || rivi.length < 11) return;
+
+          const raakaAsema = rivi[9];
+          const raakaMaksimi = rivi[10];
+
+          if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
+            const asemaTunnus = raakaAsema.toString().trim();
+            const maksimiArvo = parseInt(raakaMaksimi, 10);
+
+            // HUOMITAVAT RADAT: Aseman pitää olla olemassa ja maksimin pitää olla YLI nollan
+            if (asemaTunnus && !isNaN(maksimiArvo) && maksimiArvo > 0) {
+              const asemaNumero = asemaTunnus.replace(/\D/g, '');
+              maksimit[asemaNumero || asemaTunnus] = maksimiArvo;
+              ratojenMaara++; // Kasvatetaan vain, jos kyseessä on oikea aktiivinen rata
+            }
+          }
+        });
+      } catch (e) {
+        console.error("Virhe joukkue-speksien parsinnoissa:", e);
+      }
+    }
+
+    return {
+      asemaMaksimit: maksimit,
+      ratojenMaara: ratojenMaara > 0 ? ratojenMaara : 8 
+    };
+  }, [data?.speksitCsvRaw]);
+
   const onkoAliTulosPuuttuu = (arvo) => {
     const teksti = String(arvo ?? '').trim().toUpperCase();
     return teksti === '' || teksti === '-' || teksti === '—' || teksti === 'N/A';
@@ -15,7 +53,10 @@ export default function JoukkueTulokset({ data }) {
     if (!joukkue.ampujat || joukkue.ampujat.length === 0) return false;
 
     return joukkue.ampujat.every((ampuja) =>
-      Object.values(ampuja.erat || {}).every((tulos) => !onkoAliTulosPuuttuu(tulos))
+      // Tarkistetaan valmius vain kisan todellisten ratojen osalta
+      Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1).every(
+        (n) => !onkoAliTulosPuuttuu(ampuja.erat[n])
+      )
     );
   };
 
@@ -31,9 +72,7 @@ export default function JoukkueTulokset({ data }) {
   };
 
   const { sarjat } = useMemo(() => {
-    // 1. PARSITAAN GOOGLE-CSV
     const raakaRivit = parseCsvRows(data.joukkueetCsvRaw);
-
     const parsedJoukkueet = [];
     let currentTeam = null;
 
@@ -47,13 +86,33 @@ export default function JoukkueTulokset({ data }) {
       const category = row[3] || '';
       const yhteistulos = row[28] || "0";
 
-      // Tallennetaan erät kiinteään 24-paikkaiseen taulukkoon indeksin mukaan (1-24).
+      // Tallennetaan erät dynaamisesti speksien ilmoittaman ratamäärän mukaan
+// 1. Tallennetaan erät dynaamisesti speksien ilmoittaman ratamäärän mukaan
       const eratMap = {};
-      for (let col = 4; col <= 27; col++) {
+      let laskettuSumma = 0;
+      let onkoPisteita = false;
+
+      for (let col = 4; col <= 3 + speksit.ratojenMaara; col++) {
         const eraNum = col - 3;
-        eratMap[eraNum] = row[col] !== undefined ? row[col] : "";
+        const arvo = row[col] !== undefined ? row[col] : "";
+        eratMap[eraNum] = arvo;
+
+        // Lasketaan vain numeeriset arvot mukaan summaan
+        const p = parseInt(arvo, 10);
+        if (!isNaN(p)) {
+          laskettuSumma += p;
+          onkoPisteita = true;
+        }
       }
 
+      // 2. Käytetään ensisijaisesti taulukon ilmoittamaa tulosta, 
+      // mutta jos se puuttuu tai on "0", käytetään laskettua summaa.
+      const raakaYhteistulos = row[28] || "";
+      const lopullinenTulos = (raakaYhteistulos && raakaYhteistulos !== "0") 
+        ? raakaYhteistulos 
+        : (onkoPisteita ? laskettuSumma.toString() : "0");
+
+      // 3. Luodaan tai päivitetään joukkueet ja ampujat
       if (teamName !== "" && shooterName === "") {
         if (currentTeam) parsedJoukkueet.push(currentTeam);
         currentTeam = {
@@ -61,7 +120,7 @@ export default function JoukkueTulokset({ data }) {
           sijoitus: ranking,
           joukkue: teamName,
           sarja: category,
-          kokonaistulos: yhteistulos,
+          kokonaistulos: lopullinenTulos,
           erat: eratMap,
           ampujat: []
         };
@@ -70,7 +129,7 @@ export default function JoukkueTulokset({ data }) {
           id: `${currentTeam.id}|${shooterName}|${currentTeam.ampujat.length}`,
           nimi: shooterName,
           sarja: category,
-          kokonaistulos: yhteistulos,
+          kokonaistulos: lopullinenTulos,
           erat: eratMap
         });
       }
@@ -78,7 +137,6 @@ export default function JoukkueTulokset({ data }) {
 
     if (currentTeam) parsedJoukkueet.push(currentTeam);
 
-    // 2. RYHMITELLÄÄN SARJOITTAIN
     const ryhmitellytSarjat = {};
     parsedJoukkueet.forEach((j) => {
       if (!j.sarja) return;
@@ -87,13 +145,19 @@ export default function JoukkueTulokset({ data }) {
     });
 
     return { sarjat: ryhmitellytSarjat };
-  }, [data.joukkueetCsvRaw]);
+  }, [data.joukkueetCsvRaw, speksit.ratojenMaara]);
 
   const mitaliVarit = { 1: '#d4af37', 2: '#aaa9ad', 3: '#b0722a' };
 
-  // Apufunktio erätaulukon luomiseen (jaetaan 24 erää kahteen 12 erän riviin, jotta mahtuu mobiiliin)
-  const renderöiEräTaulukko = (erat) => {
-    const rivit = [[1,2,3,4,5,6,7,8,9,10,11,12], [13,14,15,16,17,18,19,20,21,22,23,24]];
+  // Apufunktio dynaamisen erätaulukon luomiseen ja solujen väritykseen
+  const renderöiEräTaulukko = (erat, onkoYhteispisteet = false) => {
+    // Luodaan lista radoista dynaamisesti (esim. [1, 2, 3, 4, 5, 6, 7, 8])
+    const kaikkiRadat = Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1);
+    
+    // Jos ratoja on enemmän kuin 12 (kuten 24 erän kisoissa), jaetaan ne edelleen kahteen riviin mobiilia varten
+    const rivit = speksit.ratojenMaara > 12 
+      ? [kaikkiRadat.slice(0, 12), kaikkiRadat.slice(12)]
+      : [kaikkiRadat];
     
     return (
       <div style={tyylit.TaulukkoSäiliö}>
@@ -101,14 +165,36 @@ export default function JoukkueTulokset({ data }) {
           <table key={rIdx} style={tyylit.Taulukko}>
             <thead>
               <tr>
-                <th style={tyylit.OtsikkoSoluMuted}>Erä</th>
+                <th style={tyylit.OtsikkoSoluMuted}>Rata</th>
                 {rivi.map(n => <th key={n} style={tyylit.OtsikkoSolu}>{n}</th>)}
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td style={tyylit.DataSoluMuted}>Pst</td>
-                {rivi.map(n => <td key={n} style={tyylit.DataSolu}>{erat[n] || '-'}</td>)}
+                <td style={tyylit.DataSoluMuted}>{onkoYhteispisteet ? 'Jok' : 'Pst'}</td>
+                {rivi.map(n => {
+                  const pisteArvo = erat[n] || '-';
+                  const pisteNum = parseInt(pisteArvo, 10);
+                  
+                  // Tarkistetaan maksimi. Yhteispisteissä (joukkueen summa) ei väritetä yksittäistä maksimia
+                  const maksimiTulos = speksit.asemaMaksimit[n] || speksit.asemaMaksimit[`${n}`];
+                  const onkoMaksimi = !onkoYhteispisteet && !isNaN(pisteNum) && maksimiTulos !== undefined && pisteNum === maksimiTulos;
+
+                  return (
+                    <td 
+                      key={n} 
+                      style={{
+                        ...tyylit.DataSolu,
+                        color: onkoMaksimi ? '#b3261e' : '#111827',
+                        background: onkoMaksimi ? '#fce8e6' : '#fff',
+                        fontWeight: onkoMaksimi ? 'bold' : 'normal',
+                        borderColor: onkoMaksimi ? '#f5c2c2' : '#e5e7eb'
+                      }}
+                    >
+                      {pisteArvo}
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
@@ -117,7 +203,6 @@ export default function JoukkueTulokset({ data }) {
     );
   };
 
-  // 3. PIIRRETÄÄN KÄYTTÖLIITTYMÄ
   return (
     <div style={tyylit.SivuSäiliö}>
       {Object.keys(sarjat).map(sarjaNimi => (
@@ -127,8 +212,7 @@ export default function JoukkueTulokset({ data }) {
           <div style={tyylit.Lista}>
             {sarjat[sarjaNimi].map((joukkueAlkio, indeksi) => {
               
-              const sarjaSijoitus = indeksi + 1; 
-              const mitaliVari = mitaliVarit[sarjaSijoitus];
+              const mitaliVari = mitaliVarit[joukkueAlkio.sijoitus || (indeksi + 1)];
               const onAuki = !!avatutJoukkueet[joukkueAlkio.joukkue];
               const joukkueValmis = onkoJoukkueValmis(joukkueAlkio);
               const jasenetTeksti = joukkueAlkio.ampujat.map(a => a.nimi).join(', ');
@@ -146,7 +230,6 @@ export default function JoukkueTulokset({ data }) {
               return (
                 <div key={joukkueAlkio.id} style={{ ...tyylit.Kortti, ...korttiDynaaminenTyyli }}>
                   
-                  {/* JOUKKUEEN PÄÄRIVI */}
                   <div onClick={() => toggleJoukkue(joukkueAlkio.joukkue)} style={tyylit.JoukkueRivi}>
                     <span style={{ ...tyylit.SijoitusPallo, ...sijoitusDynaaminenTyyli }}>
                       {joukkueAlkio.sijoitus}
@@ -167,17 +250,14 @@ export default function JoukkueTulokset({ data }) {
                     <span style={tyylit.Pisteet}>{joukkueAlkio.kokonaistulos}</span>
                   </div>
                   
-                  {/* HAITARIOSIO (ERÄTAULUKOT) */}
                   {onAuki && (
                     <div style={tyylit.AmpujatSektio}>
                       
-                      {/* JOUKKUEEN ERÄPÖYTÄKIRJA */}
                       <div style={tyylit.OsioLaatikko}>
                         <div style={tyylit.SektioOtsikko}>Joukkueen yhteispisteet</div>
-                        {renderöiEräTaulukko(joukkueAlkio.erat)}
+                        {renderöiEräTaulukko(joukkueAlkio.erat, true)}
                       </div>
 
-                      {/* AMPUJIEN ERÄPÖYTÄKIRJAT */}
                       <div style={{ marginTop: '15px' }}>
                         <div style={tyylit.SektioOtsikko}>Ampujakohtaiset tulokset</div>
                         {joukkueAlkio.ampujat.map((ampuja) => (
@@ -186,7 +266,7 @@ export default function JoukkueTulokset({ data }) {
                               <span style={tyylit.AmpujaNimi}>• {ampuja.nimi}</span>
                               <span style={tyylit.AmpujaYhteensa}>Yht: {ampuja.kokonaistulos}</span>
                             </div>
-                            {renderöiEräTaulukko(ampuja.erat)}
+                            {renderöiEräTaulukko(ampuja.erat, false)}
                           </div>
                         ))}
                       </div>
@@ -204,7 +284,6 @@ export default function JoukkueTulokset({ data }) {
   );
 }
 
-// --- TYYLIT KOMPAKTILLE JA SELKEÄLLE ERÄTAULUKOLLE ---
 const tyylit = {
   SivuSäiliö: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: '#222' },
   Lataus: { fontFamily: 'sans-serif', padding: '20px', color: '#666' },
@@ -219,8 +298,6 @@ const tyylit = {
   NuoliIcon: { fontSize: '0.7em', color: '#9ca3af' },
   JasenetLista: { fontSize: '0.85em', color: '#4b5563' }, 
   Pisteet: { width: '65px', textAlign: 'right', fontSize: '1.3em', fontWeight: '700', fontFamily: 'monospace' }, 
-  
-  // Avautuvan osion taustat ja asettelu
   AmpujatSektio: { padding: '14px', background: '#f9fafb', borderTop: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: '12px' }, 
   OsioLaatikko: { background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #e5e7eb' },
   AmpujaRiviLaatikko: { background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #e5e7eb', marginBottom: '8px' },
@@ -228,12 +305,10 @@ const tyylit = {
   AmpujaNimi: { fontWeight: '600', color: '#374151', fontSize: '0.95em' },
   AmpujaYhteensa: { fontWeight: '700', color: '#111827', fontSize: '0.95em', fontFamily: 'monospace' },
   SektioOtsikko: { fontWeight: '600', marginBottom: '6px', fontSize: '0.75em', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  
-  // --- UUDET TAULUKKOTYYLIT RUUDUKOLLE ---
   TaulukkoSäiliö: { display: 'flex', flexDirection: 'column', gap: '6px', overflowX: 'auto' },
   Taulukko: { width: '100%', borderCollapse: 'collapse', marginTop: '2px', fontSize: '0.8em', fontFamily: 'monospace' },
-  OtsikkoSolu: { background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', padding: '3px 2px', textAlign: 'center', fontWeight: '600', minWidth: '22px' },
-  OtsikkoSoluMuted: { background: '#e5e7eb', color: '#4b5563', border: '1px solid #e5e7eb', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold', width: '32px' },
-  DataSolu: { border: '1px solid #e5e7eb', padding: '3px 2px', textAlign: 'center', color: '#111827', background: '#fff' },
+  OtsikkoSolu: { background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', padding: '3px 2px', textAlign: 'center', fontWeight: '600', minWidth: '24px' },
+  OtsikkoSoluMuted: { background: '#e5e7eb', color: '#4b5563', border: '1px solid #e5e7eb', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold', width: '36px' },
+  DataSolu: { border: '1px solid #e5e7eb', padding: '3px 2px', textAlign: 'center', transition: 'all 0.15s ease' },
   DataSoluMuted: { background: '#f9fafb', color: '#6b7280', border: '1px solid #e5e7eb', padding: '3px 4px', textAlign: 'center', fontSize: '0.8em' }
 };
