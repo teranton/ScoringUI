@@ -17,11 +17,11 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
     try {
       const speksiRivit = parseCsvRows(speksitCsv);
       if (!Array.isArray(speksiRivit)) return maksimit;
-      
+
       speksiRivit.forEach((rivi) => {
         // Varmistetaan, että rivi on olemassa ja siinä on tarvittavat sarakkeet
-        if (!rivi || rivi.length < 11) return; 
-        
+        if (!rivi || rivi.length < 11) return;
+
         const raakaAsema = rivi[9];
         const raakaMaksimi = rivi[10];
 
@@ -31,7 +31,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
 
           if (asemaTunnus && !isNaN(maksimiArvo)) {
             // Puhdistetaan otsikko pelkäksi numeroksi (esim. "Asema 1" -> "1")
-            const asemaNumero = asemaTunnus.replace(/\D/g, ''); 
+            const asemaNumero = asemaTunnus.replace(/\D/g, '');
             maksimit[asemaNumero || asemaTunnus] = maksimiArvo;
           }
         }
@@ -113,15 +113,23 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
 
     return { statusEtiketit: [], teksti: naytto };
   };
-  
+
   const idxNimi = etsiSarakkeenIndeksi([(h) => h === 'NIMI', (h) => h.includes('NIMI')]);
   const idxSarja = etsiSarakkeenIndeksi([(h) => h === 'SARJA', (h) => h.includes('SARJA')]);
   const idxSeura = etsiSarakkeenIndeksi([(h) => h === 'SEURA', (h) => h.includes('SEURA')]);
-  const idxRatko = etsiSarakkeenIndeksi([
-    (h) => h === 'RATKO',
-    (h) => h.startsWith('RATKO'),
-    (h) => h.includes('TIEBREAK')
-  ]);
+  const idxRata1 = otsikot.findIndex((o) => o.trim() === '1');
+
+  // Fallback vanhaan malliin (indeksiin 4), jos jostain syystä otsikkoa "1" ei löydy lainkaan
+  const aloitusIndeksi = idxRata1 !== -1 ? idxRata1 : 4;
+
+  // 3. LASKETAAN RATKO-SARAKKEEN PAIKKA DYNAAMISESTI ALOITUSPISTEESTÄ
+  const kisanRatojenMaara = Object.keys(asemaMaksimit).length > 0
+    ? Object.keys(asemaMaksimit).length
+    : 8;
+
+  // RATKO on täsmälleen ratojen määrän verran aloitusindeksistä eteenpäin
+  // Esim. Jos Rata 1 on indeksissä 4 ja ratoja on 8, RATKO on indeksissä 4 + 8 + 1 (YHT)= 13.
+  const idxRatko = aloitusIndeksi + kisanRatojenMaara + 1;
   const idxLa = etsiSarakkeenIndeksi([(h) => h === 'LA', (h) => h.startsWith('LAUANTAI')]);
   const idxSu = etsiSarakkeenIndeksi([(h) => h === 'SU', (h) => h.startsWith('SUNNUNTAI')]);
 
@@ -144,15 +152,20 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
       const row = rivit[i];
       if (!row[idxNimi]) continue;
 
+
+      // Etsitään ampujan radat dynaamisesti aloitusindeksistä lähtien
       const osumaSarjat = [];
-      otsikot.forEach((otsikko, sarakkeenIndex) => {
-        if (!Number.isNaN(Number(otsikko)) && otsikko !== '') {
+      for (let r = 1; r <= kisanRatojenMaara; r++) {
+        // Lasketaan jokaisen radan sarake suhteessa ensimmäisen radan paikkaan
+        const sarakkeenIndex = aloitusIndeksi + (r - 1);
+
+        if (row[sarakkeenIndex] !== undefined) {
           osumaSarjat.push({
-            numero: otsikko,
+            numero: r.toString(),
             tulos: row[sarakkeenIndex] || "-"
           });
         }
-      });
+      }
 
       const ampuja = {
         id: `${row[idxNimi] || 'ampuja'}|${idxSarja !== -1 ? row[idxSarja] || 'Y' : 'Y'}|${i}`,
@@ -175,14 +188,45 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
     }
 
     return { ampujat: parsedAmpujat, loydetytSarjat: sarjatSet };
-  }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, otsikot, rivit]);
+  }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, otsikot, rivit, asemaMaksimit]);
 
   const naytettavatAmpujat = useMemo(() => {
     if (sarjaSuodatin === 'KAIKKI') {
-      return ampujat.map((a) => ({
-        ...a,
-        laskettuSija: a.alkuperainenSija
-      }));
+      const sortedAmpujat = [...ampujat].sort((a, b) => {
+        const tulosA = parseInt(a.tulos, 10) || 0;
+        const tulosB = parseInt(b.tulos, 10) || 0;
+        if (tulosB !== tulosA) return tulosB - tulosA;
+
+        const ratkoA = puraRatkoArvo(a.ratko);
+        const ratkoB = puraRatkoArvo(b.ratko);
+        if (ratkoB.piste !== ratkoA.piste) return ratkoB.piste - ratkoA.piste;
+
+        const ratko2A = puraRatkoArvo(a.ratko2);
+        const ratko2B = puraRatkoArvo(b.ratko2);
+        return ratko2B.piste - ratko2A.piste;
+      });
+
+      return sortedAmpujat.map((ampuja, index, array) => {
+        let sija = index + 1;
+        const tulosNum = parseInt(ampuja.tulos, 10) || 0;
+        const ratkoArvo = puraRatkoArvo(ampuja.ratko);
+        const ratko2Arvo = puraRatkoArvo(ampuja.ratko2);
+
+        if (index > 0) {
+          const edellinen = array[index - 1];
+          const edellinenTulos = parseInt(edellinen.tulos, 10) || 0;
+          const edellinenRatko = puraRatkoArvo(edellinen.ratko);
+          const edellinenRatko2 = puraRatkoArvo(edellinen.ratko2);
+          if (
+            edellinenTulos === tulosNum &&
+            edellinenRatko.piste === ratkoArvo.piste &&
+            edellinenRatko2.piste === ratko2Arvo.piste
+          ) {
+            sija = parseInt(edellinen.laskettuSija || `${index}`, 10) || index;
+          }
+        }
+        return { ...ampuja, laskettuSija: sija.toString() };
+      });
     }
 
     const sarjanVaki = ampujat
@@ -225,28 +269,26 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
   }, [ampujat, sarjaSuodatin]);
 
   const haeSijoitusRivinTausta = (sijaStr, onAuki, index) => {
-    if (onAuki) return '#f1f3f4';
+    if (onAuki) return teema.riviAuki;
 
     const sija = parseInt(sijaStr, 10);
-    if (sija === 1) return '#d4af37';
-    if (sija === 2) return '#aaa9ad';
-    if (sija === 3) return '#b0722a';
+    if (sija === 1) return teema.kulta;
+    if (sija === 2) return teema.hopea;
+    if (sija === 3) return teema.pronssi;
 
-    return index % 2 === 0 ? '#ffffff' : '#f8f9fa';
+    return index % 2 === 0 ? teema.riviParillinen : teema.riviPariton;
   };
 
   const haeStatusLabelTyyli = (status) => {
-    switch (status) {
-      case 'DNS': return { background: '#eceff1', color: '#455a64' };
-      case 'DNF': return { background: '#fff4e5', color: '#9c5300' };
-      case 'DNQ':
-      case 'DSQ': return { background: '#fce8e6', color: '#b3261e' };
-      default: return { background: '#f1f3f4', color: '#3c4043' };
+    if (['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)) {
+      return { background: teema.statusLabelTausta, color: teema.statusLabelTeksti };
     }
+
+    return { background: teema.statusOletusTausta, color: teema.statusOletusTeksti };
   };
 
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 600;
-  const sarakeMaara = (onMobiili ? 3 : 5) + (idxLa !== -1 ? 1 : 0) + (idxSu !== -1 ? 1 : 0);
+  const sarakeMaara = (onMobiili ? 3 : 5) + (idxLa !== -1 ? 1 : 0) + (idxSu !== -1 ? 1 : 0) + 1;
 
   return (
     <div style={tyylit.Alue}>
@@ -268,16 +310,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
               {idxLa !== -1 && <th style={{ ...tyylit.Th, ...tyylit.SuppeaSarake, textAlign: 'center' }}>LA</th>}
               {idxSu !== -1 && <th style={{ ...tyylit.Th, ...tyylit.SuppeaSarake, textAlign: 'center' }}>SU</th>}
               <th style={{ ...tyylit.Th, ...tyylit.YhteensaSarake, textAlign: 'right', paddingRight: '12px' }}>Yht.</th>
+              <th style={{ ...tyylit.Th, ...tyylit.RatkoSarake, textAlign: 'center' }}>RATKO</th>
             </tr>
           </thead>
           <tbody>
             {naytettavatAmpujat.map((ampuja, index) => {
               const onAuki = valittuAmpujaId === ampuja.id;
               const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
+              const naytaRatko = sarjaSuodatin !== 'KAIKKI' || parseInt(ampuja.laskettuSija, 10) <= 3;
 
               return (
                 <React.Fragment key={ampuja.id}>
-                  <tr 
+                  <tr
                     style={{
                       ...tyylit.DataRivi,
                       background: haeSijoitusRivinTausta(ampuja.laskettuSija, onAuki, index)
@@ -287,15 +331,9 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
                     <td style={{ ...tyylit.Td, ...tyylit.SijaSarake, textAlign: 'center', fontWeight: '700', color: '#3c4043' }}>
                       {ampuja.laskettuSija}
                     </td>
-                    
+
                     <td style={{ ...tyylit.Td, ...tyylit.NimiSolu }}>
-                      <div style={tyylit.NimiTeksti}>
-                        {ampuja.nimi}
-                        {ratkoNakyma.teksti && <span style={tyylit.RatkoBadge}>({ratkoNakyma.teksti})</span>}
-                        {ratkoNakyma.statusEtiketit.map((status) => (
-                          <span key={`${ampuja.id}-${status}`} style={{ ...tyylit.StatusLabel, ...haeStatusLabelTyyli(status) }}>{status}</span>
-                        ))}
-                      </div>
+                      <div style={tyylit.NimiTeksti}>{ampuja.nimi}</div>
                       <div style={tyylit.MobiiliAliTiedot}>
                         <span style={tyylit.MobiiliSarja}>{ampuja.sarja}</span> {ampuja.seura}
                       </div>
@@ -303,12 +341,25 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
 
                     <td style={{ ...tyylit.Td, ...tyylit.DesktopSarake }}><span style={tyylit.SarjaTag}>{ampuja.sarja}</span></td>
                     <td style={{ ...tyylit.Td, ...tyylit.DesktopSarake, color: '#5f6368' }}>{ampuja.seura || '—'}</td>
-                    
+
                     {idxLa !== -1 && <td style={{ ...tyylit.Td, ...tyylit.SuppeaSarake, textAlign: 'center', color: '#5f6368' }}>{ampuja.la || '—'}</td>}
                     {idxSu !== -1 && <td style={{ ...tyylit.Td, ...tyylit.SuppeaSarake, textAlign: 'center', color: '#5f6368' }}>{ampuja.su || '—'}</td>}
-                    
+
                     <td style={{ ...tyylit.Td, ...tyylit.YhteensaSarake, textAlign: 'right', fontWeight: '900', color: '#1a1f2c', paddingRight: '12px', fontSize: '1.1em' }}>
                       {ampuja.tulos}
+                    </td>
+
+                    <td style={{ ...tyylit.Td, ...tyylit.RatkoSarake, textAlign: 'center', fontSize: '0.8em' }}>
+                      <div style={tyylit.RatkoKontaineri}>
+                        {ratkoNakyma.statusEtiketit.map((status) => (
+                          <span key={`${ampuja.id}-${status}`} style={{ ...tyylit.StatusLabel, ...haeStatusLabelTyyli(status) }}>{status}</span>
+                        ))}
+                      </div>
+                      {naytaRatko && ratkoNakyma.teksti && (
+                        <div style={tyylit.RatkoTeksti}>
+                          {ratkoNakyma.teksti}
+                        </div>
+                      )}
                     </td>
                   </tr>
 
@@ -321,24 +372,24 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
                             // Verrataan laukauksen numeroa kisaspeksien maksimiin
                             const puhdistettuNumero = s.numero.replace(/\D/g, '');
                             const maksimiTulos = asemaMaksimit[puhdistettuNumero] || asemaMaksimit[s.numero];
-                            
+
                             const ampujaTulosNum = parseInt(s.tulos, 10);
                             const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
 
                             return (
-                              <div 
-                                key={`${ampuja.id}-${s.numero}-${sIdx}`} 
+                              <div
+                                key={`${ampuja.id}-${s.numero}-${sIdx}`}
                                 style={{
                                   ...tyylit.SarjaSolu,
-                                  borderColor: onkoMaksimiOsuma ? '#f5c2c2' : '#dadce0',
-                                  background: onkoMaksimiOsuma ? '#fce8e6' : '#ffffff' // Kevyt punertava tausta maksimille
+                                  borderColor: onkoMaksimiOsuma ? teema.maksimiTulos.borderColor : '#dadce0',
+                                  background: onkoMaksimiOsuma ? teema.maksimiTulos.background : teema.pintaValkoinen
                                 }}
                               >
                                 <div style={tyylit.SarjaSoluNumero}>S{s.numero}</div>
-                                <div 
+                                <div
                                   style={{
                                     ...tyylit.SarjaSoluArvo,
-                                    color: onkoMaksimiOsuma ? '#b3261e' : '#202124' // Teksti punaiseksi maksimilla
+                                    color: onkoMaksimiOsuma ? teema.maksimiTulos.color : '#202124'
                                   }}
                                 >
                                   {s.tulos}
@@ -379,12 +430,24 @@ const tyylit = {
   YhteensaSarake: { width: '55px', minWidth: '55px' },
   NimiSolu: { width: 'auto', overflow: 'hidden' },
   NimiTeksti: { fontWeight: '600', color: '#202124', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  RatkoSarake: { width: '100px', minWidth: '100px', padding: '4px 6px' },
+  RatkoKontaineri: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', verticalAlign: 'middle' },
+  RatkoTeksti: { color: '#1e293b', fontWeight: '700', fontSize: '0.95em', display: 'inline-block', verticalAlign: 'middle', fontFamily: 'monospace' },
   DesktopSarake: { display: onMobiiliYhteys ? 'none' : 'table-cell' },
   MobiiliAliTiedot: { display: onMobiiliYhteys ? 'block' : 'none', fontSize: '0.8em', color: '#70757a', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   MobiiliSarja: { fontWeight: 'bold', background: '#f1f3f4', padding: '1px 4px', borderRadius: '3px', marginRight: '4px', color: '#3c4043' },
   SarjaTag: { background: '#f1f3f4', color: '#3c4043', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '0.8em' },
-  RatkoBadge: { display: 'inline-block', marginLeft: '4px', color: '#5f6368', fontWeight: '600', fontSize: '0.85em' },
-  StatusLabel: { display: 'inline-block', marginLeft: '4px', padding: '1px 6px', borderRadius: '999px', fontSize: '0.72em', fontWeight: '700', letterSpacing: '0.02em' },
+
+  StatusLabel: {
+    display: 'inline-block',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    fontSize: '0.75em',
+    fontWeight: '800',
+    letterSpacing: '0.03em',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+    verticalAlign: 'middle'
+  },
   LaajennusSolu: { background: '#f8f9fa', padding: '8px' },
   SarjaRuudukko: { display: 'flex', gap: '4px', flexWrap: 'wrap' },
   SarjaSolu: { background: '#ffffff', border: '1px solid #dadce0', borderRadius: '4px', textAlign: 'center', minWidth: '36px', padding: '2px 4px', transition: 'all 0.15s ease' },

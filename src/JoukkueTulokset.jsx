@@ -147,7 +147,7 @@ export default function JoukkueTulokset({ data }) {
     return { sarjat: ryhmitellytSarjat };
   }, [data.joukkueetCsvRaw, speksit.ratojenMaara]);
 
-  const mitaliVarit = { 1: '#d4af37', 2: '#aaa9ad', 3: '#b0722a' };
+  const mitaliVarit = { 1: teema.kulta, 2: teema.hopea, 3: teema.pronssi };
 
   // Apufunktio dynaamisen erätaulukon luomiseen ja solujen väritykseen
   const renderöiEräTaulukko = (erat, onkoYhteispisteet = false) => {
@@ -219,8 +219,8 @@ export default function JoukkueTulokset({ data }) {
               };
 
               const sijoitusDynaaminenTyyli = {
-                background: mitaliVari ? mitaliVari : '#f0f0f0',
-                color: mitaliVari ? '#fff' : '#555',
+                background: mitaliVari ? mitaliVari : teema.sijoitusFallbackTausta,
+                color: mitaliVari ? teema.tekstiVaalea : teema.sijoitusFallbackTeksti,
                 fontWeight: mitaliVari ? 'bold' : 'normal'
               };
 
@@ -237,7 +237,7 @@ export default function JoukkueTulokset({ data }) {
                         <span
                           style={{
                             ...tyylit.ValmiusPiste,
-                            background: joukkueValmis ? '#16a34a' : '#dc2626'
+                            background: joukkueValmis ? teema.valmiusValmis : teema.valmiusPuuttuu
                           }}
                           title={joukkueValmis ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
                         />
