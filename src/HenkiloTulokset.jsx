@@ -5,7 +5,7 @@ import { teema } from './teema'; // Varmista että teema on importattu
 
 export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
-  const [sarjaSuodatin, setSarjaSuodatin] = useState('KAIKKI');
+  const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN');
 
   // 1. Parsitaan asemakohtaiset maksimit KISANSPEKSIT-datasta (alue J3:K)
   const asemaMaksimit = useMemo(() => {
@@ -191,80 +191,75 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
   }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, otsikot, rivit, asemaMaksimit]);
 
   const naytettavatAmpujat = useMemo(() => {
-    if (sarjaSuodatin === 'KAIKKI') {
-      const sortedAmpujat = [...ampujat].sort((a, b) => {
-        const tulosA = parseInt(a.tulos, 10) || 0;
-        const tulosB = parseInt(b.tulos, 10) || 0;
-        if (tulosB !== tulosA) return tulosB - tulosA;
+    let lajiteltuLista = [];
+    const onKaikkiNakyma = sarjaSuodatin === 'OPEN';
 
-        const ratkoA = puraRatkoArvo(a.ratko);
-        const ratkoB = puraRatkoArvo(b.ratko);
-        if (ratkoB.piste !== ratkoA.piste) return ratkoB.piste - ratkoA.piste;
-
-        const ratko2A = puraRatkoArvo(a.ratko2);
-        const ratko2B = puraRatkoArvo(b.ratko2);
-        return ratko2B.piste - ratko2A.piste;
-      });
-
-      return sortedAmpujat.map((ampuja, index, array) => {
-        let sija = index + 1;
-        const tulosNum = parseInt(ampuja.tulos, 10) || 0;
-        const ratkoArvo = puraRatkoArvo(ampuja.ratko);
-        const ratko2Arvo = puraRatkoArvo(ampuja.ratko2);
-
-        if (index > 0) {
-          const edellinen = array[index - 1];
-          const edellinenTulos = parseInt(edellinen.tulos, 10) || 0;
-          const edellinenRatko = puraRatkoArvo(edellinen.ratko);
-          const edellinenRatko2 = puraRatkoArvo(edellinen.ratko2);
-          if (
-            edellinenTulos === tulosNum &&
-            edellinenRatko.piste === ratkoArvo.piste &&
-            edellinenRatko2.piste === ratko2Arvo.piste
-          ) {
-            sija = parseInt(edellinen.laskettuSija || `${index}`, 10) || index;
-          }
-        }
-        return { ...ampuja, laskettuSija: sija.toString() };
-      });
+    // 1. Suodatetaan lista valinnan mukaan
+    if (onKaikkiNakyma) {
+      lajiteltuLista = [...ampujat];
+    } else {
+      lajiteltuLista = ampujat.filter((a) => a.sarja.toUpperCase() === sarjaSuodatin.toUpperCase());
     }
 
-    const sarjanVaki = ampujat
-      .filter((a) => a.sarja.toUpperCase() === sarjaSuodatin.toUpperCase())
-      .sort((a, b) => {
-        const tulosA = parseInt(a.tulos, 10) || 0;
-        const tulosB = parseInt(b.tulos, 10) || 0;
-        if (tulosB !== tulosA) return tulosB - tulosA;
+    // 2. LAJITTELU (Kaikissa näkymissä ratkot vaikuttavat nyt kärkisijoihin!)
+    lajiteltuLista.sort((a, b) => {
+      const tulosA = parseInt(a.tulos, 10) || 0;
+      const tulosB = parseInt(b.tulos, 10) || 0;
+      if (tulosB !== tulosA) return tulosB - tulosA;
 
-        const ratkoA = puraRatkoArvo(a.ratko);
-        const ratkoB = puraRatkoArvo(b.ratko);
-        if (ratkoB.piste !== ratkoA.piste) return ratkoB.piste - ratkoA.piste;
+      // Ratkot vaikuttavat sijoitukseen kaikissa sarjoissa (myös OPEN / Yleissarja)
+      const ratkoA = puraRatkoArvo(a.ratko);
+      const ratkoB = puraRatkoArvo(b.ratko);
+      if (ratkoB.piste !== ratkoA.piste) return ratkoB.piste - ratkoA.piste;
 
-        const ratko2A = puraRatkoArvo(a.ratko2);
-        const ratko2B = puraRatkoArvo(b.ratko2);
-        return ratko2B.piste - ratko2A.piste;
-      });
+      const ratko2A = puraRatkoArvo(a.ratko2);
+      const ratko2B = puraRatkoArvo(b.ratko2);
+      return ratko2B.piste - ratko2A.piste;
+    });
 
-    return sarjanVaki.map((ampuja, index, array) => {
-      let sija = index + 1;
+    // 3. SIJOITUSTEN LASKENTA (Sporting-sääntöjen mukainen)
+    let aktiivinenSija = 1;
+
+    // Haetaan listan kolmannen (indeksi 2) urheilijan tulos ankkuriksi, jos listalla on vähintään 3 urheilijaa
+    const top3Rajatulos = lajiteltuLista.length >= 3
+      ? parseInt(lajiteltuLista[2].tulos, 10) || 0
+      : 0;
+
+    return lajiteltuLista.map((ampuja, index, array) => {
       const tulosNum = parseInt(ampuja.tulos, 10) || 0;
-      const ratkoArvo = puraRatkoArvo(ampuja.ratko);
-      const ratko2Arvo = puraRatkoArvo(ampuja.ratko2);
 
       if (index > 0) {
         const edellinen = array[index - 1];
         const edellinenTulos = parseInt(edellinen.tulos, 10) || 0;
+
+        const ratkoArvo = puraRatkoArvo(ampuja.ratko);
+        const ratko2Arvo = puraRatkoArvo(ampuja.ratko2);
         const edellinenRatko = puraRatkoArvo(edellinen.ratko);
         const edellinenRatko2 = puraRatkoArvo(edellinen.ratko2);
-        if (
-          edellinenTulos === tulosNum &&
-          edellinenRatko.piste === ratkoArvo.piste &&
-          edellinenRatko2.piste === ratko2Arvo.piste
-        ) {
-          sija = parseInt(edellinen.laskettuSija || `${index}`, 10) || index;
+
+        // URHEILIJA ON MUKANA RATKOSSA JOS:
+        // Hän on indeksiltään top3:ssa TAI hänen tuloksensa yltää tasoihin top3-rajatuloksen kanssa
+        const onkoMukanaRatkoissa = index < 3 || tulosNum >= top3Rajatulos;
+
+        if (edellinenTulos === tulosNum) {
+          if (onkoMukanaRatkoissa) {
+            // Jos oltiin mukana mitaliratkoissa, keskinäinen sija ratkeaa ratkojen pisteillä
+            if (edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste) {
+              // Täysin tasatulos myös ratkoissa -> jaettu sija
+            } else {
+              aktiivinenSija = index + 1;
+            }
+          } else {
+            // Top3-taiston ulkopuolella (sijat 4+, joilla huonompi tulos kuin kolmosella) jaetaan sija suoraan päätuloksella
+          }
+        } else {
+          aktiivinenSija = index + 1;
         }
+      } else {
+        aktiivinenSija = 1;
       }
-      return { ...ampuja, laskettuSija: sija.toString() };
+
+      return { ...ampuja, laskettuSija: aktiivinenSija.toString() };
     });
   }, [ampujat, sarjaSuodatin]);
 
@@ -287,16 +282,16 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
     return { background: teema.statusOletusTausta, color: teema.statusOletusTeksti };
   };
 
-  const onMobiili = typeof window !== 'undefined' && window.innerWidth < 600;
-  const sarakeMaara = (onMobiili ? 3 : 5) + (idxLa !== -1 ? 1 : 0) + (idxSu !== -1 ? 1 : 0) + 1;
-
   return (
     <div style={tyylit.Alue}>
       <div style={tyylit.SuodatinPalkki}>
-        <button onClick={() => { setSarjaSuodatin('KAIKKI'); setValittuAmpujaId(null); }} style={sarjaSuodatin === 'KAIKKI' ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>KAIKKI</button>
-        {Array.from(loydetytSarjat).sort().map(sarja => (
-          <button key={sarja} onClick={() => { setSarjaSuodatin(sarja); setValittuAmpujaId(null); }} style={sarjaSuodatin === sarja ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>{sarja}</button>
-        ))}
+        <button onClick={() => { setSarjaSuodatin('OPEN'); setValittuAmpujaId(null); }} style={sarjaSuodatin === 'OPEN' ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>OPEN</button>
+        {Array.from(loydetytSarjat)
+          .sort()
+          .filter(sarja => sarja.toUpperCase() !== 'Y') // 👈 TÄMÄ RIVI POISTAA Y-NAPIN dynaamisesti
+          .map(sarja => (
+            <button key={sarja} onClick={() => { setSarjaSuodatin(sarja); setValittuAmpujaId(null); }} style={sarjaSuodatin === sarja ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>{sarja}</button>
+          ))}
       </div>
 
       {/* KORVATTU TAULUKKO MODERNILLA KORTTILISTALLA */}
@@ -304,7 +299,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
         {naytettavatAmpujat.map((ampuja, index) => {
           const onAuki = valittuAmpujaId === ampuja.id;
           const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
-          const naytaRatko = sarjaSuodatin !== 'KAIKKI' || parseInt(ampuja.laskettuSija, 10) <= 3;
+          const naytaRatko = sarjaSuodatin !== 'OPEN' || parseInt(ampuja.laskettuSija, 10) <= 3;
 
           return (
             <div key={ampuja.id} style={tyylit.KorttiKapseli}>
@@ -407,56 +402,37 @@ const tyylit = {
   SuodatinPalkki: { display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 2px 10px 2px', marginBottom: '4px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' },
   SuodatinNappi: { background: '#f1f3f4', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#3c4043', cursor: 'pointer' },
   SuodatinNappiAktiivinen: { background: '#202124', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#fff', cursor: 'pointer' },
-  TaulukkoSäiliö: { width: '100%', maxWidth: '100%', overflowX: 'hidden', background: '#ffffff', borderRadius: '8px', border: '1px solid #e8eaed' },
-  Taulukko: { width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontFamily: '-apple-system, sans-serif', fontSize: '0.85em' },
-  OtsikkoRivi: { background: '#f8f9fa', borderBottom: '1px solid #e8eaed' },
-  Th: { padding: '10px 6px', fontWeight: '700', color: '#5f6368', fontSize: '0.8em', textTransform: 'uppercase', textAlign: 'left' },
-  DataRivi: { borderBottom: '1px solid #f1f3f4', cursor: 'pointer' },
-  Td: { padding: '10px 6px', verticalAlign: 'middle', textAlign: 'left', overflow: 'hidden' },
-  SijaSarake: { width: '35px', minWidth: '35px' },
-  SuppeaSarake: { width: '45px', minWidth: '45px' },
-  YhteensaSarake: { width: '55px', minWidth: '55px' },
-  NimiSolu: { width: 'auto', overflow: 'hidden' },
-  NimiTeksti: { fontWeight: '600', color: '#202124', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  RatkoSarake: { width: '100px', minWidth: '100px', padding: '4px 6px' },
-  RatkoKontaineri: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', verticalAlign: 'middle' },
-  RatkoTeksti: { color: '#1e293b', fontWeight: '700', fontSize: '0.95em', display: 'inline-block', verticalAlign: 'middle', fontFamily: 'monospace' },
-  DesktopSarake: { display: onMobiiliYhteys ? 'none' : 'table-cell' },
-  MobiiliAliTiedot: { display: onMobiiliYhteys ? 'block' : 'none', fontSize: '0.8em', color: '#70757a', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  MobiiliSarja: { fontWeight: 'bold', background: '#f1f3f4', padding: '1px 4px', borderRadius: '3px', marginRight: '4px', color: '#3c4043' },
-  SarjaTag: { background: '#f1f3f4', color: '#3c4043', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '0.8em' },
 
   KorttiLista: { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' },
-  KorttiKapseli: { 
-    width: '100%', 
-    borderRadius: '8px', 
-    overflow: 'hidden', 
-    border: '1px solid #e8eaed', 
+  KorttiKapseli: {
+    width: '100%',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    border: '1px solid #e8eaed',
     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-    background: '#ffffff' 
+    background: '#ffffff'
   },
-  KorttiRivi: { 
-    display: 'flex', 
-    alignItems: 'center', 
-    padding: '12px 16px 12px 12px', // Pienennetty vasenta paddingia jotta raita istuu kauniisti
-    cursor: 'pointer', 
-    transition: 'all 0.15s ease', 
-    minHeight: '52px' 
+  KorttiRivi: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '12px 16px 12px 12px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    minHeight: '52px'
   },
-  KorttiSija: { 
-    width: '36px', 
-    minWidth: '36px', 
+  KorttiSija: {
+    width: '36px',
+    minWidth: '36px',
     height: '36px',
-    fontWeight: '800', 
-    fontSize: '1.05em', 
-    color: '#3c4043', 
-    display: 'flex', 
-    alignItems: 'center', 
+    fontWeight: '800',
+    fontSize: '1.05em',
+    color: '#3c4043',
+    display: 'flex',
+    alignItems: 'center',
     justifyContent: 'center',
     marginRight: '12px',
     borderRadius: '50%',
-    // Voidaan antaa kevyt harmaa tausta numeroille, jotta se muistuttaa joukkue-badgea
-    background: '#f1f3f4' 
+    background: '#f1f3f4'
   },
   KorttiInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingRight: '8px' },
   KorttiNimi: { fontWeight: '700', fontSize: '1.05em', color: '#1a1f2c', whiteSpace: 'normal', wordBreak: 'break-word' },
@@ -468,7 +444,10 @@ const tyylit = {
   KorttiRatkoOsa: { display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' },
   RatkoTekstiInline: { color: '#475569', fontWeight: '700', fontSize: '0.8em', fontFamily: 'monospace', background: '#f1f5f9', padding: '1px 4px', borderRadius: '3px' },
   KorttiLaajennus: { background: '#f8f9fa', padding: '12px', borderTop: '1px solid #e8eaed' },
-
+  SarjaRuudukko: { display: 'flex', gap: '4px', flexWrap: 'wrap' },
+  SarjaSolu: { background: '#ffffff', border: '1px solid #dadce0', borderRadius: '4px', textAlign: 'center', minWidth: '36px', padding: '2px 4px', transition: 'all 0.15s ease' },
+  SarjaSoluNumero: { fontSize: '0.6em', color: '#70757a' },
+  SarjaSoluArvo: { fontSize: '0.85em', fontWeight: '700' },
 
   StatusLabel: {
     display: 'inline-block',
@@ -479,10 +458,5 @@ const tyylit = {
     letterSpacing: '0.03em',
     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
     verticalAlign: 'middle'
-  },
-  LaajennusSolu: { background: '#f8f9fa', padding: '8px' },
-  SarjaRuudukko: { display: 'flex', gap: '4px', flexWrap: 'wrap' },
-  SarjaSolu: { background: '#ffffff', border: '1px solid #dadce0', borderRadius: '4px', textAlign: 'center', minWidth: '36px', padding: '2px 4px', transition: 'all 0.15s ease' },
-  SarjaSoluNumero: { fontSize: '0.6em', color: '#70757a' },
-  SarjaSoluArvo: { fontSize: '0.85em', fontWeight: '700' }
+  }
 };
