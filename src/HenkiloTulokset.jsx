@@ -5,7 +5,7 @@ import { teema } from './teema'; // Varmista että teema on importattu
 
 export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
-  const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN');
+  const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
 
   // 1. Parsitaan asemakohtaiset maksimit KISANSPEKSIT-datasta (alue J3:K)
   const asemaMaksimit = useMemo(() => {
@@ -192,7 +192,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
 
   const naytettavatAmpujat = useMemo(() => {
     let lajiteltuLista = [];
-    const onKaikkiNakyma = sarjaSuodatin === 'OPEN';
+    const onKaikkiNakyma = sarjaSuodatin === 'OPEN (Y)';
 
     // 1. Suodatetaan lista valinnan mukaan
     if (onKaikkiNakyma) {
@@ -207,7 +207,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
       const tulosB = parseInt(b.tulos, 10) || 0;
       if (tulosB !== tulosA) return tulosB - tulosA;
 
-      // Ratkot vaikuttavat sijoitukseen kaikissa sarjoissa (myös OPEN / Yleissarja)
+      // Ratkot vaikuttavat sijoitukseen kaikissa sarjoissa (myös OPEN (Y) / Yleissarja)
       const ratkoA = puraRatkoArvo(a.ratko);
       const ratkoB = puraRatkoArvo(b.ratko);
       if (ratkoB.piste !== ratkoA.piste) return ratkoB.piste - ratkoA.piste;
@@ -285,7 +285,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
   return (
     <div style={tyylit.Alue}>
       <div style={tyylit.SuodatinPalkki}>
-        <button onClick={() => { setSarjaSuodatin('OPEN'); setValittuAmpujaId(null); }} style={sarjaSuodatin === 'OPEN' ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>OPEN</button>
+        <button onClick={() => { setSarjaSuodatin('OPEN (Y)'); setValittuAmpujaId(null); }} style={sarjaSuodatin === 'OPEN (Y)' ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>OPEN (Y)</button>
         {Array.from(loydetytSarjat)
           .sort()
           .filter(sarja => sarja.toUpperCase() !== 'Y') // 👈 TÄMÄ RIVI POISTAA Y-NAPIN dynaamisesti
@@ -299,7 +299,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
         {naytettavatAmpujat.map((ampuja, index) => {
           const onAuki = valittuAmpujaId === ampuja.id;
           const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
-          const naytaRatko = sarjaSuodatin !== 'OPEN' || parseInt(ampuja.laskettuSija, 10) <= 3;
+          const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
 
           return (
             <div key={ampuja.id} style={tyylit.KorttiKapseli}>
