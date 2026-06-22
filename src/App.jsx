@@ -146,14 +146,18 @@ export default function App() {
         setLadataanKisalista(true);
         setVirhe(null);
 
-        const url = `https://docs.google.com/spreadsheets/d/${REKISTERI_SHEET_ID}/gviz/tq?tqx=out:csv`;
+        const url = `/api/rekisteri`;
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`Kilpailurekisterin haku epäonnistui: ${response.status}`);
         }
         const csvText = await response.text();
 
+        //console.log("Reactiin saapunut raaka teksti:", csvText);
+
         const raakaRivit = parseCsvRows(csvText);
+
+        //console.log("Parsitut raakarivit (taulukko):", raakaRivit);
         const parsitutKisat = [];
 
         for (let i = 0; i < raakaRivit.length; i++) {
@@ -236,7 +240,8 @@ async function haeSuoratCsvData() {
     // Apufunktio yksittäisen CSV:n hakuun
     const haeCsv = async (sheetName) => {
       try {
-        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+        //const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+        const url = `/api/kisaData?sheetId=${sheetId}&sheetName=${encodeURIComponent(sheetName)}`;
         const response = await fetch(url);
         if (!response.ok) return "";
         return await response.text();

@@ -1,5 +1,5 @@
-/* global process */
-
+import dotenv from 'dotenv';
+dotenv.config();
 import { GoogleAuth } from 'google-auth-library';
 
 export default async function handler(req, res) {
