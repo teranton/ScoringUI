@@ -1,6 +1,7 @@
 // src/HenkiloTulokset.jsx
 import React, { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
+import { teema } from './teema'; // Varmista että teema on importattu
 
 export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);

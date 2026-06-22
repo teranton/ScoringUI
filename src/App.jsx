@@ -1,6 +1,7 @@
 // src/App.jsx
 import React, { useState, useEffect } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
+import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
 import RyhmaJako from './RyhmaJako';
 import Ilmoittautuneet from './Ilmoittautuneet';
@@ -18,6 +19,14 @@ export default function App() {
   const [kisaCache, setKisaCache] = useState({});
   const [ladataanKisaa, setLadataanKisaa] = useState(false);
   const [virhe, setVirhe] = useState(null);
+
+  // TAULUKKO on kokeellinen: oletus päällä devissä, tuotannossa pois ellei erikseen aktivoida
+  const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
+  const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
+    ? true
+    : taulukkoLippuEnv === '0' || taulukkoLippuEnv === 'false'
+      ? false
+      : Boolean(import.meta.env.DEV);
 
   const avaaKisaNakyma = (kisa) => {
     setAktiivinenSivu('tulokset');
@@ -391,6 +400,7 @@ async function haeSuoratCsvData() {
 
   // SÄÄNNÖT ERI SIVUJEN NÄKYVYYDELLE
   const onkoTuloksetSallittu = !onkoKisaTulossa;
+  const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
   const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
   const onkoEraluetteloa = !onkoKisaPaattynyt;
   const onkoJoukkueKisa = !onkoKisaTulossa && hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
@@ -400,7 +410,9 @@ async function haeSuoratCsvData() {
     setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : 'erakirjaus');
   } else if (!onkoIlmoittautuneita && aktiivinenSivu === 'ilmoittautuneet') {
     setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
-  } else if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && aktiivinenSivu !== 'joukkueet') {
+  } else if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && !(onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') && aktiivinenSivu !== 'joukkueet') {
+    setAktiivinenSivu('tulokset');
+  } else if (!onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') {
     setAktiivinenSivu('tulokset');
   }
 
@@ -420,6 +432,9 @@ async function haeSuoratCsvData() {
       <nav style={tyylit.NaviPalkki}>
         {onkoTuloksetSallittu && (
           <button onClick={() => setAktiivinenSivu('tulokset')} style={aktiivinenSivu === 'tulokset' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>🏆 TULOKSET</button>
+        )}
+        {onkoTaulukkoSallittu && (
+          <button onClick={() => setAktiivinenSivu('taulukko')} style={aktiivinenSivu === 'taulukko' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>📊 TAULUKKO</button>
         )}
 
         {onkoIlmoittautuneita && (
@@ -444,6 +459,9 @@ async function haeSuoratCsvData() {
               rawCsv={nykyisenKisanData.henkilotCsvRaw}
               speksitCsv={nykyisenKisanData.speksitCsvRaw} // UUSI PROP
             />
+          )}
+          {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
+            <HenkiloTaulukko data={nykyisenKisanData} />
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} />

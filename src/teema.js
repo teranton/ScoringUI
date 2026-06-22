@@ -10,5 +10,14 @@ export const teema = {
   // --- UUDET MITALIVÄRIT JOUKKUEILLE ---
   kulta: '#d4af37',   // Tyylikäs mitalikulta
   hopea: '#aaa9ad',   // Hopeanharmaa
-  pronssi: '#b0722a'  // Pronssinruskea
+  pronssi: '#b0722a',  // Pronssinruskea
+
+
+// Lisätään uusi globaali tyyli maksimituloksille:
+  maksimiTulos: {
+    color: '#fa1605',      // Tummanpunainen teksti
+    background: '#fce8e6', // Kevyt punainen tausta
+    fontWeight: 'bold',
+    borderColor: '#f5c2c2' // Rajan väri tarvittaessa
+  }
 };

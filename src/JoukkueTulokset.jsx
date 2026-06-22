@@ -185,10 +185,7 @@ export default function JoukkueTulokset({ data }) {
                       key={n} 
                       style={{
                         ...tyylit.DataSolu,
-                        color: onkoMaksimi ? '#b3261e' : '#111827',
-                        background: onkoMaksimi ? '#fce8e6' : '#fff',
-                        fontWeight: onkoMaksimi ? 'bold' : 'normal',
-                        borderColor: onkoMaksimi ? '#f5c2c2' : '#e5e7eb'
+                        ...(onkoMaksimi ? teema.maksimiTulos : {})
                       }}
                     >
                       {pisteArvo}
