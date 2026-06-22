@@ -299,113 +299,101 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
         ))}
       </div>
 
-      <div style={tyylit.TaulukkoSäiliö}>
-        <table style={tyylit.Taulukko}>
-          <thead>
-            <tr style={tyylit.OtsikkoRivi}>
-              <th style={{ ...tyylit.Th, ...tyylit.SijaSarake, textAlign: 'center' }}>#</th>
-              <th style={{ ...tyylit.Th, textAlign: 'left' }}>Nimi</th>
-              <th style={{ ...tyylit.Th, ...tyylit.DesktopSarake }}>Sarja</th>
-              <th style={{ ...tyylit.Th, ...tyylit.DesktopSarake }}>Seura</th>
-              {idxLa !== -1 && <th style={{ ...tyylit.Th, ...tyylit.SuppeaSarake, textAlign: 'center' }}>LA</th>}
-              {idxSu !== -1 && <th style={{ ...tyylit.Th, ...tyylit.SuppeaSarake, textAlign: 'center' }}>SU</th>}
-              <th style={{ ...tyylit.Th, ...tyylit.YhteensaSarake, textAlign: 'right', paddingRight: '12px' }}>Yht.</th>
-              <th style={{ ...tyylit.Th, ...tyylit.RatkoSarake, textAlign: 'center' }}>RATKO</th>
-            </tr>
-          </thead>
-          <tbody>
-            {naytettavatAmpujat.map((ampuja, index) => {
-              const onAuki = valittuAmpujaId === ampuja.id;
-              const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
-              const naytaRatko = sarjaSuodatin !== 'KAIKKI' || parseInt(ampuja.laskettuSija, 10) <= 3;
+      {/* KORVATTU TAULUKKO MODERNILLA KORTTILISTALLA */}
+      <div style={tyylit.KorttiLista}>
+        {naytettavatAmpujat.map((ampuja, index) => {
+          const onAuki = valittuAmpujaId === ampuja.id;
+          const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
+          const naytaRatko = sarjaSuodatin !== 'KAIKKI' || parseInt(ampuja.laskettuSija, 10) <= 3;
 
-              return (
-                <React.Fragment key={ampuja.id}>
-                  <tr
-                    style={{
-                      ...tyylit.DataRivi,
-                      background: haeSijoitusRivinTausta(ampuja.laskettuSija, onAuki, index)
-                    }}
-                    onClick={() => setValittuAmpujaId(onAuki ? null : ampuja.id)}
-                  >
-                    <td style={{ ...tyylit.Td, ...tyylit.SijaSarake, textAlign: 'center', fontWeight: '700', color: '#3c4043' }}>
-                      {ampuja.laskettuSija}
-                    </td>
+          return (
+            <div key={ampuja.id} style={tyylit.KorttiKapseli}>
+              <div
+                style={{
+                  ...tyylit.KorttiRivi,
+                  // Kortin tausta on nyt aina siisti valkoinen tai auki-tilan väri
+                  background: onAuki ? teema.riviAuki : teema.pintaValkoinen || '#ffffff',
+                  // Tehdään mitaliraita vasempaan reunaan suoraan sijoituksen mukaan
+                  borderLeft: ampuja.laskettuSija === '1' ? `5px solid ${teema.kulta}`
+                    : ampuja.laskettuSija === '2' ? `5px solid ${teema.hopea}`
+                      : ampuja.laskettuSija === '3' ? `5px solid ${teema.pronssi}`
+                        : '5px solid transparent', // Normaaliriveillä ei ole mitaliraitaa
+                  // Pyöristetään vasen reuna nätisti raidan mukaisesti
+                  borderTopLeftRadius: '8px',
+                  borderBottomLeftRadius: '8px'
+                }}
+                onClick={() => setValittuAmpujaId(onAuki ? null : ampuja.id)}
+              >
+                {/* Sija */}
+                <div style={tyylit.KorttiSija}>
+                  {ampuja.laskettuSija}
+                </div>
 
-                    <td style={{ ...tyylit.Td, ...tyylit.NimiSolu }}>
-                      <div style={tyylit.NimiTeksti}>{ampuja.nimi}</div>
-                      <div style={tyylit.MobiiliAliTiedot}>
-                        <span style={tyylit.MobiiliSarja}>{ampuja.sarja}</span> {ampuja.seura}
-                      </div>
-                    </td>
+                {/* Nimi ja Seuratiedot dynaamisesti ilman katkeamista */}
+                <div style={tyylit.KorttiInfo}>
+                  <div style={tyylit.KorttiNimi}>{ampuja.nimi}</div>
+                  <div style={tyylit.KorttiAlempiRivi}>
+                    <span style={tyylit.SarjaTag}>{ampuja.sarja}</span>
+                    <span style={tyylit.KorttiSeura}>{ampuja.seura || '—'}</span>
+                  </div>
+                </div>
 
-                    <td style={{ ...tyylit.Td, ...tyylit.DesktopSarake }}><span style={tyylit.SarjaTag}>{ampuja.sarja}</span></td>
-                    <td style={{ ...tyylit.Td, ...tyylit.DesktopSarake, color: '#5f6368' }}>{ampuja.seura || '—'}</td>
+                {/* Oikea laita: Tulos ja mahdollinen Ratko */}
+                <div style={tyylit.KorttiOikea}>
+                  <div style={tyylit.KorttiTulos}>{ampuja.tulos}</div>
 
-                    {idxLa !== -1 && <td style={{ ...tyylit.Td, ...tyylit.SuppeaSarake, textAlign: 'center', color: '#5f6368' }}>{ampuja.la || '—'}</td>}
-                    {idxSu !== -1 && <td style={{ ...tyylit.Td, ...tyylit.SuppeaSarake, textAlign: 'center', color: '#5f6368' }}>{ampuja.su || '—'}</td>}
-
-                    <td style={{ ...tyylit.Td, ...tyylit.YhteensaSarake, textAlign: 'right', fontWeight: '900', color: '#1a1f2c', paddingRight: '12px', fontSize: '1.1em' }}>
-                      {ampuja.tulos}
-                    </td>
-
-                    <td style={{ ...tyylit.Td, ...tyylit.RatkoSarake, textAlign: 'center', fontSize: '0.8em' }}>
-                      <div style={tyylit.RatkoKontaineri}>
-                        {ratkoNakyma.statusEtiketit.map((status) => (
-                          <span key={`${ampuja.id}-${status}`} style={{ ...tyylit.StatusLabel, ...haeStatusLabelTyyli(status) }}>{status}</span>
-                        ))}
-                      </div>
+                  {(ratkoNakyma.statusEtiketit.length > 0 || (naytaRatko && ratkoNakyma.teksti)) && (
+                    <div style={tyylit.KorttiRatkoOsa}>
+                      {ratkoNakyma.statusEtiketit.map((status) => (
+                        <span key={`${ampuja.id}-${status}`} style={{ ...tyylit.StatusLabel, ...haeStatusLabelTyyli(status) }}>
+                          {status}
+                        </span>
+                      ))}
                       {naytaRatko && ratkoNakyma.teksti && (
-                        <div style={tyylit.RatkoTeksti}>
-                          {ratkoNakyma.teksti}
-                        </div>
+                        <span style={tyylit.RatkoTekstiInline}>{ratkoNakyma.teksti}</span>
                       )}
-                    </td>
-                  </tr>
-
-                  {/* ISTUNNON/ERÄN TARKEMMAT TIEDOT LAAJENNUSVÄRITYKSELLÄ */}
-                  {onAuki && ampuja.sarjat.length > 0 && (
-                    <tr>
-                      <td colSpan={sarakeMaara} style={tyylit.LaajennusSolu}>
-                        <div style={tyylit.SarjaRuudukko}>
-                          {ampuja.sarjat.map((s, sIdx) => {
-                            // Verrataan laukauksen numeroa kisaspeksien maksimiin
-                            const puhdistettuNumero = s.numero.replace(/\D/g, '');
-                            const maksimiTulos = asemaMaksimit[puhdistettuNumero] || asemaMaksimit[s.numero];
-
-                            const ampujaTulosNum = parseInt(s.tulos, 10);
-                            const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
-
-                            return (
-                              <div
-                                key={`${ampuja.id}-${s.numero}-${sIdx}`}
-                                style={{
-                                  ...tyylit.SarjaSolu,
-                                  borderColor: onkoMaksimiOsuma ? teema.maksimiTulos.borderColor : '#dadce0',
-                                  background: onkoMaksimiOsuma ? teema.maksimiTulos.background : teema.pintaValkoinen
-                                }}
-                              >
-                                <div style={tyylit.SarjaSoluNumero}>S{s.numero}</div>
-                                <div
-                                  style={{
-                                    ...tyylit.SarjaSoluArvo,
-                                    color: onkoMaksimiOsuma ? teema.maksimiTulos.color : '#202124'
-                                  }}
-                                >
-                                  {s.tulos}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    </tr>
+                    </div>
                   )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                </div>
+              </div>
+
+              {/* Asemien erittelyruudukko laajennuksena kortin alle */}
+              {onAuki && ampuja.sarjat.length > 0 && (
+                <div style={tyylit.KorttiLaajennus}>
+                  <div style={tyylit.SarjaRuudukko}>
+                    {ampuja.sarjat.map((s, sIdx) => {
+                      const puhdistettuNumero = s.numero.replace(/\D/g, '');
+                      const maksimiTulos = asemaMaksimit[puhdistettuNumero] || asemaMaksimit[s.numero];
+                      const ampujaTulosNum = parseInt(s.tulos, 10);
+                      const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
+
+                      return (
+                        <div
+                          key={`${ampuja.id}-${s.numero}-${sIdx}`}
+                          style={{
+                            ...tyylit.SarjaSolu,
+                            borderColor: onkoMaksimiOsuma ? teema.maksimiTulos.borderColor : '#dadce0',
+                            background: onkoMaksimiOsuma ? teema.maksimiTulos.background : teema.pintaValkoinen
+                          }}
+                        >
+                          <div style={tyylit.SarjaSoluNumero}>S{s.numero}</div>
+                          <div
+                            style={{
+                              ...tyylit.SarjaSoluArvo,
+                              color: onkoMaksimiOsuma ? teema.maksimiTulos.color : '#202124'
+                            }}
+                          >
+                            {s.tulos}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -437,6 +425,50 @@ const tyylit = {
   MobiiliAliTiedot: { display: onMobiiliYhteys ? 'block' : 'none', fontSize: '0.8em', color: '#70757a', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   MobiiliSarja: { fontWeight: 'bold', background: '#f1f3f4', padding: '1px 4px', borderRadius: '3px', marginRight: '4px', color: '#3c4043' },
   SarjaTag: { background: '#f1f3f4', color: '#3c4043', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '0.8em' },
+
+  KorttiLista: { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' },
+  KorttiKapseli: { 
+    width: '100%', 
+    borderRadius: '8px', 
+    overflow: 'hidden', 
+    border: '1px solid #e8eaed', 
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    background: '#ffffff' 
+  },
+  KorttiRivi: { 
+    display: 'flex', 
+    alignItems: 'center', 
+    padding: '12px 16px 12px 12px', // Pienennetty vasenta paddingia jotta raita istuu kauniisti
+    cursor: 'pointer', 
+    transition: 'all 0.15s ease', 
+    minHeight: '52px' 
+  },
+  KorttiSija: { 
+    width: '36px', 
+    minWidth: '36px', 
+    height: '36px',
+    fontWeight: '800', 
+    fontSize: '1.05em', 
+    color: '#3c4043', 
+    display: 'flex', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    marginRight: '12px',
+    borderRadius: '50%',
+    // Voidaan antaa kevyt harmaa tausta numeroille, jotta se muistuttaa joukkue-badgea
+    background: '#f1f3f4' 
+  },
+  KorttiInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingRight: '8px' },
+  KorttiNimi: { fontWeight: '700', fontSize: '1.05em', color: '#1a1f2c', whiteSpace: 'normal', wordBreak: 'break-word' },
+  KorttiAlempiRivi: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85em' },
+  KorttiSeura: { color: '#5f6368', fontWeight: '500' },
+  SarjaTag: { background: '#f1f3f4', color: '#3c4043', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '0.85em' },
+  KorttiOikea: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', minWidth: '80px' },
+  KorttiTulos: { fontSize: '1.25em', fontWeight: '900', color: '#1a1f2c', lineHeight: '1' },
+  KorttiRatkoOsa: { display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' },
+  RatkoTekstiInline: { color: '#475569', fontWeight: '700', fontSize: '0.8em', fontFamily: 'monospace', background: '#f1f5f9', padding: '1px 4px', borderRadius: '3px' },
+  KorttiLaajennus: { background: '#f8f9fa', padding: '12px', borderTop: '1px solid #e8eaed' },
+
 
   StatusLabel: {
     display: 'inline-block',
