@@ -32,6 +32,6 @@ export const teema = {
 // Maksimitulos korostetaan vain tekstillä ilman erillistä taustaa.
   maksimiTulos: {
     color: '#b91c1c',
-    fontWeight: '700'
+    fontWeight: '900'
   }
 };
