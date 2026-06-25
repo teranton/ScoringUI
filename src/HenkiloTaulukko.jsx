@@ -4,6 +4,8 @@ import { parseCsvRows } from './utils/csv';
 import { teema } from './teema'; // Varmista että teema on importattu
 
 export default function HenkiloTaulukko({ data }) {
+  const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
+
   // 1. PARSITAAN KISASPEKSIT (Ratojen määrä ja maksimit)
   const speksit = useMemo(() => {
     const maksimit = {};
@@ -124,6 +126,14 @@ export default function HenkiloTaulukko({ data }) {
 
   // Luodaan lista radoista sarakeotsikoita varten (esim. [1, 2, 3...])
   const radatList = Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1);
+  const muotoileNimiTaulukkoon = (nimi) => {
+    if (!onMobiili) return nimi;
+    const osat = String(nimi || '').trim().split(/\s+/).filter(Boolean);
+    if (osat.length <= 1) return nimi;
+    return osat
+      .map((osa, idx) => (idx === 0 ? osa : `${osa.charAt(0)}.`))
+      .join(' ');
+  };
 
   return (
     <div style={tyylit.Säiliö}>
@@ -133,21 +143,21 @@ export default function HenkiloTaulukko({ data }) {
         <table style={tyylit.Taulukko}>
           <thead>
             <tr>
-              <th style={tyylit.ThKiintea}>Sija</th>
-              <th style={{ ...tyylit.ThKiintea, minWidth: '160px', textAlign: 'left' }}>Nimi</th>
-              <th style={tyylit.ThKiintea}>Sarja</th>
+              <th style={onMobiili ? tyylit.ThKiinteaMobiili : tyylit.ThKiintea}>Sija</th>
+              <th style={{ ...(onMobiili ? tyylit.ThKiinteaMobiili : tyylit.ThKiintea), minWidth: onMobiili ? '86px' : '160px', textAlign: 'left' }}>Nimi</th>
+              {!onMobiili && <th style={tyylit.ThKiintea}>Sarja</th>}
               {radatList.map(n => (
-                <th key={n} style={tyylit.ThRata}>R{n}</th>
+                <th key={n} style={onMobiili ? tyylit.ThRataMobiili : tyylit.ThRata}>R{n}</th>
               ))}
-              <th style={tyylit.ThYht}>Yht</th>
+              <th style={onMobiili ? tyylit.ThYhtMobiili : tyylit.ThYht}>Yht</th>
             </tr>
           </thead>
           <tbody>
             {ampujat.map((ampuja) => (
               <tr key={ampuja.id} style={tyylit.Tr}>
-                <td style={tyylit.TdSija}>{ampuja.sijoitus}</td>
-                <td style={tyylit.TdNimi}>{ampuja.nimi}</td>
-                <td style={tyylit.TdSarja}>{ampuja.sarja}</td>
+                <td style={onMobiili ? tyylit.TdSijaMobiili : tyylit.TdSija}>{ampuja.sijoitus}</td>
+                <td style={onMobiili ? tyylit.TdNimiMobiili : tyylit.TdNimi}>{muotoileNimiTaulukkoon(ampuja.nimi)}</td>
+                {!onMobiili && <td style={tyylit.TdSarja}>{ampuja.sarja}</td>}
                 
                 {radatList.map(n => {
                   const pisteArvo = ampuja.erat[n] || '-';
@@ -159,7 +169,7 @@ export default function HenkiloTaulukko({ data }) {
                     <td
                       key={n}
                       style={{
-                        ...tyylit.TdRata,
+                        ...(onMobiili ? tyylit.TdRataMobiili : tyylit.TdRata),
                         ...(onkoMaksimi ? teema.maksimiTulos : {})
                       }}
                     >
@@ -168,7 +178,7 @@ export default function HenkiloTaulukko({ data }) {
                   );
                 })}
                 
-                <td style={tyylit.TdYht}>{ampuja.kokonaistulos}</td>
+                <td style={onMobiili ? tyylit.TdYhtMobiili : tyylit.TdYht}>{ampuja.kokonaistulos}</td>
               </tr>
             ))}
           </tbody>
@@ -186,11 +196,18 @@ const tyylit = {
   Taulukko: { width: '100%', borderCollapse: 'collapse', fontSize: '0.85em', background: '#fff' },
   Tr: { borderBottom: '1px solid #f3f4f6' },
   ThKiintea: { background: '#f8fafc', color: '#475569', padding: '8px 10px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center' },
+  ThKiinteaMobiili: { background: '#f8fafc', color: '#475569', padding: '6px 5px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center', fontSize: '0.75em' },
   ThRata: { background: '#f1f5f9', color: '#334155', padding: '8px 4px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center', minWidth: '32px', fontFamily: 'monospace' },
+  ThRataMobiili: { background: '#f1f5f9', color: '#334155', padding: '6px 2px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center', minWidth: '22px', fontFamily: 'monospace', fontSize: '0.72em' },
   ThYht: { background: '#e2e8f0', color: '#1e293b', padding: '8px 10px', fontWeight: '700', borderBottom: '2px solid #cbd5e1', textAlign: 'center', width: '45px' },
+  ThYhtMobiili: { background: '#e2e8f0', color: '#1e293b', padding: '6px 6px', fontWeight: '700', borderBottom: '2px solid #cbd5e1', textAlign: 'center', width: '36px', fontSize: '0.75em' },
   TdSija: { padding: '6px 4px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500' },
+  TdSijaMobiili: { padding: '4px 2px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500', fontSize: '0.75em' },
   TdNimi: { padding: '6px 10px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap' },
+  TdNimiMobiili: { padding: '4px 4px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', fontSize: '0.75em', maxWidth: '92px', overflow: 'hidden', textOverflow: 'ellipsis' },
   TdSarja: { padding: '6px 4px', textAlign: 'center', color: '#475569' },
   TdRata: { padding: '6px 2px', textAlign: 'center', borderLeft: '1px solid #f1f5f9', fontFamily: 'monospace', fontSize: '0.95em' },
+  TdRataMobiili: { padding: '4px 1px', textAlign: 'center', borderLeft: '1px solid #f1f5f9', fontFamily: 'monospace', fontSize: '0.72em' },
   TdYht: { padding: '6px 10px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '1em' }
+  ,TdYhtMobiili: { padding: '4px 5px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.78em' }
 };
