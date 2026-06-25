@@ -389,17 +389,13 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
                       return (
                         <div
                           key={`${ampuja.id}-${s.numero}-${sIdx}`}
-                          style={{
-                            ...tyylit.SarjaSolu,
-                            borderColor: onkoMaksimiOsuma ? teema.maksimiTulos.borderColor : '#dadce0',
-                            background: onkoMaksimiOsuma ? teema.maksimiTulos.background : teema.pintaValkoinen
-                          }}
+                          style={tyylit.SarjaSolu}
                         >
                           <div style={tyylit.SarjaSoluNumero}>S{s.numero}</div>
                           <div
                             style={{
                               ...tyylit.SarjaSoluArvo,
-                              color: onkoMaksimiOsuma ? teema.maksimiTulos.color : '#202124'
+                              ...(onkoMaksimiOsuma ? teema.maksimiTulos : {})
                             }}
                           >
                             {s.tulos}

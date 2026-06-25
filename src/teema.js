@@ -29,11 +29,9 @@ export const teema = {
   statusOletusTeksti: '#3c4043',
 
 
-// Lisätään uusi globaali tyyli maksimituloksille:
+// Maksimitulos korostetaan vain tekstillä ilman erillistä taustaa.
   maksimiTulos: {
-    color: '#fa1605',      // Tummanpunainen teksti
-    background: '#fce8e6', // Kevyt punainen tausta
-    fontWeight: 'bold',
-    borderColor: '#f5c2c2' // Rajan väri tarvittaessa
+    color: '#b91c1c',
+    fontWeight: '700'
   }
 };
