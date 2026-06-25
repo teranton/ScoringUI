@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
@@ -10,6 +10,72 @@ import { hasCsvDataRows, parseCsvRows } from './utils/csv';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
+function parsiPaivamaara(pvmStr) {
+  if (!pvmStr) return null;
+  const osat = pvmStr.split('.');
+  if (osat.length !== 3) return null;
+
+  const paiva = parseInt(osat[0], 10);
+  const kuukausi = parseInt(osat[1], 10);
+  const vuosi = parseInt(osat[2], 10);
+
+  if (
+    !Number.isInteger(paiva) ||
+    !Number.isInteger(kuukausi) ||
+    !Number.isInteger(vuosi) ||
+    kuukausi < 1 ||
+    kuukausi > 12 ||
+    paiva < 1 ||
+    paiva > 31
+  ) {
+    return null;
+  }
+
+  const date = new Date(vuosi, kuukausi - 1, paiva);
+  if (
+    date.getFullYear() !== vuosi ||
+    date.getMonth() !== kuukausi - 1 ||
+    date.getDate() !== paiva
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function laskeOnkoIlmoittautuminenPaattynyt(alkuStr) {
+  if (!alkuStr) return true;
+  const aloitusPaiva = parsiPaivamaara(alkuStr);
+  if (!aloitusPaiva) return true;
+
+  const takaraja = new Date(aloitusPaiva.getTime());
+  takaraja.setHours(10, 0, 0, 0);
+
+  const nykyhetki = new Date();
+  return nykyhetki >= takaraja;
+}
+
+function laskeKisanStatusJaTyyli(alkuStr, loppuStr) {
+  if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+
+  const nollatunnit = (d) => {
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const tanaandDate = nollatunnit(new Date());
+  const alkuDate = parsiPaivamaara(alkuStr);
+  const loppuDate = loppuStr ? parsiPaivamaara(loppuStr) : alkuDate;
+
+  if (!alkuDate || !loppuDate) {
+    return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+  }
+
+  if (tanaandDate < alkuDate) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+  if (tanaandDate > loppuDate) return { teksti: "Päättynyt", tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
+  return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
+}
+
 export default function App() {
   const [kisat, setKisat] = useState([]);
   const [valittuKisa, setValittuKisa] = useState(null);
@@ -19,6 +85,11 @@ export default function App() {
   const [kisaCache, setKisaCache] = useState({});
   const [ladataanKisaa, setLadataanKisaa] = useState(false);
   const [virhe, setVirhe] = useState(null);
+  const kisaCacheRef = useRef(kisaCache);
+
+  useEffect(() => {
+    kisaCacheRef.current = kisaCache;
+  }, [kisaCache]);
 
   // TAULUKKO on kokeellinen: oletus päällä devissä, tuotannossa pois ellei erikseen aktivoida
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
@@ -49,39 +120,6 @@ export default function App() {
     window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
   };
 
-  const parsiPaivamaara = (pvmStr) => {
-    if (!pvmStr) return null;
-    const osat = pvmStr.split('.');
-    if (osat.length !== 3) return null;
-
-    const paiva = parseInt(osat[0], 10);
-    const kuukausi = parseInt(osat[1], 10);
-    const vuosi = parseInt(osat[2], 10);
-
-    if (
-      !Number.isInteger(paiva) ||
-      !Number.isInteger(kuukausi) ||
-      !Number.isInteger(vuosi) ||
-      kuukausi < 1 ||
-      kuukausi > 12 ||
-      paiva < 1 ||
-      paiva > 31
-    ) {
-      return null;
-    }
-
-    const date = new Date(vuosi, kuukausi - 1, paiva);
-    if (
-      date.getFullYear() !== vuosi ||
-      date.getMonth() !== kuukausi - 1 ||
-      date.getDate() !== paiva
-    ) {
-      return null;
-    }
-
-    return date;
-  };
-
   const muotoileIsoPaivamaaraSuomeksi = (pvmStr) => {
     if (!pvmStr || !pvmStr.includes('-')) return pvmStr;
     const osat = pvmStr.split('-');
@@ -100,20 +138,6 @@ export default function App() {
   };
 
   const arvioiJoukkuekisaNimesta = (kisaNimi) => String(kisaNimi || '').includes('SM');
-
-  // Tutkii onko nykyhetki ylittänyt kisan aloituspäivän klo 10:00 rajapyykin
-  const laskeOnkoIlmoittautuminenPaattynyt = (alkuStr) => {
-    if (!alkuStr) return true;
-    const aloitusPaiva = parsiPaivamaara(alkuStr);
-    if (!aloitusPaiva) return true;
-
-    // Asetetaan takarajaksi aloituspäivä klo 10:00:00
-    const takaraja = new Date(aloitusPaiva.getTime());
-    takaraja.setHours(10, 0, 0, 0);
-
-    const nykyhetki = new Date();
-    return nykyhetki >= takaraja;
-  };
 
   // 1. HAETAAN KILPAILUREKISTERI
   useEffect(() => {
@@ -198,7 +222,7 @@ export default function App() {
 async function haeSuoratCsvData() {
   try {
     setVirhe(null);
-    if (!kisaCache[sheetId]) {
+    if (!kisaCacheRef.current[sheetId]) {
       setLadataanKisaa(true);
     }
 
@@ -267,7 +291,7 @@ async function haeSuoratCsvData() {
     };
 
     // Jos kisaCachessa oli jo jotain (esim. aiemmalta sivulta), pidetään ne pohjalla
-    const vanhaData = kisaCache[sheetId] || {};
+    const vanhaData = kisaCacheRef.current[sheetId] || {};
 
     tulokset.forEach((teksti, indeksi) => {
       const avain = avaimet[indeksi];
@@ -334,24 +358,6 @@ async function haeSuoratCsvData() {
     if (!loppu || alku === loppu) return `📅 ${alku}`;
     return `📅 ${alku} – ${loppu}`;
   };
-
-  function laskeKisanStatusJaTyyli(alkuStr, loppuStr) {
-    if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-
-    const nollatunnit = (d) => { d.setHours(0, 0, 0, 0); return d; };
-
-    const tanaandDate = nollatunnit(new Date());
-    const alkuDate = parsiPaivamaara(alkuStr);
-    const loppuDate = loppuStr ? parsiPaivamaara(loppuStr) : alkuDate;
-
-    if (!alkuDate || !loppuDate) {
-      return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-    }
-
-    if (tanaandDate < alkuDate) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-    if (tanaandDate > loppuDate) return { teksti: "Päättynyt", tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
-    return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
-  }
 
   if (ladataanKisalista) {
     return <div style={tyylit.LatausKeskitys}>Ladataan kilpailurekisteriä...</div>;
