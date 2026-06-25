@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { teema } from './teema'; // Varmista että teema on importattu
 
-export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
+export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
 
@@ -112,6 +112,11 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
     }
 
     return { statusEtiketit: [], teksti: naytto };
+  };
+
+  const onkoAliTulosPuuttuu = (arvo) => {
+    const teksti = String(arvo ?? '').trim().toUpperCase();
+    return teksti === '' || teksti === '-' || teksti === '—' || teksti === 'N/A';
   };
 
   const idxNimi = etsiSarakkeenIndeksi([(h) => h === 'NIMI', (h) => h.includes('NIMI')]);
@@ -263,6 +268,13 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
     });
   }, [ampujat, sarjaSuodatin]);
 
+  const onkoAmpujaValmis = (ampuja) => {
+    if (!ampuja?.sarjat || ampuja.sarjat.length === 0) return false;
+    return ampuja.sarjat.every((s) => !onkoAliTulosPuuttuu(s.tulos));
+  };
+
+  const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
+
   const haeSijoitusRivinTausta = (sijaStr, onAuki, index) => {
     if (onAuki) return teema.riviAuki;
 
@@ -300,6 +312,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
           const onAuki = valittuAmpujaId === ampuja.id;
           const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
           const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
+          const ampujaValmis = onkoAmpujaValmis(ampuja);
 
           return (
             <div key={ampuja.id} style={tyylit.KorttiKapseli}>
@@ -326,7 +339,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv }) {
 
                 {/* Nimi ja Seuratiedot dynaamisesti ilman katkeamista */}
                 <div style={tyylit.KorttiInfo}>
-                  <div style={tyylit.KorttiNimi}>{ampuja.nimi}</div>
+                  <div style={tyylit.KorttiNimi}>
+                    {ampuja.nimi}
+                    {naytaValmiusIndikaattori && (
+                      <span
+                        style={{
+                          ...tyylit.ValmiusPiste,
+                          background: ampujaValmis ? teema.valmiusValmis : teema.valmiusPuuttuu
+                        }}
+                        title={ampujaValmis ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
+                      />
+                    )}
+                  </div>
                   <div style={tyylit.KorttiAlempiRivi}>
                     <span style={tyylit.SarjaTag}>{ampuja.sarja}</span>
                     <span style={tyylit.KorttiSeura}>{ampuja.seura || '—'}</span>
@@ -435,9 +459,10 @@ const tyylit = {
     background: '#f1f3f4'
   },
   KorttiInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingRight: '8px' },
-  KorttiNimi: { fontWeight: '700', fontSize: '1.05em', color: '#1a1f2c', whiteSpace: 'normal', wordBreak: 'break-word' },
+  KorttiNimi: { fontWeight: '700', fontSize: '1.05em', color: '#1a1f2c', whiteSpace: 'normal', wordBreak: 'break-word', display: 'flex', alignItems: 'center', gap: '6px' },
   KorttiAlempiRivi: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85em' },
   KorttiSeura: { color: '#5f6368', fontWeight: '500' },
+  ValmiusPiste: { width: '9px', height: '9px', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' },
   SarjaTag: { background: '#f1f3f4', color: '#3c4043', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '0.85em' },
   KorttiOikea: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', minWidth: '80px' },
   KorttiTulos: { fontSize: '1.25em', fontWeight: '900', color: '#1a1f2c', lineHeight: '1' },

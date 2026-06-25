@@ -89,6 +89,18 @@ export default function App() {
     return `${parseInt(osat[2], 10)}.${parseInt(osat[1], 10)}.${osat[0]}`;
   };
 
+  const tulkitseTotuusarvo = (arvo) => {
+    if (arvo == null) return null;
+    const normalisoitu = String(arvo).trim().toLowerCase();
+    if (!normalisoitu) return null;
+
+    if (['1', 'true', 'yes', 'on'].includes(normalisoitu)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalisoitu)) return false;
+    return null;
+  };
+
+  const arvioiJoukkuekisaNimesta = (kisaNimi) => String(kisaNimi || '').includes('SM');
+
   // Tutkii onko nykyhetki ylittänyt kisan aloituspäivän klo 10:00 rajapyykin
   const laskeOnkoIlmoittautuminenPaattynyt = (alkuStr) => {
     if (!alkuStr) return true;
@@ -128,12 +140,14 @@ export default function App() {
           }
 
           if (row[1] || row[0]) {
+            const joukkueKisaAsetus = tulkitseTotuusarvo(row[5]);
             parsitutKisat.push({
               id: row[0] || i.toString(),
               nimi: row[1] || "Nimetön kisa",
               alkuPvm: muotoileIsoPaivamaaraSuomeksi(row[2]),
               loppuPvm: muotoileIsoPaivamaaraSuomeksi(row[3]),
-              apiUrl: row[4] || ""
+              apiUrl: row[4] || "",
+              joukkueKisaAsetus
             });
           }
         }
@@ -203,6 +217,7 @@ async function haeSuoratCsvData() {
     const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
     const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
     const onkoIlmoittautuminenAikaIkkunaOhi = laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm);
+    const onkoJoukkueTuloksetSallittu = valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi);
 
     // Apufunktio yksittäisen CSV:n hakuun
     const haeCsv = async (sheetName) => {
@@ -240,8 +255,10 @@ async function haeSuoratCsvData() {
       latausJonot.push(haeCsv('Tulokset'));
       avaimet.push('tuloksetYleinenCsvRaw');
 
-      latausJonot.push(haeCsv('NEW_Joukkue'));
-      avaimet.push('joukkueetCsvRaw');
+      if (onkoJoukkueTuloksetSallittu) {
+        latausJonot.push(haeCsv('NEW_Joukkue'));
+        avaimet.push('joukkueetCsvRaw');
+      }
 
       latausJonot.push(haeCsv('KISANSPEKSIT'));
       avaimet.push('speksitCsvRaw');
@@ -403,7 +420,10 @@ async function haeSuoratCsvData() {
   const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
   const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
   const onkoEraluetteloa = !onkoKisaPaattynyt;
-  const onkoJoukkueKisa = !onkoKisaTulossa && hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
+  const onkoJoukkueTuloksetSallittu = valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi);
+  const onkoJoukkueKisa = onkoTuloksetSallittu && onkoJoukkueTuloksetSallittu && hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
+  const onkoTaulukkoNakyma = aktiivinenSivu === 'taulukko';
+  const kilpailuNakymaMaxWidth = onkoTaulukkoNakyma ? 'min(96vw, 1320px)' : '560px';
 
   // Estetään käyttäjää jäämästä loukkuun piilotetulle välilehdelle
   if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'erakirjaus') {
@@ -414,11 +434,13 @@ async function haeSuoratCsvData() {
     setAktiivinenSivu('tulokset');
   } else if (!onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') {
     setAktiivinenSivu('tulokset');
+  } else if (!onkoJoukkueKisa && aktiivinenSivu === 'joukkueet') {
+    setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
   }
 
   return (
     <div style={tyylit.KokoSivu}>
-      <header style={tyylit.Ylapalkki}>
+      <header style={{ ...tyylit.Ylapalkki, maxWidth: kilpailuNakymaMaxWidth }}>
         <button onClick={palaaEtusivulle} style={tyylit.TakaisinNappi}>⬅️ ETUSIVU</button>
         <h1 style={tyylit.KisanOtsikko}>
           {valittuKisa.nimi} {ladataanKisaa && "🔄"}
@@ -429,7 +451,7 @@ async function haeSuoratCsvData() {
         {virhe && <div style={tyylit.VirheIlmoitus}>{virhe}</div>}
       </header>
 
-      <nav style={tyylit.NaviPalkki}>
+      <nav style={{ ...tyylit.NaviPalkki, maxWidth: kilpailuNakymaMaxWidth }}>
         {onkoTuloksetSallittu && (
           <button onClick={() => setAktiivinenSivu('tulokset')} style={aktiivinenSivu === 'tulokset' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>🏆 TULOKSET</button>
         )}
@@ -453,11 +475,12 @@ async function haeSuoratCsvData() {
       {ladataanKisaa && !nykyisenKisanData ? (
         <div style={{ fontFamily: 'sans-serif', padding: '10px' }}>Haetaan tietoja...</div>
       ) : (
-        <main style={tyylit.SisaltoAlue}>
+        <main style={{ ...tyylit.SisaltoAlue, maxWidth: kilpailuNakymaMaxWidth }}>
           {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (
             <HenkiloTulokset
               rawCsv={nykyisenKisanData.henkilotCsvRaw}
               speksitCsv={nykyisenKisanData.speksitCsvRaw} // UUSI PROP
+              kisaStatus={kisanStatusInfo.status}
             />
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
@@ -473,7 +496,7 @@ async function haeSuoratCsvData() {
           )}
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
             <div style={{ display: 'block' }}>
-              <JoukkueTulokset data={nykyisenKisanData} />
+              <JoukkueTulokset data={nykyisenKisanData} kisaStatus={kisanStatusInfo.status} />
             </div>
           )}
         </main>

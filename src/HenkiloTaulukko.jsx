@@ -46,21 +46,59 @@ export default function HenkiloTaulukko({ data }) {
 
     try {
       const raakaRivit = parseCsvRows(data.henkilotCsvRaw);
+      if (!Array.isArray(raakaRivit) || raakaRivit.length < 2) return [];
+
+      const otsikot = (raakaRivit[0] || []).map((o) => String(o || '').toUpperCase());
+      const otsikotNormalisoitu = otsikot.map((o) => o.replace(/[^A-Z0-9]/g, ''));
+
+      const etsiSarakkeenIndeksi = (ehdot) => {
+        for (const ehto of ehdot) {
+          const idx = otsikotNormalisoitu.findIndex((h) => ehto(h));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+
+      const idxNimi = etsiSarakkeenIndeksi([(h) => h === 'NIMI', (h) => h.includes('NIMI')]);
+      const idxSarja = etsiSarakkeenIndeksi([(h) => h === 'SARJA', (h) => h.includes('SARJA')]);
+      const idxSeura = etsiSarakkeenIndeksi([(h) => h === 'SEURA', (h) => h.includes('SEURA')]);
+      const idxRata1 = otsikot.findIndex((o) => o.trim() === '1');
+
+      // Fallback datamalliin: nimi, sarja, seura, yhteistulos, LA, SU, sitten R1...
+      const nimiFallback = 0;
+      const sarjaFallback = 1;
+      const yhteistulosFallback = 3;
+      const rata1Fallback = 6;
+
+      const nimiIndeksi = idxNimi !== -1 ? idxNimi : nimiFallback;
+      const sarjaIndeksi = idxSarja !== -1 ? idxSarja : sarjaFallback;
+      const aloitusIndeksi = idxRata1 !== -1 ? idxRata1 : rata1Fallback;
+
+      let idxTulos = etsiSarakkeenIndeksi([(h) => h === 'TULOS', (h) => h.startsWith('TULOS'), (h) => h === 'YHT', (h) => h.startsWith('YHT')]);
+      if (idxTulos === -1 && idxSeura !== -1) {
+        idxTulos = idxSeura + 1;
+      }
+      if (idxTulos === -1) {
+        idxTulos = yhteistulosFallback;
+      }
+
+      const idxSija = nimiIndeksi - 1 >= 0 ? nimiIndeksi - 1 : -1;
+
       const lista = [];
 
       for (let i = 1; i < raakaRivit.length; i++) {
         const row = raakaRivit[i];
-        if (!row || !row[2]) continue; // Ohitetaan tyhjät rivit (nimi pitää löytyä sarakkeesta 2)
+        if (!row || !row[nimiIndeksi]) continue;
 
-        const ranking = row[0] || '';
-        const name = row[2] || '';
-        const category = row[3] || '';
-        const yhteistulos = row[28] || '0';
+        const ranking = idxSija !== -1 ? (row[idxSija] || '') : '';
+        const name = row[nimiIndeksi] || '';
+        const category = row[sarjaIndeksi] || '';
+        const yhteistulos = row[idxTulos] || '0';
 
         // Kerätään radat dynaamisesti
         const eratMap = {};
-        for (let col = 4; col <= 3 + speksit.ratojenMaara; col++) {
-          const eraNum = col - 3;
+        for (let col = aloitusIndeksi; col <= aloitusIndeksi + speksit.ratojenMaara - 1; col++) {
+          const eraNum = (col - aloitusIndeksi) + 1;
           eratMap[eraNum] = row[col] !== undefined ? row[col] : '';
         }
 

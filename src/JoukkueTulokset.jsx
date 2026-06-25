@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { teema } from './teema';
 import { parseCsvRows } from './utils/csv';
 
-export default function JoukkueTulokset({ data }) {
+export default function JoukkueTulokset({ data, kisaStatus }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
 
   // 1. HAETAAN KISASPEKSIT (Ratojen määrä ja asemakohtaiset maksimit)
@@ -148,6 +148,7 @@ export default function JoukkueTulokset({ data }) {
   }, [data.joukkueetCsvRaw, speksit.ratojenMaara]);
 
   const mitaliVarit = { 1: teema.kulta, 2: teema.hopea, 3: teema.pronssi };
+  const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
   // Apufunktio dynaamisen erätaulukon luomiseen ja solujen väritykseen
   const renderöiEräTaulukko = (erat, onkoYhteispisteet = false) => {
@@ -234,13 +235,15 @@ export default function JoukkueTulokset({ data }) {
                     <div style={tyylit.TekstiAlue}>
                       <span style={tyylit.JoukkueNimi}>
                         {joukkueAlkio.joukkue} <span style={tyylit.NuoliIcon}>{onAuki ? '▼' : '▶'}</span>
-                        <span
-                          style={{
-                            ...tyylit.ValmiusPiste,
-                            background: joukkueValmis ? teema.valmiusValmis : teema.valmiusPuuttuu
-                          }}
-                          title={joukkueValmis ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
-                        />
+                        {naytaValmiusIndikaattori && (
+                          <span
+                            style={{
+                              ...tyylit.ValmiusPiste,
+                              background: joukkueValmis ? teema.valmiusValmis : teema.valmiusPuuttuu
+                            }}
+                            title={joukkueValmis ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
+                          />
+                        )}
                       </span>
                       <span style={tyylit.JasenetLista}>{jasenetTeksti}</span>
                     </div>
