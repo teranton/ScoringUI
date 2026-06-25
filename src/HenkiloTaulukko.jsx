@@ -1,6 +1,11 @@
 // src/HenkiloTaulukko.jsx
 import React, { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
+import {
+  laskeHenkilosijoitukset,
+  muodostaRatkoNakyma,
+  parseAsemaSpeksitCsv
+} from './utils/henkiloTulokset';
 import { teema } from './teema'; // Varmista että teema on importattu
 
 export default function HenkiloTaulukko({ data, kisaStatus }) {
@@ -8,50 +13,13 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
   const kaytaKompaktiTilaa = onMobiili && onkoKompaktiTila;
-  const tulkitseTotuusarvo = (arvo) => {
-    if (arvo == null) return false;
-    const normalisoitu = String(arvo).trim().toLowerCase();
-    return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
-  };
 
   // 1. PARSITAAN KISASPEKSIT (Ratojen määrä ja maksimit)
   const speksit = useMemo(() => {
-    const maksimit = {};
-    const toiseksiParasKaytossa = {};
-    let ratojenMaara = 0;
-
-    if (data?.speksitCsvRaw) {
-      try {
-        const speksiRivit = parseCsvRows(data.speksitCsvRaw);
-        speksiRivit.forEach((rivi) => {
-          if (!rivi || rivi.length < 11) return;
-
-          const raakaAsema = rivi[9];
-          const raakaMaksimi = rivi[10];
-          const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
-
-          if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
-            const asemaTunnus = raakaAsema.toString().trim();
-            const maksimiArvo = parseInt(raakaMaksimi, 10);
-
-            if (asemaTunnus && !isNaN(maksimiArvo) && maksimiArvo > 0) {
-              const asemaNumero = asemaTunnus.replace(/\D/g, '');
-              const avain = asemaNumero || asemaTunnus;
-              maksimit[avain] = maksimiArvo;
-              toiseksiParasKaytossa[avain] = naytaToiseksiParas;
-              ratojenMaara++;
-            }
-          }
-        });
-      } catch (e) {
-        console.error("Virhe taulukko-speksien parsinnoissa:", e);
-      }
-    }
-
+    const parsed = parseAsemaSpeksitCsv(data?.speksitCsvRaw);
     return {
-      asemaMaksimit: maksimit,
-      asemaToiseksiParasKaytossa: toiseksiParasKaytossa,
-      ratojenMaara: ratojenMaara > 0 ? ratojenMaara : 8
+      ...parsed,
+      ratojenMaara: Object.keys(parsed.asemaMaksimit).length > 0 ? Object.keys(parsed.asemaMaksimit).length : 8
     };
   }, [data?.speksitCsvRaw]);
 
@@ -88,6 +56,8 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
       const nimiIndeksi = idxNimi !== -1 ? idxNimi : nimiFallback;
       const sarjaIndeksi = idxSarja !== -1 ? idxSarja : sarjaFallback;
       const aloitusIndeksi = idxRata1 !== -1 ? idxRata1 : rata1Fallback;
+      const idxRatko = aloitusIndeksi + speksit.ratojenMaara + 1;
+      const idxRatko2 = idxRatko !== -1 ? idxRatko + 1 : -1;
 
       let idxTulos = etsiSarakkeenIndeksi([(h) => h === 'TULOS', (h) => h.startsWith('TULOS'), (h) => h === 'YHT', (h) => h.startsWith('YHT')]);
       if (idxTulos === -1 && idxSeura !== -1) {
@@ -109,6 +79,9 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
         const name = row[nimiIndeksi] || '';
         const category = row[sarjaIndeksi] || '';
         const yhteistulos = row[idxTulos] || '0';
+        const ratko = idxRatko !== -1 ? row[idxRatko] || '' : '';
+        const ratko2 = idxRatko2 !== -1 ? row[idxRatko2] || '' : '';
+        const ratkoNaytto = muodostaRatkoNakyma(ratko, ratko2);
 
         // Kerätään radat dynaamisesti
         const eratMap = {};
@@ -122,7 +95,11 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
           sijoitus: ranking,
           nimi: name,
           sarja: category,
+          tulos: yhteistulos,
           kokonaistulos: yhteistulos,
+          ratko,
+          ratko2,
+          ratkoNaytto,
           erat: eratMap
         });
       }
@@ -140,9 +117,8 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
   // Luodaan lista radoista sarakeotsikoita varten (esim. [1, 2, 3...])
   const radatList = Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1);
   const loydetytSarjat = Array.from(new Set(ampujat.map((a) => String(a.sarja || '').trim()).filter(Boolean))).sort();
-  const naytettavatAmpujat = sarjaSuodatin === 'OPEN (Y)'
-    ? ampujat
-    : ampujat.filter((a) => String(a.sarja || '').toUpperCase() === sarjaSuodatin.toUpperCase());
+  const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
+  const naytaRatkoSarake = naytettavatAmpujat.some((a) => a.ratkoNaytto?.statusEtiketit?.length > 0 || (sarjaSuodatin !== 'OPEN (Y)' && a.ratkoNaytto?.teksti) || (sarjaSuodatin === 'OPEN (Y)' && parseInt(a.laskettuSija, 10) <= 3 && a.ratkoNaytto?.teksti));
 
   const muotoileNimiTaulukkoon = (nimi) => {
     if (!onMobiili) return nimi;
@@ -161,6 +137,14 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
 
   const onkoAmpujaValmis = (ampuja) => {
     return radatList.every((n) => !onkoAliTulosPuuttuu(ampuja.erat[n]));
+  };
+
+  const haeStatusLabelTyyli = (status) => {
+    if (['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)) {
+      return { background: teema.statusLabelTausta, color: teema.statusLabelTeksti };
+    }
+
+    return { background: teema.statusOletusTausta, color: teema.statusOletusTeksti };
   };
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
@@ -218,6 +202,7 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
               <th style={{ ...(kaytaKompaktiTilaa ? tyylit.ThKiinteaKompakti : (onMobiili ? tyylit.ThKiinteaMobiili : tyylit.ThKiintea)), minWidth: kaytaKompaktiTilaa ? '70px' : (onMobiili ? '96px' : '160px'), textAlign: 'left' }}>Nimi</th>
               {!kaytaKompaktiTilaa && <th style={onMobiili ? tyylit.ThKiinteaMobiili : tyylit.ThKiintea}>Sarja</th>}
               <th style={kaytaKompaktiTilaa ? tyylit.ThYhtKompakti : (onMobiili ? tyylit.ThYhtMobiili : tyylit.ThYht)}>Yht</th>
+              {naytaRatkoSarake && <th style={kaytaKompaktiTilaa ? tyylit.ThRatkoKompakti : (onMobiili ? tyylit.ThRatkoMobiili : tyylit.ThRatko)}>Ratko</th>}
               {radatList.map(n => (
                 <th key={n} style={kaytaKompaktiTilaa ? tyylit.ThRataKompakti : (onMobiili ? tyylit.ThRataMobiili : tyylit.ThRata)}>R{n}</th>
               ))}
@@ -226,7 +211,7 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
           <tbody>
             {naytettavatAmpujat.map((ampuja) => (
               <tr key={ampuja.id} style={tyylit.Tr}>
-                <td style={kaytaKompaktiTilaa ? tyylit.TdSijaKompakti : (onMobiili ? tyylit.TdSijaMobiili : tyylit.TdSija)}>{ampuja.sijoitus}</td>
+                <td style={kaytaKompaktiTilaa ? tyylit.TdSijaKompakti : (onMobiili ? tyylit.TdSijaMobiili : tyylit.TdSija)}>{ampuja.laskettuSija}</td>
                 <td style={kaytaKompaktiTilaa ? tyylit.TdNimiKompakti : (onMobiili ? tyylit.TdNimiMobiili : tyylit.TdNimi)}>
                   <span style={tyylit.NimiSisalto}>
                     {muotoileNimiTaulukkoon(ampuja.nimi)}
@@ -243,6 +228,23 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
                 </td>
                 {!kaytaKompaktiTilaa && <td style={onMobiili ? tyylit.TdSarjaMobiili : tyylit.TdSarja}>{ampuja.sarja}</td>}
                 <td style={kaytaKompaktiTilaa ? tyylit.TdYhtKompakti : (onMobiili ? tyylit.TdYhtMobiili : tyylit.TdYht)}>{ampuja.kokonaistulos}</td>
+                {naytaRatkoSarake && (
+                  <td style={kaytaKompaktiTilaa ? tyylit.TdRatkoKompakti : (onMobiili ? tyylit.TdRatkoMobiili : tyylit.TdRatko)}>
+                    {(() => {
+                      const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
+                      return ampuja.ratkoNaytto.statusEtiketit.length > 0 || (naytaRatko && ampuja.ratkoNaytto.teksti) ? (
+                      <span style={tyylit.RatkoSisalto}>
+                        {ampuja.ratkoNaytto.statusEtiketit.map((status) => (
+                          <span key={`${ampuja.id}-${status}`} style={{ ...tyylit.StatusLabel, ...haeStatusLabelTyyli(status) }}>
+                            {status}
+                          </span>
+                        ))}
+                        {naytaRatko && ampuja.ratkoNaytto.teksti && <span style={tyylit.RatkoTekstiInline}>{ampuja.ratkoNaytto.teksti}</span>}
+                      </span>
+                      ) : '-';
+                    })()}
+                  </td>
+                )}
                 
                 {radatList.map(n => {
                   const pisteArvo = ampuja.erat[n] || '-';
@@ -300,6 +302,9 @@ const tyylit = {
   ThYht: { background: '#e2e8f0', color: '#1e293b', padding: '8px 10px', fontWeight: '700', borderBottom: '2px solid #cbd5e1', textAlign: 'center', width: '45px' },
   ThYhtMobiili: { background: '#e2e8f0', color: '#1e293b', padding: '6px 6px', fontWeight: '700', borderBottom: '2px solid #cbd5e1', textAlign: 'center', width: '36px', fontSize: '0.75em' },
   ThYhtKompakti: { background: '#e2e8f0', color: '#1e293b', padding: '4px 4px', fontWeight: '700', borderBottom: '2px solid #cbd5e1', textAlign: 'center', width: '30px', fontSize: '0.68em' },
+  ThRatko: { background: '#eef2ff', color: '#1e293b', padding: '8px 10px', fontWeight: '700', borderBottom: '2px solid #c7d2fe', textAlign: 'center', width: '60px' },
+  ThRatkoMobiili: { background: '#eef2ff', color: '#1e293b', padding: '6px 6px', fontWeight: '700', borderBottom: '2px solid #c7d2fe', textAlign: 'center', width: '44px', fontSize: '0.75em' },
+  ThRatkoKompakti: { background: '#eef2ff', color: '#1e293b', padding: '4px 4px', fontWeight: '700', borderBottom: '2px solid #c7d2fe', textAlign: 'center', width: '36px', fontSize: '0.68em' },
   TdSija: { padding: '6px 4px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500' },
   TdSijaMobiili: { padding: '4px 2px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500', fontSize: '0.75em' },
   TdSijaKompakti: { padding: '3px 1px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500', fontSize: '0.66em' },
@@ -315,5 +320,12 @@ const tyylit = {
   TdRataKompakti: { padding: '3px 1px', textAlign: 'center', borderLeft: '1px solid #f1f5f9', fontFamily: 'monospace', fontSize: '0.64em' },
   TdYht: { padding: '6px 10px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '1em' },
   TdYhtMobiili: { padding: '4px 5px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.78em' },
-  TdYhtKompakti: { padding: '3px 3px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.68em' }
+  TdYhtKompakti: { padding: '3px 3px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.68em' },
+  TdRatko: { padding: '6px 10px', textAlign: 'center', background: '#eef2ff', color: '#1d4ed8', borderLeft: '1px solid #c7d2fe', fontFamily: 'monospace', fontSize: '0.9em' },
+  TdRatkoMobiili: { padding: '4px 5px', textAlign: 'center', background: '#eef2ff', color: '#1d4ed8', borderLeft: '1px solid #c7d2fe', fontFamily: 'monospace', fontSize: '0.75em' },
+  TdRatkoKompakti: { padding: '3px 3px', textAlign: 'center', background: '#eef2ff', color: '#1d4ed8', borderLeft: '1px solid #c7d2fe', fontFamily: 'monospace', fontSize: '0.68em' },
+  RatkoSisalto: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', flexWrap: 'wrap' },
+  RatkoTekstiInline: { color: '#1e293b', fontWeight: '700' },
+  StatusLabel: { display: 'inline-block', padding: '2px 5px', borderRadius: '4px', fontSize: '0.72em', fontWeight: '800', lineHeight: '1' },
+  StatusLabelOletus: { background: '#e5e7eb', color: '#374151' }
 };

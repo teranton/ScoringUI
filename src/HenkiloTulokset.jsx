@@ -1,56 +1,20 @@
 // src/HenkiloTulokset.jsx
 import React, { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
+import {
+  laskeHenkilosijoitukset,
+  muodostaRatkoNakyma,
+  parseAsemaSpeksitCsv
+} from './utils/henkiloTulokset';
 import { teema } from './teema'; // Varmista että teema on importattu
 
 export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
 
-  const tulkitseTotuusarvo = (arvo) => {
-    if (arvo == null) return false;
-    const normalisoitu = String(arvo).trim().toLowerCase();
-    return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
-  };
-
   // 1. Parsitaan asemakohtaiset speksit KISANSPEKSIT-datasta (asema, maksimi, toiseksi paras käytössä)
   const { asemaMaksimit, asemaToiseksiParasKaytossa } = useMemo(() => {
-    const maksimit = {};
-    const toiseksiParasKaytossa = {};
-    if (!speksitCsv || typeof speksitCsv !== 'string' || speksitCsv.trim().length < 2) {
-      return { asemaMaksimit: maksimit, asemaToiseksiParasKaytossa: toiseksiParasKaytossa };
-    }
-
-    try {
-      const speksiRivit = parseCsvRows(speksitCsv);
-      if (!Array.isArray(speksiRivit)) return maksimit;
-
-      speksiRivit.forEach((rivi) => {
-        // Varmistetaan, että rivi on olemassa ja siinä on tarvittavat sarakkeet
-        if (!rivi || rivi.length < 11) return;
-
-        const raakaAsema = rivi[9];
-        const raakaMaksimi = rivi[10];
-
-        if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
-          const asemaTunnus = raakaAsema.toString().trim();
-          const maksimiArvo = parseInt(raakaMaksimi, 10);
-          const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
-
-          if (asemaTunnus && !isNaN(maksimiArvo)) {
-            // Puhdistetaan otsikko pelkäksi numeroksi (esim. "Asema 1" -> "1")
-            const asemaNumero = asemaTunnus.replace(/\D/g, '');
-            const avain = asemaNumero || asemaTunnus;
-            maksimit[avain] = maksimiArvo;
-            toiseksiParasKaytossa[avain] = naytaToiseksiParas;
-          }
-        }
-      });
-    } catch (e) {
-      console.error("Virhe speksien parsinnoissa:", e);
-    }
-
-    return { asemaMaksimit: maksimit, asemaToiseksiParasKaytossa: toiseksiParasKaytossa };
+    return parseAsemaSpeksitCsv(speksitCsv);
   }, [speksitCsv]);
 
   if (!rawCsv || rawCsv.trim().length < 10 || rawCsv.toLowerCase().includes("html") || rawCsv.toLowerCase().includes("error")) {
@@ -69,59 +33,6 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
       if (idx !== -1) return idx;
     }
     return -1;
-  };
-
-  const ratkoStatusPainot = {
-    DNS: -1,
-    DNF: -2,
-    DNQ: -3,
-    DSQ: -4
-  };
-
-  const puraRatkoArvo = (arvo) => {
-    const teksti = String(arvo || '').trim().toUpperCase();
-    if (!teksti) return { tyyppi: 'empty', piste: -9999 };
-
-    const status = teksti.replace(/[^A-Z]/g, '');
-    if (Object.prototype.hasOwnProperty.call(ratkoStatusPainot, status)) {
-      return { tyyppi: 'status', piste: ratkoStatusPainot[status], status };
-    }
-
-    const numero = parseInt(teksti, 10);
-    if (!Number.isNaN(numero)) {
-      return { tyyppi: 'num', piste: numero };
-    }
-
-    return { tyyppi: 'text', piste: -5000, teksti };
-  };
-
-  const muodostaRatkoNaytto = (ratko1, ratko2) => {
-    const eka = String(ratko1 || '').trim();
-    const toka = String(ratko2 || '').trim();
-    if (eka && toka) return `${eka} + ${toka}`;
-    return eka || toka || '';
-  };
-
-  const muodostaRatkoNakyma = (ratko1, ratko2) => {
-    const arvo1 = puraRatkoArvo(ratko1);
-    const arvo2 = puraRatkoArvo(ratko2);
-
-    const statusTunnisteet = [];
-    if (arvo1.tyyppi === 'status' && arvo1.status) statusTunnisteet.push(arvo1.status);
-    if (arvo2.tyyppi === 'status' && arvo2.status) statusTunnisteet.push(arvo2.status);
-
-    const uniikitStatus = Array.from(new Set(statusTunnisteet));
-    const naytto = muodostaRatkoNaytto(ratko1, ratko2);
-
-    if (uniikitStatus.length > 0) {
-      const osat = naytto
-        .split('+')
-        .map((s) => s.trim())
-        .filter((s) => s && !uniikitStatus.includes(s.toUpperCase()));
-      return { statusEtiketit: uniikitStatus, teksti: osat.join(' + ') };
-    }
-
-    return { statusEtiketit: [], teksti: naytto };
   };
 
   const onkoAliTulosPuuttuu = (arvo) => {
@@ -167,17 +78,14 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
       const row = rivit[i];
       if (!row[idxNimi]) continue;
 
-
-      // Etsitään ampujan radat dynaamisesti aloitusindeksistä lähtien
       const osumaSarjat = [];
       for (let r = 1; r <= kisanRatojenMaara; r++) {
-        // Lasketaan jokaisen radan sarake suhteessa ensimmäisen radan paikkaan
         const sarakkeenIndex = aloitusIndeksi + (r - 1);
 
         if (row[sarakkeenIndex] !== undefined) {
           osumaSarjat.push({
             numero: r.toString(),
-            tulos: row[sarakkeenIndex] || "-"
+            tulos: row[sarakkeenIndex] || '-'
           });
         }
       }
@@ -186,114 +94,30 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
         id: `${row[idxNimi] || 'ampuja'}|${idxSarja !== -1 ? row[idxSarja] || 'Y' : 'Y'}|${i}`,
         alkuperainenSija: row[idxSija] || i.toString(),
         nimi: row[idxNimi],
-        sarja: idxSarja !== -1 ? row[idxSarja] : "Y",
-        seura: idxSeura !== -1 ? row[idxSeura] : "",
-        tulos: row[idxTulos] || "0",
+        sarja: idxSarja !== -1 ? row[idxSarja] : 'Y',
+        seura: idxSeura !== -1 ? row[idxSeura] : '',
+        tulos: row[idxTulos] || '0',
         la: idxLa !== -1 ? row[idxLa] : null,
         su: idxSu !== -1 ? row[idxSu] : null,
-        ratko: idxRatko !== -1 ? row[idxRatko] : "",
-        ratko2: idxRatko !== -1 ? row[idxRatko + 1] || "" : "",
+        ratko: idxRatko !== -1 ? row[idxRatko] : '',
+        ratko2: idxRatko !== -1 ? row[idxRatko + 1] || '' : '',
+        ratkoNaytto: muodostaRatkoNakyma(row[idxRatko] || '', idxRatko !== -1 ? row[idxRatko + 1] || '' : ''),
         sarjat: osumaSarjat
       };
-
-      ampuja.ratkoNaytto = muodostaRatkoNaytto(ampuja.ratko, ampuja.ratko2);
 
       parsedAmpujat.push(ampuja);
       if (ampuja.sarja) sarjatSet.add(ampuja.sarja);
     }
 
     return { ampujat: parsedAmpujat, loydetytSarjat: sarjatSet };
-  }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, otsikot, rivit, asemaMaksimit]);
+  }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, rivit]);
 
-  const naytettavatAmpujat = useMemo(() => {
-    let lajiteltuLista = [];
-    const onKaikkiNakyma = sarjaSuodatin === 'OPEN (Y)';
-
-    // 1. Suodatetaan lista valinnan mukaan
-    if (onKaikkiNakyma) {
-      lajiteltuLista = [...ampujat];
-    } else {
-      lajiteltuLista = ampujat.filter((a) => a.sarja.toUpperCase() === sarjaSuodatin.toUpperCase());
-    }
-
-    // 2. LAJITTELU (Kaikissa näkymissä ratkot vaikuttavat nyt kärkisijoihin!)
-    lajiteltuLista.sort((a, b) => {
-      const tulosA = parseInt(a.tulos, 10) || 0;
-      const tulosB = parseInt(b.tulos, 10) || 0;
-      if (tulosB !== tulosA) return tulosB - tulosA;
-
-      // Ratkot vaikuttavat sijoitukseen kaikissa sarjoissa (myös OPEN (Y) / Yleissarja)
-      const ratkoA = puraRatkoArvo(a.ratko);
-      const ratkoB = puraRatkoArvo(b.ratko);
-      if (ratkoB.piste !== ratkoA.piste) return ratkoB.piste - ratkoA.piste;
-
-      const ratko2A = puraRatkoArvo(a.ratko2);
-      const ratko2B = puraRatkoArvo(b.ratko2);
-      return ratko2B.piste - ratko2A.piste;
-    });
-
-    // 3. SIJOITUSTEN LASKENTA (Sporting-sääntöjen mukainen)
-    let aktiivinenSija = 1;
-
-    // Haetaan listan kolmannen (indeksi 2) urheilijan tulos ankkuriksi, jos listalla on vähintään 3 urheilijaa
-    const top3Rajatulos = lajiteltuLista.length >= 3
-      ? parseInt(lajiteltuLista[2].tulos, 10) || 0
-      : 0;
-
-    return lajiteltuLista.map((ampuja, index, array) => {
-      const tulosNum = parseInt(ampuja.tulos, 10) || 0;
-
-      if (index > 0) {
-        const edellinen = array[index - 1];
-        const edellinenTulos = parseInt(edellinen.tulos, 10) || 0;
-
-        const ratkoArvo = puraRatkoArvo(ampuja.ratko);
-        const ratko2Arvo = puraRatkoArvo(ampuja.ratko2);
-        const edellinenRatko = puraRatkoArvo(edellinen.ratko);
-        const edellinenRatko2 = puraRatkoArvo(edellinen.ratko2);
-
-        // URHEILIJA ON MUKANA RATKOSSA JOS:
-        // Hän on indeksiltään top3:ssa TAI hänen tuloksensa yltää tasoihin top3-rajatuloksen kanssa
-        const onkoMukanaRatkoissa = index < 3 || tulosNum >= top3Rajatulos;
-
-        if (edellinenTulos === tulosNum) {
-          if (onkoMukanaRatkoissa) {
-            // Jos oltiin mukana mitaliratkoissa, keskinäinen sija ratkeaa ratkojen pisteillä
-            if (edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste) {
-              // Täysin tasatulos myös ratkoissa -> jaettu sija
-            } else {
-              aktiivinenSija = index + 1;
-            }
-          } else {
-            // Top3-taiston ulkopuolella (sijat 4+, joilla huonompi tulos kuin kolmosella) jaetaan sija suoraan päätuloksella
-          }
-        } else {
-          aktiivinenSija = index + 1;
-        }
-      } else {
-        aktiivinenSija = 1;
-      }
-
-      return { ...ampuja, laskettuSija: aktiivinenSija.toString() };
-    });
-  }, [ampujat, sarjaSuodatin]);
+  const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
+  const naytaRatkoSarake = naytettavatAmpujat.some((a) => a.ratkoNaytto?.statusEtiketit?.length > 0 || (sarjaSuodatin !== 'OPEN (Y)' || parseInt(a.laskettuSija, 10) <= 3) && a.ratkoNaytto?.teksti);
 
   const onkoAmpujaValmis = (ampuja) => {
     if (!ampuja?.sarjat || ampuja.sarjat.length === 0) return false;
     return ampuja.sarjat.every((s) => !onkoAliTulosPuuttuu(s.tulos));
-  };
-
-  const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
-
-  const haeSijoitusRivinTausta = (sijaStr, onAuki, index) => {
-    if (onAuki) return teema.riviAuki;
-
-    const sija = parseInt(sijaStr, 10);
-    if (sija === 1) return teema.kulta;
-    if (sija === 2) return teema.hopea;
-    if (sija === 3) return teema.pronssi;
-
-    return index % 2 === 0 ? teema.riviParillinen : teema.riviPariton;
   };
 
   const haeStatusLabelTyyli = (status) => {
@@ -303,6 +127,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
 
     return { background: teema.statusOletusTausta, color: teema.statusOletusTeksti };
   };
+
+  const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
   return (
     <div style={tyylit.Alue}>
