@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { teema } from './teema'; // Varmista että teema on importattu
 
-export default function HenkiloTaulukko({ data }) {
+export default function HenkiloTaulukko({ data, kisaStatus }) {
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
@@ -154,6 +154,17 @@ export default function HenkiloTaulukko({ data }) {
       .join(' ');
   };
 
+  const onkoAliTulosPuuttuu = (arvo) => {
+    const teksti = String(arvo ?? '').trim().toUpperCase();
+    return teksti === '' || teksti === '-' || teksti === '—' || teksti === 'N/A';
+  };
+
+  const onkoAmpujaValmis = (ampuja) => {
+    return radatList.every((n) => !onkoAliTulosPuuttuu(ampuja.erat[n]));
+  };
+
+  const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
+
   return (
     <div style={tyylit.Säiliö}>
       <h2 style={tyylit.Otsikko}>Kaikki tulokset taulukkona</h2>
@@ -216,7 +227,20 @@ export default function HenkiloTaulukko({ data }) {
             {naytettavatAmpujat.map((ampuja) => (
               <tr key={ampuja.id} style={tyylit.Tr}>
                 <td style={kaytaKompaktiTilaa ? tyylit.TdSijaKompakti : (onMobiili ? tyylit.TdSijaMobiili : tyylit.TdSija)}>{ampuja.sijoitus}</td>
-                <td style={kaytaKompaktiTilaa ? tyylit.TdNimiKompakti : (onMobiili ? tyylit.TdNimiMobiili : tyylit.TdNimi)}>{muotoileNimiTaulukkoon(ampuja.nimi)}</td>
+                <td style={kaytaKompaktiTilaa ? tyylit.TdNimiKompakti : (onMobiili ? tyylit.TdNimiMobiili : tyylit.TdNimi)}>
+                  <span style={tyylit.NimiSisalto}>
+                    {muotoileNimiTaulukkoon(ampuja.nimi)}
+                    {naytaValmiusIndikaattori && (
+                      <span
+                        style={{
+                          ...tyylit.ValmiusPiste,
+                          background: onkoAmpujaValmis(ampuja) ? teema.valmiusValmis : teema.valmiusPuuttuu
+                        }}
+                        title={onkoAmpujaValmis(ampuja) ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
+                      />
+                    )}
+                  </span>
+                </td>
                 {!kaytaKompaktiTilaa && <td style={onMobiili ? tyylit.TdSarjaMobiili : tyylit.TdSarja}>{ampuja.sarja}</td>}
                 <td style={kaytaKompaktiTilaa ? tyylit.TdYhtKompakti : (onMobiili ? tyylit.TdYhtMobiili : tyylit.TdYht)}>{ampuja.kokonaistulos}</td>
                 
@@ -279,9 +303,11 @@ const tyylit = {
   TdSija: { padding: '6px 4px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500' },
   TdSijaMobiili: { padding: '4px 2px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500', fontSize: '0.75em' },
   TdSijaKompakti: { padding: '3px 1px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500', fontSize: '0.66em' },
-  TdNimi: { padding: '6px 10px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap' },
-  TdNimiMobiili: { padding: '4px 4px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', fontSize: '0.75em', maxWidth: '92px', overflow: 'hidden', textOverflow: 'ellipsis' },
-  TdNimiKompakti: { padding: '3px 3px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', fontSize: '0.68em', maxWidth: '74px', overflow: 'hidden', textOverflow: 'ellipsis' },
+  TdNimi: { padding: '6px 10px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', textAlign: 'left' },
+  TdNimiMobiili: { padding: '4px 4px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', fontSize: '0.75em', maxWidth: '92px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' },
+  TdNimiKompakti: { padding: '3px 3px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', fontSize: '0.68em', maxWidth: '74px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' },
+  NimiSisalto: { display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' },
+  ValmiusPiste: { width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)', flexShrink: 0 },
   TdSarja: { padding: '6px 4px', textAlign: 'center', color: '#475569' },
   TdSarjaMobiili: { padding: '4px 3px', textAlign: 'center', color: '#475569', fontSize: '0.72em' },
   TdRata: { padding: '6px 2px', textAlign: 'center', borderLeft: '1px solid #f1f5f9', fontFamily: 'monospace', fontSize: '0.95em' },

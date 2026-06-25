@@ -484,7 +484,7 @@ async function haeSuoratCsvData() {
             />
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
-            <HenkiloTaulukko data={nykyisenKisanData} />
+            <HenkiloTaulukko data={nykyisenKisanData} kisaStatus={kisanStatusInfo.status} />
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} />
