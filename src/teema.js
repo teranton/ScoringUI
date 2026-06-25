@@ -33,5 +33,11 @@ export const teema = {
   maksimiTulos: {
     color: '#b91c1c',
     fontWeight: '900'
+  },
+
+  // Toiseksi paras voidaan näyttää speksien mukaan kirkkaansinisenä.
+  toiseksiParasTulos: {
+    color: '#2563eb',
+    fontWeight: '900'
   }
 };

@@ -6,11 +6,18 @@ import { teema } from './teema'; // Varmista että teema on importattu
 export default function HenkiloTaulukko({ data }) {
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
+  const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
   const kaytaKompaktiTilaa = onMobiili && onkoKompaktiTila;
+  const tulkitseTotuusarvo = (arvo) => {
+    if (arvo == null) return false;
+    const normalisoitu = String(arvo).trim().toLowerCase();
+    return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
+  };
 
   // 1. PARSITAAN KISASPEKSIT (Ratojen määrä ja maksimit)
   const speksit = useMemo(() => {
     const maksimit = {};
+    const toiseksiParasKaytossa = {};
     let ratojenMaara = 0;
 
     if (data?.speksitCsvRaw) {
@@ -21,6 +28,7 @@ export default function HenkiloTaulukko({ data }) {
 
           const raakaAsema = rivi[9];
           const raakaMaksimi = rivi[10];
+          const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
 
           if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
             const asemaTunnus = raakaAsema.toString().trim();
@@ -28,7 +36,9 @@ export default function HenkiloTaulukko({ data }) {
 
             if (asemaTunnus && !isNaN(maksimiArvo) && maksimiArvo > 0) {
               const asemaNumero = asemaTunnus.replace(/\D/g, '');
-              maksimit[asemaNumero || asemaTunnus] = maksimiArvo;
+              const avain = asemaNumero || asemaTunnus;
+              maksimit[avain] = maksimiArvo;
+              toiseksiParasKaytossa[avain] = naytaToiseksiParas;
               ratojenMaara++;
             }
           }
@@ -40,6 +50,7 @@ export default function HenkiloTaulukko({ data }) {
 
     return {
       asemaMaksimit: maksimit,
+      asemaToiseksiParasKaytossa: toiseksiParasKaytossa,
       ratojenMaara: ratojenMaara > 0 ? ratojenMaara : 8
     };
   }, [data?.speksitCsvRaw]);
@@ -128,6 +139,11 @@ export default function HenkiloTaulukko({ data }) {
 
   // Luodaan lista radoista sarakeotsikoita varten (esim. [1, 2, 3...])
   const radatList = Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1);
+  const loydetytSarjat = Array.from(new Set(ampujat.map((a) => String(a.sarja || '').trim()).filter(Boolean))).sort();
+  const naytettavatAmpujat = sarjaSuodatin === 'OPEN (Y)'
+    ? ampujat
+    : ampujat.filter((a) => String(a.sarja || '').toUpperCase() === sarjaSuodatin.toUpperCase());
+
   const muotoileNimiTaulukkoon = (nimi) => {
     if (!onMobiili) return nimi;
     const osat = String(nimi || '').trim().split(/\s+/).filter(Boolean);
@@ -141,6 +157,28 @@ export default function HenkiloTaulukko({ data }) {
   return (
     <div style={tyylit.Säiliö}>
       <h2 style={tyylit.Otsikko}>Kaikki tulokset taulukkona</h2>
+
+      <div style={tyylit.SuodatinPalkki}>
+        <button
+          type="button"
+          onClick={() => setSarjaSuodatin('OPEN (Y)')}
+          style={sarjaSuodatin === 'OPEN (Y)' ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}
+        >
+          OPEN (Y)
+        </button>
+        {loydetytSarjat
+          .filter((sarja) => sarja.toUpperCase() !== 'Y')
+          .map((sarja) => (
+            <button
+              key={sarja}
+              type="button"
+              onClick={() => setSarjaSuodatin(sarja)}
+              style={sarjaSuodatin === sarja ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}
+            >
+              {sarja}
+            </button>
+          ))}
+      </div>
 
       {onMobiili && (
         <div style={tyylit.TogglePalkki}>
@@ -175,7 +213,7 @@ export default function HenkiloTaulukko({ data }) {
             </tr>
           </thead>
           <tbody>
-            {ampujat.map((ampuja) => (
+            {naytettavatAmpujat.map((ampuja) => (
               <tr key={ampuja.id} style={tyylit.Tr}>
                 <td style={kaytaKompaktiTilaa ? tyylit.TdSijaKompakti : (onMobiili ? tyylit.TdSijaMobiili : tyylit.TdSija)}>{ampuja.sijoitus}</td>
                 <td style={kaytaKompaktiTilaa ? tyylit.TdNimiKompakti : (onMobiili ? tyylit.TdNimiMobiili : tyylit.TdNimi)}>{muotoileNimiTaulukkoon(ampuja.nimi)}</td>
@@ -186,14 +224,20 @@ export default function HenkiloTaulukko({ data }) {
                   const pisteArvo = ampuja.erat[n] || '-';
                   const pisteNum = parseInt(pisteArvo, 10);
                   const maksimiTulos = speksit.asemaMaksimit[n] || speksit.asemaMaksimit[`${n}`];
+                  const naytaToiseksiParas = Boolean(speksit.asemaToiseksiParasKaytossa[n] ?? speksit.asemaToiseksiParasKaytossa[`${n}`]);
                   const onkoMaksimi = !isNaN(pisteNum) && maksimiTulos !== undefined && pisteNum === maksimiTulos;
+                  const onkoToiseksiParas = !isNaN(pisteNum) && maksimiTulos !== undefined && naytaToiseksiParas && pisteNum === (maksimiTulos - 1);
 
                   return (
                     <td
                       key={n}
                       style={{
                         ...(kaytaKompaktiTilaa ? tyylit.TdRataKompakti : (onMobiili ? tyylit.TdRataMobiili : tyylit.TdRata)),
-                        ...(onkoMaksimi ? teema.maksimiTulos : {})
+                        ...(onkoMaksimi
+                          ? teema.maksimiTulos
+                          : onkoToiseksiParas
+                            ? teema.toiseksiParasTulos
+                            : {})
                       }}
                     >
                       {pisteArvo}
@@ -214,6 +258,9 @@ const tyylit = {
   Säiliö: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', padding: '5px 0' },
   Lataus: { padding: '20px', color: '#666' },
   Otsikko: { fontSize: '1.2em', fontWeight: '700', marginBottom: '14px', color: '#111827' },
+  SuodatinPalkki: { display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 2px 10px 2px', marginBottom: '6px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' },
+  SuodatinNappi: { background: '#f1f3f4', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#3c4043', cursor: 'pointer', whiteSpace: 'nowrap' },
+  SuodatinNappiAktiivinen: { background: '#202124', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' },
   TogglePalkki: { display: 'flex', gap: '8px', marginBottom: '10px' },
   ToggleNappi: { background: '#f1f3f4', border: '1px solid #d1d5db', color: '#374151', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75em', fontWeight: '600' },
   ToggleNappiAktiivinen: { background: '#1f2937', border: '1px solid #1f2937', color: '#fff', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75em', fontWeight: '700' },

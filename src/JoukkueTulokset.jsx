@@ -5,11 +5,17 @@ import { parseCsvRows } from './utils/csv';
 
 export default function JoukkueTulokset({ data, kisaStatus }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
+  const tulkitseTotuusarvo = (arvo) => {
+    if (arvo == null) return false;
+    const normalisoitu = String(arvo).trim().toLowerCase();
+    return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
+  };
 
   // 1. HAETAAN KISASPEKSIT (Ratojen määrä ja asemakohtaiset maksimit)
 // 1. HAETAAN KISASPEKSIT (Vain ne radat, joiden maksimi > 0)
   const speksit = useMemo(() => {
     const maksimit = {};
+    const toiseksiParasKaytossa = {};
     let ratojenMaara = 0;
 
     if (data?.speksitCsvRaw) {
@@ -24,11 +30,14 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
           if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
             const asemaTunnus = raakaAsema.toString().trim();
             const maksimiArvo = parseInt(raakaMaksimi, 10);
+            const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
 
             // HUOMITAVAT RADAT: Aseman pitää olla olemassa ja maksimin pitää olla YLI nollan
             if (asemaTunnus && !isNaN(maksimiArvo) && maksimiArvo > 0) {
               const asemaNumero = asemaTunnus.replace(/\D/g, '');
-              maksimit[asemaNumero || asemaTunnus] = maksimiArvo;
+              const avain = asemaNumero || asemaTunnus;
+              maksimit[avain] = maksimiArvo;
+              toiseksiParasKaytossa[avain] = naytaToiseksiParas;
               ratojenMaara++; // Kasvatetaan vain, jos kyseessä on oikea aktiivinen rata
             }
           }
@@ -40,6 +49,7 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
 
     return {
       asemaMaksimit: maksimit,
+      asemaToiseksiParasKaytossa: toiseksiParasKaytossa,
       ratojenMaara: ratojenMaara > 0 ? ratojenMaara : 8 
     };
   }, [data?.speksitCsvRaw]);
@@ -179,14 +189,20 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
                   
                   // Tarkistetaan maksimi. Yhteispisteissä (joukkueen summa) ei väritetä yksittäistä maksimia
                   const maksimiTulos = speksit.asemaMaksimit[n] || speksit.asemaMaksimit[`${n}`];
+                  const naytaToiseksiParas = Boolean(speksit.asemaToiseksiParasKaytossa[n] ?? speksit.asemaToiseksiParasKaytossa[`${n}`]);
                   const onkoMaksimi = !onkoYhteispisteet && !isNaN(pisteNum) && maksimiTulos !== undefined && pisteNum === maksimiTulos;
+                  const onkoToiseksiParas = !onkoYhteispisteet && !isNaN(pisteNum) && maksimiTulos !== undefined && naytaToiseksiParas && pisteNum === (maksimiTulos - 1);
 
                   return (
                     <td 
                       key={n} 
                       style={{
                         ...tyylit.DataSolu,
-                        ...(onkoMaksimi ? teema.maksimiTulos : {})
+                        ...(onkoMaksimi
+                          ? teema.maksimiTulos
+                          : onkoToiseksiParas
+                            ? teema.toiseksiParasTulos
+                            : {})
                       }}
                     >
                       {pisteArvo}

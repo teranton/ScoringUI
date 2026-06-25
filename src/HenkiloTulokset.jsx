@@ -7,11 +7,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
 
-  // 1. Parsitaan asemakohtaiset maksimit KISANSPEKSIT-datasta (alue J3:K)
-  const asemaMaksimit = useMemo(() => {
+  const tulkitseTotuusarvo = (arvo) => {
+    if (arvo == null) return false;
+    const normalisoitu = String(arvo).trim().toLowerCase();
+    return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
+  };
+
+  // 1. Parsitaan asemakohtaiset speksit KISANSPEKSIT-datasta (asema, maksimi, toiseksi paras käytössä)
+  const { asemaMaksimit, asemaToiseksiParasKaytossa } = useMemo(() => {
     const maksimit = {};
+    const toiseksiParasKaytossa = {};
     if (!speksitCsv || typeof speksitCsv !== 'string' || speksitCsv.trim().length < 2) {
-      return maksimit;
+      return { asemaMaksimit: maksimit, asemaToiseksiParasKaytossa: toiseksiParasKaytossa };
     }
 
     try {
@@ -28,11 +35,14 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
         if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
           const asemaTunnus = raakaAsema.toString().trim();
           const maksimiArvo = parseInt(raakaMaksimi, 10);
+          const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
 
           if (asemaTunnus && !isNaN(maksimiArvo)) {
             // Puhdistetaan otsikko pelkäksi numeroksi (esim. "Asema 1" -> "1")
             const asemaNumero = asemaTunnus.replace(/\D/g, '');
-            maksimit[asemaNumero || asemaTunnus] = maksimiArvo;
+            const avain = asemaNumero || asemaTunnus;
+            maksimit[avain] = maksimiArvo;
+            toiseksiParasKaytossa[avain] = naytaToiseksiParas;
           }
         }
       });
@@ -40,7 +50,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
       console.error("Virhe speksien parsinnoissa:", e);
     }
 
-    return maksimit;
+    return { asemaMaksimit: maksimit, asemaToiseksiParasKaytossa: toiseksiParasKaytossa };
   }, [speksitCsv]);
 
   if (!rawCsv || rawCsv.trim().length < 10 || rawCsv.toLowerCase().includes("html") || rawCsv.toLowerCase().includes("error")) {
@@ -384,7 +394,9 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
                       const puhdistettuNumero = s.numero.replace(/\D/g, '');
                       const maksimiTulos = asemaMaksimit[puhdistettuNumero] || asemaMaksimit[s.numero];
                       const ampujaTulosNum = parseInt(s.tulos, 10);
+                      const naytaToiseksiParas = Boolean(asemaToiseksiParasKaytossa[puhdistettuNumero] ?? asemaToiseksiParasKaytossa[s.numero]);
                       const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
+                      const onkoToiseksiParasOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && naytaToiseksiParas && ampujaTulosNum === (maksimiTulos - 1);
 
                       return (
                         <div
@@ -395,7 +407,11 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
                           <div
                             style={{
                               ...tyylit.SarjaSoluArvo,
-                              ...(onkoMaksimiOsuma ? teema.maksimiTulos : {})
+                              ...(onkoMaksimiOsuma
+                                ? teema.maksimiTulos
+                                : onkoToiseksiParasOsuma
+                                  ? teema.toiseksiParasTulos
+                                  : {})
                             }}
                           >
                             {s.tulos}
