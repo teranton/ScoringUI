@@ -1,15 +1,11 @@
 // src/JoukkueTulokset.jsx
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { teema } from './teema';
 import { parseCsvRows } from './utils/csv';
+import { tulkitseTotuusarvo } from './utils/henkiloTulokset';
 
 export default function JoukkueTulokset({ data, kisaStatus }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
-  const tulkitseTotuusarvo = (arvo) => {
-    if (arvo == null) return false;
-    const normalisoitu = String(arvo).trim().toLowerCase();
-    return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
-  };
 
   // 1. HAETAAN KISASPEKSIT (Ratojen määrä ja asemakohtaiset maksimit)
 // 1. HAETAAN KISASPEKSIT (Vain ne radat, joiden maksimi > 0)
@@ -52,7 +48,7 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
       asemaToiseksiParasKaytossa: toiseksiParasKaytossa,
       ratojenMaara: ratojenMaara > 0 ? ratojenMaara : 8 
     };
-  }, [data?.speksitCsvRaw]);
+  }, [data]);
 
   const onkoAliTulosPuuttuu = (arvo) => {
     const teksti = String(arvo ?? '').trim().toUpperCase();
@@ -70,9 +66,7 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
     );
   };
 
-  if (!data || !data.joukkueetCsvRaw) {
-    return <div style={tyylit.Lataus}>Ladataan tulosdataa...</div>;
-  }
+  const onkoDataPuuttuu = !data || !data.joukkueetCsvRaw;
 
   const toggleJoukkue = (joukkueNimi) => {
     setAvatutJoukkueet(prev => ({
@@ -82,6 +76,7 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
   };
 
   const { sarjat } = useMemo(() => {
+    if (onkoDataPuuttuu) return { sarjat: {} };
     const raakaRivit = parseCsvRows(data.joukkueetCsvRaw);
     const parsedJoukkueet = [];
     let currentTeam = null;
@@ -94,8 +89,6 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
       const teamName = row[1] || '';
       const shooterName = row[2] || '';
       const category = row[3] || '';
-      const yhteistulos = row[28] || "0";
-
       // Tallennetaan erät dynaamisesti speksien ilmoittaman ratamäärän mukaan
 // 1. Tallennetaan erät dynaamisesti speksien ilmoittaman ratamäärän mukaan
       const eratMap = {};
@@ -155,7 +148,11 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
     });
 
     return { sarjat: ryhmitellytSarjat };
-  }, [data.joukkueetCsvRaw, speksit.ratojenMaara]);
+  }, [data, speksit.ratojenMaara, onkoDataPuuttuu]);
+
+  if (onkoDataPuuttuu) {
+    return <div style={tyylit.Lataus}>Ladataan tulosdataa...</div>;
+  }
 
   const mitaliVarit = { 1: teema.kulta, 2: teema.hopea, 3: teema.pronssi };
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';

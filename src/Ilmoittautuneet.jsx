@@ -1,13 +1,12 @@
 // src/Ilmoittautuneet.jsx
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { parseCsvRows } from './utils/csv';
 
 export default function Ilmoittautuneet({ rawCsv }) {
-  // Jos dataa ei ole tai välilehti on tyhjä, ei piirretä mitään.
-  if (!rawCsv || rawCsv.trim().length < 10) return null;
+  const onkoRawTyhja = !rawCsv || rawCsv.trim().length < 10;
 
   const { ryhmitellytSarjat, kokonaismaara } = useMemo(() => {
-    const raakaRivit = parseCsvRows(rawCsv);
+    const raakaRivit = parseCsvRows(rawCsv || '');
     if (raakaRivit.length < 2) return { ryhmitellytSarjat: {}, kokonaismaara: 0 };
 
     // 1. Etsitään oikeat sarakkeet ensimmäiseltä riviltä tekstien perusteella
@@ -66,6 +65,7 @@ export default function Ilmoittautuneet({ rawCsv }) {
     return { ryhmitellytSarjat: ryhmittely, kokonaismaara: osallistujat.length };
   }, [rawCsv]);
 
+  if (onkoRawTyhja) return null;
   if (kokonaismaara === 0) return null;
 
   return (

@@ -1,3 +1,5 @@
+/* global process */
+
 import { GoogleAuth } from 'google-auth-library';
 
 export default async function handler(req, res) {
@@ -29,7 +31,6 @@ export default async function handler(req, res) {
 
     // 2. Tehdään haku suoraan Googlen nopeaan gviz-rajapintaan
     // Oletetaan, että välilehden nimi on "Laukaukset" ja sarake C on ampuja_id
-    const sheetNimi = "Laukaukset";
     const query = encodeURIComponent(`where B = '${ampuja}'`);
     const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?sheet=Kierrokset&tq=${query}`;
 

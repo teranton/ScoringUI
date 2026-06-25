@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
@@ -100,7 +100,6 @@ export default function App() {
   };
 
   const arvioiJoukkuekisaNimesta = (kisaNimi) => String(kisaNimi || '').includes('SM');
-  const kilpailurekisteriPaivitysMs = 5 * 60 * 1000;
 
   // Tutkii onko nykyhetki ylittänyt kisan aloituspäivän klo 10:00 rajapyykin
   const laskeOnkoIlmoittautuminenPaattynyt = (alkuStr) => {
@@ -118,12 +117,8 @@ export default function App() {
 
   // 1. HAETAAN KILPAILUREKISTERI
   useEffect(() => {
-    let rekisteriIntervalli = null;
-
     async function haeKisalistaCsv() {
       try {
-        if (document.hidden) return;
-
         setLadataanKisalista(true);
         setVirhe(null);
 
@@ -176,25 +171,6 @@ export default function App() {
     }
 
     haeKisalistaCsv();
-
-    rekisteriIntervalli = setInterval(() => {
-      if (!document.hidden) {
-        haeKisalistaCsv();
-      }
-    }, kilpailurekisteriPaivitysMs);
-
-    const kasitteleRekisterinNakymattomyys = () => {
-      if (!document.hidden) {
-        haeKisalistaCsv();
-      }
-    };
-
-    document.addEventListener('visibilitychange', kasitteleRekisterinNakymattomyys);
-
-    return () => {
-      if (rekisteriIntervalli) clearInterval(rekisteriIntervalli);
-      document.removeEventListener('visibilitychange', kasitteleRekisterinNakymattomyys);
-    };
   }, []);
 
   useEffect(() => {
@@ -217,25 +193,15 @@ export default function App() {
 
     const sheetId = valittuKisa.apiUrl;
 
-    if (!kisaCache[sheetId]) {
-      setLadataanKisaa(true);
-    }
-    setVirhe(null);
-
-    const haeCsv = async (url) => {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) return "";
-        return await response.text();
-      } catch {
-        return "";
-      }
-    };
-
 // Korvaa App.jsx sisällä oleva haeSuoratCsvData tällä optimoidulla versiolla:
 
 async function haeSuoratCsvData() {
   try {
+    setVirhe(null);
+    if (!kisaCache[sheetId]) {
+      setLadataanKisaa(true);
+    }
+
     // 1. Selvitetään status heti alussa, jotta tiedetään mitä ladataan
     const kisanStatusInfo = laskeKisanStatusJaTyyli(valittuKisa.alkuPvm, valittuKisa.loppuPvm);
     const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
@@ -369,7 +335,7 @@ async function haeSuoratCsvData() {
     return `📅 ${alku} – ${loppu}`;
   };
 
-  const laskeKisanStatusJaTyyli = (alkuStr, loppuStr) => {
+  function laskeKisanStatusJaTyyli(alkuStr, loppuStr) {
     if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
 
     const nollatunnit = (d) => { d.setHours(0, 0, 0, 0); return d; };
@@ -385,7 +351,7 @@ async function haeSuoratCsvData() {
     if (tanaandDate < alkuDate) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
     if (tanaandDate > loppuDate) return { teksti: "Päättynyt", tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
     return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
-  };
+  }
 
   if (ladataanKisalista) {
     return <div style={tyylit.LatausKeskitys}>Ladataan kilpailurekisteriä...</div>;

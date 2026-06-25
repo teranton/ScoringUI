@@ -1,5 +1,5 @@
 // src/HenkiloTaulukko.jsx
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
@@ -21,7 +21,7 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
       ...parsed,
       ratojenMaara: Object.keys(parsed.asemaMaksimit).length > 0 ? Object.keys(parsed.asemaMaksimit).length : 8
     };
-  }, [data?.speksitCsvRaw]);
+  }, [data]);
 
   // 2. PARSITAAN AMPUJIEN TULOKSET
   const ampujat = useMemo(() => {
@@ -67,15 +67,12 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
         idxTulos = yhteistulosFallback;
       }
 
-      const idxSija = nimiIndeksi - 1 >= 0 ? nimiIndeksi - 1 : -1;
-
       const lista = [];
 
       for (let i = 1; i < raakaRivit.length; i++) {
         const row = raakaRivit[i];
         if (!row || !row[nimiIndeksi]) continue;
 
-        const ranking = idxSija !== -1 ? (row[idxSija] || '') : '';
         const name = row[nimiIndeksi] || '';
         const category = row[sarjaIndeksi] || '';
         const yhteistulos = row[idxTulos] || '0';
@@ -92,7 +89,6 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
 
         lista.push({
           id: `${name}|${i}`,
-          sijoitus: ranking,
           nimi: name,
           sarja: category,
           tulos: yhteistulos,
@@ -108,17 +104,18 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
       console.error("Virhe taulukko-ampujien parsinnoissa:", e);
       return [];
     }
-  }, [data?.henkilotCsvRaw, speksit.ratojenMaara]);
-
-  if (!data || !data.henkilotCsvRaw) {
-    return <div style={tyylit.Lataus}>Ladataan taulukko-dataa...</div>;
-  }
+  }, [data, speksit.ratojenMaara]);
 
   // Luodaan lista radoista sarakeotsikoita varten (esim. [1, 2, 3...])
+  const onkoDataPuuttuu = !data || !data.henkilotCsvRaw;
   const radatList = Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1);
   const loydetytSarjat = Array.from(new Set(ampujat.map((a) => String(a.sarja || '').trim()).filter(Boolean))).sort();
   const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
   const naytaRatkoSarake = naytettavatAmpujat.some((a) => a.ratkoNaytto?.statusEtiketit?.length > 0 || (sarjaSuodatin !== 'OPEN (Y)' && a.ratkoNaytto?.teksti) || (sarjaSuodatin === 'OPEN (Y)' && parseInt(a.laskettuSija, 10) <= 3 && a.ratkoNaytto?.teksti));
+
+  if (onkoDataPuuttuu) {
+    return <div style={tyylit.Lataus}>Ladataan taulukko-dataa...</div>;
+  }
 
   const muotoileNimiTaulukkoon = (nimi) => {
     if (!onMobiili) return nimi;

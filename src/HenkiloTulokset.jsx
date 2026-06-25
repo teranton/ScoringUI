@@ -1,5 +1,5 @@
 // src/HenkiloTulokset.jsx
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
@@ -17,12 +17,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
     return parseAsemaSpeksitCsv(speksitCsv);
   }, [speksitCsv]);
 
-  if (!rawCsv || rawCsv.trim().length < 10 || rawCsv.toLowerCase().includes("html") || rawCsv.toLowerCase().includes("error")) {
-    return <div style={tyylit.Viesti}>Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.</div>;
-  }
-
-  const rivit = useMemo(() => parseCsvRows(rawCsv), [rawCsv]);
-  if (rivit.length < 2) return <div style={tyylit.Viesti}>Ei tulosdataa.</div>;
+  const onkoRawVirheellinen = !rawCsv || rawCsv.trim().length < 10 || rawCsv.toLowerCase().includes('html') || rawCsv.toLowerCase().includes('error');
+  const rivit = useMemo(() => parseCsvRows(rawCsv || ''), [rawCsv]);
 
   const otsikot = rivit[0].map((o) => String(o || '').toUpperCase());
   const otsikotNormalisoitu = otsikot.map((o) => o.replace(/[^A-Z0-9]/g, ''));
@@ -58,10 +54,6 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
   const idxRatko = aloitusIndeksi + kisanRatojenMaara + 1;
   const idxLa = etsiSarakkeenIndeksi([(h) => h === 'LA', (h) => h.startsWith('LAUANTAI')]);
   const idxSu = etsiSarakkeenIndeksi([(h) => h === 'SU', (h) => h.startsWith('SUNNUNTAI')]);
-
-  if (idxNimi === -1) {
-    return <div style={tyylit.Viesti}>Virhe: 'NIMI'-saraketta ei löytynyt taulukosta.</div>;
-  }
 
   let idxTulos = etsiSarakkeenIndeksi([(h) => h === 'TULOS', (h) => h.startsWith('TULOS')]);
   if (idxTulos === -1 && idxSeura !== -1) {
@@ -113,7 +105,14 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
   }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, rivit]);
 
   const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
-  const naytaRatkoSarake = naytettavatAmpujat.some((a) => a.ratkoNaytto?.statusEtiketit?.length > 0 || (sarjaSuodatin !== 'OPEN (Y)' || parseInt(a.laskettuSija, 10) <= 3) && a.ratkoNaytto?.teksti);
+
+  if (onkoRawVirheellinen) {
+    return <div style={tyylit.Viesti}>Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.</div>;
+  }
+  if (rivit.length < 2) return <div style={tyylit.Viesti}>Ei tulosdataa.</div>;
+  if (idxNimi === -1) {
+    return <div style={tyylit.Viesti}>Virhe: 'NIMI'-saraketta ei löytynyt taulukosta.</div>;
+  }
 
   const onkoAmpujaValmis = (ampuja) => {
     if (!ampuja?.sarjat || ampuja.sarjat.length === 0) return false;
@@ -144,7 +143,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
 
       {/* KORVATTU TAULUKKO MODERNILLA KORTTILISTALLA */}
       <div style={tyylit.KorttiLista}>
-        {naytettavatAmpujat.map((ampuja, index) => {
+        {naytettavatAmpujat.map((ampuja) => {
           const onAuki = valittuAmpujaId === ampuja.id;
           const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
           const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
@@ -255,8 +254,6 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
     </div>
   );
 }
-
-const onMobiiliYhteys = typeof window !== 'undefined' && window.innerWidth < 600;
 
 const tyylit = {
   Alue: { width: '100%', boxSizing: 'border-box' },

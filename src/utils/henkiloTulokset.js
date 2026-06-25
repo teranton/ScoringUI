@@ -177,8 +177,7 @@ export function laskeHenkilosijoitukset(ampujat, sarjaSuodatin = 'OPEN (Y)') {
 
       if (edellinenTulos === tulosNum) {
         if (onkoMukanaRatkoissa) {
-          if (edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste && countbackVertailu === 0) {
-          } else {
+          if (!(edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste && countbackVertailu === 0)) {
             aktiivinenSija = index + 1;
           }
         }

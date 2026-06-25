@@ -1,19 +1,10 @@
 // src/RyhmaJako.jsx
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ReactSortable } from 'react-sortablejs';
 import { teema } from './teema';
 
 export default function RyhmaJako({ data }) {
-  const [erät, setErät] = useState([]);
-
-  // Synkronoidaan App.jsx:stä valuva data paikalliseen tilaan, kun se muuttuu Sheetsissä
-  useEffect(() => {
-    if (data && data.erät) {
-      setErät(data.erät);
-    } else if (data && data.ryhmat) {
-      setErät(data.ryhmat); // Huomioidaan eri nimeämisvaihtoehdot
-    }
-  }, [data]);
+  const [erat, setErat] = useState(() => data?.erät || data?.ryhmat || []);
 
   if (!data) return <div style={{ fontFamily: teema.fontti }}>Ladataan erätietoja...</div>;
 
@@ -22,7 +13,7 @@ export default function RyhmaJako({ data }) {
       <p style={{ fontSize: '0.9em', fontStyle: 'italic' }}>⚙️ Voit järjestellä ampujia erien välillä raahaamalla.</p>
       
       <div style={tyylit.EraRuudukko}>
-        {erät.map((erä, eräIndeksi) => (
+        {erat.map((erä, eräIndeksi) => (
           <div key={eräIndeksi} style={tyylit.EraLaatikko}>
             <div style={tyylit.EraOtsikko}>{erä.nimi || `Erä ${eräIndeksi + 1}`}</div>
             
@@ -30,9 +21,9 @@ export default function RyhmaJako({ data }) {
             <ReactSortable
               list={erä.ampujat || []}
               setList={(uusiLista) => {
-                const paivitetytErät = [...erät];
+                const paivitetytErät = [...erat];
                 paivitetytErät[eräIndeksi].ampujat = uusiLista;
-                setErät(paivitetytErät);
+                setErat(paivitetytErät);
               }}
               group="ampujapooli"
               animation={150}
