@@ -100,6 +100,7 @@ export default function App() {
   };
 
   const arvioiJoukkuekisaNimesta = (kisaNimi) => String(kisaNimi || '').includes('SM');
+  const kilpailurekisteriPaivitysMs = 5 * 60 * 1000;
 
   // Tutkii onko nykyhetki ylittänyt kisan aloituspäivän klo 10:00 rajapyykin
   const laskeOnkoIlmoittautuminenPaattynyt = (alkuStr) => {
@@ -117,8 +118,12 @@ export default function App() {
 
   // 1. HAETAAN KILPAILUREKISTERI
   useEffect(() => {
+    let rekisteriIntervalli = null;
+
     async function haeKisalistaCsv() {
       try {
+        if (document.hidden) return;
+
         setLadataanKisalista(true);
         setVirhe(null);
 
@@ -171,6 +176,25 @@ export default function App() {
     }
 
     haeKisalistaCsv();
+
+    rekisteriIntervalli = setInterval(() => {
+      if (!document.hidden) {
+        haeKisalistaCsv();
+      }
+    }, kilpailurekisteriPaivitysMs);
+
+    const kasitteleRekisterinNakymattomyys = () => {
+      if (!document.hidden) {
+        haeKisalistaCsv();
+      }
+    };
+
+    document.addEventListener('visibilitychange', kasitteleRekisterinNakymattomyys);
+
+    return () => {
+      if (rekisteriIntervalli) clearInterval(rekisteriIntervalli);
+      document.removeEventListener('visibilitychange', kasitteleRekisterinNakymattomyys);
+    };
   }, []);
 
   useEffect(() => {
