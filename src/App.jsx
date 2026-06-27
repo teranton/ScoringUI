@@ -103,14 +103,14 @@ export default function App() {
     setAktiivinenSivu('tulokset');
     setValittuKisa(kisa);
     window.history.pushState(
-      { view: 'competition', competitionId: kisa.id },
+      { view: 'competition', competitionId: kisa.id, directLink: false },
       '',
       `${window.location.pathname}${window.location.search}#kisa-${kisa.id}`
     );
   };
 
   const palaaEtusivulle = () => {
-    if (window.history.state?.view === 'competition') {
+    if (window.history.state?.view === 'competition' && !window.history.state?.directLink) {
       window.history.back();
       return;
     }
@@ -203,7 +203,8 @@ export default function App() {
 
   useEffect(() => {
     if (!window.history.state?.view) {
-      window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
+      const hash = window.location.hash || '';
+      window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}${hash}`);
     }
 
     const kasitteleSelaimenTakaisin = () => {
@@ -214,6 +215,31 @@ export default function App() {
     window.addEventListener('popstate', kasitteleSelaimenTakaisin);
     return () => window.removeEventListener('popstate', kasitteleSelaimenTakaisin);
   }, []);
+
+  // 1b. Tuetaan suoraa deep linkiä kilpailuun: /#kisa-{id}
+  useEffect(() => {
+    if (ladataanKisalista || kisat.length === 0 || valittuKisa) return;
+
+    const hash = window.location.hash || '';
+    if (!hash.startsWith('#kisa-')) return;
+
+    const hashId = decodeURIComponent(hash.slice('#kisa-'.length));
+    if (!hashId) return;
+
+    const loydettyKisa = kisat.find((k) => String(k.id) === hashId);
+    if (!loydettyKisa) return;
+
+    setAktiivinenSivu('tulokset');
+    setValittuKisa(loydettyKisa);
+
+    if (window.history.state?.view !== 'competition' || window.history.state?.competitionId !== loydettyKisa.id) {
+      window.history.replaceState(
+        { view: 'competition', competitionId: loydettyKisa.id, directLink: true },
+        '',
+        `${window.location.pathname}${window.location.search}#kisa-${loydettyKisa.id}`
+      );
+    }
+  }, [kisat, ladataanKisalista, valittuKisa]);
 
   // 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
   useEffect(() => {
