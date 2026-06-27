@@ -20,7 +20,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
   const onkoRawVirheellinen = !rawCsv || rawCsv.trim().length < 10 || rawCsv.toLowerCase().includes('html') || rawCsv.toLowerCase().includes('error');
   const rivit = useMemo(() => parseCsvRows(rawCsv || ''), [rawCsv]);
 
-  const otsikot = rivit[0].map((o) => String(o || '').toUpperCase());
+  const otsikkoRivi = Array.isArray(rivit[0]) ? rivit[0] : [];
+  const otsikot = otsikkoRivi.map((o) => String(o || '').toUpperCase());
   const otsikotNormalisoitu = otsikot.map((o) => o.replace(/[^A-Z0-9]/g, ''));
 
   const etsiSarakkeenIndeksi = (ehdot) => {
@@ -49,9 +50,9 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
     ? Object.keys(asemaMaksimit).length
     : 8;
 
-  // RATKO on täsmälleen ratojen määrän verran aloitusindeksistä eteenpäin
-  // Esim. Jos Rata 1 on indeksissä 4 ja ratoja on 8, RATKO on indeksissä 4 + 8 + 1 (YHT)= 13.
-  const idxRatko = aloitusIndeksi + kisanRatojenMaara + 1;
+  // Ensisijaisesti etsitään RATKO otsikosta, koska rata-/speksimäärä voi vaihdella eri kisoissa.
+  const idxRatkoOtsikko = etsiSarakkeenIndeksi([(h) => h === 'RATKO', (h) => h.startsWith('RATKO')]);
+  const idxRatko = idxRatkoOtsikko !== -1 ? idxRatkoOtsikko : aloitusIndeksi + kisanRatojenMaara + 1;
   const idxLa = etsiSarakkeenIndeksi([(h) => h === 'LA', (h) => h.startsWith('LAUANTAI')]);
   const idxSu = etsiSarakkeenIndeksi([(h) => h === 'SU', (h) => h.startsWith('SUNNUNTAI')]);
 

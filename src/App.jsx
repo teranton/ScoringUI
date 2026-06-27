@@ -271,9 +271,6 @@ async function haeSuoratCsvData() {
       latausJonot.push(haeCsv('Tulokset Y'));
       avaimet.push('tuloksetYCsvRaw');
 
-      latausJonot.push(haeCsv('Tulokset'));
-      avaimet.push('tuloksetYleinenCsvRaw');
-
       if (onkoJoukkueTuloksetSallittu) {
         latausJonot.push(haeCsv('NEW_Joukkue'));
         avaimet.push('joukkueetCsvRaw');
@@ -305,17 +302,12 @@ async function haeSuoratCsvData() {
 
     // Erityislogiikka Tulokset Y vs Tavalliset tulokset, kuten aiemminkin
     if (!onkoKisaTulossa) {
-      const resTuloksetY = uusiData.tuloksetYCsvRaw;
-      const resTuloksetYleinen = uusiData.tuloksetYleinenCsvRaw;
-      
+      const resTuloksetY = uusiData.tuloksetYCsvRaw;      
       const onkoTuloksetYDataa = hasCsvDataRows(resTuloksetY, 2);
-      const onkoTuloksetYleinenDataa = hasCsvDataRows(resTuloksetYleinen, 2);
       
       uusiData.henkilotCsvRaw = onkoTuloksetYDataa
         ? resTuloksetY
-        : onkoTuloksetYleinenDataa
-          ? resTuloksetYleinen
-          : "";
+        : "";
     }
 
     // Päivitetään välimuisti yhdistämällä uudet tiedot ja mahdolliset vanhat säilytettävät tiedot
