@@ -86,6 +86,7 @@ export default async function handler(req, res) {
       // 1. VAIHE: Haetaan gid-kartta lennosta ultra-nopealla gviz-kikalla (ohittaa raskaat API-haut)
       // 1. VAIHE: Haetaan gid-kartta kerran kaikille välilehdille (SUPER-OPTIMOITU API-HAKU)
       let gidMap = gidMapCache[mapCacheKey];
+      let allSheets = [];
       const metaStartTime = Date.now();
 
       if (!gidMap) {
@@ -95,7 +96,7 @@ export default async function handler(req, res) {
           const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties(title,sheetId))`;
 
           const metaRes = await client.request({ url: metaUrl });
-          const allSheets = metaRes.data.sheets || [];
+          allSheets = metaRes.data.sheets || [];
 
           gidMap = {};
           for (const sheet of allSheets) {

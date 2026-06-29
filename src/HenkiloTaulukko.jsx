@@ -8,7 +8,7 @@ import {
 } from './utils/henkiloTulokset';
 import { teema } from './teema'; // Varmista että teema on importattu
 
-export default function HenkiloTaulukko({ data, kisaStatus }) {
+export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus }) {
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
@@ -16,19 +16,23 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
 
   // 1. PARSITAAN KISASPEKSIT (Ratojen määrä ja maksimit)
   const speksit = useMemo(() => {
-    const parsed = parseAsemaSpeksitCsv(data?.speksitCsvRaw);
+    const parsed = (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa)
+      ? parsedSpeksit
+      : parseAsemaSpeksitCsv(data?.speksitCsvRaw);
     return {
       ...parsed,
       ratojenMaara: Object.keys(parsed.asemaMaksimit).length > 0 ? Object.keys(parsed.asemaMaksimit).length : 8
     };
-  }, [data]);
+  }, [data, parsedSpeksit]);
 
   // 2. PARSITAAN AMPUJIEN TULOKSET
   const ampujat = useMemo(() => {
     if (!data?.henkilotCsvRaw) return [];
 
     try {
-      const raakaRivit = parseCsvRows(data.henkilotCsvRaw);
+      const raakaRivit = Array.isArray(parsedRows?.henkilotRows)
+        ? parsedRows.henkilotRows
+        : parseCsvRows(data.henkilotCsvRaw);
       if (!Array.isArray(raakaRivit) || raakaRivit.length < 2) return [];
 
       const otsikot = (raakaRivit[0] || []).map((o) => String(o || '').toUpperCase());
@@ -104,7 +108,7 @@ export default function HenkiloTaulukko({ data, kisaStatus }) {
       console.error("Virhe taulukko-ampujien parsinnoissa:", e);
       return [];
     }
-  }, [data, speksit.ratojenMaara]);
+  }, [data, parsedRows, speksit.ratojenMaara]);
 
   // Luodaan lista radoista sarakeotsikoita varten (esim. [1, 2, 3...])
   const onkoDataPuuttuu = !data || !data.henkilotCsvRaw;

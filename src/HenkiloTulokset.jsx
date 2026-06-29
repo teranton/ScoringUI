@@ -8,17 +8,25 @@ import {
 } from './utils/henkiloTulokset';
 import { teema } from './teema'; // Varmista että teema on importattu
 
-export default function HenkiloTulokset({ rawCsv, speksitCsv, kisaStatus }) {
+export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
 
   // 1. Parsitaan asemakohtaiset speksit KISANSPEKSIT-datasta (asema, maksimi, toiseksi paras käytössä)
   const { asemaMaksimit, asemaToiseksiParasKaytossa } = useMemo(() => {
+    if (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa) {
+      return parsedSpeksit;
+    }
     return parseAsemaSpeksitCsv(speksitCsv);
-  }, [speksitCsv]);
+  }, [parsedSpeksit, speksitCsv]);
 
   const onkoRawVirheellinen = !rawCsv || rawCsv.trim().length < 10 || rawCsv.toLowerCase().includes('html') || rawCsv.toLowerCase().includes('error');
-  const rivit = useMemo(() => parseCsvRows(rawCsv || ''), [rawCsv]);
+  const rivit = useMemo(() => {
+    if (Array.isArray(rawRows)) {
+      return rawRows;
+    }
+    return parseCsvRows(rawCsv || '');
+  }, [rawCsv, rawRows]);
 
   const otsikkoRivi = Array.isArray(rivit[0]) ? rivit[0] : [];
   const otsikot = otsikkoRivi.map((o) => String(o || '').toUpperCase());

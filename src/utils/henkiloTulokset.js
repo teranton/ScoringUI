@@ -6,42 +6,51 @@ export function tulkitseTotuusarvo(arvo) {
   return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
 }
 
-export function parseAsemaSpeksitCsv(speksitCsv) {
+export function parseAsemaSpeksitRows(speksiRivit) {
   const asemaMaksimit = {};
   const asemaToiseksiParasKaytossa = {};
 
-  if (!speksitCsv || typeof speksitCsv !== 'string' || speksitCsv.trim().length < 2) {
+  if (!Array.isArray(speksiRivit) || speksiRivit.length === 0) {
     return { asemaMaksimit, asemaToiseksiParasKaytossa };
+  }
+
+  speksiRivit.forEach((rivi) => {
+    if (!rivi || rivi.length < 11) return;
+
+    const raakaAsema = rivi[9];
+    const raakaMaksimi = rivi[10];
+
+    if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
+      const asemaTunnus = raakaAsema.toString().trim();
+      const maksimiArvo = parseInt(raakaMaksimi, 10);
+      const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
+
+      if (asemaTunnus && !Number.isNaN(maksimiArvo)) {
+        const asemaNumero = asemaTunnus.replace(/\D/g, '');
+        const avain = asemaNumero || asemaTunnus;
+        asemaMaksimit[avain] = maksimiArvo;
+        asemaToiseksiParasKaytossa[avain] = naytaToiseksiParas;
+      }
+    }
+  });
+
+  return { asemaMaksimit, asemaToiseksiParasKaytossa };
+}
+
+export function parseAsemaSpeksitCsv(speksitCsv) {
+  const tyhja = { asemaMaksimit: {}, asemaToiseksiParasKaytossa: {} };
+
+  if (!speksitCsv || typeof speksitCsv !== 'string' || speksitCsv.trim().length < 2) {
+    return tyhja;
   }
 
   try {
     const speksiRivit = parseCsvRows(speksitCsv);
-    if (!Array.isArray(speksiRivit)) return { asemaMaksimit, asemaToiseksiParasKaytossa };
-
-    speksiRivit.forEach((rivi) => {
-      if (!rivi || rivi.length < 11) return;
-
-      const raakaAsema = rivi[9];
-      const raakaMaksimi = rivi[10];
-
-      if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
-        const asemaTunnus = raakaAsema.toString().trim();
-        const maksimiArvo = parseInt(raakaMaksimi, 10);
-        const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
-
-        if (asemaTunnus && !Number.isNaN(maksimiArvo)) {
-          const asemaNumero = asemaTunnus.replace(/\D/g, '');
-          const avain = asemaNumero || asemaTunnus;
-          asemaMaksimit[avain] = maksimiArvo;
-          asemaToiseksiParasKaytossa[avain] = naytaToiseksiParas;
-        }
-      }
-    });
+    return parseAsemaSpeksitRows(speksiRivit);
   } catch (error) {
     console.error('Virhe speksien parsinnoissa:', error);
+    return tyhja;
   }
-
-  return { asemaMaksimit, asemaToiseksiParasKaytossa };
 }
 
 export const ratkoStatusPainot = {

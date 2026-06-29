@@ -4,7 +4,7 @@ import { teema } from './teema';
 import { parseCsvRows } from './utils/csv';
 import { tulkitseTotuusarvo } from './utils/henkiloTulokset';
 
-export default function JoukkueTulokset({ data, kisaStatus }) {
+export default function JoukkueTulokset({ data, parsedRows, kisaStatus }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
 
   // 1. HAETAAN KISASPEKSIT (Ratojen määrä ja asemakohtaiset maksimit)
@@ -16,7 +16,9 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
 
     if (data?.speksitCsvRaw) {
       try {
-        const speksiRivit = parseCsvRows(data.speksitCsvRaw);
+        const speksiRivit = Array.isArray(parsedRows?.speksitRows)
+          ? parsedRows.speksitRows
+          : parseCsvRows(data.speksitCsvRaw);
         speksiRivit.forEach((rivi) => {
           if (!rivi || rivi.length < 11) return;
 
@@ -48,7 +50,7 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
       asemaToiseksiParasKaytossa: toiseksiParasKaytossa,
       ratojenMaara: ratojenMaara > 0 ? ratojenMaara : 8 
     };
-  }, [data]);
+  }, [data, parsedRows]);
 
   const onkoAliTulosPuuttuu = (arvo) => {
     const teksti = String(arvo ?? '').trim().toUpperCase();
@@ -77,7 +79,9 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
 
   const { sarjat } = useMemo(() => {
     if (onkoDataPuuttuu) return { sarjat: {} };
-    const raakaRivit = parseCsvRows(data.joukkueetCsvRaw);
+    const raakaRivit = Array.isArray(parsedRows?.joukkueRows)
+      ? parsedRows.joukkueRows
+      : parseCsvRows(data.joukkueetCsvRaw);
     const parsedJoukkueet = [];
     let currentTeam = null;
 
@@ -148,7 +152,7 @@ export default function JoukkueTulokset({ data, kisaStatus }) {
     });
 
     return { sarjat: ryhmitellytSarjat };
-  }, [data, speksit.ratojenMaara, onkoDataPuuttuu]);
+  }, [data, parsedRows, speksit.ratojenMaara, onkoDataPuuttuu]);
 
   if (onkoDataPuuttuu) {
     return <div style={tyylit.Lataus}>Ladataan tulosdataa...</div>;

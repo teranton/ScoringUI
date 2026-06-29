@@ -1,12 +1,13 @@
 // src/App.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
 import RyhmaJako from './RyhmaJako';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import { teema } from './teema';
-import { hasCsvDataRows, parseCsvRows } from './utils/csv';
+import { parseCsvRows } from './utils/csv';
+import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
@@ -86,23 +87,16 @@ function normalisoiStatusArvo(arvo) {
   return null;
 }
 
-function haeStatusOverrideSpekseista(speksitCsv) {
-  if (!speksitCsv || typeof speksitCsv !== 'string' || speksitCsv.trim().length < 2) return null;
+function haeStatusOverrideSpekseista(speksitData) {
+  const rivit = Array.isArray(speksitData)
+    ? speksitData
+    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
 
-  const rivit = parseCsvRows(speksitCsv);
   if (!Array.isArray(rivit) || rivit.length === 0) return null;
 
   const avainSanat = new Set([
-    'STATUS',
-    'KISASTATUS',
-    'KISA_STATUS',
-    'KILPAILUNSTATUS',
-    'KILPAILU_STATUS',
-    'COMPETITIONSTATUS',
-    'KISAPAATTYNYT',
-    'KISA_PAATTYNYT',
-    'KILPAILUPAATTYNYT',
-    'KILPAILU_PAATTYNYT'
+    'STATUS', 'KISASTATUS', 'KISA_STATUS', 'KILPAILUNSTATUS', 'KILPAILU_STATUS',
+    'COMPETITIONSTATUS', 'KISAPAATTYNYT', 'KISA_PAATTYNYT', 'KILPAILUPAATTYNYT', 'KILPAILU_PAATTYNYT'
   ]);
 
   for (const rivi of rivit) {
@@ -116,10 +110,7 @@ function haeStatusOverrideSpekseista(speksitCsv) {
       if (!avainSanat.has(avain)) continue;
 
       const ehdokasArvot = [
-        solut[i + 1],
-        solut[i + 2],
-        solut[i],
-        ...solut
+        solut[i + 1], solut[i + 2], solut[i], ...solut
       ].filter(Boolean);
 
       for (const ehdokas of ehdokasArvot) {
@@ -137,9 +128,9 @@ function haeStatusOverrideSpekseista(speksitCsv) {
   return null;
 }
 
-function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitCsv) {
+function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData) {
   const oletus = laskeKisanStatusJaTyyli(alkuStr, loppuStr);
-  const override = haeStatusOverrideSpekseista(speksitCsv);
+  const override = haeStatusOverrideSpekseista(speksitData);
   if (!override) return oletus;
 
   if (override === 'paattynyt') {
@@ -161,12 +152,32 @@ export default function App() {
   const [ladataanKisaa, setLadataanKisaa] = useState(false);
   const [virhe, setVirhe] = useState(null);
   const kisaCacheRef = useRef(kisaCache);
+  const gidMapBySheetRef = useRef({});
+  const fetchInFlightRef = useRef({});
 
   useEffect(() => {
     kisaCacheRef.current = kisaCache;
   }, [kisaCache]);
 
-  // TAULUKKO on kokeellinen: oletus päällä devissä, tuotannossa pois ellei erikseen aktivoida
+  async function haeGidMap(sheetId) {
+    if (gidMapBySheetRef.current[sheetId]) {
+      return gidMapBySheetRef.current[sheetId];
+    }
+
+    const metaResponse = await fetch(`/api/gidLista?sheetId=${encodeURIComponent(sheetId)}`);
+    if (!metaResponse.ok) {
+      throw new Error(`Gid-metadatan haku epäonnistui status: ${metaResponse.status}`);
+    }
+
+    const { sheets: gidMap } = await metaResponse.json();
+    if (!gidMap || Object.keys(gidMap).length === 0) {
+      throw new Error('Taulukon välilehtiä ei löytynyt.');
+    }
+
+    gidMapBySheetRef.current[sheetId] = gidMap;
+    return gidMap;
+  }
+
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
     ? true
@@ -214,25 +225,20 @@ export default function App() {
 
   const arvioiJoukkuekisaNimesta = (kisaNimi) => String(kisaNimi || '').includes('SM');
 
-  // 1. HAETAAN KILPAILUREKISTERI
+  // 1. HAETAAN KILPAILUREKISTERI (Ladataan suoraan julkisesta Google-exportista)
   useEffect(() => {
     async function haeKisalistaCsv() {
       try {
         setLadataanKisalista(true);
         setVirhe(null);
 
-        const url = `/api/rekisteri`;
+        const url = `https://docs.google.com/spreadsheets/d/${REKISTERI_SHEET_ID}/export?format=csv`;
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`Kilpailurekisterin haku epäonnistui: ${response.status}`);
         }
         const csvText = await response.text();
-
-        //console.log("Reactiin saapunut raaka teksti:", csvText);
-
         const raakaRivit = parseCsvRows(csvText);
-
-        //console.log("Parsitut raakarivit (taulukko):", raakaRivit);
         const parsitutKisat = [];
 
         for (let i = 0; i < raakaRivit.length; i++) {
@@ -291,7 +297,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', kasitteleSelaimenTakaisin);
   }, []);
 
-  // 1b. Tuetaan suoraa deep linkiä kilpailuun: /#kisa-{id}
   useEffect(() => {
     if (ladataanKisalista || kisat.length === 0 || valittuKisa) return;
 
@@ -316,20 +321,31 @@ export default function App() {
     }
   }, [kisat, ladataanKisalista, valittuKisa]);
 
-  // 2. REAALIAIKAINEN LIVE-DATAHAKU VALITULLE KISALLE
+  // 2. REAALIAIKAINEN LIVE-DATAHAKU SELAIMESSA (Ultra-optimoitu kaksivaiheinen haku)
   useEffect(() => {
     if (!valittuKisa || !valittuKisa.apiUrl) return;
 
     const sheetId = valittuKisa.apiUrl;
 
     async function haeSuoratCsvData() {
+      if (fetchInFlightRef.current[sheetId]) {
+        return;
+      }
+
+      fetchInFlightRef.current[sheetId] = true;
+
       try {
         setVirhe(null);
         if (!kisaCacheRef.current[sheetId]) {
           setLadataanKisaa(true);
         }
 
-        // 1. Selvitetään status heti alussa, jotta tiedetään mitä ladataan
+        const startTime = performance.now();
+
+        // VAIHE 1: Haetaan gid-map vain kerran per kisa selaimen välimuistiin.
+        const gidMap = await haeGidMap(sheetId);
+
+        // Selvitetään kisan tila
         const speksitOverrideCsv = kisaCacheRef.current[sheetId]?.speksitCsvRaw;
         const kisanStatusInfo = laskeKisanEfektiivinenStatus(valittuKisa.alkuPvm, valittuKisa.loppuPvm, speksitOverrideCsv);
         const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
@@ -337,74 +353,40 @@ export default function App() {
         const onkoIlmoittautuminenAikaIkkunaOhi = laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm);
         const onkoJoukkueTuloksetSallittu = valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi);
 
-        // 2. Rakennetaan dynaaminen lista ladattavista välilehdistä
-        const sheetNamesToFetch = [];
+        // VAIHE 2: Määritetään tarvittavat välilehdet ja rakennetaan suorat Google CSV-latauslupaukset (Promises)
+        const latausLupaukset = [];
 
-        // ILMOITTAUTUNEET: Vain jos kisa on tulossa EIKÄ aikaraja (klo 10) ole umpeutunut
-        if (onkoKisaTulossa && !onkoIlmoittautuminenAikaIkkunaOhi) {
-          sheetNamesToFetch.push('Ilmoittautuneet');
-        }
-
-        // ERÄLUETTELO / RYHMÄJAKO: Tarvitaan ennen kisaa ja kisan aikana
-        if (!onkoKisaPaattynyt) {
-          sheetNamesToFetch.push('Ryhmäjako');
-        }
-
-        // TULOKSET & SPEKSIT: Vain kun kisa on käynnissä tai päättynyt
-        if (!onkoKisaTulossa) {
-          sheetNamesToFetch.push('Tulokset Y');
-
-          if (onkoJoukkueTuloksetSallittu) {
-            sheetNamesToFetch.push('NEW_Joukkue');
+        // Apufunktio, joka lisää latausjonoon suoran Google-haun selaimesta
+        const lisaaLatausJonoon = (nayttnimi, virallinenNimi) => {
+          const gid = gidMap[virallinenNimi] || gidMap[virallinenNimi.toLowerCase()] || gidMap[virallinenNimi.toUpperCase()];
+          if (gid !== undefined) {
+            const googleCsvUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/export?format=csv&gid=${encodeURIComponent(gid)}`;
+            latausLupaukset.push(
+              fetch(googleCsvUrl)
+                .then(res => res.ok ? res.text() : "")
+                .then(text => ({ avain: nayttnimi, data: text }))
+                .catch(() => ({ avain: nayttnimi, data: "" }))
+            );
           }
+        };
 
-          sheetNamesToFetch.push('KISANSPEKSIT');
+        if (onkoKisaTulossa && !onkoIlmoittautuminenAikaIkkunaOhi) {
+          lisaaLatausJonoon('ilmoittautuneetCsvRaw', 'Ilmoittautuneet');
+        }
+        if (!onkoKisaPaattynyt) {
+          lisaaLatausJonoon('eratCsvRaw', 'Ryhmäjako');
+        }
+        if (!onkoKisaTulossa) {
+          lisaaLatausJonoon('henkilotCsvRaw', 'Tulokset Y');
+          if (onkoJoukkueTuloksetSallittu) {
+            lisaaLatausJonoon('joukkueetCsvRaw', 'NEW_Joukkue');
+          }
+          lisaaLatausJonoon('speksitCsvRaw', 'KISANSPEKSIT');
         }
 
-        if (sheetNamesToFetch.length === 0) {
-          setLadataanKisaa(false);
-          return;
-        }
-
-        // 3. Tehdään YKSI batch-pyyntö kaikille välilehdille kerralla
-        const queryParams = new URLSearchParams({
-          sheetId,
-          mode: 'batchCsv'
-        });
-
-        // KORJAUS: Ei encodeURIComponentia tässä, URLSearchParams hoitaa sen itse!
-        sheetNamesToFetch.forEach(name => queryParams.append('sheetNames', name));
-
-        // Lisätään cache-buster estämään selaimen liian tiukka välimuisti live-tilanteissa
-        queryParams.append('_cb', Date.now().toString());
-
-        const fetchStartTime = performance.now();
-
-        const response = await fetch(`/api/kisaData?${queryParams.toString()}`);
-        if (!response.ok) {
-          throw new Error(`Datan haku epäonnistui: ${response.status}`);
-        }
-
-        const fetchEndTime = performance.now();
-        const batchResult = await response.json();
-        const parseEndTime = performance.now();
-
-        console.log(`[FETCH] Verkko-aika: ${(fetchEndTime - fetchStartTime).toFixed(0)}ms`);
-        console.log(`[FETCH] Parsinta: ${(parseEndTime - fetchEndTime).toFixed(0)}ms`);
-        if (batchResult.timing) {
-          console.log(`[FETCH] Serverin aika: ${batchResult.timing.total_ms}ms (meta: ${batchResult.timing.meta_ms}ms, csv: ${batchResult.timing.csv_ms}ms)`);
-        }
-        console.log(`[FETCH] Kokonaisaika: ${(parseEndTime - fetchStartTime).toFixed(0)}ms`);
-
-        const csvByName = batchResult.csvByName || {};
-
-        // DEBUG: Näytä puuttuvat levyt konsolissa
-        if (batchResult.notFound?.length > 0) {
-          console.warn('[BATCH] Puuttuvat levyt:', batchResult.notFound);
-          console.warn('[BATCH] Saatavilla olevat levyt:', batchResult.availableSheets);
-          console.warn('[BATCH] Debug:', batchResult.debug);
-        }
-
+        // Suoritetaan kaikki CSV-haut selaimessa rinnakkain!
+        const ladatutKappaleet = await Promise.all(latausLupaukset);
+        
         const uusiData = {
           henkilotCsvRaw: "",
           joukkueetCsvRaw: "",
@@ -413,19 +395,14 @@ export default function App() {
           speksitCsvRaw: ""
         };
 
+        ladatutKappaleet.forEach(pala => {
+          uusiData[pala.avain] = pala.data;
+        });
+
         const vanhaData = kisaCacheRef.current[sheetId] || {};
+        const endTime = performance.now();
+        console.log(`[CLIENT FETCH] Kaikki CSV-tiedostot ladattu selaimessa rinnakkain: ${(endTime - startTime).toFixed(0)}ms`);
 
-        // Mapitetaan vastaanotetut CSV:t
-        uusiData.ilmoittautuneetCsvRaw = csvByName['Ilmoittautuneet'] || "";
-        uusiData.eratCsvRaw = csvByName['Ryhmäjako'] || "";
-        uusiData.joukkueetCsvRaw = csvByName['NEW_Joukkue'] || "";
-        uusiData.speksitCsvRaw = csvByName['KISANSPEKSIT'] || "";
-
-        if (!onkoKisaTulossa) {
-          uusiData.henkilotCsvRaw = csvByName['Tulokset Y'] || "";
-        }
-
-        // Päivitetään välimuisti yhdistämällä uudet tiedot ja mahdolliset vanhat säilytettävät tiedot
         setKisaCache(prevCache => ({
           ...prevCache,
           [sheetId]: {
@@ -438,9 +415,10 @@ export default function App() {
         }));
 
       } catch (err) {
-        console.error("Datan haku epäonnistui:", err);
-        setVirhe("Tietojen haku epäonnistui. Tarkista kisasheetin asetukset.");
+        console.error("Datan haku epäonnistui selaimessa:", err);
+        setVirhe("Tietojen haku epäonnistui. Varmista, että kisasheeteillä on julkinen lukuoikeus linkillä.");
       } finally {
+        fetchInFlightRef.current[sheetId] = false;
         setLadataanKisaa(false);
       }
     }
@@ -471,6 +449,92 @@ export default function App() {
     if (!loppu || alku === loppu) return `📅 ${alku}`;
     return `📅 ${alku} – ${loppu}`;
   };
+
+  // Välilehtikorjauksen hook täytyy ajaa aina samassa järjestyksessä.
+  const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
+
+  const nykyisenKisanParsitutRivit = useMemo(() => {
+    if (!nykyisenKisanData) {
+      return {
+        henkilotRows: [],
+        joukkueRows: [],
+        speksitRows: []
+      };
+    }
+
+    return {
+      henkilotRows: parseCsvRows(nykyisenKisanData.henkilotCsvRaw || ''),
+      joukkueRows: parseCsvRows(nykyisenKisanData.joukkueetCsvRaw || ''),
+      speksitRows: parseCsvRows(nykyisenKisanData.speksitCsvRaw || '')
+    };
+  }, [
+    nykyisenKisanData?.henkilotCsvRaw,
+    nykyisenKisanData?.joukkueetCsvRaw,
+    nykyisenKisanData?.speksitCsvRaw
+  ]);
+
+  const nykyisenKisanSpeksit = useMemo(
+    () => parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
+
+  const kisanStatusInfo = valittuKisa
+    ? laskeKisanEfektiivinenStatus(valittuKisa.alkuPvm, valittuKisa.loppuPvm, nykyisenKisanParsitutRivit.speksitRows)
+    : { status: 'tulossa' };
+
+  const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
+  const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
+  const onkoIlmoittautuminenAikaIkkunaOhi = valittuKisa
+    ? laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm)
+    : true;
+
+  const onkoTuloksetSallittu = !onkoKisaTulossa;
+  const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
+  const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
+  const onkoJoukkueTuloksetSallittu = valittuKisa
+    ? (valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi))
+    : false;
+
+  const onkoJoukkueKisa = onkoTuloksetSallittu
+    && onkoJoukkueTuloksetSallittu
+    && nykyisenKisanParsitutRivit.joukkueRows.length >= 2;
+
+  useEffect(() => {
+    if (!valittuKisa) return;
+
+    if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'erakirjaus') {
+      setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : 'erakirjaus');
+      return;
+    }
+
+    if (!onkoIlmoittautuneita && aktiivinenSivu === 'ilmoittautuneet') {
+      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
+      return;
+    }
+
+    if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && !(onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') && aktiivinenSivu !== 'joukkueet') {
+      setAktiivinenSivu('tulokset');
+      return;
+    }
+
+    if (!onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') {
+      setAktiivinenSivu('tulokset');
+      return;
+    }
+
+    if (!onkoJoukkueKisa && aktiivinenSivu === 'joukkueet') {
+      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
+    }
+  }, [
+    aktiivinenSivu,
+    onkoIlmoittautuneita,
+    onkoJoukkueKisa,
+    onkoKisaPaattynyt,
+    onkoKisaTulossa,
+    onkoTaulukkoSallittu,
+    onkoTuloksetSallittu,
+    valittuKisa
+  ]);
 
   if (ladataanKisalista) {
     return <div style={tyylit.LatausKeskitys}>Ladataan kilpailurekisteriä...</div>;
@@ -517,35 +581,9 @@ export default function App() {
   }
 
   // --- NÄKYMÄ 2: VALITUN KISAN NÄKYMÄ ---
-  const nykyisenKisanData = kisaCache[valittuKisa.apiUrl];
-  const kisanStatusInfo = laskeKisanEfektiivinenStatus(valittuKisa.alkuPvm, valittuKisa.loppuPvm, nykyisenKisanData?.speksitCsvRaw);
-
-  const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
-  const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
-  const onkoIlmoittautuminenAikaIkkunaOhi = laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm);
-
-  // SÄÄNNÖT ERI SIVUJEN NÄKYVYYDELLE
-  const onkoTuloksetSallittu = !onkoKisaTulossa;
-  const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
-  const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
   const onkoEraluetteloa = !onkoKisaPaattynyt;
-  const onkoJoukkueTuloksetSallittu = valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi);
-  const onkoJoukkueKisa = onkoTuloksetSallittu && onkoJoukkueTuloksetSallittu && hasCsvDataRows(nykyisenKisanData?.joukkueetCsvRaw, 2);
   const onkoTaulukkoNakyma = aktiivinenSivu === 'taulukko';
   const kilpailuNakymaMaxWidth = onkoTaulukkoNakyma ? 'min(96vw, 1320px)' : '560px';
-
-  // Estetään käyttäjää jäämästä loukkuun piilotetulle välilehdelle
-  if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'erakirjaus') {
-    setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : 'erakirjaus');
-  } else if (!onkoIlmoittautuneita && aktiivinenSivu === 'ilmoittautuneet') {
-    setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
-  } else if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && !(onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') && aktiivinenSivu !== 'joukkueet') {
-    setAktiivinenSivu('tulokset');
-  } else if (!onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') {
-    setAktiivinenSivu('tulokset');
-  } else if (!onkoJoukkueKisa && aktiivinenSivu === 'joukkueet') {
-    setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
-  }
 
   return (
     <div style={tyylit.KokoSivu}>
@@ -567,15 +605,12 @@ export default function App() {
         {onkoTaulukkoSallittu && (
           <button onClick={() => setAktiivinenSivu('taulukko')} style={aktiivinenSivu === 'taulukko' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>📊 TAULUKKO</button>
         )}
-
         {onkoIlmoittautuneita && (
           <button onClick={() => setAktiivinenSivu('ilmoittautuneet')} style={aktiivinenSivu === 'ilmoittautuneet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>📝 ILMOITTAUTUNEET</button>
         )}
-
         {onkoEraluetteloa && (
           <button onClick={() => setAktiivinenSivu('erakirjaus')} style={aktiivinenSivu === 'erakirjaus' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>⚙️ ERÄLUETTELO</button>
         )}
-
         {onkoJoukkueKisa && (
           <button onClick={() => setAktiivinenSivu('joukkueet')} style={aktiivinenSivu === 'joukkueet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>👥 JOUKKUETULOKSET</button>
         )}
@@ -588,12 +623,14 @@ export default function App() {
           {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (
             <HenkiloTulokset
               rawCsv={nykyisenKisanData.henkilotCsvRaw}
-              speksitCsv={nykyisenKisanData.speksitCsvRaw} // UUSI PROP
+              speksitCsv={nykyisenKisanData.speksitCsvRaw}
+              rawRows={nykyisenKisanParsitutRivit.henkilotRows}
+              parsedSpeksit={nykyisenKisanSpeksit}
               kisaStatus={kisanStatusInfo.status}
             />
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
-            <HenkiloTaulukko data={nykyisenKisanData} kisaStatus={kisanStatusInfo.status} />
+            <HenkiloTaulukko data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} parsedSpeksit={nykyisenKisanSpeksit} kisaStatus={kisanStatusInfo.status} />
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} />
@@ -605,7 +642,7 @@ export default function App() {
           )}
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
             <div style={{ display: 'block' }}>
-              <JoukkueTulokset data={nykyisenKisanData} kisaStatus={kisanStatusInfo.status} />
+              <JoukkueTulokset data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} kisaStatus={kisanStatusInfo.status} />
             </div>
           )}
         </main>
