@@ -13,6 +13,15 @@ function logStep(start, name) {
   console.log(`[${name}] ${ms}ms`);
 }
 
+function decodeQueryValue(value) {
+  if (typeof value !== 'string') return '';
+  try {
+    return decodeURIComponent(value.replace(/\+/g, ' '));
+  } catch {
+    return value.replace(/\+/g, ' ');
+  }
+}
+
 async function getAuthClientWithLogs() {
   const authStart = Date.now();
 
@@ -92,13 +101,7 @@ export default async function handler(req, res) {
 
       // 2. VAIHE: Muutetaan pyydetyt nimet gideiksi
       const rawSheetNames = Array.isArray(sheetNames) ? sheetNames : [sheetNames];
-      const sheetNamesArray = rawSheetNames.map((n) => {
-        try {
-          return decodeURIComponent(n);
-        } catch {
-          return n;
-        }
-      });
+      const sheetNamesArray = rawSheetNames.map((n) => decodeQueryValue(n));
       const gidRequests = [];
       const keyMap = {}; // Mappaa gid → alkuperäisen avaimen
       const notFound = [];
@@ -173,7 +176,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'sheetId ja sheetName vaaditaan' });
   }
 
-  const cacheKey = `${sheetId}_${sheetName.trim().toLowerCase()}`;
+  const decodedSheetName = decodeQueryValue(sheetName);
+  const cacheKey = `${sheetId}_${decodedSheetName.trim().toLowerCase()}`;
 
   try {
     const client = await getAuthClientWithLogs();
@@ -186,18 +190,12 @@ export default async function handler(req, res) {
     } else {
       // 1. VAIHE: Haetaan rakenne VAIN jos sitä ei löydy muistista
       const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`;
-     // const metaRes = await client.request({ url: metaUrl });
-const metaRes = await timedRequest(
-    client,
-    metaUrl,
-    undefined,
-    "META"
-);
+      const metaRes = await client.request({ url: metaUrl });
       const sheets = metaRes.data.sheets || [];
       const tarjollaOlevat = sheets.map(s => s.properties.title);
 
       for (const sheet of sheets) {
-        if (sheet.properties.title.trim().toLowerCase() === sheetName.trim().toLowerCase()) {
+        if (sheet.properties.title.trim().toLowerCase() === decodedSheetName.trim().toLowerCase()) {
           foundGid = sheet.properties.sheetId;
           break;
         }
@@ -205,7 +203,7 @@ const metaRes = await timedRequest(
 
       if (foundGid === null) {
         return res.status(404).json({
-          error: `Välilehteä '${sheetName}' ei löytynyt taulukosta.`,
+          error: `Välilehteä '${decodedSheetName}' ei löytynyt taulukosta.`,
           availableSheets: tarjollaOlevat
         });
       }
@@ -223,12 +221,10 @@ const metaRes = await timedRequest(
     //   responseType: 'text'
     // });
 
-    const googleRes = timedRequest(
-    client,
-    exportUrl,
-    "text",
-    `CSV ${sheetName}`
-)
+    const googleRes = await client.request({
+      url: exportUrl,
+      responseType: 'text'
+    });
 
     logStep(exportStart, 'SINGLE CSV');
     res.setHeader('Content-Type', 'text/csv');
