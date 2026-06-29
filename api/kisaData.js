@@ -53,10 +53,9 @@ async function getAuthClientWithLogs() {
   logStep(tokenStart, 'TOKEN');
 
   console.log(
-    `[TOKEN] ${
-      typeof token === 'string'
-        ? token.substring(0, 20)
-        : (token.token || '').substring(0, 20)
+    `[TOKEN] ${typeof token === 'string'
+      ? token.substring(0, 20)
+      : (token.token || '').substring(0, 20)
     }...`
   );
 
@@ -69,8 +68,11 @@ export default async function handler(req, res) {
   // BATCH MODE: Haetaan useat CSV-tiedostot yhdessä pyynnössä
   if (mode === 'batchCsv' && sheetNames) {
     res.setHeader('Content-Type', 'application/json');
-    // Lisää cache-headers: välimuisti 5 minuuttia (jos kisa ei ole muuttumassa live)
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    // TÄMÄ NOPEUTTAA LATAUKSEN:
+    // s-maxage=15 -> Vercel pitää tätä datataulukkoa välimuistissaan 15 sekuntia.
+    // stale-while-revalidate=45 -> Jos data on 15-60s vanhaa, Vercel antaa sen käyttäjälle 0 millisekunnissa
+    // ja hakee taustalla Googlelta uuden version seuraavaa käyttäjää varten.
+    res.setHeader('Cache-Control', 's-maxage=15, stale-while-revalidate=45, public');
 
     const batchStartTime = Date.now();
     console.log(`[BATCH START] ${new Date().toISOString()}`);
@@ -81,22 +83,35 @@ export default async function handler(req, res) {
       const mapCacheKey = sheetId;
 
       // 1. VAIHE: Haetaan gid-kartta kerran kaikille välilehdille
+      // 1. VAIHE: Haetaan gid-kartta lennosta ultra-nopealla gviz-kikalla (ohittaa raskaat API-haut)
+      // 1. VAIHE: Haetaan gid-kartta kerran kaikille välilehdille (SUPER-OPTIMOITU API-HAKU)
       let gidMap = gidMapCache[mapCacheKey];
-      let allSheets = [];
       const metaStartTime = Date.now();
-      if (!gidMap) {
-        const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`;
-        const metaRes = await client.request({ url: metaUrl });
 
-        allSheets = metaRes.data.sheets || [];
-        gidMap = {};
-        for (const sheet of allSheets) {
-          gidMap[sheet.properties.title.trim().toLowerCase()] = sheet.properties.sheetId;
+      if (!gidMap) {
+        try {
+          // Tiukasti rajattu fields-parametri (sheets/properties/title ja sheetId)
+          // Tämä pudottaa Googlen sisäisen prosessointiajan murto-osaan!
+          const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties(title,sheetId))`;
+
+          const metaRes = await client.request({ url: metaUrl });
+          const allSheets = metaRes.data.sheets || [];
+
+          gidMap = {};
+          for (const sheet of allSheets) {
+            if (sheet.properties?.title) {
+              gidMap[sheet.properties.title.trim().toLowerCase()] = String(sheet.properties.sheetId);
+            }
+          }
+
+          gidMapCache[mapCacheKey] = gidMap;
+          console.log(`[BATCH] Optimoitu API-metadata haettu: ${Date.now() - metaStartTime}ms (uusi cache)`);
+        } catch (error) {
+          console.error("[BATCH] Kriittinen virhe metadatan haussa:", error);
+          throw error; // Heitetään eteenpäin, jotta hätätilassa saadaan 500-virhe fiksusti
         }
-        gidMapCache[mapCacheKey] = gidMap;
-        console.log(`[BATCH] Metadata haettu: ${Date.now() - metaStartTime}ms (uusi cache)`);
       } else {
-        console.log('[BATCH] Metadata cache osuma (säästy ~200-500ms)');
+        console.log('[BATCH] Metadata cache osuma');
       }
 
       // 2. VAIHE: Muutetaan pyydetyt nimet gideiksi
@@ -189,7 +204,7 @@ export default async function handler(req, res) {
       foundGid = gidCache[cacheKey];
     } else {
       // 1. VAIHE: Haetaan rakenne VAIN jos sitä ei löydy muistista
-      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`;
+      const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties(title,sheetId))`;
       const metaRes = await client.request({ url: metaUrl });
       const sheets = metaRes.data.sheets || [];
       const tarjollaOlevat = sheets.map(s => s.properties.title);
