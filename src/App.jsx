@@ -163,16 +163,8 @@ function labelForStatus(status, locale) {
 }
 
 export default function App() {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === 'undefined') return 'default';
-    const saved = window.localStorage.getItem('scoringui_theme');
-    return ['default', 'ocean', 'forest'].includes(saved) ? saved : 'default';
-  });
-  const [locale, setLocale] = useState(() => {
-    if (typeof window === 'undefined') return 'fi';
-    const saved = window.localStorage.getItem('scoringui_locale');
-    return saved === 'en' ? 'en' : 'fi';
-  });
+  const theme = 'default';
+  const locale = 'fi';
   const [kisat, setKisat] = useState([]);
   const [valittuKisa, setValittuKisa] = useState(null);
   const [aktiivinenSivu, setAktiivinenSivu] = useState('tulokset');
@@ -187,18 +179,6 @@ export default function App() {
   useEffect(() => {
     kisaCacheRef.current = kisaCache;
   }, [kisaCache]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('scoringui_locale', locale);
-    }
-  }, [locale]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('scoringui_theme', theme);
-    }
-  }, [theme]);
 
   const tx = useMemo(() => {
     if (locale === 'en') {
@@ -571,6 +551,8 @@ useEffect(() => {
               <h1 className="text-3xl font-bold tracking-tight text-[hsl(var(--foreground))]">{tx.appTitle}</h1>
               <p className="text-sm text-[hsl(var(--muted-foreground))]">{tx.appSubtitle}</p>
             </div>
+            {/*
+            Later enable controls by restoring this block:
             <div className="absolute right-0 top-0 flex flex-wrap items-center gap-1">
               <span className="mr-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">{tx.themeLabel}</span>
               <Button type="button" size="sm" variant={theme === 'default' ? 'default' : 'outline'} onClick={() => setTheme('default')}>{tx.themeDefault}</Button>
@@ -579,6 +561,7 @@ useEffect(() => {
               <Button type="button" size="sm" variant={locale === 'fi' ? 'default' : 'outline'} onClick={() => setLocale('fi')}>FI</Button>
               <Button type="button" size="sm" variant={locale === 'en' ? 'default' : 'outline'} onClick={() => setLocale('en')}>EN</Button>
             </div>
+            */}
           </div>
         </header>
 
@@ -624,6 +607,8 @@ useEffect(() => {
         <CardHeader className="gap-2 border-b border-[hsl(var(--border))] pb-4">
           <div className="flex items-center justify-between gap-2">
             <Button onClick={palaaEtusivulle} variant="outline" size="sm" className="w-fit">{tx.backHome}</Button>
+            {/*
+            Later enable controls by restoring this block:
             <div className="flex flex-wrap items-center gap-1">
               <span className="mr-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">{tx.themeLabel}</span>
               <Button type="button" size="sm" variant={theme === 'default' ? 'default' : 'outline'} onClick={() => setTheme('default')}>{tx.themeDefault}</Button>
@@ -632,6 +617,7 @@ useEffect(() => {
               <Button type="button" size="sm" variant={locale === 'fi' ? 'default' : 'outline'} onClick={() => setLocale('fi')}>FI</Button>
               <Button type="button" size="sm" variant={locale === 'en' ? 'default' : 'outline'} onClick={() => setLocale('en')}>EN</Button>
             </div>
+            */}
           </div>
           <CardTitle className="text-2xl">
             {valittuKisa.nimi} {ladataanKisaa && <span className="text-[hsl(var(--muted-foreground))]">↻</span>}
