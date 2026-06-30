@@ -6,9 +6,12 @@ import {
   muodostaRatkoNakyma,
   parseAsemaSpeksitCsv
 } from './utils/henkiloTulokset';
-import { teema } from './teema'; // Varmista että teema on importattu
+import { Button } from './components/ui/button';
+import { Card, CardContent } from './components/ui/card';
+import { Badge } from './components/ui/badge';
+import { cn } from './lib/utils';
 
-export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus }) {
+export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
 
@@ -115,12 +118,28 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
   const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
 
+  const tx = locale === 'en'
+    ? {
+      noResults: 'No individual results available or sheet not found.',
+      noData: 'No result data.',
+      missingNameColumn: 'Error: NIMI column was not found in the table.',
+      allStagesReady: 'All stage scores are complete',
+      stagesMissing: 'Some stage scores are missing'
+    }
+    : {
+      noResults: 'Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.',
+      noData: 'Ei tulosdataa.',
+      missingNameColumn: 'Virhe: NIMI-saraketta ei löytynyt taulukosta.',
+      allStagesReady: 'Kaikki alitulokset valmiit',
+      stagesMissing: 'Alituloksia puuttuu'
+    };
+
   if (onkoRawVirheellinen) {
-    return <div style={tyylit.Viesti}>Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.</div>;
+    return <div className="py-6 text-center text-sm text-slate-500">{tx.noResults}</div>;
   }
-  if (rivit.length < 2) return <div style={tyylit.Viesti}>Ei tulosdataa.</div>;
+  if (rivit.length < 2) return <div className="py-6 text-center text-sm text-slate-500">{tx.noData}</div>;
   if (idxNimi === -1) {
-    return <div style={tyylit.Viesti}>Virhe: 'NIMI'-saraketta ei löytynyt taulukosta.</div>;
+    return <div className="py-6 text-center text-sm text-slate-500">{tx.missingNameColumn}</div>;
   }
 
   const onkoAmpujaValmis = (ampuja) => {
@@ -128,102 +147,115 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     return ampuja.sarjat.every((s) => !onkoAliTulosPuuttuu(s.tulos));
   };
 
-  const haeStatusLabelTyyli = (status) => {
-    if (['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)) {
-      return { background: teema.statusLabelTausta, color: teema.statusLabelTeksti };
-    }
-
-    return { background: teema.statusOletusTausta, color: teema.statusOletusTeksti };
-  };
+  const haeStatusLabelLuokka = (status) => (
+    ['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)
+      ? 'bg-rose-100 text-rose-800'
+      : 'bg-slate-200 text-slate-700'
+  );
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
   return (
-    <div style={tyylit.Alue}>
-      <div style={tyylit.SuodatinPalkki}>
-        <button onClick={() => { setSarjaSuodatin('OPEN (Y)'); setValittuAmpujaId(null); }} style={sarjaSuodatin === 'OPEN (Y)' ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>OPEN (Y)</button>
+    <div className="w-full">
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+        <Button
+          type="button"
+          size="sm"
+          variant={sarjaSuodatin === 'OPEN (Y)' ? 'default' : 'outline'}
+          onClick={() => { setSarjaSuodatin('OPEN (Y)'); setValittuAmpujaId(null); }}
+        >
+          OPEN (Y)
+        </Button>
         {Array.from(loydetytSarjat)
           .sort()
           .filter(sarja => sarja.toUpperCase() !== 'Y') // 👈 TÄMÄ RIVI POISTAA Y-NAPIN dynaamisesti
           .map(sarja => (
-            <button key={sarja} onClick={() => { setSarjaSuodatin(sarja); setValittuAmpujaId(null); }} style={sarjaSuodatin === sarja ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}>{sarja}</button>
+            <Button
+              key={sarja}
+              type="button"
+              size="sm"
+              variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
+              onClick={() => { setSarjaSuodatin(sarja); setValittuAmpujaId(null); }}
+            >
+              {sarja}
+            </Button>
           ))}
       </div>
 
-      {/* KORVATTU TAULUKKO MODERNILLA KORTTILISTALLA */}
-      <div style={tyylit.KorttiLista}>
+      <div className="flex flex-col gap-2">
         {naytettavatAmpujat.map((ampuja) => {
           const onAuki = valittuAmpujaId === ampuja.id;
           const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
           const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
           const ampujaValmis = onkoAmpujaValmis(ampuja);
+          const sijoitusNumero = parseInt(ampuja.laskettuSija || '0', 10);
+          const sijoitusKorostusLuokka = sijoitusNumero === 1
+            ? 'border-l-4 border-l-amber-400'
+            : sijoitusNumero === 2
+              ? 'border-l-4 border-l-slate-400'
+              : sijoitusNumero === 3
+                ? 'border-l-4 border-l-orange-500'
+                : 'border-l-4 border-l-transparent';
 
           return (
-            <div key={ampuja.id} style={tyylit.KorttiKapseli}>
+            <Card key={ampuja.id} className={cn('overflow-hidden border-slate-200', sijoitusKorostusLuokka)}>
               <div
-                style={{
-                  ...tyylit.KorttiRivi,
-                  // Kortin tausta on nyt aina siisti valkoinen tai auki-tilan väri
-                  background: onAuki ? teema.riviAuki : teema.pintaValkoinen || '#ffffff',
-                  // Tehdään mitaliraita vasempaan reunaan suoraan sijoituksen mukaan
-                  borderLeft: ampuja.laskettuSija === '1' ? `5px solid ${teema.kulta}`
-                    : ampuja.laskettuSija === '2' ? `5px solid ${teema.hopea}`
-                      : ampuja.laskettuSija === '3' ? `5px solid ${teema.pronssi}`
-                        : '5px solid transparent', // Normaaliriveillä ei ole mitaliraitaa
-                  // Pyöristetään vasen reuna nätisti raidan mukaisesti
-                  borderTopLeftRadius: '8px',
-                  borderBottomLeftRadius: '8px'
-                }}
+                className={cn(
+                  'flex min-h-[52px] cursor-pointer items-center px-3 py-3 transition-colors',
+                  onAuki ? 'bg-slate-50' : 'bg-white'
+                )}
                 onClick={() => setValittuAmpujaId(onAuki ? null : ampuja.id)}
               >
-                {/* Sija */}
-                <div style={tyylit.KorttiSija}>
+                <div className="mr-3 flex h-9 w-9 min-w-9 items-center justify-center rounded-full bg-slate-100 text-base font-extrabold text-slate-700">
                   {ampuja.laskettuSija}
                 </div>
 
-                {/* Nimi ja Seuratiedot dynaamisesti ilman katkeamista */}
-                <div style={tyylit.KorttiInfo}>
-                  <div style={tyylit.KorttiNimi}>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-2">
+                  <div className="flex items-center gap-1.5 break-words text-base font-bold text-slate-900">
                     {ampuja.nimi}
                     {naytaValmiusIndikaattori && (
                       <span
-                        style={{
-                          ...tyylit.ValmiusPiste,
-                          background: ampujaValmis ? teema.valmiusValmis : teema.valmiusPuuttuu
-                        }}
-                        title={ampujaValmis ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
+                        className={cn(
+                          'inline-block h-2.5 w-2.5 rounded-full ring-1 ring-black/10',
+                          ampujaValmis ? 'bg-emerald-500' : 'bg-rose-500'
+                        )}
+                        title={ampujaValmis ? tx.allStagesReady : tx.stagesMissing}
                       />
                     )}
                   </div>
-                  <div style={tyylit.KorttiAlempiRivi}>
-                    <span style={tyylit.SarjaTag}>{ampuja.sarja}</span>
-                    <span style={tyylit.KorttiSeura}>{ampuja.seura || '—'}</span>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge variant="default" className="px-2 py-0.5 text-[11px]">{ampuja.sarja}</Badge>
+                    <span className="font-medium text-slate-500">{ampuja.seura || '—'}</span>
                   </div>
                 </div>
 
-                {/* Oikea laita: Tulos ja mahdollinen Ratko */}
-                <div style={tyylit.KorttiOikea}>
-                  <div style={tyylit.KorttiTulos}>{ampuja.tulos}</div>
+                <div className="flex min-w-20 flex-col items-end justify-center">
+                  <div className="text-xl font-black leading-none text-slate-900">{ampuja.tulos}</div>
 
                   {(ratkoNakyma.statusEtiketit.length > 0 || (naytaRatko && ratkoNakyma.teksti)) && (
-                    <div style={tyylit.KorttiRatkoOsa}>
+                    <div className="mt-1 flex items-center gap-1">
                       {ratkoNakyma.statusEtiketit.map((status) => (
-                        <span key={`${ampuja.id}-${status}`} style={{ ...tyylit.StatusLabel, ...haeStatusLabelTyyli(status) }}>
+                        <span
+                          key={`${ampuja.id}-${status}`}
+                          className={cn(
+                            'rounded-md px-2 py-0.5 text-[11px] font-bold leading-none',
+                            haeStatusLabelLuokka(status)
+                          )}
+                        >
                           {status}
                         </span>
                       ))}
                       {naytaRatko && ratkoNakyma.teksti && (
-                        <span style={tyylit.RatkoTekstiInline}>{ratkoNakyma.teksti}</span>
+                        <span className="rounded bg-slate-100 px-1 text-xs font-bold text-slate-600">{ratkoNakyma.teksti}</span>
                       )}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Asemien erittelyruudukko laajennuksena kortin alle */}
               {onAuki && ampuja.sarjat.length > 0 && (
-                <div style={tyylit.KorttiLaajennus}>
-                  <div style={tyylit.SarjaRuudukko}>
+                <CardContent className="border-t border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap gap-1">
                     {ampuja.sarjat.map((s, sIdx) => {
                       const puhdistettuNumero = s.numero.replace(/\D/g, '');
                       const maksimiTulos = asemaMaksimit[puhdistettuNumero] || asemaMaksimit[s.numero];
@@ -235,18 +267,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                       return (
                         <div
                           key={`${ampuja.id}-${s.numero}-${sIdx}`}
-                          style={tyylit.SarjaSolu}
+                          className="min-w-9 rounded border border-slate-200 bg-white px-1 py-0.5 text-center"
                         >
-                          <div style={tyylit.SarjaSoluNumero}>S{s.numero}</div>
+                          <div className="text-[10px] text-slate-500">S{s.numero}</div>
                           <div
-                            style={{
-                              ...tyylit.SarjaSoluArvo,
-                              ...(onkoMaksimiOsuma
-                                ? teema.maksimiTulos
+                            className={cn(
+                              'text-sm font-bold',
+                              onkoMaksimiOsuma
+                                ? 'text-emerald-700'
                                 : onkoToiseksiParasOsuma
-                                  ? teema.toiseksiParasTulos
-                                  : {})
-                            }}
+                                  ? 'text-amber-700'
+                                  : 'text-slate-900'
+                            )}
                           >
                             {s.tulos}
                           </div>
@@ -254,78 +286,12 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                       );
                     })}
                   </div>
-                </div>
+                </CardContent>
               )}
-            </div>
+            </Card>
           );
         })}
       </div>
     </div>
   );
 }
-
-const tyylit = {
-  Alue: { width: '100%', boxSizing: 'border-box' },
-  Viesti: { padding: '20px', color: '#5f6368', textAlign: 'center', fontFamily: 'sans-serif' },
-  SuodatinPalkki: { display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 2px 10px 2px', marginBottom: '4px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' },
-  SuodatinNappi: { background: '#f1f3f4', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#3c4043', cursor: 'pointer' },
-  SuodatinNappiAktiivinen: { background: '#202124', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#fff', cursor: 'pointer' },
-
-  KorttiLista: { display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' },
-  KorttiKapseli: {
-    width: '100%',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    border: '1px solid #e8eaed',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-    background: '#ffffff'
-  },
-  KorttiRivi: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '12px 16px 12px 12px',
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    minHeight: '52px'
-  },
-  KorttiSija: {
-    width: '36px',
-    minWidth: '36px',
-    height: '36px',
-    fontWeight: '800',
-    fontSize: '1.05em',
-    color: '#3c4043',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: '12px',
-    borderRadius: '50%',
-    background: '#f1f3f4'
-  },
-  KorttiInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingRight: '8px' },
-  KorttiNimi: { fontWeight: '700', fontSize: '1.05em', color: '#1a1f2c', whiteSpace: 'normal', wordBreak: 'break-word', display: 'flex', alignItems: 'center', gap: '6px' },
-  KorttiAlempiRivi: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85em' },
-  KorttiSeura: { color: '#5f6368', fontWeight: '500' },
-  ValmiusPiste: { width: '9px', height: '9px', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' },
-  SarjaTag: { background: '#f1f3f4', color: '#3c4043', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '0.85em' },
-  KorttiOikea: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', minWidth: '80px' },
-  KorttiTulos: { fontSize: '1.25em', fontWeight: '900', color: '#1a1f2c', lineHeight: '1' },
-  KorttiRatkoOsa: { display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' },
-  RatkoTekstiInline: { color: '#475569', fontWeight: '700', fontSize: '0.8em', fontFamily: 'monospace', background: '#f1f5f9', padding: '1px 4px', borderRadius: '3px' },
-  KorttiLaajennus: { background: '#f8f9fa', padding: '12px', borderTop: '1px solid #e8eaed' },
-  SarjaRuudukko: { display: 'flex', gap: '4px', flexWrap: 'wrap' },
-  SarjaSolu: { background: '#ffffff', border: '1px solid #dadce0', borderRadius: '4px', textAlign: 'center', minWidth: '36px', padding: '2px 4px', transition: 'all 0.15s ease' },
-  SarjaSoluNumero: { fontSize: '0.6em', color: '#70757a' },
-  SarjaSoluArvo: { fontSize: '0.85em', fontWeight: '700' },
-
-  StatusLabel: {
-    display: 'inline-block',
-    padding: '2px 6px',
-    borderRadius: '4px',
-    fontSize: '0.75em',
-    fontWeight: '800',
-    letterSpacing: '0.03em',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-    verticalAlign: 'middle'
-  }
-};

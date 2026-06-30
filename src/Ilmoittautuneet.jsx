@@ -1,9 +1,25 @@
 // src/Ilmoittautuneet.jsx
 import { useMemo } from 'react';
 import { parseCsvRows } from './utils/csv';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
+import { Badge } from './components/ui/badge';
 
-export default function Ilmoittautuneet({ rawCsv }) {
+export default function Ilmoittautuneet({ rawCsv, locale = 'fi' }) {
   const onkoRawTyhja = !rawCsv || rawCsv.trim().length < 10;
+
+  const tx = locale === 'en'
+    ? {
+      title: 'Registered participants',
+      description: 'This list will be hidden automatically once the competition starts.',
+      classLabel: 'Class',
+      shooters: 'shooters'
+    }
+    : {
+      title: 'Ilmoittautuneet osallistujat',
+      description: 'Tämä lista poistuu näkyvistä automaattisesti, kun kilpailu alkaa.',
+      classLabel: 'Sarja',
+      shooters: 'ampujaa'
+    };
 
   const { ryhmitellytSarjat, kokonaismaara } = useMemo(() => {
     const raakaRivit = parseCsvRows(rawCsv || '');
@@ -69,67 +85,35 @@ export default function Ilmoittautuneet({ rawCsv }) {
   if (kokonaismaara === 0) return null;
 
   return (
-    <div style={tyylit.Säiliö}>
-      <h2 style={tyylit.PääOtsikko}>Ilmoittautuneet osallistujat ({kokonaismaara})</h2>
-      <p style={tyylit.InfoTeksti}>Tämä lista poistuu näkyvistä automaattisesti, kun kilpailu alkaa.</p>
+    <Card className="border-slate-200">
+      <CardHeader className="gap-1 pb-4">
+        <CardTitle className="text-xl">{tx.title} ({kokonaismaara})</CardTitle>
+        <CardDescription>
+          {tx.description}
+        </CardDescription>
+      </CardHeader>
 
-      {Object.keys(ryhmitellytSarjat).sort().map((sarja) => (
-        <div key={sarja} style={tyylit.SarjaLohko}>
-          <h3 style={tyylit.SarjaOtsikko}>
-            <span>Sarja {sarja}</span>
-            <span style={tyylit.MääräTag}>{ryhmitellytSarjat[sarja].length} ampujaa</span>
-          </h3>
-          <div style={tyylit.Lista}>
-            {ryhmitellytSarjat[sarja].map((o) => (
-              <div key={o.id} style={tyylit.Rivi}>
-                <span style={tyylit.Nimi}>{o.nimi}</span>
-                <span style={tyylit.Seura}>{o.seura || '—'}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
+      <CardContent className="space-y-4">
+        {Object.keys(ryhmitellytSarjat).sort().map((sarja) => (
+          <section key={sarja} className="space-y-2">
+            <div className="flex items-center justify-between rounded-md bg-slate-100 px-3 py-2">
+              <h3 className="text-sm font-semibold text-slate-800">{tx.classLabel} {sarja}</h3>
+              <Badge variant="default" className="bg-white text-slate-600">
+                {ryhmitellytSarjat[sarja].length} {tx.shooters}
+              </Badge>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {ryhmitellytSarjat[sarja].map((o) => (
+                <div key={o.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <span className="truncate font-medium text-slate-900">{o.nimi}</span>
+                  <span className="shrink-0 text-slate-500">{o.seura || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
-
-const tyylit = {
-  Säiliö: {
-    width: '100%',
-    boxSizing: 'border-box',
-    background: '#ffffff',
-    padding: '16px',
-    borderRadius: '12px',
-    border: '1px solid #e8eaed',
-    marginBottom: '25px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  },
-  PääOtsikko: { fontSize: '1.25em', fontWeight: '700', color: '#1a1f2c', margin: '0 0 4px 0' },
-  InfoTeksti: { fontSize: '0.85em', color: '#5f6368', margin: '0 0 16px 0', lineHeight: '1.4' },
-  SarjaLohko: { marginBottom: '16px' },
-  SarjaOtsikko: { 
-    display: 'flex', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    fontSize: '0.9em', 
-    fontWeight: '700', 
-    color: '#202124', 
-    background: '#f1f3f4', 
-    padding: '8px 12px', 
-    borderRadius: '6px', 
-    margin: '0 0 6px 0' 
-  },
-  MääräTag: { fontSize: '0.85em', color: '#5f6368', fontWeight: '500' },
-  Lista: { display: 'flex', flexDirection: 'column', gap: '2px' },
-  Rivi: { 
-    display: 'flex', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    fontSize: '0.9em', 
-    padding: '6px 4px', 
-    borderBottom: '1px solid #f1f3f4',
-    gap: '12px'
-  },
-  Nimi: { color: '#202124', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  Seura: { color: '#5f6368', fontSize: '0.9em', textAlign: 'right', flexShrink: 0, whiteSpace: 'nowrap' }
-};

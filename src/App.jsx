@@ -5,9 +5,11 @@ import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
 import RyhmaJako from './RyhmaJako';
 import Ilmoittautuneet from './Ilmoittautuneet';
-import { teema } from './teema';
 import { parseCsvRows } from './utils/csv';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
+import { Button } from './components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
+import { Badge } from './components/ui/badge';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
@@ -142,7 +144,30 @@ function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData) {
   return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
 }
 
+function statusToBadgeVariant(status) {
+  if (status === 'kaynnissa') return 'ongoing';
+  if (status === 'paattynyt') return 'ended';
+  return 'upcoming';
+}
+
+function labelForStatus(status, locale) {
+  if (locale === 'en') {
+    if (status === 'kaynnissa') return 'Ongoing';
+    if (status === 'paattynyt') return 'Ended';
+    return 'Upcoming';
+  }
+
+  if (status === 'kaynnissa') return 'Käynnissä';
+  if (status === 'paattynyt') return 'Päättynyt';
+  return 'Tulossa';
+}
+
 export default function App() {
+  const [locale, setLocale] = useState(() => {
+    if (typeof window === 'undefined') return 'fi';
+    const saved = window.localStorage.getItem('scoringui_locale');
+    return saved === 'en' ? 'en' : 'fi';
+  });
   const [kisat, setKisat] = useState([]);
   const [valittuKisa, setValittuKisa] = useState(null);
   const [aktiivinenSivu, setAktiivinenSivu] = useState('tulokset');
@@ -157,6 +182,42 @@ export default function App() {
   useEffect(() => {
     kisaCacheRef.current = kisaCache;
   }, [kisaCache]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('scoringui_locale', locale);
+    }
+  }, [locale]);
+
+  const tx = useMemo(() => {
+    if (locale === 'en') {
+      return {
+        appTitle: '🎯 T&T Competition Results',
+        appSubtitle: 'Live and archived competition results',
+        loadingRegistry: 'Loading competition registry...',
+        backHome: 'Back to Home',
+        results: 'Results',
+        table: 'Table',
+        registrations: 'Registrations',
+        heatList: 'Heat List',
+        teamResults: 'Team Results',
+        fetchingCompetitionData: 'Fetching competition data...'
+      };
+    }
+
+    return {
+      appTitle: '🎯 T&T Tulospalvelu',
+      appSubtitle: 'Tämänkin voi tehdä helpommin',
+      loadingRegistry: 'Ladataan kilpailurekisteriä...',
+      backHome: 'Takaisin etusivulle',
+      results: 'Tulokset',
+      table: 'Taulukko',
+      registrations: 'Ilmoittautuneet',
+      heatList: 'Erälista',
+      teamResults: 'Joukkuetulokset',
+      fetchingCompetitionData: 'Haetaan kilpailun tietoja...'
+    };
+  }, [locale]);
 
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
@@ -478,42 +539,50 @@ useEffect(() => {
   ]);
 
   if (ladataanKisalista) {
-    return <div style={tyylit.LatausKeskitys}>Ladataan kilpailurekisteriä...</div>;
+    return <div className="px-4 py-16 text-center text-slate-500">{tx.loadingRegistry}</div>;
   }
 
   // --- NÄKYMÄ 1: ETUSIVU ---
   if (!valittuKisa) {
     return (
-      <div style={tyylit.KokoSivu}>
-        <header style={tyylit.EtusivunOtsikkoAlue}>
-          <h1 style={tyylit.EtusivunOtsikko}>🎯 T&T Tulospalvelu</h1>
-          <p style={tyylit.EtusivunAliotsikko}>Tämänkin voi tehdä helpommin</p>
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-8">
+        <header className="space-y-2">
+          <div className="relative">
+            <div className="space-y-2 text-center">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">{tx.appTitle}</h1>
+              <p className="text-sm text-slate-500">{tx.appSubtitle}</p>
+            </div>
+            <div className="absolute right-0 top-0 flex gap-1">
+              <Button type="button" size="sm" variant={locale === 'fi' ? 'default' : 'outline'} onClick={() => setLocale('fi')}>FI</Button>
+              <Button type="button" size="sm" variant={locale === 'en' ? 'default' : 'outline'} onClick={() => setLocale('en')}>EN</Button>
+            </div>
+          </div>
         </header>
 
-        {virhe && <div style={tyylit.VirheIlmoitus}>{virhe}</div>}
+        {virhe && <div className="text-sm font-medium text-red-600">{virhe}</div>}
 
-        <div style={tyylit.KisaListaRuudukko}>
+        <div className="flex flex-col gap-3">
           {kisat.map(kisa => {
             const statusData = laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm);
             return (
-              <div
+              <Card
                 key={kisa.id}
                 onClick={() => {
                   if (!kisa.apiUrl) return;
                   avaaKisaNakyma(kisa);
                 }}
-                style={tyylit.UusiKisaKortti}
+                className={`cursor-pointer transition-all hover:border-slate-300 hover:shadow-md ${!kisa.apiUrl ? 'cursor-not-allowed opacity-60' : ''}`}
               >
-                <div style={tyylit.KorttiVasenLohko}>
-                  <div style={tyylit.UusiKisaNimi}>{kisa.nimi}</div>
-                  <div style={tyylit.UusiKisaPvm}>
+                <CardContent className="flex items-center justify-between p-4">
+                  <div className="flex flex-col gap-1">
+                    <div className="text-lg font-semibold text-slate-900">{kisa.nimi}</div>
+                    <div className="text-sm text-slate-500">
                     {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
+                    </div>
                   </div>
-                </div>
-                <span style={{ ...tyylit.UusiStatusTag, ...statusData.tyyli }}>
-                  {statusData.teksti}
-                </span>
-              </div>
+                    <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
@@ -527,40 +596,48 @@ useEffect(() => {
   const kilpailuNakymaMaxWidth = onkoTaulukkoNakyma ? 'min(96vw, 1320px)' : '560px';
 
   return (
-    <div style={tyylit.KokoSivu}>
-      <header style={{ ...tyylit.Ylapalkki, maxWidth: kilpailuNakymaMaxWidth }}>
-        <button onClick={palaaEtusivulle} style={tyylit.TakaisinNappi}>⬅️ ETUSIVU</button>
-        <h1 style={tyylit.KisanOtsikko}>
-          {valittuKisa.nimi} {ladataanKisaa && "🔄"}
-        </h1>
-        <div style={tyylit.UusiKisaPvm}>
-          {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
-        </div>
-        {virhe && <div style={tyylit.VirheIlmoitus}>{virhe}</div>}
-      </header>
+    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-4 py-6" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+      <Card>
+        <CardHeader className="gap-2 border-b border-slate-100 pb-4">
+          <div className="flex items-center justify-between gap-2">
+            <Button onClick={palaaEtusivulle} variant="outline" size="sm" className="w-fit">{tx.backHome}</Button>
+            <div className="flex gap-1">
+              <Button type="button" size="sm" variant={locale === 'fi' ? 'default' : 'outline'} onClick={() => setLocale('fi')}>FI</Button>
+              <Button type="button" size="sm" variant={locale === 'en' ? 'default' : 'outline'} onClick={() => setLocale('en')}>EN</Button>
+            </div>
+          </div>
+          <CardTitle className="text-2xl">
+            {valittuKisa.nimi} {ladataanKisaa && <span className="text-slate-400">↻</span>}
+          </CardTitle>
+          <CardDescription>
+            {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
+          </CardDescription>
+          {virhe && <div className="text-sm font-medium text-red-600">{virhe}</div>}
+        </CardHeader>
+      </Card>
 
-      <nav style={{ ...tyylit.NaviPalkki, maxWidth: kilpailuNakymaMaxWidth }}>
+      <nav className="flex w-full flex-wrap gap-2">
         {onkoTuloksetSallittu && (
-          <button onClick={() => setAktiivinenSivu('tulokset')} style={aktiivinenSivu === 'tulokset' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>🏆 TULOKSET</button>
+          <Button onClick={() => setAktiivinenSivu('tulokset')} variant={aktiivinenSivu === 'tulokset' ? 'default' : 'outline'} size="sm">{tx.results}</Button>
         )}
         {onkoTaulukkoSallittu && (
-          <button onClick={() => setAktiivinenSivu('taulukko')} style={aktiivinenSivu === 'taulukko' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>📊 TAULUKKO</button>
+          <Button onClick={() => setAktiivinenSivu('taulukko')} variant={aktiivinenSivu === 'taulukko' ? 'default' : 'outline'} size="sm">{tx.table}</Button>
         )}
         {onkoIlmoittautuneita && (
-          <button onClick={() => setAktiivinenSivu('ilmoittautuneet')} style={aktiivinenSivu === 'ilmoittautuneet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>📝 ILMOITTAUTUNEET</button>
+          <Button onClick={() => setAktiivinenSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm">{tx.registrations}</Button>
         )}
         {onkoEraluetteloa && (
-          <button onClick={() => setAktiivinenSivu('erakirjaus')} style={aktiivinenSivu === 'erakirjaus' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>⚙️ ERÄLUETTELO</button>
+          <Button onClick={() => setAktiivinenSivu('erakirjaus')} variant={aktiivinenSivu === 'erakirjaus' ? 'default' : 'outline'} size="sm">{tx.heatList}</Button>
         )}
         {onkoJoukkueKisa && (
-          <button onClick={() => setAktiivinenSivu('joukkueet')} style={aktiivinenSivu === 'joukkueet' ? tyylit.NaviNappiAktiivinen : tyylit.NaviNappi}>👥 JOUKKUETULOKSET</button>
+          <Button onClick={() => setAktiivinenSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm">{tx.teamResults}</Button>
         )}
       </nav>
 
       {ladataanKisaa && !nykyisenKisanData ? (
-        <div style={{ fontFamily: 'sans-serif', padding: '10px' }}>Haetaan tietoja...</div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">{tx.fetchingCompetitionData}</div>
       ) : (
-        <main style={{ ...tyylit.SisaltoAlue, maxWidth: kilpailuNakymaMaxWidth }}>
+        <main className="w-full flex-1">
           {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (
             <HenkiloTulokset
               rawCsv={nykyisenKisanData.henkilotCsvRaw}
@@ -568,22 +645,23 @@ useEffect(() => {
               rawRows={nykyisenKisanParsitutRivit.henkilotRows}
               parsedSpeksit={nykyisenKisanSpeksit}
               kisaStatus={kisanStatusInfo.status}
+              locale={locale}
             />
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
-            <HenkiloTaulukko data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} parsedSpeksit={nykyisenKisanSpeksit} kisaStatus={kisanStatusInfo.status} />
+            <HenkiloTaulukko data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} parsedSpeksit={nykyisenKisanSpeksit} kisaStatus={kisanStatusInfo.status} locale={locale} />
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
-            <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} />
+            <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} locale={locale} />
           )}
           {aktiivinenSivu === 'erakirjaus' && onkoEraluetteloa && (
-            <div style={{ display: 'block' }}>
-              <RyhmaJako data={nykyisenKisanData} />
+            <div>
+              <RyhmaJako data={nykyisenKisanData} locale={locale} />
             </div>
           )}
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
-            <div style={{ display: 'block' }}>
-              <JoukkueTulokset data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} kisaStatus={kisanStatusInfo.status} />
+            <div>
+              <JoukkueTulokset data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} kisaStatus={kisanStatusInfo.status} locale={locale} />
             </div>
           )}
         </main>
@@ -591,25 +669,3 @@ useEffect(() => {
     </div>
   );
 }
-
-const tyylit = {
-  KokoSivu: { padding: '24px 16px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', background: '#f8f9fa', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  LatausKeskitys: { padding: '50px', fontFamily: 'sans-serif', color: '#5f6368', textAlign: 'center' },
-  EtusivunOtsikkoAlue: { width: '100%', maxWidth: '560px', marginBottom: '24px' },
-  EtusivunOtsikko: { fontSize: '1.8em', fontWeight: '800', color: '#1a1f2c', margin: 0 },
-  EtusivunAliotsikko: { fontSize: '0.95em', color: '#5f6368', margin: '6px 0 0 0' },
-  KisaListaRuudukko: { display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '560px' },
-  UusiKisaKortti: { background: '#ffffff', padding: '16px 18px', borderRadius: '12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #f1f3f4' },
-  KorttiVasenLohko: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  UusiKisaNimi: { fontSize: '1.15em', fontWeight: '600', color: '#1a1f2c' },
-  UusiKisaPvm: { fontSize: '0.85em', color: '#70757a', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '4px' },
-  UusiStatusTag: { padding: '5px 10px', borderRadius: '20px', fontSize: '0.75em', fontWeight: '600', textTransform: 'uppercase' },
-  Ylapalkki: { width: '100%', maxWidth: '560px', borderBottom: `2px solid ${teema.paavari || '#1a4a75'}`, paddingBottom: '16px', marginBottom: '10px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' },
-  KisanOtsikko: { margin: 0, fontSize: '1.5em', fontWeight: '700', color: '#111827' },
-  NaviPalkki: { display: 'flex', gap: '8px', width: '100%', maxWidth: '560px', marginBottom: '15px', flexWrap: 'wrap' },
-  NaviNappi: { background: '#fff', color: '#3c4043', border: '1px solid #dadce0', padding: '8px 14px', cursor: 'pointer', fontWeight: '600', borderRadius: '6px', fontSize: '0.85em' },
-  NaviNappiAktiivinen: { background: teema.paavari || '#1a4a75', color: '#fff', border: `1px solid ${teema.paavari || '#1a4a75'}`, padding: '8px 14px', cursor: 'pointer', fontWeight: '600', borderRadius: '6px', fontSize: '0.85em' },
-  TakaisinNappi: { background: '#fff', color: '#3c4043', border: '1px solid #dadce0', padding: '6px 12px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85em', borderRadius: '6px' },
-  SisaltoAlue: { width: '100%', maxWidth: '560px', flex: 1 },
-  VirheIlmoitus: { color: '#d93025', fontSize: '0.85em', marginTop: '5px', fontWeight: '500' }
-};

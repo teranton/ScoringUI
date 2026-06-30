@@ -1,10 +1,13 @@
 // src/JoukkueTulokset.jsx
 import { useMemo, useState } from 'react';
-import { teema } from './teema';
 import { parseCsvRows } from './utils/csv';
 import { tulkitseTotuusarvo } from './utils/henkiloTulokset';
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { Badge } from './components/ui/badge';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './components/ui/table';
+import { cn } from './lib/utils';
 
-export default function JoukkueTulokset({ data, parsedRows, kisaStatus }) {
+export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale = 'fi' }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
 
   // 1. HAETAAN KISASPEKSIT (Ratojen määrä ja asemakohtaiset maksimit)
@@ -154,11 +157,36 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus }) {
     return { sarjat: ryhmitellytSarjat };
   }, [data, parsedRows, speksit.ratojenMaara, onkoDataPuuttuu]);
 
+  const tx = locale === 'en'
+    ? {
+      loading: 'Loading result data...',
+      lane: 'Lane',
+      totalShort: 'Tot',
+      pointsShort: 'Pts',
+      classLabel: 'Class',
+      allStagesReady: 'All stage scores are complete',
+      stagesMissing: 'Some stage scores are missing',
+      teamStageTotals: 'Team stage totals',
+      shooterBreakdown: 'Shooter breakdown',
+      total: 'Total'
+    }
+    : {
+      loading: 'Ladataan tulosdataa...',
+      lane: 'Rata',
+      totalShort: 'Yht',
+      pointsShort: 'Pst',
+      classLabel: 'Sarja',
+      allStagesReady: 'Kaikki alitulokset valmiit',
+      stagesMissing: 'Alituloksia puuttuu',
+      teamStageTotals: 'Joukkueen yhteispisteet',
+      shooterBreakdown: 'Ampujakohtaiset tulokset',
+      total: 'Yht'
+    };
+
   if (onkoDataPuuttuu) {
-    return <div style={tyylit.Lataus}>Ladataan tulosdataa...</div>;
+    return <div className="py-6 text-sm text-slate-500">{tx.loading}</div>;
   }
 
-  const mitaliVarit = { 1: teema.kulta, 2: teema.hopea, 3: teema.pronssi };
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
   // Apufunktio dynaamisen erätaulukon luomiseen ja solujen väritykseen
@@ -172,18 +200,18 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus }) {
       : [kaikkiRadat];
     
     return (
-      <div style={tyylit.TaulukkoSäiliö}>
+      <div className="flex flex-col gap-2 overflow-x-auto">
         {rivit.map((rivi, rIdx) => (
-          <table key={rIdx} style={tyylit.Taulukko}>
-            <thead>
-              <tr>
-                <th style={tyylit.OtsikkoSoluMuted}>Rata</th>
-                {rivi.map(n => <th key={n} style={tyylit.OtsikkoSolu}>{n}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={tyylit.DataSoluMuted}>{onkoYhteispisteet ? 'Jok' : 'Pst'}</td>
+          <Table key={rIdx} className="mt-0.5 w-full border-collapse font-mono text-xs">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-9 border border-slate-200 bg-slate-200 px-1 py-1 text-center font-bold text-slate-600">{tx.lane}</TableHead>
+                {rivi.map(n => <TableHead key={n} className="min-w-6 border border-slate-200 bg-slate-100 px-1 py-1 text-center font-semibold text-slate-700">{n}</TableHead>)}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell className="border border-slate-200 bg-slate-50 px-1 py-1 text-center text-[11px] text-slate-500">{onkoYhteispisteet ? tx.totalShort : tx.pointsShort}</TableCell>
                 {rivi.map(n => {
                   const pisteArvo = erat[n] || '-';
                   const pisteNum = parseInt(pisteArvo, 10);
@@ -195,137 +223,121 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus }) {
                   const onkoToiseksiParas = !onkoYhteispisteet && !isNaN(pisteNum) && maksimiTulos !== undefined && naytaToiseksiParas && pisteNum === (maksimiTulos - 1);
 
                   return (
-                    <td 
+                    <TableCell
                       key={n} 
-                      style={{
-                        ...tyylit.DataSolu,
-                        ...(onkoMaksimi
-                          ? teema.maksimiTulos
+                      className={cn(
+                        'border border-slate-200 px-1 py-1 text-center',
+                        onkoMaksimi
+                          ? 'bg-emerald-100 font-semibold text-emerald-900'
                           : onkoToiseksiParas
-                            ? teema.toiseksiParasTulos
-                            : {})
-                      }}
+                            ? 'bg-amber-100 font-semibold text-amber-900'
+                            : ''
+                      )}
                     >
                       {pisteArvo}
-                    </td>
+                    </TableCell>
                   );
                 })}
-              </tr>
-            </tbody>
-          </table>
+              </TableRow>
+            </TableBody>
+          </Table>
         ))}
       </div>
     );
   };
 
   return (
-    <div style={tyylit.SivuSäiliö}>
+    <div className="space-y-8">
       {Object.keys(sarjat).map(sarjaNimi => (
-        <div key={sarjaNimi} style={{ marginBottom: '35px' }}>
-          <h2 style={tyylit.SarjaOtsikko}>Sarja {sarjaNimi}</h2>
+        <section key={sarjaNimi} className="space-y-3">
+          <h2 className="border-b border-slate-200 pb-2 text-xl font-semibold text-slate-900">{tx.classLabel} {sarjaNimi}</h2>
           
-          <div style={tyylit.Lista}>
+          <div className="flex max-w-3xl flex-col gap-3">
             {sarjat[sarjaNimi].map((joukkueAlkio, indeksi) => {
-              
-              const mitaliVari = mitaliVarit[joukkueAlkio.sijoitus || (indeksi + 1)];
+
+              const sijoitusNumero = parseInt(joukkueAlkio.sijoitus || `${indeksi + 1}`, 10);
+              const sijoitusKorostusLuokka = sijoitusNumero === 1
+                ? 'border-l-4 border-l-amber-400'
+                : sijoitusNumero === 2
+                  ? 'border-l-4 border-l-slate-400'
+                  : sijoitusNumero === 3
+                    ? 'border-l-4 border-l-orange-500'
+                    : 'border-l-4 border-l-sky-700';
+              const sijoitusPalloLuokka = sijoitusNumero === 1
+                ? 'bg-amber-400 text-amber-950 font-bold'
+                : sijoitusNumero === 2
+                  ? 'bg-slate-400 text-slate-950 font-bold'
+                  : sijoitusNumero === 3
+                    ? 'bg-orange-500 text-orange-950 font-bold'
+                    : 'bg-slate-100 text-slate-700';
               const onAuki = !!avatutJoukkueet[joukkueAlkio.joukkue];
               const joukkueValmis = onkoJoukkueValmis(joukkueAlkio);
               const jasenetTeksti = joukkueAlkio.ampujat.map(a => a.nimi).join(', ');
 
-              const korttiDynaaminenTyyli = {
-                borderLeft: mitaliVari ? `5px solid ${mitaliVari}` : `5px solid ${teema.paavari || '#1a4a75'}`
-              };
-
-              const sijoitusDynaaminenTyyli = {
-                background: mitaliVari ? mitaliVari : teema.sijoitusFallbackTausta,
-                color: mitaliVari ? teema.tekstiVaalea : teema.sijoitusFallbackTeksti,
-                fontWeight: mitaliVari ? 'bold' : 'normal'
-              };
-
               return (
-                <div key={joukkueAlkio.id} style={{ ...tyylit.Kortti, ...korttiDynaaminenTyyli }}>
+                <Card key={joukkueAlkio.id} className={cn('overflow-hidden', sijoitusKorostusLuokka)}>
                   
-                  <div onClick={() => toggleJoukkue(joukkueAlkio.joukkue)} style={tyylit.JoukkueRivi}>
-                    <span style={{ ...tyylit.SijoitusPallo, ...sijoitusDynaaminenTyyli }}>
+                  <CardContent onClick={() => toggleJoukkue(joukkueAlkio.joukkue)} className="flex cursor-pointer select-none items-center gap-3 p-4">
+                    <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm', sijoitusPalloLuokka)}>
                       {joukkueAlkio.sijoitus}
                     </span>
-                    <div style={tyylit.TekstiAlue}>
-                      <span style={tyylit.JoukkueNimi}>
-                        {joukkueAlkio.joukkue} <span style={tyylit.NuoliIcon}>{onAuki ? '▼' : '▶'}</span>
+                    <div className="flex flex-1 flex-col gap-1">
+                      <span className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                        {joukkueAlkio.joukkue}
+                        <span className="text-xs text-slate-400">{onAuki ? '▼' : '▶'}</span>
                         {naytaValmiusIndikaattori && (
                           <span
-                            style={{
-                              ...tyylit.ValmiusPiste,
-                              background: joukkueValmis ? teema.valmiusValmis : teema.valmiusPuuttuu
-                            }}
-                            title={joukkueValmis ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
+                            className={cn(
+                              'inline-block h-2 w-2 rounded-full ring-1 ring-black/10',
+                              joukkueValmis ? 'bg-emerald-500' : 'bg-rose-500'
+                            )}
+                            title={joukkueValmis ? tx.allStagesReady : tx.stagesMissing}
                           />
                         )}
                       </span>
-                      <span style={tyylit.JasenetLista}>{jasenetTeksti}</span>
+                      <span className="text-sm text-slate-600">{jasenetTeksti}</span>
                     </div>
-                    <span style={tyylit.Pisteet}>{joukkueAlkio.kokonaistulos}</span>
-                  </div>
+                    <Badge variant="default" className="bg-slate-100 px-3 py-1 text-base font-bold text-slate-900">
+                      {joukkueAlkio.kokonaistulos}
+                    </Badge>
+                  </CardContent>
                   
                   {onAuki && (
-                    <div style={tyylit.AmpujatSektio}>
+                    <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-4">
                       
-                      <div style={tyylit.OsioLaatikko}>
-                        <div style={tyylit.SektioOtsikko}>Joukkueen yhteispisteet</div>
+                      <Card className="border-slate-200">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-xs uppercase tracking-wide text-slate-500">{tx.teamStageTotals}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-0">
                         {renderöiEräTaulukko(joukkueAlkio.erat, true)}
-                      </div>
+                        </CardContent>
+                      </Card>
 
-                      <div style={{ marginTop: '15px' }}>
-                        <div style={tyylit.SektioOtsikko}>Ampujakohtaiset tulokset</div>
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{tx.shooterBreakdown}</div>
                         {joukkueAlkio.ampujat.map((ampuja) => (
-                          <div key={ampuja.id} style={tyylit.AmpujaRiviLaatikko}>
-                            <div style={tyylit.AmpujaYlaosa}>
-                              <span style={tyylit.AmpujaNimi}>• {ampuja.nimi}</span>
-                              <span style={tyylit.AmpujaYhteensa}>Yht: {ampuja.kokonaistulos}</span>
+                          <Card key={ampuja.id} className="border-slate-200">
+                            <CardContent className="space-y-2 p-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold text-slate-700">• {ampuja.nimi}</span>
+                              <span className="font-mono text-sm font-bold text-slate-900">{tx.total}: {ampuja.kokonaistulos}</span>
                             </div>
                             {renderöiEräTaulukko(ampuja.erat, false)}
-                          </div>
+                            </CardContent>
+                          </Card>
                         ))}
                       </div>
 
                     </div>
                   )}
 
-                </div>
+                </Card>
               );
             })}
           </div>
-        </div>
+        </section>
       ))}
     </div>
   );
 }
-
-const tyylit = {
-  SivuSäiliö: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: '#222' },
-  Lataus: { fontFamily: 'sans-serif', padding: '20px', color: '#666' },
-  SarjaOtsikko: { fontSize: '1.3em', fontWeight: '700', borderBottom: '1px solid #e5e7eb', paddingBottom: '8px', maxWidth: '600px', marginBottom: '16px', color: '#111827' }, 
-  Lista: { display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '600px' }, 
-  Kortti: { background: '#ffffff', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', overflow: 'hidden' }, 
-  JoukkueRivi: { display: 'flex', alignItems: 'center', padding: '12px 14px', cursor: 'pointer', userSelect: 'none', gap: '14px' }, 
-  SijoitusPallo: { width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.9em', flexShrink: 0 },
-  TekstiAlue: { flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }, 
-  JoukkueNimi: { fontSize: '1.1em', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '6px' }, 
-  ValmiusPiste: { width: '9px', height: '9px', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' },
-  NuoliIcon: { fontSize: '0.7em', color: '#9ca3af' },
-  JasenetLista: { fontSize: '0.85em', color: '#4b5563' }, 
-  Pisteet: { width: '65px', textAlign: 'right', fontSize: '1.3em', fontWeight: '700', fontFamily: 'monospace' }, 
-  AmpujatSektio: { padding: '14px', background: '#f9fafb', borderTop: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: '12px' }, 
-  OsioLaatikko: { background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #e5e7eb' },
-  AmpujaRiviLaatikko: { background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #e5e7eb', marginBottom: '8px' },
-  AmpujaYlaosa: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' },
-  AmpujaNimi: { fontWeight: '600', color: '#374151', fontSize: '0.95em' },
-  AmpujaYhteensa: { fontWeight: '700', color: '#111827', fontSize: '0.95em', fontFamily: 'monospace' },
-  SektioOtsikko: { fontWeight: '600', marginBottom: '6px', fontSize: '0.75em', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  TaulukkoSäiliö: { display: 'flex', flexDirection: 'column', gap: '6px', overflowX: 'auto' },
-  Taulukko: { width: '100%', borderCollapse: 'collapse', marginTop: '2px', fontSize: '0.8em', fontFamily: 'monospace' },
-  OtsikkoSolu: { background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', padding: '3px 2px', textAlign: 'center', fontWeight: '600', minWidth: '24px' },
-  OtsikkoSoluMuted: { background: '#e5e7eb', color: '#4b5563', border: '1px solid #e5e7eb', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold', width: '36px' },
-  DataSolu: { border: '1px solid #e5e7eb', padding: '3px 2px', textAlign: 'center', transition: 'all 0.15s ease' },
-  DataSoluMuted: { background: '#f9fafb', color: '#6b7280', border: '1px solid #e5e7eb', padding: '3px 4px', textAlign: 'center', fontSize: '0.8em' }
-};

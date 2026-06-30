@@ -6,9 +6,12 @@ import {
   muodostaRatkoNakyma,
   parseAsemaSpeksitCsv
 } from './utils/henkiloTulokset';
-import { teema } from './teema'; // Varmista että teema on importattu
+import { Button } from './components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './components/ui/table';
+import { cn } from './lib/utils';
 
-export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus }) {
+export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
@@ -117,8 +120,34 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
   const naytaRatkoSarake = naytettavatAmpujat.some((a) => a.ratkoNaytto?.statusEtiketit?.length > 0 || (sarjaSuodatin !== 'OPEN (Y)' && a.ratkoNaytto?.teksti) || (sarjaSuodatin === 'OPEN (Y)' && parseInt(a.laskettuSija, 10) <= 3 && a.ratkoNaytto?.teksti));
 
+  const tx = locale === 'en'
+    ? {
+      loading: 'Loading table data...',
+      title: 'All Results (Table)',
+      normal: 'Normal',
+      compact: 'Compact',
+      rank: 'Rank',
+      name: 'Name',
+      classLabel: 'Class',
+      total: 'Total',
+      allStagesReady: 'All stage scores are complete',
+      stagesMissing: 'Some stage scores are missing'
+    }
+    : {
+      loading: 'Ladataan taulukkodataa...',
+      title: 'Kaikki tulokset taulukkona',
+      normal: 'Normaali',
+      compact: 'Kompakti',
+      rank: 'Sija',
+      name: 'Nimi',
+      classLabel: 'Sarja',
+      total: 'Yht',
+      allStagesReady: 'Kaikki alitulokset valmiit',
+      stagesMissing: 'Alituloksia puuttuu'
+    };
+
   if (onkoDataPuuttuu) {
-    return <div style={tyylit.Lataus}>Ladataan taulukko-dataa...</div>;
+    return <div className="py-6 text-sm text-slate-500">{tx.loading}</div>;
   }
 
   const muotoileNimiTaulukkoon = (nimi) => {
@@ -140,113 +169,172 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return radatList.every((n) => !onkoAliTulosPuuttuu(ampuja.erat[n]));
   };
 
-  const haeStatusLabelTyyli = (status) => {
+  const statusLabelClass = (status) => {
     if (['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)) {
-      return { background: teema.statusLabelTausta, color: teema.statusLabelTeksti };
+      return 'bg-rose-100 text-rose-800';
     }
-
-    return { background: teema.statusOletusTausta, color: teema.statusOletusTeksti };
+    return 'bg-slate-200 text-slate-700';
   };
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
-  return (
-    <div style={tyylit.Säiliö}>
-      <h2 style={tyylit.Otsikko}>Kaikki tulokset taulukkona</h2>
+  const kokoLuokka = onMobiili ? (kaytaKompaktiTilaa ? 'compact' : 'mobile') : 'desktop';
 
-      <div style={tyylit.SuodatinPalkki}>
-        <button
+  const otsikkoLuokka = (tyyppi) => {
+    if (tyyppi === 'fixed') {
+      if (kokoLuokka === 'compact') return 'bg-slate-50 px-1 py-1 text-center text-[11px] font-semibold text-slate-600';
+      if (kokoLuokka === 'mobile') return 'bg-slate-50 px-1 py-1.5 text-center text-xs font-semibold text-slate-600';
+      return 'bg-slate-50 px-2 py-2 text-center text-sm font-semibold text-slate-600';
+    }
+    if (tyyppi === 'sum') {
+      if (kokoLuokka === 'compact') return 'bg-slate-200 px-1 py-1 text-center text-[11px] font-bold text-slate-800';
+      if (kokoLuokka === 'mobile') return 'bg-slate-200 px-1.5 py-1.5 text-center text-xs font-bold text-slate-800';
+      return 'bg-slate-200 px-2 py-2 text-center text-sm font-bold text-slate-800';
+    }
+    if (tyyppi === 'ratko') {
+      if (kokoLuokka === 'compact') return 'bg-indigo-50 px-1 py-1 text-center text-[11px] font-bold text-indigo-900';
+      if (kokoLuokka === 'mobile') return 'bg-indigo-50 px-1.5 py-1.5 text-center text-xs font-bold text-indigo-900';
+      return 'bg-indigo-50 px-2 py-2 text-center text-sm font-bold text-indigo-900';
+    }
+    if (kokoLuokka === 'compact') return 'bg-slate-100 px-1 py-1 text-center text-[11px] font-semibold text-slate-700';
+    if (kokoLuokka === 'mobile') return 'bg-slate-100 px-1 py-1.5 text-center text-xs font-semibold text-slate-700';
+    return 'bg-slate-100 px-1.5 py-2 text-center text-sm font-semibold text-slate-700';
+  };
+
+  const soluLuokka = (tyyppi) => {
+    if (tyyppi === 'rank') {
+      if (kokoLuokka === 'compact') return 'bg-slate-50 px-1 py-1 text-center text-[11px] text-slate-500';
+      if (kokoLuokka === 'mobile') return 'bg-slate-50 px-1 py-1.5 text-center text-xs text-slate-500';
+      return 'bg-slate-50 px-1.5 py-2 text-center text-sm text-slate-500';
+    }
+    if (tyyppi === 'name') {
+      if (kokoLuokka === 'compact') return 'max-w-[74px] truncate px-1 py-1 text-[11px] font-semibold text-slate-900';
+      if (kokoLuokka === 'mobile') return 'max-w-[92px] truncate px-1.5 py-1.5 text-xs font-semibold text-slate-900';
+      return 'px-2.5 py-2 text-sm font-semibold text-slate-900';
+    }
+    if (tyyppi === 'series') {
+      if (kokoLuokka === 'mobile') return 'px-1 py-1.5 text-center text-xs text-slate-600';
+      return 'px-1.5 py-2 text-center text-sm text-slate-600';
+    }
+    if (tyyppi === 'sum') {
+      if (kokoLuokka === 'compact') return 'bg-slate-50 px-1 py-1 text-center font-mono text-[11px] font-bold text-slate-900';
+      if (kokoLuokka === 'mobile') return 'bg-slate-50 px-1.5 py-1.5 text-center font-mono text-xs font-bold text-slate-900';
+      return 'bg-slate-50 px-2.5 py-2 text-center font-mono text-sm font-bold text-slate-900';
+    }
+    if (tyyppi === 'ratko') {
+      if (kokoLuokka === 'compact') return 'bg-indigo-50 px-1 py-1 text-center text-[11px] text-indigo-900';
+      if (kokoLuokka === 'mobile') return 'bg-indigo-50 px-1.5 py-1.5 text-center text-xs text-indigo-900';
+      return 'bg-indigo-50 px-2.5 py-2 text-center text-sm text-indigo-900';
+    }
+    if (kokoLuokka === 'compact') return 'border-l border-slate-100 px-1 py-1 text-center font-mono text-[11px]';
+    if (kokoLuokka === 'mobile') return 'border-l border-slate-100 px-1 py-1.5 text-center font-mono text-xs';
+    return 'border-l border-slate-100 px-1 py-2 text-center font-mono text-sm';
+  };
+
+  return (
+    <Card className="border-slate-200">
+      <CardHeader className="gap-3 pb-3">
+        <CardTitle className="text-lg">{tx.title}</CardTitle>
+
+        <div className="flex gap-2 overflow-x-auto">
+        <Button
           type="button"
           onClick={() => setSarjaSuodatin('OPEN (Y)')}
-          style={sarjaSuodatin === 'OPEN (Y)' ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}
+          size="sm"
+          variant={sarjaSuodatin === 'OPEN (Y)' ? 'default' : 'outline'}
         >
           OPEN (Y)
-        </button>
+        </Button>
         {loydetytSarjat
           .filter((sarja) => sarja.toUpperCase() !== 'Y')
           .map((sarja) => (
-            <button
+            <Button
               key={sarja}
               type="button"
               onClick={() => setSarjaSuodatin(sarja)}
-              style={sarjaSuodatin === sarja ? tyylit.SuodatinNappiAktiivinen : tyylit.SuodatinNappi}
+              size="sm"
+              variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
             >
               {sarja}
-            </button>
+            </Button>
           ))}
-      </div>
-
-      {onMobiili && (
-        <div style={tyylit.TogglePalkki}>
-          <button
-            type="button"
-            onClick={() => setOnkoKompaktiTila(false)}
-            style={!onkoKompaktiTila ? tyylit.ToggleNappiAktiivinen : tyylit.ToggleNappi}
-          >
-            Normaali
-          </button>
-          <button
-            type="button"
-            onClick={() => setOnkoKompaktiTila(true)}
-            style={onkoKompaktiTila ? tyylit.ToggleNappiAktiivinen : tyylit.ToggleNappi}
-          >
-            Kompakti
-          </button>
         </div>
-      )}
-      
-      <div style={tyylit.TaulukkoWrapper}>
-        <table style={tyylit.Taulukko}>
-          <thead>
-            <tr>
-              <th style={kaytaKompaktiTilaa ? tyylit.ThKiinteaKompakti : (onMobiili ? tyylit.ThKiinteaMobiili : tyylit.ThKiintea)}>Sija</th>
-              <th style={{ ...(kaytaKompaktiTilaa ? tyylit.ThKiinteaKompakti : (onMobiili ? tyylit.ThKiinteaMobiili : tyylit.ThKiintea)), minWidth: kaytaKompaktiTilaa ? '70px' : (onMobiili ? '96px' : '160px'), textAlign: 'left' }}>Nimi</th>
-              {!kaytaKompaktiTilaa && <th style={onMobiili ? tyylit.ThKiinteaMobiili : tyylit.ThKiintea}>Sarja</th>}
-              <th style={kaytaKompaktiTilaa ? tyylit.ThYhtKompakti : (onMobiili ? tyylit.ThYhtMobiili : tyylit.ThYht)}>Yht</th>
-              {naytaRatkoSarake && <th style={kaytaKompaktiTilaa ? tyylit.ThRatkoKompakti : (onMobiili ? tyylit.ThRatkoMobiili : tyylit.ThRatko)}>Ratko</th>}
+
+        {onMobiili && (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => setOnkoKompaktiTila(false)}
+              size="sm"
+              variant={!onkoKompaktiTila ? 'default' : 'outline'}
+            >
+              {tx.normal}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setOnkoKompaktiTila(true)}
+              size="sm"
+              variant={onkoKompaktiTila ? 'default' : 'outline'}
+            >
+              {tx.compact}
+            </Button>
+          </div>
+        )}
+      </CardHeader>
+
+      <CardContent className="pt-0">
+      <div className="w-full overflow-x-auto rounded-md border border-slate-200 shadow-sm">
+        <Table className="w-full border-collapse bg-white">
+          <TableHeader>
+            <TableRow>
+              <TableHead className={otsikkoLuokka('fixed')}>{tx.rank}</TableHead>
+              <TableHead className={cn(otsikkoLuokka('fixed'), 'text-left', kaytaKompaktiTilaa ? 'min-w-[70px]' : (onMobiili ? 'min-w-[96px]' : 'min-w-[160px]'))}>{tx.name}</TableHead>
+              {!kaytaKompaktiTilaa && <TableHead className={otsikkoLuokka('fixed')}>{tx.classLabel}</TableHead>}
+              <TableHead className={otsikkoLuokka('sum')}>{tx.total}</TableHead>
+              {naytaRatkoSarake && <TableHead className={otsikkoLuokka('ratko')}>Ratko</TableHead>}
               {radatList.map(n => (
-                <th key={n} style={kaytaKompaktiTilaa ? tyylit.ThRataKompakti : (onMobiili ? tyylit.ThRataMobiili : tyylit.ThRata)}>R{n}</th>
+                <TableHead key={n} className={cn(otsikkoLuokka('stage'), kaytaKompaktiTilaa ? 'min-w-[18px]' : (onMobiili ? 'min-w-[22px]' : 'min-w-[32px]'))}>R{n}</TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {naytettavatAmpujat.map((ampuja) => (
-              <tr key={ampuja.id} style={tyylit.Tr}>
-                <td style={kaytaKompaktiTilaa ? tyylit.TdSijaKompakti : (onMobiili ? tyylit.TdSijaMobiili : tyylit.TdSija)}>{ampuja.laskettuSija}</td>
-                <td style={kaytaKompaktiTilaa ? tyylit.TdNimiKompakti : (onMobiili ? tyylit.TdNimiMobiili : tyylit.TdNimi)}>
-                  <span style={tyylit.NimiSisalto}>
+              <TableRow key={ampuja.id}>
+                <TableCell className={soluLuokka('rank')}>{ampuja.laskettuSija}</TableCell>
+                <TableCell className={soluLuokka('name')}>
+                  <span className="inline-flex items-center gap-1.5">
                     {muotoileNimiTaulukkoon(ampuja.nimi)}
                     {naytaValmiusIndikaattori && (
                       <span
-                        style={{
-                          ...tyylit.ValmiusPiste,
-                          background: onkoAmpujaValmis(ampuja) ? teema.valmiusValmis : teema.valmiusPuuttuu
-                        }}
-                        title={onkoAmpujaValmis(ampuja) ? 'Kaikki alitulokset valmiit' : 'Alituloksia puuttuu'}
+                        className={cn(
+                          'inline-block h-2 w-2 shrink-0 rounded-full ring-1 ring-black/10',
+                          onkoAmpujaValmis(ampuja) ? 'bg-emerald-500' : 'bg-rose-500'
+                        )}
+                        title={onkoAmpujaValmis(ampuja) ? tx.allStagesReady : tx.stagesMissing}
                       />
                     )}
                   </span>
-                </td>
-                {!kaytaKompaktiTilaa && <td style={onMobiili ? tyylit.TdSarjaMobiili : tyylit.TdSarja}>{ampuja.sarja}</td>}
-                <td style={kaytaKompaktiTilaa ? tyylit.TdYhtKompakti : (onMobiili ? tyylit.TdYhtMobiili : tyylit.TdYht)}>{ampuja.kokonaistulos}</td>
+                </TableCell>
+                {!kaytaKompaktiTilaa && <TableCell className={soluLuokka('series')}>{ampuja.sarja}</TableCell>}
+                <TableCell className={soluLuokka('sum')}>{ampuja.kokonaistulos}</TableCell>
                 {naytaRatkoSarake && (
-                  <td style={kaytaKompaktiTilaa ? tyylit.TdRatkoKompakti : (onMobiili ? tyylit.TdRatkoMobiili : tyylit.TdRatko)}>
+                  <TableCell className={soluLuokka('ratko')}>
                     {(() => {
                       const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
                       return ampuja.ratkoNaytto.statusEtiketit.length > 0 || (naytaRatko && ampuja.ratkoNaytto.teksti) ? (
-                      <span style={tyylit.RatkoSisalto}>
+                      <span className="inline-flex flex-wrap items-center justify-center gap-1">
                         {ampuja.ratkoNaytto.statusEtiketit.map((status) => (
-                          <span key={`${ampuja.id}-${status}`} style={{ ...tyylit.StatusLabel, ...haeStatusLabelTyyli(status) }}>
+                          <span key={`${ampuja.id}-${status}`} className={cn('rounded px-1.5 py-0.5 text-[10px] font-extrabold leading-none', statusLabelClass(status))}>
                             {status}
                           </span>
                         ))}
-                        {naytaRatko && ampuja.ratkoNaytto.teksti && <span style={tyylit.RatkoTekstiInline}>{ampuja.ratkoNaytto.teksti}</span>}
+                        {naytaRatko && ampuja.ratkoNaytto.teksti && <span className="font-semibold text-slate-800">{ampuja.ratkoNaytto.teksti}</span>}
                       </span>
                       ) : '-';
                     })()}
-                  </td>
+                  </TableCell>
                 )}
-                
+
                 {radatList.map(n => {
                   const pisteArvo = ampuja.erat[n] || '-';
                   const pisteNum = parseInt(pisteArvo, 10);
@@ -256,77 +344,28 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                   const onkoToiseksiParas = !isNaN(pisteNum) && maksimiTulos !== undefined && naytaToiseksiParas && pisteNum === (maksimiTulos - 1);
 
                   return (
-                    <td
+                    <TableCell
                       key={n}
-                      style={{
-                        ...(kaytaKompaktiTilaa ? tyylit.TdRataKompakti : (onMobiili ? tyylit.TdRataMobiili : tyylit.TdRata)),
-                        ...(onkoMaksimi
-                          ? teema.maksimiTulos
+                      className={cn(
+                        soluLuokka('stage'),
+                        onkoMaksimi
+                          ? 'bg-emerald-100 font-semibold text-emerald-900'
                           : onkoToiseksiParas
-                            ? teema.toiseksiParasTulos
-                            : {})
-                      }}
+                            ? 'bg-amber-100 font-semibold text-amber-900'
+                            : ''
+                      )}
                     >
                       {pisteArvo}
-                    </td>
+                    </TableCell>
                   );
                 })}
-                
-              </tr>
+
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
-
-const tyylit = {
-  Säiliö: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', padding: '5px 0' },
-  Lataus: { padding: '20px', color: '#666' },
-  Otsikko: { fontSize: '1.2em', fontWeight: '700', marginBottom: '14px', color: '#111827' },
-  SuodatinPalkki: { display: 'flex', gap: '8px', overflowX: 'auto', padding: '4px 2px 10px 2px', marginBottom: '6px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' },
-  SuodatinNappi: { background: '#f1f3f4', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#3c4043', cursor: 'pointer', whiteSpace: 'nowrap' },
-  SuodatinNappiAktiivinen: { background: '#202124', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8em', fontWeight: '600', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' },
-  TogglePalkki: { display: 'flex', gap: '8px', marginBottom: '10px' },
-  ToggleNappi: { background: '#f1f3f4', border: '1px solid #d1d5db', color: '#374151', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75em', fontWeight: '600' },
-  ToggleNappiAktiivinen: { background: '#1f2937', border: '1px solid #1f2937', color: '#fff', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75em', fontWeight: '700' },
-  TaulukkoWrapper: { width: '100%', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', borderRadius: '6px', border: '1px solid #e5e7eb' },
-  Taulukko: { width: '100%', borderCollapse: 'collapse', fontSize: '0.85em', background: '#fff' },
-  Tr: { borderBottom: '1px solid #f3f4f6' },
-  ThKiintea: { background: '#f8fafc', color: '#475569', padding: '8px 10px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center' },
-  ThKiinteaMobiili: { background: '#f8fafc', color: '#475569', padding: '6px 5px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center', fontSize: '0.75em' },
-  ThKiinteaKompakti: { background: '#f8fafc', color: '#475569', padding: '4px 3px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center', fontSize: '0.68em' },
-  ThRata: { background: '#f1f5f9', color: '#334155', padding: '8px 4px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center', minWidth: '32px', fontFamily: 'monospace' },
-  ThRataMobiili: { background: '#f1f5f9', color: '#334155', padding: '6px 2px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center', minWidth: '22px', fontFamily: 'monospace', fontSize: '0.72em' },
-  ThRataKompakti: { background: '#f1f5f9', color: '#334155', padding: '4px 1px', fontWeight: '600', borderBottom: '2px solid #e2e8f0', textAlign: 'center', minWidth: '18px', fontFamily: 'monospace', fontSize: '0.64em' },
-  ThYht: { background: '#e2e8f0', color: '#1e293b', padding: '8px 10px', fontWeight: '700', borderBottom: '2px solid #cbd5e1', textAlign: 'center', width: '45px' },
-  ThYhtMobiili: { background: '#e2e8f0', color: '#1e293b', padding: '6px 6px', fontWeight: '700', borderBottom: '2px solid #cbd5e1', textAlign: 'center', width: '36px', fontSize: '0.75em' },
-  ThYhtKompakti: { background: '#e2e8f0', color: '#1e293b', padding: '4px 4px', fontWeight: '700', borderBottom: '2px solid #cbd5e1', textAlign: 'center', width: '30px', fontSize: '0.68em' },
-  ThRatko: { background: '#eef2ff', color: '#1e293b', padding: '8px 10px', fontWeight: '700', borderBottom: '2px solid #c7d2fe', textAlign: 'center', width: '60px' },
-  ThRatkoMobiili: { background: '#eef2ff', color: '#1e293b', padding: '6px 6px', fontWeight: '700', borderBottom: '2px solid #c7d2fe', textAlign: 'center', width: '44px', fontSize: '0.75em' },
-  ThRatkoKompakti: { background: '#eef2ff', color: '#1e293b', padding: '4px 4px', fontWeight: '700', borderBottom: '2px solid #c7d2fe', textAlign: 'center', width: '36px', fontSize: '0.68em' },
-  TdSija: { padding: '6px 4px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500' },
-  TdSijaMobiili: { padding: '4px 2px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500', fontSize: '0.75em' },
-  TdSijaKompakti: { padding: '3px 1px', textAlign: 'center', color: '#64748b', background: '#f8fafc', fontWeight: '500', fontSize: '0.66em' },
-  TdNimi: { padding: '6px 10px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', textAlign: 'left' },
-  TdNimiMobiili: { padding: '4px 4px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', fontSize: '0.75em', maxWidth: '92px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' },
-  TdNimiKompakti: { padding: '3px 3px', color: '#0f172a', fontWeight: '600', whiteSpace: 'nowrap', fontSize: '0.68em', maxWidth: '74px', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' },
-  NimiSisalto: { display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' },
-  ValmiusPiste: { width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)', flexShrink: 0 },
-  TdSarja: { padding: '6px 4px', textAlign: 'center', color: '#475569' },
-  TdSarjaMobiili: { padding: '4px 3px', textAlign: 'center', color: '#475569', fontSize: '0.72em' },
-  TdRata: { padding: '6px 2px', textAlign: 'center', borderLeft: '1px solid #f1f5f9', fontFamily: 'monospace', fontSize: '0.95em' },
-  TdRataMobiili: { padding: '4px 1px', textAlign: 'center', borderLeft: '1px solid #f1f5f9', fontFamily: 'monospace', fontSize: '0.72em' },
-  TdRataKompakti: { padding: '3px 1px', textAlign: 'center', borderLeft: '1px solid #f1f5f9', fontFamily: 'monospace', fontSize: '0.64em' },
-  TdYht: { padding: '6px 10px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '1em' },
-  TdYhtMobiili: { padding: '4px 5px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.78em' },
-  TdYhtKompakti: { padding: '3px 3px', textAlign: 'center', fontWeight: '700', background: '#f8fafc', color: '#0f172a', borderLeft: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.68em' },
-  TdRatko: { padding: '6px 10px', textAlign: 'center', background: '#eef2ff', color: '#1d4ed8', borderLeft: '1px solid #c7d2fe', fontFamily: 'monospace', fontSize: '0.9em' },
-  TdRatkoMobiili: { padding: '4px 5px', textAlign: 'center', background: '#eef2ff', color: '#1d4ed8', borderLeft: '1px solid #c7d2fe', fontFamily: 'monospace', fontSize: '0.75em' },
-  TdRatkoKompakti: { padding: '3px 3px', textAlign: 'center', background: '#eef2ff', color: '#1d4ed8', borderLeft: '1px solid #c7d2fe', fontFamily: 'monospace', fontSize: '0.68em' },
-  RatkoSisalto: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', flexWrap: 'wrap' },
-  RatkoTekstiInline: { color: '#1e293b', fontWeight: '700' },
-  StatusLabel: { display: 'inline-block', padding: '2px 5px', borderRadius: '4px', fontSize: '0.72em', fontWeight: '800', lineHeight: '1' },
-  StatusLabelOletus: { background: '#e5e7eb', color: '#374151' }
-};
