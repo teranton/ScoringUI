@@ -6,7 +6,7 @@ import { GoogleAuth } from 'google-auth-library';
 
 // TÄMÄ ON VÄLIMUISTI: Se säilyy Vercelin palvelimen muistissa pyyntöjen välillä
 const gidCache = {};
-const gidMapCache = {}; // Välimuisti koko sheet-nimestä → gidiin mappingille
+const gidMapCache = {}; // Välimuisti: sisältää nyt { gidMap, spreadsheetTitle }
 let cachedAuthClient = null; // Välimuisti Google Auth -asiakkaalle
 const batchCsvCache = {};
 
@@ -76,17 +76,21 @@ export default async function handler(req, res) {
     try {
       const mapCacheKey = sheetId;
 
-      // 1. VAIHE: Haetaan gid-kartta kerran kaikille välilehdille
-      let gidMap = gidMapCache[mapCacheKey];
-      let allSheets = [];
+      // 1. VAIHE: Haetaan gid-kartta ja tiedoston nimi kerran kaikille välilehdille
+      let cachedMeta = gidMapCache[mapCacheKey];
+      let gidMap = cachedMeta?.gidMap;
+      let spreadsheetTitle = cachedMeta?.spreadsheetTitle || "Tuntematon Google Sheet";
       const metaStartTime = Date.now();
 
       if (!gidMap) {
         try {
           const client = await getAuthClientWithLogs({ includeToken: false });
-          const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties(title,sheetId))`;
+          // Haetaan sekä työkirjan otsikko (properties/title) että välilehdet
+          const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=properties(title),sheets(properties(title,sheetId))`;
           const metaRes = await client.request({ url: metaUrl });
-          allSheets = metaRes.data.sheets || [];
+          
+          spreadsheetTitle = metaRes.data.properties?.title || "Nimetön kisa";
+          const allSheets = metaRes.data.sheets || [];
 
           gidMap = {};
           for (const sheet of allSheets) {
@@ -95,7 +99,8 @@ export default async function handler(req, res) {
             }
           }
 
-          gidMapCache[mapCacheKey] = gidMap;
+          // Tallennetaan molemmat tiedot välimuistiin
+          gidMapCache[mapCacheKey] = { gidMap, spreadsheetTitle };
           console.log(`[BATCH] Optimoitu API-metadata haettu: ${Date.now() - metaStartTime}ms (uusi cache)`);
         } catch (error) {
           console.error("[BATCH] Kriittinen virhe metadatan haussa:", error);
@@ -124,6 +129,10 @@ export default async function handler(req, res) {
         res.setHeader('X-ScoringUI-Batch-Cache', 'memory-hit');
         res.setHeader('X-ScoringUI-Batch-Cache-Age-Ms', String(cacheAgeMs));
 
+        // Tulostetaan lokit myös välimuistiosumista, jotta näet mistä tiedostosta on kyse
+        console.log(`\n--- TIEDOSTO: "${spreadsheetTitle}" (MUISTIVÄLIMUISTIOSUMA) ---`);
+        console.log(`[BATCH DONE] Kokonaisaika: ${Date.now() - batchStartTime}ms`);
+
         return res.status(200).json({
           ...cachedBatch.payload,
           timing: cachedTiming
@@ -131,7 +140,7 @@ export default async function handler(req, res) {
       }
 
       const gidRequests = [];
-      const keyMap = {}; 
+      const keyMap = {};
       const notFound = [];
 
       for (const requestedSheetName of sheetNamesArray) {
@@ -140,36 +149,61 @@ export default async function handler(req, res) {
         if (gid !== undefined) {
           keyMap[gid] = requestedSheetName;
           const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-          
-          // MUUTOS: Ladataan anonyyminä ilman client.request -metodia.
-          // Tämä sallii Googlen hyödyntää CDN-välimuistiaan ja poistaa 'Waiting' (TTFB) viiveen.
-          gidRequests.push(
-            fetch(exportUrl)
-              .then(async (r) => {
-                if (!r.ok) throw new Error(`HTTP error ${r.status}`);
-                const data = await r.text();
-                return { gid, data, sheetName: requestedSheetName };
-              })
-              .catch(err => ({ gid, data: '', error: err.message, sheetName: requestedSheetName }))
-          );
+
+          gidRequests.push((async () => {
+            const sivuStart = performance.now();
+            try {
+              const r = await fetch(exportUrl);
+              if (!r.ok) throw new Error(`HTTP error ${r.status}`);
+              const data = await r.text();
+              const kesto = Math.round(performance.now() - sivuStart);
+
+              return {
+                gid,
+                data,
+                sheetName: requestedSheetName,
+                latausaika_ms: kesto,
+                koko_tavua: data.length
+              };
+            } catch (err) {
+              const kesto = Math.round(performance.now() - sivuStart);
+              return {
+                gid,
+                data: '',
+                error: err.message,
+                sheetName: requestedSheetName,
+                latausaika_ms: kesto,
+                koko_tavua: 0
+              };
+            }
+          })());
         } else {
           notFound.push(requestedSheetName);
         }
       }
 
-      // 3. VAIHE: Ladataan kaikki CSV:t rinnakkain ja palautetaan JSON-objektina
+      // 3. VAIHE: Ladataan kaikki CSV:t rinnakkain ja koottu diagnostiikka
       const csvStartTime = Date.now();
       const results = await Promise.all(gidRequests);
       const csvDuration = Date.now() - csvStartTime;
       console.log(`[BATCH] CSV:t haettu: ${csvDuration}ms (${results.length} levyä rinnakkain)`);
 
       const csvByName = {};
-      for (const { gid, data } of results) {
-        const name = keyMap[gid];
-        csvByName[name] = data;
+      const sheetDiagnostics = {};
+
+      for (const resObj of results) {
+        const name = resObj.sheetName;
+        csvByName[name] = resObj.data;
+
+        // Tallennetaan diagnostiikka ja muotoillaan suomenkieliset kentät taulukkoon
+        sheetDiagnostics[name] = {
+          'Latausaika (ms)': resObj.latausaika_ms,
+          'Koko (KB)': (resObj.koko_tavua / 1024).toFixed(2),
+          'Virhe': resObj.error || 'Ei virheitä'
+        };
       }
 
-      const response = { csvByName };
+      const response = { csvByName, sheetDiagnostics };
       if (notFound.length > 0) {
         response.notFound = notFound;
         response.availableSheets = Object.keys(gidMap);
@@ -194,6 +228,10 @@ export default async function handler(req, res) {
       res.setHeader('X-ScoringUI-Batch-Cache', 'origin');
       res.setHeader('X-ScoringUI-Batch-Cache-Age-Ms', '0');
 
+      // TULOSTETAAN DIAGNOSTIIKKARAPORTTI KONSOLIIN
+      console.log(`\n--- TIEDOSTO: "${spreadsheetTitle}" ---`);
+      console.log(`--- LATAUSRAPORTTI (Kokonaisaika: ${csvDuration}ms) ---`);
+      console.table(sheetDiagnostics);
       console.log(`[BATCH DONE] Kokonaisaika: ${totalTime}ms`);
 
       return res.status(200).json(response);
@@ -248,7 +286,6 @@ export default async function handler(req, res) {
     const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${foundGid}`;
     const exportStart = Date.now();
 
-    // MUUTOS: Ei käytetä client.requestia tässäkään, jotta CDN nopeuttaa latauksen
     const googleRes = await fetch(exportUrl);
     if (!googleRes.ok) throw new Error(`Google vastasi tilakoodilla ${googleRes.status}`);
     const csvData = await googleRes.text();
