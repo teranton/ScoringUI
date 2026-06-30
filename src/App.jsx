@@ -153,14 +153,6 @@ export default function App() {
   const [virhe, setVirhe] = useState(null);
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
-  const clientBatchCacheRef = useRef({});
-
-  const clientBatchCacheTtlMs = Number.isFinite(Number(import.meta.env.VITE_CLIENT_BATCH_CACHE_TTL_MS))
-    ? Number(import.meta.env.VITE_CLIENT_BATCH_CACHE_TTL_MS)
-    : 25000;
-  const clientBatchFreshnessMs = Number.isFinite(Number(import.meta.env.VITE_CLIENT_BATCH_FRESHNESS_MS))
-    ? Number(import.meta.env.VITE_CLIENT_BATCH_FRESHNESS_MS)
-    : 10000;
 
   useEffect(() => {
     kisaCacheRef.current = kisaCache;
@@ -309,200 +301,90 @@ export default function App() {
     }
   }, [kisat, ladataanKisalista, valittuKisa]);
 
-  // 2. REAALIAIKAINEN LIVE-DATAHAKU (Yhdistetty palvelinhaku + dynaaminen välilehtivalinta)
-  useEffect(() => {
-    if (!valittuKisa || !valittuKisa.apiUrl) return;
+  // 2. REAALIAIKAINEN BATCH-DATAHAKU BACKENDISTÄ (Yksivaiheinen, ultra-optimoitu kutsu)
+// 2. REAALIAIKAINEN BATCH-DATAHAKU BACKENDISTÄ (Säästeliäs päivitys)
+useEffect(() => {
+  if (!valittuKisa || !valittuKisa.apiUrl) return;
 
-    const sheetId = valittuKisa.apiUrl;
+  const sheetId = valittuKisa.apiUrl;
 
-    async function haeYhdistetytKisaData() {
-      if (fetchInFlightRef.current[sheetId]) return;
-      fetchInFlightRef.current[sheetId] = true;
+  // Tarkistetaan kisan tämänhetkinen status ennen hakuja
+  // Huom: Koska speksitDataa ei ole vielä ladattu, tämä pohjaa tässä vaiheessa pvm-tietoihin
+  const alustavaStatusInfo = laskeKisanStatusJaTyyli(valittuKisa.alkuPvm, valittuKisa.loppuPvm);
+  const onkoStaattinen = alustavaStatusInfo.status === 'paattynyt';
 
-      try {
-        setVirhe(null);
-        if (!kisaCacheRef.current[sheetId]) {
-          setLadataanKisaa(true);
-        }
+  async function haeYhdistettyKisaData() {
+    if (fetchInFlightRef.current[sheetId]) return;
+    fetchInFlightRef.current[sheetId] = true;
 
-        const startTime = performance.now();
-
-        // Selvitetään tila viimeisimmän speksidatan perusteella.
-        const viimeisinSpeksitCsv = kisaCacheRef.current[sheetId]?.speksitCsvRaw || '';
-        const viimeisinSpeksitRivit = parseCsvRows(viimeisinSpeksitCsv);
-        const statusInfo = laskeKisanEfektiivinenStatus(
-          valittuKisa.alkuPvm,
-          valittuKisa.loppuPvm,
-          viimeisinSpeksitRivit
-        );
-        const onkoKisaTulossa = statusInfo.status === 'tulossa';
-        const onkoKisaPaattynyt = statusInfo.status === 'paattynyt';
-        const onkoIlmoittautuminenAikaIkkunaOhi = laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm);
-        const onkoJoukkueTuloksetSallittu = valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi);
-        const cached = kisaCacheRef.current[sheetId] || {};
-        const onkoHenkiloCsvLadattu = Boolean(cached.henkilotCsvRaw?.trim());
-        const onkoJoukkueCsvLadattu = Boolean(cached.joukkueetCsvRaw?.trim());
-
-        // Päättyneen kilpailun data on käytännössä staattista:
-        // jos tulokset on jo kerran ladattu välimuistiin, ei haeta uudelleen.
-        if (onkoKisaPaattynyt) {
-          const onkoPaattyneenDataJoLadattu = onkoHenkiloCsvLadattu
-            && (!onkoJoukkueTuloksetSallittu || onkoJoukkueCsvLadattu);
-
-          if (onkoPaattyneenDataJoLadattu) {
-            const clientMs = (performance.now() - startTime).toFixed(0);
-            console.log(
-              `[CLIENT FETCH] sheetId=${sheetId} source: skipped-ended-static | ${clientMs}ms`
-            );
-            return;
-          }
-        }
-
-        // Haetaan vain aktiivisen näkymän tarvitsemat välilehdet + speksit statuksen päivitykseen.
-        const tarvittavatSivutSet = new Set(['KISANSPEKSIT']);
-
-        if (!onkoKisaPaattynyt && aktiivinenSivu === 'erakirjaus') {
-          tarvittavatSivutSet.add('Ryhmäjako');
-        }
-
-        if (onkoKisaTulossa) {
-          if (!onkoIlmoittautuminenAikaIkkunaOhi && aktiivinenSivu === 'ilmoittautuneet') {
-            tarvittavatSivutSet.add('Ilmoittautuneet');
-          }
-          if (aktiivinenSivu === 'erakirjaus' && !onkoKisaPaattynyt) {
-            tarvittavatSivutSet.add('Ryhmäjako');
-          }
-        } else {
-          if (aktiivinenSivu === 'tulokset' || aktiivinenSivu === 'taulukko' || aktiivinenSivu === 'joukkueet') {
-            tarvittavatSivutSet.add('Tulokset Y');
-          }
-          // Joukkuekisa: hae joukkue-CSV vähintään kerran, jotta välilehti voi tulla näkyviin.
-          if (onkoJoukkueTuloksetSallittu && (aktiivinenSivu === 'joukkueet' || !onkoJoukkueCsvLadattu)) {
-            tarvittavatSivutSet.add('NEW_Joukkue');
-          }
-        }
-
-        const tarvittavatSivut = Array.from(tarvittavatSivutSet);
-        const clientBatchCacheKey = `${sheetId}::${tarvittavatSivut.map((n) => n.trim().toLowerCase()).sort().join('|')}`;
-
-        // Paikallinen selaimen muistivälimuisti auttaa etenkin dev-ympäristössä,
-        // jossa edge-/funktiovälimuisti ei välttämättä osallistu.
-        const clientCached = clientBatchCacheRef.current[clientBatchCacheKey];
-        if (clientCached && (Date.now() - clientCached.cachedAt) < clientBatchCacheTtlMs) {
-          const csvByName = clientCached.payload.csvByName || {};
-          const vanhaData = kisaCacheRef.current[sheetId] || {};
-          const cacheAgeMs = Date.now() - clientCached.cachedAt;
-
-          setKisaCache(prevCache => ({
-            ...prevCache,
-            [sheetId]: {
-              henkilotCsvRaw: csvByName['Tulokset Y'] || vanhaData.henkilotCsvRaw || "",
-              joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
-              eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
-              ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
-              speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || ""
-            }
-          }));
-
-          const clientMs = (performance.now() - startTime).toFixed(0);
-          if (cacheAgeMs < clientBatchFreshnessMs) {
-            console.log(
-              `[CLIENT FETCH] sheetId=${sheetId} ${tarvittavatSivut.length} sheet(s): ${clientMs}ms | source: client-memory-hit | cacheAge: ${cacheAgeMs}ms`
-            );
-            return;
-          }
-
-          console.log(
-            `[CLIENT FETCH] sheetId=${sheetId} ${tarvittavatSivut.length} sheet(s): ${clientMs}ms | source: client-memory-hit-stale-refresh | cacheAge: ${cacheAgeMs}ms | refreshing: true`
-          );
-        }
-        
-        // Rakennetaan URL batch-rajapintaan
-        const params = new URLSearchParams();
-        params.append('mode', 'batchCsv');
-        params.append('sheetId', sheetId);
-        tarvittavatSivut.forEach(nimi => params.append('sheetNames', nimi));
-
-        // Tehdään vain yksi kutsu omalle palvelimelle.
-        const response = await fetch(`/api/kisaData?${params.toString()}`, {
-          // no-cache: pakottaa selaimen validoimaan, mutta sallii edge/server-välimuistin hyödyntämisen.
-          cache: 'no-cache',
-          // Julkinen endpoint, ei tarvita evästeitä; parantaa välimuistikelpoisuutta.
-          credentials: 'omit'
-        });
-        if (!response.ok) {
-          throw new Error(`Palvelin vastasi tilakoodilla: ${response.status}`);
-        }
-
-        const edgeCache = response.headers.get('x-vercel-cache') || response.headers.get('x-cache') || 'n/a';
-        const ageHeader = response.headers.get('age') || '0';
-        const internalBatchCache = response.headers.get('x-scoringui-batch-cache') || 'n/a';
-        const internalBatchCacheAge = response.headers.get('x-scoringui-batch-cache-age-ms') || '0';
-
-        const tulosJSON = await response.json();
-        const csvByName = tulosJSON.csvByName || {};
-        const vanhaData = kisaCacheRef.current[sheetId] || {};
-
-        clientBatchCacheRef.current[clientBatchCacheKey] = {
-          cachedAt: Date.now(),
-          payload: tulosJSON
-        };
-
-        const clientMs = (performance.now() - startTime).toFixed(0);
-        const serverMs = tulosJSON?.timing?.total_ms;
-        let source = tulosJSON?.timing?.source || 'unknown';
-
-        if (
-          source === 'origin'
-          && Number.isFinite(Number(serverMs))
-          && Number.isFinite(Number(clientMs))
-          && Number(clientMs) + 80 < Number(serverMs)
-        ) {
-          source = 'likely-cache-served (origin timing reused)';
-        }
-
-        console.log(
-          `[CLIENT FETCH] sheetId=${sheetId} ${tarvittavatSivut.length} sheet(s): ${clientMs}ms | server: ${serverMs ?? '-'}ms | source: ${source} | edgeCache: ${edgeCache} age: ${ageHeader}s | apiCache: ${internalBatchCache} age: ${internalBatchCacheAge}ms`
-        );
-
-        // Sijoitetaan haetut raakatekstit suoraan välimuistiin
-        setKisaCache(prevCache => ({
-          ...prevCache,
-          [sheetId]: {
-            henkilotCsvRaw: csvByName['Tulokset Y'] || vanhaData.henkilotCsvRaw || "",
-            joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
-            eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
-            ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
-            speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || ""
-          }
-        }));
-
-      } catch (err) {
-        console.error("Datan haku epäonnistui palvelimelta:", err);
-        setVirhe("Tietojen päivitys epäonnistui taustalla.");
-      } finally {
-        fetchInFlightRef.current[sheetId] = false;
-        setLadataanKisaa(false);
+    try {
+      setVirhe(null);
+      if (!kisaCacheRef.current[sheetId]) {
+        setLadataanKisaa(true);
       }
+
+      const startTime = performance.now();
+      const sivut = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT'];
+      
+      const params = new URLSearchParams();
+      params.append('mode', 'batchCsv');
+      params.append('sheetId', sheetId);
+      sivut.forEach(nimi => params.append('sheetNames', nimi));
+
+      const response = await fetch(`/api/kisaData?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`KisaDatan haku epäonnistui palvelimelta. Status: ${response.status}`);
+      }
+
+      const tulos = await response.json();
+      const csvByName = tulos.csvByName || {};
+      const vanhaData = kisaCacheRef.current[sheetId] || {};
+
+      console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}): ${(performance.now() - startTime).toFixed(0)}ms`);
+
+      setKisaCache(prevCache => ({
+        ...prevCache,
+        [sheetId]: {
+          henkilotCsvRaw: csvByName['Tulokset Y'] || vanhaData.henkilotCsvRaw || "",
+          joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
+          eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
+          ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
+          speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || ""
+        }
+      }));
+
+    } catch (err) {
+      console.error("Datan päivitys epäonnistui palvelimelta:", err);
+      setVirhe("Tietojen päivitys epäonnistui taustalla.");
+    } finally {
+      fetchInFlightRef.current[sheetId] = false;
+      setLadataanKisaa(false);
     }
+  }
 
-    // Ajetaan haku heti näkymän auetessa tai näkymävaihdon jälkeen.
-    haeYhdistetytKisaData();
+  // Haetaan data aina vähintään kerran, kun kisanäkymä avataan
+  haeYhdistettyKisaData();
 
-    const kasitteleNakymattomyys = () => {
-      if (!document.hidden) haeYhdistetytKisaData();
-    };
+  // Jos kisa on päättynyt, ÄLÄ luo intervallia lainkaan!
+  if (onkoStaattinen) {
+    return; 
+  }
 
-    const intervalli = setInterval(() => {
-      if (!document.hidden) haeYhdistetytKisaData();
-    }, 20000);
+  // Live-kisoille käynnistetään taustapäivitys
+  const kasitteleNakymattomyys = () => {
+    if (!document.hidden) haeYhdistettyKisaData();
+  };
 
-    document.addEventListener('visibilitychange', kasitteleNakymattomyys);
-    return () => {
-      clearInterval(intervalli);
-      document.removeEventListener('visibilitychange', kasitteleNakymattomyys);
-    };
-  }, [aktiivinenSivu, valittuKisa]);
+  const intervalli = setInterval(() => {
+    if (!document.hidden) haeYhdistettyKisaData();
+  }, 20000);
+
+  document.addEventListener('visibilitychange', kasitteleNakymattomyys);
+  return () => {
+    clearInterval(intervalli);
+    document.removeEventListener('visibilitychange', kasitteleNakymattomyys);
+  };
+}, [valittuKisa]);
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
     if (!alku) return 'Päivämäärä ei tiedossa';
