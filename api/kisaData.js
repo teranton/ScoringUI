@@ -12,7 +12,7 @@ const batchCsvCache = {};
 
 const BATCH_CACHE_TTL_MS = Number.isFinite(Number(process.env.BATCH_CSV_CACHE_TTL_MS))
   ? Number(process.env.BATCH_CSV_CACHE_TTL_MS)
-  : 30000;
+  : 60000;
 
 function logStep(start, name) {
   const ms = Date.now() - start;
