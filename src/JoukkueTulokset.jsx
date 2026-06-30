@@ -228,9 +228,9 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
                       className={cn(
                         'border border-slate-200 px-1 py-1 text-center',
                         onkoMaksimi
-                          ? 'bg-emerald-100 font-semibold text-emerald-900'
+                          ? 'font-bold text-[hsl(var(--score-best-fg))]'
                           : onkoToiseksiParas
-                            ? 'bg-amber-100 font-semibold text-amber-900'
+                            ? 'font-bold text-[hsl(var(--score-second-fg))]'
                             : ''
                       )}
                     >
@@ -257,19 +257,19 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
 
               const sijoitusNumero = parseInt(joukkueAlkio.sijoitus || `${indeksi + 1}`, 10);
               const sijoitusKorostusLuokka = sijoitusNumero === 1
-                ? 'border-l-4 border-l-amber-400'
+                ? 'border-l-4 border-l-[hsl(var(--rank-1))]'
                 : sijoitusNumero === 2
-                  ? 'border-l-4 border-l-slate-400'
+                  ? 'border-l-4 border-l-[hsl(var(--rank-2))]'
                   : sijoitusNumero === 3
-                    ? 'border-l-4 border-l-orange-500'
-                    : 'border-l-4 border-l-sky-700';
+                    ? 'border-l-4 border-l-[hsl(var(--rank-3))]'
+                    : 'border-l-4 border-l-[hsl(var(--rank-other))]';
               const sijoitusPalloLuokka = sijoitusNumero === 1
-                ? 'bg-amber-400 text-amber-950 font-bold'
+                ? 'bg-[hsl(var(--rank-1))] text-[hsl(var(--primary-foreground))] font-bold'
                 : sijoitusNumero === 2
-                  ? 'bg-slate-400 text-slate-950 font-bold'
+                  ? 'bg-[hsl(var(--rank-2))] text-[hsl(var(--primary-foreground))] font-bold'
                   : sijoitusNumero === 3
-                    ? 'bg-orange-500 text-orange-950 font-bold'
-                    : 'bg-slate-100 text-slate-700';
+                    ? 'bg-[hsl(var(--rank-3))] text-[hsl(var(--primary-foreground))] font-bold'
+                    : 'bg-[hsl(var(--rank-pill-default-bg))] text-[hsl(var(--rank-pill-default-fg))]';
               const onAuki = !!avatutJoukkueet[joukkueAlkio.joukkue];
               const joukkueValmis = onkoJoukkueValmis(joukkueAlkio);
               const jasenetTeksti = joukkueAlkio.ampujat.map(a => a.nimi).join(', ');
@@ -289,7 +289,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
                           <span
                             className={cn(
                               'inline-block h-2 w-2 rounded-full ring-1 ring-black/10',
-                              joukkueValmis ? 'bg-emerald-500' : 'bg-rose-500'
+                              joukkueValmis ? 'bg-[hsl(var(--status-ready))]' : 'bg-[hsl(var(--status-missing))]'
                             )}
                             title={joukkueValmis ? tx.allStagesReady : tx.stagesMissing}
                           />

@@ -7,10 +7,10 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-slate-100 text-slate-700',
-        upcoming: 'bg-blue-100 text-blue-700',
-        ongoing: 'bg-emerald-100 text-emerald-700',
-        ended: 'bg-slate-200 text-slate-700'
+        default: 'bg-[hsl(var(--badge-default-bg))] text-[hsl(var(--badge-default-fg))]',
+        upcoming: 'bg-[hsl(var(--badge-upcoming-bg))] text-[hsl(var(--badge-upcoming-fg))]',
+        ongoing: 'bg-[hsl(var(--badge-ongoing-bg))] text-[hsl(var(--badge-ongoing-fg))]',
+        ended: 'bg-[hsl(var(--badge-ended-bg))] text-[hsl(var(--badge-ended-fg))]'
       }
     },
     defaultVariants: {

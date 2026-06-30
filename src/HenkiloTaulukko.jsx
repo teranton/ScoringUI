@@ -171,9 +171,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const statusLabelClass = (status) => {
     if (['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)) {
-      return 'bg-rose-100 text-rose-800';
+      return 'bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))]';
     }
-    return 'bg-slate-200 text-slate-700';
+    return 'bg-[hsl(var(--status-neutral-bg))] text-[hsl(var(--status-neutral-fg))]';
   };
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
@@ -192,9 +192,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       return 'bg-slate-200 px-2 py-2 text-center text-sm font-bold text-slate-800';
     }
     if (tyyppi === 'ratko') {
-      if (kokoLuokka === 'compact') return 'bg-indigo-50 px-1 py-1 text-center text-[11px] font-bold text-indigo-900';
-      if (kokoLuokka === 'mobile') return 'bg-indigo-50 px-1.5 py-1.5 text-center text-xs font-bold text-indigo-900';
-      return 'bg-indigo-50 px-2 py-2 text-center text-sm font-bold text-indigo-900';
+      if (kokoLuokka === 'compact') return 'bg-[hsl(var(--ratko-bg))] px-1 py-1 text-center text-[11px] font-bold text-[hsl(var(--ratko-fg))]';
+      if (kokoLuokka === 'mobile') return 'bg-[hsl(var(--ratko-bg))] px-1.5 py-1.5 text-center text-xs font-bold text-[hsl(var(--ratko-fg))]';
+      return 'bg-[hsl(var(--ratko-bg))] px-2 py-2 text-center text-sm font-bold text-[hsl(var(--ratko-fg))]';
     }
     if (kokoLuokka === 'compact') return 'bg-slate-100 px-1 py-1 text-center text-[11px] font-semibold text-slate-700';
     if (kokoLuokka === 'mobile') return 'bg-slate-100 px-1 py-1.5 text-center text-xs font-semibold text-slate-700';
@@ -222,9 +222,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       return 'bg-slate-50 px-2.5 py-2 text-center font-mono text-sm font-bold text-slate-900';
     }
     if (tyyppi === 'ratko') {
-      if (kokoLuokka === 'compact') return 'bg-indigo-50 px-1 py-1 text-center text-[11px] text-indigo-900';
-      if (kokoLuokka === 'mobile') return 'bg-indigo-50 px-1.5 py-1.5 text-center text-xs text-indigo-900';
-      return 'bg-indigo-50 px-2.5 py-2 text-center text-sm text-indigo-900';
+      if (kokoLuokka === 'compact') return 'bg-[hsl(var(--ratko-bg))] px-1 py-1 text-center text-[11px] text-[hsl(var(--ratko-fg))]';
+      if (kokoLuokka === 'mobile') return 'bg-[hsl(var(--ratko-bg))] px-1.5 py-1.5 text-center text-xs text-[hsl(var(--ratko-fg))]';
+      return 'bg-[hsl(var(--ratko-bg))] px-2.5 py-2 text-center text-sm text-[hsl(var(--ratko-fg))]';
     }
     if (kokoLuokka === 'compact') return 'border-l border-slate-100 px-1 py-1 text-center font-mono text-[11px]';
     if (kokoLuokka === 'mobile') return 'border-l border-slate-100 px-1 py-1.5 text-center font-mono text-xs';
@@ -308,7 +308,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                       <span
                         className={cn(
                           'inline-block h-2 w-2 shrink-0 rounded-full ring-1 ring-black/10',
-                          onkoAmpujaValmis(ampuja) ? 'bg-emerald-500' : 'bg-rose-500'
+                          onkoAmpujaValmis(ampuja) ? 'bg-[hsl(var(--status-ready))]' : 'bg-[hsl(var(--status-missing))]'
                         )}
                         title={onkoAmpujaValmis(ampuja) ? tx.allStagesReady : tx.stagesMissing}
                       />
@@ -349,9 +349,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                       className={cn(
                         soluLuokka('stage'),
                         onkoMaksimi
-                          ? 'bg-emerald-100 font-semibold text-emerald-900'
+                          ? 'font-bold text-[hsl(var(--score-best-fg))]'
                           : onkoToiseksiParas
-                            ? 'bg-amber-100 font-semibold text-amber-900'
+                            ? 'font-bold text-[hsl(var(--score-second-fg))]'
                             : ''
                       )}
                     >

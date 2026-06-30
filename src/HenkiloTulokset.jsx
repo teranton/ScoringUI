@@ -149,8 +149,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
   const haeStatusLabelLuokka = (status) => (
     ['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)
-      ? 'bg-rose-100 text-rose-800'
-      : 'bg-slate-200 text-slate-700'
+      ? 'bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))]'
+      : 'bg-[hsl(var(--status-neutral-bg))] text-[hsl(var(--status-neutral-fg))]'
   );
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
@@ -190,15 +190,15 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
           const ampujaValmis = onkoAmpujaValmis(ampuja);
           const sijoitusNumero = parseInt(ampuja.laskettuSija || '0', 10);
           const sijoitusKorostusLuokka = sijoitusNumero === 1
-            ? 'border-l-4 border-l-amber-400'
+            ? 'border-l-4 border-l-[hsl(var(--rank-1))]'
             : sijoitusNumero === 2
-              ? 'border-l-4 border-l-slate-400'
+              ? 'border-l-4 border-l-[hsl(var(--rank-2))]'
               : sijoitusNumero === 3
-                ? 'border-l-4 border-l-orange-500'
+                ? 'border-l-4 border-l-[hsl(var(--rank-3))]'
                 : 'border-l-4 border-l-transparent';
 
           return (
-            <Card key={ampuja.id} className={cn('overflow-hidden border-slate-200', sijoitusKorostusLuokka)}>
+            <Card key={ampuja.id} className={cn('overflow-hidden border-[hsl(var(--border))]', sijoitusKorostusLuokka)}>
               <div
                 className={cn(
                   'flex min-h-[52px] cursor-pointer items-center px-3 py-3 transition-colors',
@@ -217,7 +217,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                       <span
                         className={cn(
                           'inline-block h-2.5 w-2.5 rounded-full ring-1 ring-black/10',
-                          ampujaValmis ? 'bg-emerald-500' : 'bg-rose-500'
+                          ampujaValmis ? 'bg-[hsl(var(--status-ready))]' : 'bg-[hsl(var(--status-missing))]'
                         )}
                         title={ampujaValmis ? tx.allStagesReady : tx.stagesMissing}
                       />
@@ -246,7 +246,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                         </span>
                       ))}
                       {naytaRatko && ratkoNakyma.teksti && (
-                        <span className="rounded bg-slate-100 px-1 text-xs font-bold text-slate-600">{ratkoNakyma.teksti}</span>
+                        <span className="rounded bg-[hsl(var(--muted))] px-1 text-xs font-bold text-[hsl(var(--muted-foreground))]">{ratkoNakyma.teksti}</span>
                       )}
                     </div>
                   )}
@@ -254,7 +254,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
               </div>
 
               {onAuki && ampuja.sarjat.length > 0 && (
-                <CardContent className="border-t border-slate-200 bg-slate-50 p-3">
+                <CardContent className="border-t border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
                   <div className="flex flex-wrap gap-1">
                     {ampuja.sarjat.map((s, sIdx) => {
                       const puhdistettuNumero = s.numero.replace(/\D/g, '');
@@ -267,16 +267,16 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                       return (
                         <div
                           key={`${ampuja.id}-${s.numero}-${sIdx}`}
-                          className="min-w-9 rounded border border-slate-200 bg-white px-1 py-0.5 text-center"
+                          className="min-w-9 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center"
                         >
                           <div className="text-[10px] text-slate-500">S{s.numero}</div>
                           <div
                             className={cn(
                               'text-sm font-bold',
                               onkoMaksimiOsuma
-                                ? 'text-emerald-700'
+                                ? 'text-[hsl(var(--score-best-fg))]'
                                 : onkoToiseksiParasOsuma
-                                  ? 'text-amber-700'
+                                  ? 'text-[hsl(var(--score-second-fg))]'
                                   : 'text-slate-900'
                             )}
                           >

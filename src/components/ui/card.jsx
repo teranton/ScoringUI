@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 function Card({ className, ...props }) {
   return (
     <div
-      className={cn('rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm', className)}
+      className={cn('rounded-xl border bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))] shadow-sm border-[hsl(var(--border))]', className)}
       {...props}
     />
   );
@@ -19,7 +19,7 @@ function CardTitle({ className, ...props }) {
 }
 
 function CardDescription({ className, ...props }) {
-  return <p className={cn('text-sm text-slate-500', className)} {...props} />;
+  return <p className={cn('text-sm text-[hsl(var(--muted-foreground))]', className)} {...props} />;
 }
 
 function CardContent({ className, ...props }) {

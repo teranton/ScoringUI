@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+:root,
+[data-theme='default'] {
   --background: 210 20% 98%;
   --foreground: 222 47% 11%;
   --card: 0 0% 100%;
@@ -9,7 +10,124 @@
   --muted-foreground: 215 16% 35%;
   --border: 214 16% 85%;
   --primary: 207 67% 36%;
+  --primary-hover: 207 67% 30%;
   --primary-foreground: 210 40% 98%;
+  --ring: 207 67% 36%;
+
+  --badge-default-bg: 210 16% 93%;
+  --badge-default-fg: 215 16% 35%;
+  --badge-upcoming-bg: 210 100% 92%;
+  --badge-upcoming-fg: 215 88% 35%;
+  --badge-ongoing-bg: 152 62% 90%;
+  --badge-ongoing-fg: 152 76% 22%;
+  --badge-ended-bg: 214 16% 85%;
+  --badge-ended-fg: 215 16% 35%;
+
+  --score-best-fg: 0 85% 52%;
+  --score-second-fg: 210 92% 50%;
+
+  --status-ready: 152 76% 35%;
+  --status-missing: 347 77% 50%;
+  --status-alert-bg: 347 75% 93%;
+  --status-alert-fg: 347 66% 36%;
+  --status-neutral-bg: 210 16% 90%;
+  --status-neutral-fg: 215 16% 35%;
+
+  --rank-1: 42 92% 48%;
+  --rank-2: 220 10% 55%;
+  --rank-3: 24 92% 50%;
+  --rank-other: 210 15% 82%;
+  --rank-pill-default-bg: 210 16% 90%;
+  --rank-pill-default-fg: 215 16% 32%;
+
+  --ratko-bg: 226 100% 96%;
+  --ratko-fg: 226 56% 30%;
+}
+
+[data-theme='ocean'] {
+  --background: 202 100% 97%;
+  --foreground: 210 58% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 58% 16%;
+  --muted: 200 62% 92%;
+  --muted-foreground: 205 42% 32%;
+  --border: 200 45% 82%;
+  --primary: 199 89% 36%;
+  --primary-hover: 199 89% 30%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 199 89% 36%;
+
+  --badge-default-bg: 200 62% 92%;
+  --badge-default-fg: 205 42% 32%;
+  --badge-upcoming-bg: 208 100% 90%;
+  --badge-upcoming-fg: 209 76% 32%;
+  --badge-ongoing-bg: 174 55% 88%;
+  --badge-ongoing-fg: 171 74% 24%;
+  --badge-ended-bg: 202 32% 84%;
+  --badge-ended-fg: 205 42% 32%;
+
+  --score-best-fg: 0 85% 52%;
+  --score-second-fg: 210 92% 50%;
+
+  --status-ready: 171 74% 35%;
+  --status-missing: 350 76% 52%;
+  --status-alert-bg: 350 88% 94%;
+  --status-alert-fg: 350 70% 36%;
+  --status-neutral-bg: 200 34% 88%;
+  --status-neutral-fg: 205 42% 32%;
+
+  --rank-1: 192 86% 44%;
+  --rank-2: 204 28% 56%;
+  --rank-3: 215 78% 48%;
+  --rank-other: 200 36% 78%;
+  --rank-pill-default-bg: 200 34% 88%;
+  --rank-pill-default-fg: 205 42% 30%;
+
+  --ratko-bg: 202 100% 92%;
+  --ratko-fg: 204 72% 30%;
+}
+
+[data-theme='forest'] {
+  --background: 96 36% 96%;
+  --foreground: 120 24% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 120 24% 16%;
+  --muted: 95 22% 90%;
+  --muted-foreground: 112 18% 30%;
+  --border: 96 18% 80%;
+  --primary: 130 42% 32%;
+  --primary-hover: 130 42% 26%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 130 42% 32%;
+
+  --badge-default-bg: 95 22% 90%;
+  --badge-default-fg: 112 18% 30%;
+  --badge-upcoming-bg: 90 42% 88%;
+  --badge-upcoming-fg: 110 26% 32%;
+  --badge-ongoing-bg: 140 32% 86%;
+  --badge-ongoing-fg: 134 38% 26%;
+  --badge-ended-bg: 90 18% 82%;
+  --badge-ended-fg: 112 18% 30%;
+
+  --score-best-fg: 0 85% 52%;
+  --score-second-fg: 210 92% 50%;
+
+  --status-ready: 134 48% 34%;
+  --status-missing: 8 62% 46%;
+  --status-alert-bg: 12 74% 92%;
+  --status-alert-fg: 12 52% 34%;
+  --status-neutral-bg: 95 20% 86%;
+  --status-neutral-fg: 112 18% 30%;
+
+  --rank-1: 98 42% 42%;
+  --rank-2: 105 20% 48%;
+  --rank-3: 128 32% 40%;
+  --rank-other: 95 18% 76%;
+  --rank-pill-default-bg: 95 20% 86%;
+  --rank-pill-default-fg: 112 18% 28%;
+
+  --ratko-bg: 95 28% 90%;
+  --ratko-fg: 112 28% 28%;
 }
 
 * {

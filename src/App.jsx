@@ -163,6 +163,11 @@ function labelForStatus(status, locale) {
 }
 
 export default function App() {
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'default';
+    const saved = window.localStorage.getItem('scoringui_theme');
+    return ['default', 'ocean', 'forest'].includes(saved) ? saved : 'default';
+  });
   const [locale, setLocale] = useState(() => {
     if (typeof window === 'undefined') return 'fi';
     const saved = window.localStorage.getItem('scoringui_locale');
@@ -189,6 +194,12 @@ export default function App() {
     }
   }, [locale]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('scoringui_theme', theme);
+    }
+  }, [theme]);
+
   const tx = useMemo(() => {
     if (locale === 'en') {
       return {
@@ -201,6 +212,10 @@ export default function App() {
         registrations: 'Registrations',
         heatList: 'Heat List',
         teamResults: 'Team Results',
+        themeLabel: 'Theme',
+        themeDefault: 'Default',
+        themeOcean: 'Ocean',
+        themeForest: 'Forest',
         fetchingCompetitionData: 'Fetching competition data...'
       };
     }
@@ -215,6 +230,10 @@ export default function App() {
       registrations: 'Ilmoittautuneet',
       heatList: 'Erälista',
       teamResults: 'Joukkuetulokset',
+      themeLabel: 'Teema',
+      themeDefault: 'Oletus',
+      themeOcean: 'Meri',
+      themeForest: 'Metsa',
       fetchingCompetitionData: 'Haetaan kilpailun tietoja...'
     };
   }, [locale]);
@@ -539,27 +558,31 @@ useEffect(() => {
   ]);
 
   if (ladataanKisalista) {
-    return <div className="px-4 py-16 text-center text-slate-500">{tx.loadingRegistry}</div>;
+    return <div data-theme={theme} className="px-4 py-16 text-center text-[hsl(var(--muted-foreground))]">{tx.loadingRegistry}</div>;
   }
 
   // --- NÄKYMÄ 1: ETUSIVU ---
   if (!valittuKisa) {
     return (
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-8">
+      <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 bg-[hsl(var(--background))] px-4 py-8 text-[hsl(var(--foreground))]">
         <header className="space-y-2">
           <div className="relative">
             <div className="space-y-2 text-center">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">{tx.appTitle}</h1>
-              <p className="text-sm text-slate-500">{tx.appSubtitle}</p>
+              <h1 className="text-3xl font-bold tracking-tight text-[hsl(var(--foreground))]">{tx.appTitle}</h1>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">{tx.appSubtitle}</p>
             </div>
-            <div className="absolute right-0 top-0 flex gap-1">
+            <div className="absolute right-0 top-0 flex flex-wrap items-center gap-1">
+              <span className="mr-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">{tx.themeLabel}</span>
+              <Button type="button" size="sm" variant={theme === 'default' ? 'default' : 'outline'} onClick={() => setTheme('default')}>{tx.themeDefault}</Button>
+              <Button type="button" size="sm" variant={theme === 'ocean' ? 'default' : 'outline'} onClick={() => setTheme('ocean')}>{tx.themeOcean}</Button>
+              <Button type="button" size="sm" variant={theme === 'forest' ? 'default' : 'outline'} onClick={() => setTheme('forest')}>{tx.themeForest}</Button>
               <Button type="button" size="sm" variant={locale === 'fi' ? 'default' : 'outline'} onClick={() => setLocale('fi')}>FI</Button>
               <Button type="button" size="sm" variant={locale === 'en' ? 'default' : 'outline'} onClick={() => setLocale('en')}>EN</Button>
             </div>
           </div>
         </header>
 
-        {virhe && <div className="text-sm font-medium text-red-600">{virhe}</div>}
+        {virhe && <div className="text-sm font-medium text-rose-600">{virhe}</div>}
 
         <div className="flex flex-col gap-3">
           {kisat.map(kisa => {
@@ -571,12 +594,12 @@ useEffect(() => {
                   if (!kisa.apiUrl) return;
                   avaaKisaNakyma(kisa);
                 }}
-                className={`cursor-pointer transition-all hover:border-slate-300 hover:shadow-md ${!kisa.apiUrl ? 'cursor-not-allowed opacity-60' : ''}`}
+                className={`cursor-pointer transition-all hover:border-[hsl(var(--border))] hover:shadow-md ${!kisa.apiUrl ? 'cursor-not-allowed opacity-60' : ''}`}
               >
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="flex flex-col gap-1">
-                    <div className="text-lg font-semibold text-slate-900">{kisa.nimi}</div>
-                    <div className="text-sm text-slate-500">
+                    <div className="text-lg font-semibold text-[hsl(var(--foreground))]">{kisa.nimi}</div>
+                    <div className="text-sm text-[hsl(var(--muted-foreground))]">
                     {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
                     </div>
                   </div>
@@ -596,23 +619,27 @@ useEffect(() => {
   const kilpailuNakymaMaxWidth = onkoTaulukkoNakyma ? 'min(96vw, 1320px)' : '560px';
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-4 py-6" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+    <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 bg-[hsl(var(--background))] px-4 py-6 text-[hsl(var(--foreground))]" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
       <Card>
-        <CardHeader className="gap-2 border-b border-slate-100 pb-4">
+        <CardHeader className="gap-2 border-b border-[hsl(var(--border))] pb-4">
           <div className="flex items-center justify-between gap-2">
             <Button onClick={palaaEtusivulle} variant="outline" size="sm" className="w-fit">{tx.backHome}</Button>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="mr-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">{tx.themeLabel}</span>
+              <Button type="button" size="sm" variant={theme === 'default' ? 'default' : 'outline'} onClick={() => setTheme('default')}>{tx.themeDefault}</Button>
+              <Button type="button" size="sm" variant={theme === 'ocean' ? 'default' : 'outline'} onClick={() => setTheme('ocean')}>{tx.themeOcean}</Button>
+              <Button type="button" size="sm" variant={theme === 'forest' ? 'default' : 'outline'} onClick={() => setTheme('forest')}>{tx.themeForest}</Button>
               <Button type="button" size="sm" variant={locale === 'fi' ? 'default' : 'outline'} onClick={() => setLocale('fi')}>FI</Button>
               <Button type="button" size="sm" variant={locale === 'en' ? 'default' : 'outline'} onClick={() => setLocale('en')}>EN</Button>
             </div>
           </div>
           <CardTitle className="text-2xl">
-            {valittuKisa.nimi} {ladataanKisaa && <span className="text-slate-400">↻</span>}
+            {valittuKisa.nimi} {ladataanKisaa && <span className="text-[hsl(var(--muted-foreground))]">↻</span>}
           </CardTitle>
           <CardDescription>
             {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
           </CardDescription>
-          {virhe && <div className="text-sm font-medium text-red-600">{virhe}</div>}
+          {virhe && <div className="text-sm font-medium text-rose-600">{virhe}</div>}
         </CardHeader>
       </Card>
 
@@ -635,7 +662,7 @@ useEffect(() => {
       </nav>
 
       {ladataanKisaa && !nykyisenKisanData ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">{tx.fetchingCompetitionData}</div>
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">{tx.fetchingCompetitionData}</div>
       ) : (
         <main className="w-full flex-1">
           {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (

@@ -4,14 +4,14 @@ import { cva } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[hsl(var(--ring))] ring-offset-[hsl(var(--background))]',
   {
     variants: {
       variant: {
-        default: 'bg-slate-800 text-white hover:bg-slate-700',
-        outline: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
-        secondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
-        ghost: 'text-slate-700 hover:bg-slate-100'
+        default: 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary-hover))]',
+        outline: 'border bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] border-[hsl(var(--border))]',
+        secondary: 'bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] hover:opacity-90',
+        ghost: 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]'
       },
       size: {
         default: 'h-9 px-4 py-2',
