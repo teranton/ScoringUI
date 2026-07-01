@@ -7,7 +7,6 @@ import {
   parseAsemaSpeksitCsv
 } from './utils/henkiloTulokset';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
-import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
@@ -345,18 +344,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
       <CardContent className="px-0 pb-0 pt-0 md:px-6">
       <div className="relative isolate w-full max-h-[70vh] overflow-auto overscroll-contain rounded-md border border-slate-200 shadow-sm">
-        <TransformWrapper
-          minScale={0.6}
-          maxScale={3}
-          initialScale={onMobiili ? 0.9 : 1}
-          centerOnInit
-          limitToBounds={false}
-          wheel={{ step: 0.08 }}
-          pinch={{ step: 5 }}
-          doubleClick={{ disabled: true }}
-          panning={{ velocityDisabled: true }}
-        >
-        <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-max !min-w-full">
         <table className="w-full border-separate border-spacing-0 bg-white text-sm">
           <thead className="[&_tr]:border-b">
             <tr className="border-b border-[hsl(var(--border))]">
@@ -489,8 +476,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             ))}
           </tbody>
         </table>
-        </TransformComponent>
-        </TransformWrapper>
       </div>
       </CardContent>
     </Card>
