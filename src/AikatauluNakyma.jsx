@@ -402,12 +402,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                     {parsed.laneRows.map((row) => (
                       <div
                         key={row.id}
-                        className="grid items-center hover:bg-[hsl(var(--muted))]/5 transition-colors group"
+                        className="grid items-stretch hover:bg-[hsl(var(--muted))]/5 transition-colors group"
                         style={{ gridTemplateColumns: laneGridTemplate }}
                       >
                         {/* Kellonaika (Pysyy paikoillaan vasemmassa reunassa) */}
-                        <div className="sticky left-0 z-20 text-center font-bold text-xs md:text-sm tracking-wide text-[hsl(var(--foreground))] py-2.5 bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-1 shadow-[1px_0_0_0_hsl(var(--border))]">
-                          {row.time || '-'}
+                        <div className="sticky left-0 z-20 h-full text-center font-bold text-xs md:text-sm tracking-wide text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-1 shadow-[1px_0_0_0_hsl(var(--border))] flex items-center justify-center">
+                          <span>{row.time || '-'}</span>
                         </div>
 
                         {/* Radat rinnakkain */}
