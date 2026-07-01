@@ -78,12 +78,12 @@ function buildGroupMeta(laneRows, laneCount) {
 
 function getGroupCellStyle(groupIndex) {
   const palettes = [
-    { bg: 'hsla(10, 92%, 86%, 0.45)', border: 'hsla(10, 70%, 48%, 0.28)' },
-    { bg: 'hsla(210, 90%, 86%, 0.45)', border: 'hsla(210, 74%, 45%, 0.28)' },
-    { bg: 'hsla(138, 70%, 84%, 0.45)', border: 'hsla(138, 54%, 38%, 0.28)' },
-    { bg: 'hsla(48, 95%, 82%, 0.45)', border: 'hsla(42, 78%, 44%, 0.3)' },
-    { bg: 'hsla(286, 80%, 88%, 0.42)', border: 'hsla(286, 52%, 45%, 0.28)' },
-    { bg: 'hsla(186, 78%, 84%, 0.45)', border: 'hsla(186, 62%, 38%, 0.28)' }
+    { bg: 'hsl(var(--primary) / 0.16)', border: 'hsl(var(--primary) / 0.5)' },
+    { bg: 'hsl(var(--score-second-fg) / 0.14)', border: 'hsl(var(--score-second-fg) / 0.45)' },
+    { bg: 'hsl(var(--status-ready) / 0.14)', border: 'hsl(var(--status-ready) / 0.45)' },
+    { bg: 'hsl(var(--rank-1) / 0.18)', border: 'hsl(var(--rank-1) / 0.5)' },
+    { bg: 'hsl(var(--rank-3) / 0.16)', border: 'hsl(var(--rank-3) / 0.48)' },
+    { bg: 'hsl(var(--ratko-fg) / 0.14)', border: 'hsl(var(--ratko-fg) / 0.44)' }
   ];
   const style = palettes[groupIndex % palettes.length];
   return {
