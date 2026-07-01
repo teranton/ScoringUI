@@ -288,7 +288,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   return (
     <Card className="border-slate-200">
-      <CardHeader className="gap-3 pb-3">
+      <CardHeader className="gap-3 px-3 pb-3 pt-3 md:p-6 md:pb-3">
         <CardTitle className="text-lg">{tx.title}</CardTitle>
 
         <div
@@ -348,7 +348,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
         )}
       </CardHeader>
 
-      <CardContent className="pt-0">
+      <CardContent className="px-0 pb-0 pt-0 md:px-6">
       <div className="relative isolate w-full max-h-[70vh] overflow-auto overscroll-contain rounded-md border border-slate-200 shadow-sm">
         <table className="w-full border-separate border-spacing-0 bg-white text-sm">
           <thead className="[&_tr]:border-b">
