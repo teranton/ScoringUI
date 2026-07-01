@@ -10,6 +10,7 @@ import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users } from 'lucide-react';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
@@ -639,19 +640,34 @@ useEffect(() => {
 
       <nav className="flex w-full flex-wrap gap-2">
         {onkoTuloksetSallittu && (
-          <Button onClick={() => setAktiivinenSivu('tulokset')} variant={aktiivinenSivu === 'tulokset' ? 'default' : 'outline'} size="sm">{tx.results}</Button>
+          <Button onClick={() => setAktiivinenSivu('tulokset')} variant={aktiivinenSivu === 'tulokset' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Trophy className="h-4 w-4" aria-hidden="true" />
+            {tx.results}
+          </Button>
         )}
         {onkoTaulukkoSallittu && (
-          <Button onClick={() => setAktiivinenSivu('taulukko')} variant={aktiivinenSivu === 'taulukko' ? 'default' : 'outline'} size="sm">{tx.table}</Button>
+          <Button onClick={() => setAktiivinenSivu('taulukko')} variant={aktiivinenSivu === 'taulukko' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Table2 className="h-4 w-4" aria-hidden="true" />
+            {tx.table}
+          </Button>
         )}
         {onkoIlmoittautuneita && (
-          <Button onClick={() => setAktiivinenSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm">{tx.registrations}</Button>
+          <Button onClick={() => setAktiivinenSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <ClipboardList className="h-4 w-4" aria-hidden="true" />
+            {tx.registrations}
+          </Button>
         )}
         {onkoAikatauluSallittu && (
-          <Button onClick={() => setAktiivinenSivu('aikataulu')} variant={aktiivinenSivu === 'aikataulu' ? 'default' : 'outline'} size="sm">{tx.timetable}</Button>
+          <Button onClick={() => setAktiivinenSivu('aikataulu')} variant={aktiivinenSivu === 'aikataulu' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <CalendarDays className="h-4 w-4" aria-hidden="true" />
+            {tx.timetable}
+          </Button>
         )}
         {onkoJoukkueKisa && (
-          <Button onClick={() => setAktiivinenSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm">{tx.teamResults}</Button>
+          <Button onClick={() => setAktiivinenSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Users className="h-4 w-4" aria-hidden="true" />
+            {tx.teamResults}
+          </Button>
         )}
       </nav>
 
