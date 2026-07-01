@@ -19,6 +19,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-sortablejs": "^6.1.4",
+    "react-zoom-pan-pinch": "^4.0.3",
     "sortablejs": "^1.15.7",
     "tailwind-merge": "^3.6.0"
   },

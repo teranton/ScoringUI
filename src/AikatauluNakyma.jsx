@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 function normalizeHeader(value) {
   return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

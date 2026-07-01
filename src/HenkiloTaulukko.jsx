@@ -6,6 +6,7 @@ import {
   muodostaRatkoNakyma,
   parseAsemaSpeksitCsv
 } from './utils/henkiloTulokset';
+import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
@@ -175,13 +176,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return radatList.every((n) => !onkoAliTulosPuuttuu(ampuja.erat[n]));
   };
 
-  const statusLabelClass = (status) => {
-    if (['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)) {
-      return 'bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))]';
-    }
-    return 'bg-[hsl(var(--status-neutral-bg))] text-[hsl(var(--status-neutral-fg))]';
-  };
-
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
   const onSarjaPointerDown = (event) => {
@@ -247,7 +241,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       return 'bg-slate-200 px-2 py-2 text-center text-sm font-bold text-slate-800';
     }
     if (tyyppi === 'ratko') {
-      if (kokoLuokka === 'compact') return 'bg-[hsl(var(--ratko-bg))] px-1 py-1 text-center text-[11px] font-bold text-[hsl(var(--ratko-fg))]';
+      if (kokoLuokka === 'compact') return 'bg-[hsl(var(--ratko-bg))] px-0.5 py-1 text-center text-[10px] font-bold text-[hsl(var(--ratko-fg))]';
       if (kokoLuokka === 'mobile') return 'bg-[hsl(var(--ratko-bg))] px-1.5 py-1.5 text-center text-xs font-bold text-[hsl(var(--ratko-fg))]';
       return 'bg-[hsl(var(--ratko-bg))] px-2 py-2 text-center text-sm font-bold text-[hsl(var(--ratko-fg))]';
     }
@@ -277,7 +271,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       return 'bg-slate-50 px-2.5 py-2 text-center font-mono text-sm font-bold text-slate-900';
     }
     if (tyyppi === 'ratko') {
-      if (kokoLuokka === 'compact') return 'bg-[hsl(var(--ratko-bg))] px-1 py-1 text-center text-[11px] text-[hsl(var(--ratko-fg))]';
+      if (kokoLuokka === 'compact') return 'bg-[hsl(var(--ratko-bg))] px-0.5 py-1 text-center text-[10px] text-[hsl(var(--ratko-fg))]';
       if (kokoLuokka === 'mobile') return 'bg-[hsl(var(--ratko-bg))] px-1.5 py-1.5 text-center text-xs text-[hsl(var(--ratko-fg))]';
       return 'bg-[hsl(var(--ratko-bg))] px-2.5 py-2 text-center text-sm text-[hsl(var(--ratko-fg))]';
     }
@@ -367,7 +361,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               </th>
               {!kaytaKompaktiTilaa && <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-40')}>{tx.classLabel}</th>}
               <th className={cn(otsikkoLuokka('sum'), 'sticky top-0 z-40')}>{tx.total}</th>
-              {naytaRatkoSarake && <th className={cn(otsikkoLuokka('ratko'), 'sticky top-0 z-40')}>Ratko</th>}
+              {naytaRatkoSarake && <th className={cn(otsikkoLuokka('ratko'), 'sticky top-0 z-40', kaytaKompaktiTilaa && 'w-[36px] min-w-[36px] max-w-[36px]')}>Ratko</th>}
               {radatList.map(n => (
                 <th
                   key={n}
@@ -411,19 +405,44 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                 {!kaytaKompaktiTilaa && <td className={soluLuokka('series')}>{ampuja.sarja}</td>}
                 <td className={soluLuokka('sum')}>{ampuja.kokonaistulos}</td>
                 {naytaRatkoSarake && (
-                  <td className={soluLuokka('ratko')}>
+                  <td
+                    className={cn(soluLuokka('ratko'), kaytaKompaktiTilaa && 'w-[36px] min-w-[36px] max-w-[36px] overflow-hidden')}
+                    title={[...ampuja.ratkoNaytto.statusEtiketit, ampuja.ratkoNaytto.teksti].filter(Boolean).join(' | ')}
+                  >
                     {(() => {
                       const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
-                      return ampuja.ratkoNaytto.statusEtiketit.length > 0 || (naytaRatko && ampuja.ratkoNaytto.teksti) ? (
-                      <span className="inline-flex flex-wrap items-center justify-center gap-1">
-                        {ampuja.ratkoNaytto.statusEtiketit.map((status) => (
-                          <span key={`${ampuja.id}-${status}`} className={cn('rounded px-1.5 py-0.5 text-[10px] font-extrabold leading-none', statusLabelClass(status))}>
-                            {status}
+                      if (!(ampuja.ratkoNaytto.statusEtiketit.length > 0 || (naytaRatko && ampuja.ratkoNaytto.teksti))) {
+                        return '-';
+                      }
+
+                      if (kaytaKompaktiTilaa) {
+                        const compactText = ampuja.ratkoNaytto.statusEtiketit.length > 0
+                          ? ampuja.ratkoNaytto.statusEtiketit.join('/')
+                          : ampuja.ratkoNaytto.teksti;
+
+                        return (
+                          <span className="block max-w-full truncate text-[9px] font-semibold leading-none text-[hsl(var(--ratko-fg))]" title={compactText}>
+                            {compactText}
                           </span>
-                        ))}
-                        {naytaRatko && ampuja.ratkoNaytto.teksti && <span className="font-semibold text-slate-800">{ampuja.ratkoNaytto.teksti}</span>}
-                      </span>
-                      ) : '-';
+                        );
+                      }
+
+                      return (
+                        <span className="inline-flex flex-wrap items-center justify-center gap-1">
+                          {ampuja.ratkoNaytto.statusEtiketit.map((status) => (
+                            <span
+                              key={`${ampuja.id}-${status}`}
+                              className={cn(
+                                getStatusLabelSizeClass(),
+                                getStatusLabelToneClass(status)
+                              )}
+                            >
+                              {status}
+                            </span>
+                          ))}
+                          {naytaRatko && ampuja.ratkoNaytto.teksti && <span className="font-semibold text-slate-800">{ampuja.ratkoNaytto.teksti}</span>}
+                        </span>
+                      );
                     })()}
                   </td>
                 )}

@@ -6,6 +6,7 @@ import {
   muodostaRatkoNakyma,
   parseAsemaSpeksitCsv
 } from './utils/henkiloTulokset';
+import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
 import { Card, CardContent } from './components/ui/card';
 import { Badge } from './components/ui/badge';
@@ -154,12 +155,6 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     return ampuja.sarjat.every((s) => !onkoAliTulosPuuttuu(s.tulos));
   };
 
-  const haeStatusLabelLuokka = (status) => (
-    ['DNS', 'DNF', 'DNQ', 'DSQ'].includes(status)
-      ? 'bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))]'
-      : 'bg-[hsl(var(--status-neutral-bg))] text-[hsl(var(--status-neutral-fg))]'
-  );
-
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
   const onSarjaPointerDown = (event) => {
@@ -290,8 +285,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                         <span
                           key={`${ampuja.id}-${status}`}
                           className={cn(
-                            'rounded-md px-2 py-0.5 text-[11px] font-bold leading-none',
-                            haeStatusLabelLuokka(status)
+                            getStatusLabelSizeClass(),
+                            getStatusLabelToneClass(status)
                           )}
                         >
                           {status}
