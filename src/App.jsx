@@ -607,8 +607,7 @@ useEffect(() => {
   }
 
   // --- NÄKYMÄ 2: VALITUN KISAN NÄKYMÄ ---
-  const onkoLeveaNakyma = aktiivinenSivu === 'taulukko' || aktiivinenSivu === 'aikataulu';
-  const kilpailuNakymaMaxWidth = onkoLeveaNakyma ? 'min(96vw, 1320px)' : '560px';
+  const kilpailuNakymaMaxWidth = 'min(96vw, 1320px)';
 
   return (
     <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 bg-[hsl(var(--background))] px-4 py-6 text-[hsl(var(--foreground))]" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
@@ -676,26 +675,30 @@ useEffect(() => {
       ) : (
         <main className="w-full flex-1">
           {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (
-            <HenkiloTulokset
-              rawCsv={nykyisenKisanData.henkilotCsvRaw}
-              speksitCsv={nykyisenKisanData.speksitCsvRaw}
-              rawRows={nykyisenKisanParsitutRivit.henkilotRows}
-              parsedSpeksit={nykyisenKisanSpeksit}
-              kisaStatus={kisanStatusInfo.status}
-              locale={locale}
-            />
+            <div className="mx-auto w-full max-w-3xl">
+              <HenkiloTulokset
+                rawCsv={nykyisenKisanData.henkilotCsvRaw}
+                speksitCsv={nykyisenKisanData.speksitCsvRaw}
+                rawRows={nykyisenKisanParsitutRivit.henkilotRows}
+                parsedSpeksit={nykyisenKisanSpeksit}
+                kisaStatus={kisanStatusInfo.status}
+                locale={locale}
+              />
+            </div>
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
             <HenkiloTaulukko data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} parsedSpeksit={nykyisenKisanSpeksit} kisaStatus={kisanStatusInfo.status} locale={locale} />
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
-            <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} locale={locale} />
+            <div className="mx-auto w-full max-w-3xl">
+              <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} locale={locale} />
+            </div>
           )}
           {aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && (
             <AikatauluNakyma rawCsv={nykyisenKisanData.aikatauluCsvRaw} locale={locale} />
           )}
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
-            <div>
+            <div className="mx-auto w-full max-w-3xl">
               <JoukkueTulokset data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} kisaStatus={kisanStatusInfo.status} locale={locale} />
             </div>
           )}
