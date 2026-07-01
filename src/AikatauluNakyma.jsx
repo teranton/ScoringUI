@@ -337,7 +337,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
               {/* OPTIMOITU GRID-TAULUKKO (SÄILYTTÄÄ PYSTY- JA SIVUSUUNTAISEN JATKUMON) */}
               <div
                 ref={laneScrollRef}
-                className="w-full overflow-x-auto select-none cursor-grab active:cursor-grabbing"
+                className="w-full max-h-[68vh] overflow-auto overscroll-contain select-none cursor-grab active:cursor-grabbing"
                 onMouseDown={handleLaneMouseDown}
                 onMouseMove={handleLaneMouseMove}
                 onMouseUp={handleLaneMouseUp}
@@ -367,11 +367,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
 
                   {/* OTSIKKORIVI */}
                   <div
-                    className="grid bg-[hsl(var(--muted))]/20 font-bold text-xs items-center py-1.5"
+                    className="sticky top-0 z-30 grid bg-[hsl(var(--muted))]/95 backdrop-blur-[1px] font-bold text-xs items-center py-1.5"
                     style={{ gridTemplateColumns: laneGridTemplate }}
                   >
                     {/* Aika saa 2/12 osaa tilasta */}
-                    <div className="sticky left-0 z-20 text-center text-[hsl(var(--foreground))] bg-[hsl(var(--muted))]/20 border-r border-[hsl(var(--border))] px-1.5">
+                    <div className="sticky left-0 z-40 text-center text-[hsl(var(--foreground))] bg-[hsl(var(--muted))]/95 border-r border-[hsl(var(--border))] px-1.5">
                       {tx.time}
                     </div>
                     {/* Radat jakavat loput 10/12 osaa dynaamisesti sarakkeittain */}
