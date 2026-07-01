@@ -343,114 +343,147 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {parsed.mode === 'lane-grid' ? (
+{parsed.mode === 'lane-grid' ? (
             <>
-              {/* TYÖPÖYTÄ- JA MOBIILINÄKYMÄ (SÄILYTTÄÄ PYSTY- JA SIVUSUUNTAISEN JATKUMON) */}
-              <div
-                ref={laneScrollRef}
-                className="relative isolate w-full max-h-[68vh] overflow-auto overscroll-contain select-none cursor-grab active:cursor-grabbing sidebar-scrollbar"
-                style={{ touchAction: 'pan-y' }}
-                onPointerDown={handleLanePointerDown}
-                onPointerMove={handleLanePointerMove}
-                onPointerUp={handleLanePointerUp}
-                onPointerCancel={handleLanePointerUp}
-                onClickCapture={handleLaneClickCapture}
-              >
-                {/* KORJAUS 1: Nostettu minimileveys vähintään 850 pikseliin. 
-                  Tämä varmistaa, että jokaiselle radalle jää aina ~200px tilaa, jolloin nimet mahtuvat!
-                */}
-                <div className="min-w-[850px] divide-y divide-[hsl(var(--border))]">
-
-                  {parsed.groupCount > 0 && (
-                    <div className="sticky left-0 z-50 flex flex-wrap items-center gap-1.5 px-3 py-2 text-[11px] border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/10">
-                      {Array.from({ length: parsed.groupCount }).map((_, idx) => {
-                        const range = parsed.groupRanges?.[idx];
-                        const rangeLabel = range ? ` (${range.start}-${range.end})` : '';
-                        return (
-                          <span
-                            key={`group-legend-${idx}`}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold text-[hsl(var(--foreground))]"
-                            style={getGroupCellStyle(idx)}
-                          >
-                            {tx.group} {idx + 1}{rangeLabel}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* OTSIKKORIVI */}
-                  <div
-                    className="sticky top-0 z-30 grid bg-[hsl(var(--muted))] font-bold text-xs items-center py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                    style={{ gridTemplateColumns: laneGridTemplate }}
+              {/* ZOOMATTAVA JA RAAHATTAVA KANGAS (ZUI) */}
+              <div className="relative w-full border rounded-xl overflow-hidden bg-[hsl(var(--card))] select-none">
+                
+                {/* ZOOM-KONTROLLIT (Kätevät työpöydällä, mobiilissa toimii sormieleet) */}
+                <div className="absolute bottom-4 right-4 z-50 flex gap-2 bg-[hsl(var(--background))]/90 backdrop-blur-sm p-1.5 rounded-lg border shadow-md">
+                  <button 
+                    onClick={() => document.getElementById('zoom-in-btn')?.click()}
+                    className="w-8 h-8 flex items-center justify-center font-bold text-lg rounded hover:bg-[hsl(var(--muted))]"
                   >
-                    {/* Aika pysyy lukittuna vasempaan reunaan swipatessa */}
-                    <div className="sticky left-0 z-40 text-center font-bold text-[11px] md:text-xs text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] border-r border-[hsl(var(--border))] py-1">
-                      {tx.time}
-                    </div>
-                    {/* Radat */}
-                    {parsed.laneColumns.map((lane) => {
-                      return (
-                        <div key={lane.label} className="border-l border-[hsl(var(--border))] pl-3 font-bold text-[11px] md:text-xs text-[hsl(var(--foreground))] uppercase tracking-wider">
-                          {lane.label}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* DATARIVIT */}
-                  <div className="divide-y divide-[hsl(var(--border))]/60">
-                    {parsed.laneRows.map((row) => (
-                      <div
-                        key={row.id}
-                        className="grid items-stretch hover:bg-[hsl(var(--muted))]/5 transition-colors group"
-                        style={{ gridTemplateColumns: laneGridTemplate }}
-                      >
-                        {/* Kellonaika (Pysyy paikoillaan vasemmassa reunassa) */}
-                        <div className="sticky left-0 z-20 h-full text-center font-bold text-xs md:text-sm tracking-wide text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-1 shadow-[1px_0_0_0_hsl(var(--border))] flex items-center justify-center">
-                          <span>{row.time || '-'}</span>
-                        </div>
-
-                        {/* Radat rinnakkain */}
-                        {row.slots.map((slot, slotIdx) => {
-                          const isAssigned = !!slot.shooter;
-                          const onParillinenSarake = slotIdx % 2 === 1;
-                          const shooterNumber = toShooterNumber(slot.number);
-                          const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
-                          const hasGroupColor = Number.isInteger(groupIndex);
-                          const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
-
-                          return (
-                            <div
-                              key={`${row.id}-${slot.lane}`}
-                              className={`border-l border-[hsl(var(--border))] px-3 py-1.5 h-full flex flex-col justify-center transition-all ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
-                              style={cellStyle}
-                            >
-                              {/* KORJAUS 2: items-start ja nimen max-width varmistavat, 
-                                että teksti rivittyy kauniisti numeron viereen ilman litistymistä.
-                              */}
-                              <div className="flex items-start gap-1.5 min-w-0 w-full">
-                                {slot.number && (
-                                  <span className="font-mono text-[10px] md:text-[11px] font-bold text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/80 px-1 py-0.5 rounded shrink-0 mt-0.5 leading-none">
-                                    {slot.number}
-                                  </span>
-                                )}
-                                <span className={`text-[11px] md:text-xs break-words line-clamp-2 leading-tight flex-1 ${
-                                  isAssigned 
-                                    ? 'font-medium text-[hsl(var(--foreground))]' 
-                                    : 'text-[hsl(var(--muted-foreground))] italic opacity-40'
-                                }`}>
-                                  {slot.shooter || '-'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-
+                    +
+                  </button>
+                  <button 
+                    onClick={() => document.getElementById('zoom-out-btn')?.click()}
+                    className="w-8 h-8 flex items-center justify-center font-bold text-lg rounded hover:bg-[hsl(var(--muted))]"
+                  >
+                    −
+                  </button>
+                  <button 
+                    onClick={() => document.getElementById('zoom-reset-btn')?.click()}
+                    className="px-2 h-8 flex items-center justify-center text-xs font-medium rounded hover:bg-[hsl(var(--muted))]"
+                  >
+                    Mobiili / Nollaa
+                  </button>
                 </div>
+
+                <TransformWrapper
+                  initialScale={1}
+                  minScale={0.5}
+                  maxScale={3}
+                  centerOnInit={false}
+                  disabled={false}
+                  // Tuplaklikkaus nollaa zoomin
+                  doubleClick={{ mode: "reset" }} 
+                  panning={{ velocityDisabled: false }}
+                >
+                  {({ zoomIn, zoomOut, resetTransform }) => (
+                    <>
+                      {/* Piilotetut triggerit napeille */}
+                      <button id="zoom-in-btn" onClick={() => zoomIn()} className="hidden" />
+                      <button id="zoom-out-btn" onClick={() => zoomOut()} className="hidden" />
+                      <button id="zoom-reset-btn" onClick={() => resetTransform()} className="hidden" />
+
+                      <TransformComponent wrapperClass="!w-full !max-h-[70vh]">
+                        
+                        {/* KANGAS (Tänne piirretään koko taulukko täydessä koossaan)
+                            Koska kangasta voi zoomata, voimme antaa sille reilusti leveyttä (esim. min-w-[1000px]), 
+                            jolloin nimet mahtuvat AINA yhdelle riville ilman katkeamista! 
+                        */}
+                        <div className="min-w-[1000px] divide-y divide-[hsl(var(--border))] bg-[hsl(var(--card))]">
+                          
+                          {/* RYHMÄLEGENDAT */}
+                          {parsed.groupCount > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 text-[11px] bg-[hsl(var(--muted))]/10 border-b">
+                              {Array.from({ length: parsed.groupCount }).map((_, idx) => {
+                                const range = parsed.groupRanges?.[idx];
+                                const rangeLabel = range ? ` (${range.start}-${range.end})` : '';
+                                return (
+                                  <span
+                                    key={`group-legend-${idx}`}
+                                    className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold text-[hsl(var(--foreground))]"
+                                    style={getGroupCellStyle(idx)}
+                                  >
+                                    {tx.group} {idx + 1}{rangeLabel}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* OTSIKKORIVI */}
+                          <div
+                            className="grid bg-[hsl(var(--muted))] font-bold text-xs items-center py-2.5"
+                            style={{ gridTemplateColumns: laneGridTemplate }}
+                          >
+                            <div className="text-center font-bold text-xs text-[hsl(var(--foreground))] px-2">
+                              {tx.time}
+                            </div>
+                            {parsed.laneColumns.map((lane) => (
+                              <div key={lane.label} className="border-l border-[hsl(var(--border))] pl-3 font-bold text-xs text-[hsl(var(--foreground))] uppercase tracking-wider">
+                                {lane.label}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* DATARIVIT */}
+                          <div className="divide-y divide-[hsl(var(--border))]/60">
+                            {parsed.laneRows.map((row) => (
+                              <div
+                                key={row.id}
+                                className="grid items-center hover:bg-[hsl(var(--muted))]/5 transition-colors"
+                                style={{ gridTemplateColumns: laneGridTemplate }}
+                              >
+                                {/* Kellonaika */}
+                                <div className="text-center font-bold text-xs md:text-sm tracking-wide text-[hsl(var(--foreground))] py-3 bg-[hsl(var(--muted))]/10 font-mono px-2">
+                                  {row.time || '-'}
+                                </div>
+
+                                {/* Radat rinnakkain */}
+                                {row.slots.map((slot, slotIdx) => {
+                                  const isAssigned = !!slot.shooter;
+                                  const onParillinenSarake = slotIdx % 2 === 1;
+                                  const shooterNumber = toShooterNumber(slot.number);
+                                  const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
+                                  const hasGroupColor = Number.isInteger(groupIndex);
+                                  const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
+
+                                  return (
+                                    <div
+                                      key={`${row.id}-${slot.lane}`}
+                                      className={`border-l border-[hsl(var(--border))] px-3 py-2 h-full flex flex-col justify-center ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                                      style={cellStyle}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 w-full">
+                                        {slot.number && (
+                                          <span className="font-mono text-[10px] md:text-[11px] font-bold text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/80 px-1 py-0.5 rounded shrink-0 leading-none">
+                                            {slot.number}
+                                          </span>
+                                        )}
+                                        {/* Koska tilaa on nyt zoomin ansiosta reilusti, otetaan line-clamp kokonaan pois! */}
+                                        <span className={`text-xs whitespace-nowrap ${
+                                          isAssigned 
+                                            ? 'font-medium text-[hsl(var(--foreground))]' 
+                                            : 'text-[hsl(var(--muted-foreground))] italic opacity-30'
+                                        }`}>
+                                          {slot.shooter || '-'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </div>
+
+                        </div>
+                      </TransformComponent>
+                    </>
+                  )}
+                </TransformWrapper>
               </div>
             </>
           ) : (
