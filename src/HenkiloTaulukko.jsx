@@ -8,7 +8,6 @@ import {
 } from './utils/henkiloTulokset';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './components/ui/table';
 import { cn } from './lib/utils';
 
 export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
@@ -219,6 +218,21 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     sarjaDragRef.current.moved = false;
   };
 
+  const rankColWidth = kaytaKompaktiTilaa ? 42 : (onMobiili ? 52 : 64);
+  const nameColWidth = kaytaKompaktiTilaa ? 112 : (onMobiili ? 148 : 240);
+  const stickyRankStyle = {
+    left: 0,
+    width: `${rankColWidth}px`,
+    minWidth: `${rankColWidth}px`,
+    maxWidth: `${rankColWidth}px`
+  };
+  const stickyNameStyle = {
+    left: `${rankColWidth}px`,
+    width: `${nameColWidth}px`,
+    minWidth: `${nameColWidth}px`,
+    maxWidth: `${nameColWidth}px`
+  };
+
   const kokoLuokka = onMobiili ? (kaytaKompaktiTilaa ? 'compact' : 'mobile') : 'desktop';
 
   const otsikkoLuokka = (tyyppi) => {
@@ -335,25 +349,52 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       </CardHeader>
 
       <CardContent className="pt-0">
-      <div className="w-full overflow-x-auto rounded-md border border-slate-200 shadow-sm">
-        <Table className="w-full border-collapse bg-white">
-          <TableHeader>
-            <TableRow>
-              <TableHead className={otsikkoLuokka('fixed')}>{tx.rank}</TableHead>
-              <TableHead className={cn(otsikkoLuokka('fixed'), 'text-left', kaytaKompaktiTilaa ? 'min-w-[70px]' : (onMobiili ? 'min-w-[96px]' : 'min-w-[160px]'))}>{tx.name}</TableHead>
-              {!kaytaKompaktiTilaa && <TableHead className={otsikkoLuokka('fixed')}>{tx.classLabel}</TableHead>}
-              <TableHead className={otsikkoLuokka('sum')}>{tx.total}</TableHead>
-              {naytaRatkoSarake && <TableHead className={otsikkoLuokka('ratko')}>Ratko</TableHead>}
+      <div className="relative isolate w-full max-h-[70vh] overflow-auto overscroll-contain rounded-md border border-slate-200 shadow-sm">
+        <table className="w-full border-separate border-spacing-0 bg-white text-sm">
+          <thead className="[&_tr]:border-b">
+            <tr className="border-b border-[hsl(var(--border))]">
+              <th
+                className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-50 border-r border-slate-200 bg-slate-50')}
+                style={stickyRankStyle}
+              >
+                {tx.rank}
+              </th>
+              <th
+                className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-50 border-r border-slate-200 text-left bg-slate-50')}
+                style={stickyNameStyle}
+              >
+                {tx.name}
+              </th>
+              {!kaytaKompaktiTilaa && <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-40')}>{tx.classLabel}</th>}
+              <th className={cn(otsikkoLuokka('sum'), 'sticky top-0 z-40')}>{tx.total}</th>
+              {naytaRatkoSarake && <th className={cn(otsikkoLuokka('ratko'), 'sticky top-0 z-40')}>Ratko</th>}
               {radatList.map(n => (
-                <TableHead key={n} className={cn(otsikkoLuokka('stage'), kaytaKompaktiTilaa ? 'min-w-[18px]' : (onMobiili ? 'min-w-[22px]' : 'min-w-[32px]'))}>R{n}</TableHead>
+                <th
+                  key={n}
+                  className={cn(
+                    otsikkoLuokka('stage'),
+                    'sticky top-0 z-40',
+                    kaytaKompaktiTilaa ? 'min-w-[18px]' : (onMobiili ? 'min-w-[22px]' : 'min-w-[32px]')
+                  )}
+                >
+                  R{n}
+                </th>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+            </tr>
+          </thead>
+          <tbody>
             {naytettavatAmpujat.map((ampuja) => (
-              <TableRow key={ampuja.id}>
-                <TableCell className={soluLuokka('rank')}>{ampuja.laskettuSija}</TableCell>
-                <TableCell className={soluLuokka('name')}>
+              <tr key={ampuja.id} className="border-b border-[hsl(var(--border))]">
+                <td
+                  className={cn(soluLuokka('rank'), 'sticky left-0 z-30 border-r border-slate-200 bg-slate-50')}
+                  style={stickyRankStyle}
+                >
+                  {ampuja.laskettuSija}
+                </td>
+                <td
+                  className={cn(soluLuokka('name'), 'sticky z-30 border-r border-slate-200 bg-white')}
+                  style={stickyNameStyle}
+                >
                   <span className="inline-flex items-center gap-1.5">
                     {muotoileNimiTaulukkoon(ampuja.nimi)}
                     {naytaValmiusIndikaattori && (
@@ -366,11 +407,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                       />
                     )}
                   </span>
-                </TableCell>
-                {!kaytaKompaktiTilaa && <TableCell className={soluLuokka('series')}>{ampuja.sarja}</TableCell>}
-                <TableCell className={soluLuokka('sum')}>{ampuja.kokonaistulos}</TableCell>
+                </td>
+                {!kaytaKompaktiTilaa && <td className={soluLuokka('series')}>{ampuja.sarja}</td>}
+                <td className={soluLuokka('sum')}>{ampuja.kokonaistulos}</td>
                 {naytaRatkoSarake && (
-                  <TableCell className={soluLuokka('ratko')}>
+                  <td className={soluLuokka('ratko')}>
                     {(() => {
                       const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
                       return ampuja.ratkoNaytto.statusEtiketit.length > 0 || (naytaRatko && ampuja.ratkoNaytto.teksti) ? (
@@ -384,7 +425,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                       </span>
                       ) : '-';
                     })()}
-                  </TableCell>
+                  </td>
                 )}
 
                 {radatList.map(n => {
@@ -396,7 +437,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                   const onkoToiseksiParas = !isNaN(pisteNum) && maksimiTulos !== undefined && naytaToiseksiParas && pisteNum === (maksimiTulos - 1);
 
                   return (
-                    <TableCell
+                    <td
                       key={n}
                       className={cn(
                         soluLuokka('stage'),
@@ -408,14 +449,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                       )}
                     >
                       {pisteArvo}
-                    </TableCell>
+                    </td>
                   );
                 })}
 
-              </TableRow>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
       </CardContent>
     </Card>
