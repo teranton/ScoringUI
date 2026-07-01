@@ -3,8 +3,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
-import RyhmaJako from './RyhmaJako';
 import Ilmoittautuneet from './Ilmoittautuneet';
+import AikatauluNakyma from './AikatauluNakyma';
 import { parseCsvRows } from './utils/csv';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Button } from './components/ui/button';
@@ -190,7 +190,7 @@ export default function App() {
         results: 'Results',
         table: 'Table',
         registrations: 'Registrations',
-        heatList: 'Heat List',
+        timetable: 'Timetable',
         teamResults: 'Team Results',
         themeLabel: 'Theme',
         themeDefault: 'Default',
@@ -208,7 +208,7 @@ export default function App() {
       results: 'Tulokset',
       table: 'Taulukko',
       registrations: 'Ilmoittautuneet',
-      heatList: 'Erälista',
+      timetable: 'Aikataulu',
       teamResults: 'Joukkuetulokset',
       themeLabel: 'Teema',
       themeDefault: 'Oletus',
@@ -384,7 +384,7 @@ useEffect(() => {
       }
 
       const startTime = performance.now();
-      const sivut = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT'];
+      const sivut = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu'];
       
       const params = new URLSearchParams();
       params.append('mode', 'batchCsv');
@@ -409,6 +409,7 @@ useEffect(() => {
           joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
           eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
           ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
+          aikatauluCsvRaw: csvByName['Aikataulu'] || csvByName['Timetable'] || vanhaData.aikatauluCsvRaw || "",
           speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || ""
         }
       }));
@@ -492,6 +493,8 @@ useEffect(() => {
   const onkoTuloksetSallittu = !onkoKisaTulossa;
   const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
   const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
+  const onkoAikataulua = nykyisenKisanData?.aikatauluCsvRaw?.trim().length > 10;
+  const onkoAikatauluSallittu = onkoAikataulua && !onkoKisaPaattynyt;
   const onkoJoukkueTuloksetSallittu = valittuKisa
     ? (valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi))
     : false;
@@ -503,13 +506,18 @@ useEffect(() => {
   useEffect(() => {
     if (!valittuKisa) return;
 
-    if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'erakirjaus') {
-      setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : 'erakirjaus');
+    if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'aikataulu') {
+      setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet'));
       return;
     }
 
     if (!onkoIlmoittautuneita && aktiivinenSivu === 'ilmoittautuneet') {
-      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
+      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet'));
+      return;
+    }
+
+    if (!onkoAikatauluSallittu && aktiivinenSivu === 'aikataulu') {
+      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'ilmoittautuneet');
       return;
     }
 
@@ -524,10 +532,11 @@ useEffect(() => {
     }
 
     if (!onkoJoukkueKisa && aktiivinenSivu === 'joukkueet') {
-      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'erakirjaus');
+      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet'));
     }
   }, [
     aktiivinenSivu,
+    onkoAikatauluSallittu,
     onkoIlmoittautuneita,
     onkoJoukkueKisa,
     onkoKisaPaattynyt,
@@ -597,7 +606,6 @@ useEffect(() => {
   }
 
   // --- NÄKYMÄ 2: VALITUN KISAN NÄKYMÄ ---
-  const onkoEraluetteloa = !onkoKisaPaattynyt;
   const onkoTaulukkoNakyma = aktiivinenSivu === 'taulukko';
   const kilpailuNakymaMaxWidth = onkoTaulukkoNakyma ? 'min(96vw, 1320px)' : '560px';
 
@@ -619,7 +627,7 @@ useEffect(() => {
             </div>
             */}
           </div>
-          <CardTitle className="text-2xl font-extrabold tracking-tight">
+          <CardTitle className="text-2xl font-bold tracking-normal">
             {valittuKisa.nimi} {ladataanKisaa && <span className="text-[hsl(var(--muted-foreground))]">↻</span>}
           </CardTitle>
           <CardDescription>
@@ -639,8 +647,8 @@ useEffect(() => {
         {onkoIlmoittautuneita && (
           <Button onClick={() => setAktiivinenSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm">{tx.registrations}</Button>
         )}
-        {onkoEraluetteloa && (
-          <Button onClick={() => setAktiivinenSivu('erakirjaus')} variant={aktiivinenSivu === 'erakirjaus' ? 'default' : 'outline'} size="sm">{tx.heatList}</Button>
+        {onkoAikatauluSallittu && (
+          <Button onClick={() => setAktiivinenSivu('aikataulu')} variant={aktiivinenSivu === 'aikataulu' ? 'default' : 'outline'} size="sm">{tx.timetable}</Button>
         )}
         {onkoJoukkueKisa && (
           <Button onClick={() => setAktiivinenSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm">{tx.teamResults}</Button>
@@ -667,10 +675,8 @@ useEffect(() => {
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} locale={locale} />
           )}
-          {aktiivinenSivu === 'erakirjaus' && onkoEraluetteloa && (
-            <div>
-              <RyhmaJako data={nykyisenKisanData} locale={locale} />
-            </div>
+          {aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && (
+            <AikatauluNakyma rawCsv={nykyisenKisanData.aikatauluCsvRaw} locale={locale} />
           )}
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
             <div>
