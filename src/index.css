@@ -140,6 +140,11 @@ body,
   min-height: 100%;
 }
 
+html {
+  /* Keep layout width stable when vertical scrollbar appears/disappears. */
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

@@ -1,5 +1,5 @@
 // src/HenkiloTulokset.jsx
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
@@ -14,6 +14,13 @@ import { cn } from './lib/utils';
 export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
+  const sarjaScrollRef = useRef(null);
+  const sarjaDragRef = useRef({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+    moved: false
+  });
 
   // 1. Parsitaan asemakohtaiset speksit KISANSPEKSIT-datasta (asema, maksimi, toiseksi paras käytössä)
   const { asemaMaksimit, asemaToiseksiParasKaytossa } = useMemo(() => {
@@ -155,12 +162,56 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
+  const onSarjaPointerDown = (event) => {
+    const container = sarjaScrollRef.current;
+    if (!container) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    sarjaDragRef.current.isDown = true;
+    sarjaDragRef.current.startX = event.clientX;
+    sarjaDragRef.current.scrollLeft = container.scrollLeft;
+    sarjaDragRef.current.moved = false;
+  };
+
+  const onSarjaPointerMove = (event) => {
+    const container = sarjaScrollRef.current;
+    const state = sarjaDragRef.current;
+    if (!container || !state.isDown) return;
+
+    const deltaX = event.clientX - state.startX;
+    if (Math.abs(deltaX) > 4) {
+      state.moved = true;
+    }
+    container.scrollLeft = state.scrollLeft - deltaX;
+  };
+
+  const onSarjaPointerUp = (event) => {
+    sarjaDragRef.current.isDown = false;
+  };
+
+  const onSarjaClickCapture = (event) => {
+    if (!sarjaDragRef.current.moved) return;
+    event.preventDefault();
+    event.stopPropagation();
+    sarjaDragRef.current.moved = false;
+  };
+
   return (
     <div className="w-full">
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+      <div
+        ref={sarjaScrollRef}
+        className="mb-3 flex cursor-grab gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [touch-action:pan-y] active:cursor-grabbing [&::-webkit-scrollbar]:hidden"
+        onPointerDown={onSarjaPointerDown}
+        onPointerMove={onSarjaPointerMove}
+        onPointerUp={onSarjaPointerUp}
+        onPointerCancel={onSarjaPointerUp}
+        onPointerLeave={onSarjaPointerUp}
+        onClickCapture={onSarjaClickCapture}
+      >
         <Button
           type="button"
           size="sm"
+          className="shrink-0"
           variant={sarjaSuodatin === 'OPEN (Y)' ? 'default' : 'outline'}
           onClick={() => { setSarjaSuodatin('OPEN (Y)'); setValittuAmpujaId(null); }}
         >
@@ -174,6 +225,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
               key={sarja}
               type="button"
               size="sm"
+              className="shrink-0"
               variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
               onClick={() => { setSarjaSuodatin(sarja); setValittuAmpujaId(null); }}
             >

@@ -619,7 +619,7 @@ useEffect(() => {
             </div>
             */}
           </div>
-          <CardTitle className="text-2xl">
+          <CardTitle className="text-2xl font-extrabold tracking-tight">
             {valittuKisa.nimi} {ladataanKisaa && <span className="text-[hsl(var(--muted-foreground))]">↻</span>}
           </CardTitle>
           <CardDescription>

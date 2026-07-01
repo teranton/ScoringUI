@@ -1,5 +1,5 @@
 // src/HenkiloTaulukko.jsx
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
@@ -15,6 +15,13 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
+  const sarjaScrollRef = useRef(null);
+  const sarjaDragRef = useRef({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+    moved: false
+  });
   const kaytaKompaktiTilaa = onMobiili && onkoKompaktiTila;
 
   // 1. PARSITAAN KISASPEKSIT (Ratojen määrä ja maksimit)
@@ -178,6 +185,40 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
+  const onSarjaPointerDown = (event) => {
+    const container = sarjaScrollRef.current;
+    if (!container) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    sarjaDragRef.current.isDown = true;
+    sarjaDragRef.current.startX = event.clientX;
+    sarjaDragRef.current.scrollLeft = container.scrollLeft;
+    sarjaDragRef.current.moved = false;
+  };
+
+  const onSarjaPointerMove = (event) => {
+    const container = sarjaScrollRef.current;
+    const state = sarjaDragRef.current;
+    if (!container || !state.isDown) return;
+
+    const deltaX = event.clientX - state.startX;
+    if (Math.abs(deltaX) > 4) {
+      state.moved = true;
+    }
+    container.scrollLeft = state.scrollLeft - deltaX;
+  };
+
+  const onSarjaPointerUp = (event) => {
+    sarjaDragRef.current.isDown = false;
+  };
+
+  const onSarjaClickCapture = (event) => {
+    if (!sarjaDragRef.current.moved) return;
+    event.preventDefault();
+    event.stopPropagation();
+    sarjaDragRef.current.moved = false;
+  };
+
   const kokoLuokka = onMobiili ? (kaytaKompaktiTilaa ? 'compact' : 'mobile') : 'desktop';
 
   const otsikkoLuokka = (tyyppi) => {
@@ -236,11 +277,21 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       <CardHeader className="gap-3 pb-3">
         <CardTitle className="text-lg">{tx.title}</CardTitle>
 
-        <div className="flex gap-2 overflow-x-auto">
+        <div
+          ref={sarjaScrollRef}
+          className="flex cursor-grab gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [touch-action:pan-y] active:cursor-grabbing [&::-webkit-scrollbar]:hidden"
+          onPointerDown={onSarjaPointerDown}
+          onPointerMove={onSarjaPointerMove}
+          onPointerUp={onSarjaPointerUp}
+          onPointerCancel={onSarjaPointerUp}
+          onPointerLeave={onSarjaPointerUp}
+          onClickCapture={onSarjaClickCapture}
+        >
         <Button
           type="button"
           onClick={() => setSarjaSuodatin('OPEN (Y)')}
           size="sm"
+          className="shrink-0"
           variant={sarjaSuodatin === 'OPEN (Y)' ? 'default' : 'outline'}
         >
           OPEN (Y)
@@ -253,6 +304,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               type="button"
               onClick={() => setSarjaSuodatin(sarja)}
               size="sm"
+              className="shrink-0"
               variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
             >
               {sarja}
