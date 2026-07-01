@@ -344,11 +344,10 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
         <CardContent className="p-0">
           {parsed.mode === 'lane-grid' ? (
             <>
-              {/* TYÖPÖYTÄNÄKYMÄ (TABLE GRID) */}
-              {/* OPTIMOITU GRID-TAULUKKO (SÄILYTTÄÄ PYSTY- JA SIVUSUUNTAISEN JATKUMON) */}
+              {/* TYÖPÖYTÄ- JA MOBIILINÄKYMÄ (SÄILYTTÄÄ PYSTY- JA SIVUSUUNTAISEN JATKUMON) */}
               <div
                 ref={laneScrollRef}
-                className="relative isolate w-full max-h-[68vh] overflow-auto overscroll-contain select-none cursor-grab active:cursor-grabbing"
+                className="relative isolate w-full max-h-[68vh] overflow-auto overscroll-contain select-none cursor-grab active:cursor-grabbing sidebar-scrollbar"
                 style={{ touchAction: 'pan-y' }}
                 onPointerDown={handleLanePointerDown}
                 onPointerMove={handleLanePointerMove}
@@ -356,22 +355,24 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                 onPointerCancel={handleLanePointerUp}
                 onClickCapture={handleLaneClickCapture}
               >
-                {/* Taulukon minimileveys pakotetaan, jotta nimet eivät koskaan puristu liian kapeiksi mobiilissakaan */}
-                <div className="min-w-[500px] divide-y divide-[hsl(var(--border))]">
+                {/* KORJAUS 1: Nostettu minimileveys vähintään 850 pikseliin. 
+                  Tämä varmistaa, että jokaiselle radalle jää aina ~200px tilaa, jolloin nimet mahtuvat!
+                */}
+                <div className="min-w-[850px] divide-y divide-[hsl(var(--border))]">
 
                   {parsed.groupCount > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 text-[11px] border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/10">
+                    <div className="sticky left-0 z-50 flex flex-wrap items-center gap-1.5 px-3 py-2 text-[11px] border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/10">
                       {Array.from({ length: parsed.groupCount }).map((_, idx) => {
                         const range = parsed.groupRanges?.[idx];
                         const rangeLabel = range ? ` (${range.start}-${range.end})` : '';
                         return (
-                        <span
-                          key={`group-legend-${idx}`}
-                          className="inline-flex items-center rounded-full px-1.5 py-0.5 font-semibold text-[hsl(var(--foreground))]"
-                          style={getGroupCellStyle(idx)}
-                        >
-                          {tx.group} {idx + 1}{rangeLabel}
-                        </span>
+                          <span
+                            key={`group-legend-${idx}`}
+                            className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold text-[hsl(var(--foreground))]"
+                            style={getGroupCellStyle(idx)}
+                          >
+                            {tx.group} {idx + 1}{rangeLabel}
+                          </span>
                         );
                       })}
                     </div>
@@ -379,17 +380,17 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
 
                   {/* OTSIKKORIVI */}
                   <div
-                    className="sticky top-0 z-30 grid bg-[hsl(var(--muted))] font-bold text-xs items-center py-1.5"
+                    className="sticky top-0 z-30 grid bg-[hsl(var(--muted))] font-bold text-xs items-center py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
                     style={{ gridTemplateColumns: laneGridTemplate }}
                   >
-                    {/* Aika saa 2/12 osaa tilasta */}
-                    <div className="sticky left-0 z-40 text-center text-[10px] md:text-xs text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] border-r border-[hsl(var(--border))] px-0.5 md:px-1">
+                    {/* Aika pysyy lukittuna vasempaan reunaan swipatessa */}
+                    <div className="sticky left-0 z-40 text-center font-bold text-[11px] md:text-xs text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] border-r border-[hsl(var(--border))] py-1">
                       {tx.time}
                     </div>
-                    {/* Radat jakavat loput 10/12 osaa dynaamisesti sarakkeittain */}
+                    {/* Radat */}
                     {parsed.laneColumns.map((lane) => {
                       return (
-                        <div key={lane.label} className="border-l border-[hsl(var(--border))] pl-1.5 md:pl-2 text-[10px] md:text-xs text-[hsl(var(--foreground))]">
+                        <div key={lane.label} className="border-l border-[hsl(var(--border))] pl-3 font-bold text-[11px] md:text-xs text-[hsl(var(--foreground))] uppercase tracking-wider">
                           {lane.label}
                         </div>
                       );
@@ -404,40 +405,46 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                         className="grid items-center hover:bg-[hsl(var(--muted))]/5 transition-colors group"
                         style={{ gridTemplateColumns: laneGridTemplate }}
                       >
-                          {/* Kellonaika (AINA SAMALLA RIVILLÄ ALAKKAIN) */}
-                          <div className="sticky left-0 z-10 text-center font-semibold text-[11px] md:text-sm tracking-normal text-[hsl(var(--foreground))] py-1 md:py-1.5 bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-0.5 md:px-1 leading-tight">
-                            {row.time || '-'}
-                          </div>
+                        {/* Kellonaika (Pysyy paikoillaan vasemmassa reunassa) */}
+                        <div className="sticky left-0 z-20 text-center font-bold text-xs md:text-sm tracking-wide text-[hsl(var(--foreground))] py-2.5 bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-1 shadow-[1px_0_0_0_hsl(var(--border))]">
+                          {row.time || '-'}
+                        </div>
 
-                          {/* Radat rinnakkain (AINA KOHDAKKAIN VIEREKKÄIN) */}
-                          {row.slots.map((slot, slotIdx) => {
-                            const isAssigned = !!slot.shooter;
-                            const onParillinenSarake = slotIdx % 2 === 1;
-                            const shooterNumber = toShooterNumber(slot.number);
-                            const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
-                            const hasGroupColor = Number.isInteger(groupIndex);
-                            const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
+                        {/* Radat rinnakkain */}
+                        {row.slots.map((slot, slotIdx) => {
+                          const isAssigned = !!slot.shooter;
+                          const onParillinenSarake = slotIdx % 2 === 1;
+                          const shooterNumber = toShooterNumber(slot.number);
+                          const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
+                          const hasGroupColor = Number.isInteger(groupIndex);
+                          const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
 
-                            return (
-                              <div
-                                key={`${row.id}-${slot.lane}`}
-                                className={`border-l border-[hsl(var(--border))] px-1.5 md:px-2 py-0.5 md:py-1 h-full flex flex-col justify-center transition-all ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
-                                style={cellStyle}
-                              >
-                                <div className="flex items-center gap-1 min-w-0">
-                                  {slot.number && (
-                                    <span className="font-mono text-[9px] md:text-[10px] font-semibold text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/60 px-0.5 md:px-1 py-0 rounded shrink-0 leading-tight">
-                                      {slot.number}
-                                    </span>
-                                  )}
-                                  {/* Poistettu truncate, sallitaan nimen rivittyminen jos se on todella pitkä, jotta etunimikin näkyy */}
-                                  <span className={`text-[11px] md:text-xs break-words line-clamp-2 leading-tight ${isAssigned ? 'font-semibold text-[hsl(var(--foreground))]' : 'text-[hsl(var(--muted-foreground))] italic'}`}>
-                                    {slot.shooter || '-'}
+                          return (
+                            <div
+                              key={`${row.id}-${slot.lane}`}
+                              className={`border-l border-[hsl(var(--border))] px-3 py-1.5 h-full flex flex-col justify-center transition-all ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                              style={cellStyle}
+                            >
+                              {/* KORJAUS 2: items-start ja nimen max-width varmistavat, 
+                                että teksti rivittyy kauniisti numeron viereen ilman litistymistä.
+                              */}
+                              <div className="flex items-start gap-1.5 min-w-0 w-full">
+                                {slot.number && (
+                                  <span className="font-mono text-[10px] md:text-[11px] font-bold text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/80 px-1 py-0.5 rounded shrink-0 mt-0.5 leading-none">
+                                    {slot.number}
                                   </span>
-                                </div>
+                                )}
+                                <span className={`text-[11px] md:text-xs break-words line-clamp-2 leading-tight flex-1 ${
+                                  isAssigned 
+                                    ? 'font-medium text-[hsl(var(--foreground))]' 
+                                    : 'text-[hsl(var(--muted-foreground))] italic opacity-40'
+                                }`}>
+                                  {slot.shooter || '-'}
+                                </span>
                               </div>
-                            );
-                          })}
+                            </div>
+                          );
+                        })}
                       </div>
                     ))}
                   </div>
