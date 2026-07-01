@@ -25,6 +25,73 @@ function isLaneHeader(value) {
   return /^RATA\s*\d+$/.test(text) || /^LANE\s*\d+$/.test(text);
 }
 
+function toShooterNumber(value) {
+  const text = String(value || '').trim();
+  const m = text.match(/\d+/);
+  if (!m) return null;
+  const parsed = parseInt(m[0], 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildGroupMeta(laneRows, laneCount) {
+  const numberSet = new Set();
+
+  for (const row of laneRows) {
+    for (const slot of row.slots || []) {
+      const shooterNumber = toShooterNumber(slot?.number);
+      if (shooterNumber === null) continue;
+      numberSet.add(shooterNumber);
+    }
+  }
+
+  if (numberSet.size === 0) {
+    return { numberGroupMap: new Map(), groupCount: 0, groupRanges: [] };
+  }
+
+  const numbers = Array.from(numberSet).sort((a, b) => a - b);
+  const totalCount = numbers.length;
+  const groupCount = Math.max(1, Math.min(laneCount || 1, totalCount));
+  const baseSize = Math.floor(totalCount / groupCount);
+  const extra = totalCount % groupCount;
+
+  const groupRanges = [];
+  let cursor = 0;
+  for (let groupIdx = 0; groupIdx < groupCount; groupIdx++) {
+    const size = baseSize + (groupIdx < extra ? 1 : 0);
+    const start = numbers[cursor];
+    const end = numbers[cursor + size - 1];
+    groupRanges.push({ start, end });
+    cursor += size;
+  }
+
+  const numberGroupMap = new Map();
+  let rangeIdx = 0;
+  for (const n of numbers) {
+    while (rangeIdx < groupRanges.length - 1 && n > groupRanges[rangeIdx].end) {
+      rangeIdx += 1;
+    }
+    numberGroupMap.set(n, rangeIdx);
+  }
+
+  return { numberGroupMap, groupCount, groupRanges };
+}
+
+function getGroupCellStyle(groupIndex) {
+  const palettes = [
+    { bg: 'hsla(10, 92%, 86%, 0.45)', border: 'hsla(10, 70%, 48%, 0.28)' },
+    { bg: 'hsla(210, 90%, 86%, 0.45)', border: 'hsla(210, 74%, 45%, 0.28)' },
+    { bg: 'hsla(138, 70%, 84%, 0.45)', border: 'hsla(138, 54%, 38%, 0.28)' },
+    { bg: 'hsla(48, 95%, 82%, 0.45)', border: 'hsla(42, 78%, 44%, 0.3)' },
+    { bg: 'hsla(286, 80%, 88%, 0.42)', border: 'hsla(286, 52%, 45%, 0.28)' },
+    { bg: 'hsla(186, 78%, 84%, 0.45)', border: 'hsla(186, 62%, 38%, 0.28)' }
+  ];
+  const style = palettes[groupIndex % palettes.length];
+  return {
+    backgroundColor: style.bg,
+    borderLeftColor: style.border
+  };
+}
+
 export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   const tx = locale === 'en'
     ? {
@@ -32,6 +99,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
       empty: 'No timetable rows found.',
       lane: 'Lane',
       time: 'Time',
+      group: 'Group',
       end: 'End',
       event: 'Event',
       location: 'Location',
@@ -42,6 +110,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
       empty: 'Aikataulurivejä ei löytynyt.',
       lane: 'Rata',
       time: 'Aika',
+      group: 'Ryhmä',
       end: 'Loppu',
       event: 'Tapahtuma',
       location: 'Paikka',
@@ -128,7 +197,17 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
       });
 
       laneRows.sort((a, b) => toSortValue(a.time) - toSortValue(b.time));
-      return { mode: 'lane-grid', titleSuffix, events: [], laneColumns, laneRows };
+      const { numberGroupMap, groupCount, groupRanges } = buildGroupMeta(laneRows, laneColumns.length);
+      return {
+        mode: 'lane-grid',
+        titleSuffix,
+        events: [],
+        laneColumns,
+        laneRows,
+        numberGroupMap,
+        groupCount,
+        groupRanges
+      };
     }
 
     const headers = (rows[0] || []).map(normalizeHeader);
@@ -175,7 +254,16 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
     }
 
     events.sort((a, b) => toSortValue(a.time) - toSortValue(b.time));
-    return { mode: 'events', titleSuffix, events, laneColumns: [], laneRows: [] };
+    return {
+      mode: 'events',
+      titleSuffix,
+      events,
+      laneColumns: [],
+      laneRows: [],
+      numberGroupMap: new Map(),
+      groupCount: 0,
+      groupRanges: []
+    };
   }, [rawCsv]);
 
   if (parsed.mode === 'empty' || (parsed.mode === 'events' && parsed.events.length === 0) || (parsed.mode === 'lane-grid' && parsed.laneRows.length === 0)) {
@@ -203,6 +291,24 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
               <div className="w-full overflow-x-auto select-none">
                 {/* Taulukon minimileveys pakotetaan, jotta nimet eivät koskaan puristu liian kapeiksi mobiilissakaan */}
                 <div className="min-w-[750px] divide-y divide-[hsl(var(--border))]">
+
+                  {parsed.groupCount > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/10">
+                      {Array.from({ length: parsed.groupCount }).map((_, idx) => {
+                        const range = parsed.groupRanges?.[idx];
+                        const rangeLabel = range ? ` (${range.start}-${range.end})` : '';
+                        return (
+                        <span
+                          key={`group-legend-${idx}`}
+                          className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold text-[hsl(var(--foreground))]"
+                          style={getGroupCellStyle(idx)}
+                        >
+                          {tx.group} {idx + 1}{rangeLabel}
+                        </span>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* OTSIKKORIVI */}
                   <div
@@ -240,11 +346,16 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                           {row.slots.map((slot, slotIdx) => {
                             const isAssigned = !!slot.shooter;
                             const onParillinenSarake = slotIdx % 2 === 1;
+                            const shooterNumber = toShooterNumber(slot.number);
+                            const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
+                            const hasGroupColor = Number.isInteger(groupIndex);
+                            const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
 
                             return (
                               <div
                                 key={`${row.id}-${slot.lane}`}
-                                className={`border-l border-[hsl(var(--border))] px-3 py-2 h-full flex flex-col justify-center transition-all ${onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                                className={`border-l border-[hsl(var(--border))] px-3 py-2 h-full flex flex-col justify-center transition-all ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                                style={cellStyle}
                               >
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   {slot.number && (
@@ -277,11 +388,16 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                       {row.slots.map((slot, slotIdx) => {
                         const isAssigned = !!slot.shooter;
                         const onParillinenSarake = slotIdx % 2 === 1;
+                        const shooterNumber = toShooterNumber(slot.number);
+                        const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
+                        const hasGroupColor = Number.isInteger(groupIndex);
+                        const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
 
                         return (
                           <div
                             key={`${row.id}-${slot.lane}`}
-                            className={`flex items-center justify-between gap-3 px-3 py-2 text-xs ${onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                            className={`flex items-center justify-between gap-3 px-3 py-2 text-xs ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                            style={cellStyle}
                           >
                             <span className="font-semibold text-[hsl(var(--muted-foreground))]">{slot.lane}</span>
                             <div className="text-right flex items-center gap-1.5">
