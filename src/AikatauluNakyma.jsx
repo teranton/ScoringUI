@@ -405,7 +405,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                         style={{ gridTemplateColumns: laneGridTemplate }}
                       >
                           {/* Kellonaika (AINA SAMALLA RIVILLÄ ALAKKAIN) */}
-                          <div className="sticky left-0 z-10 text-center font-semibold text-sm tracking-wide text-[hsl(var(--foreground))] py-1.5 bg-[hsl(var(--muted))]/70 font-mono border-r border-[hsl(var(--border))] backdrop-blur-[1px] px-1.5">
+                          <div className="sticky left-0 z-10 text-center font-semibold text-sm tracking-wide text-[hsl(var(--foreground))] py-1.5 bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-1.5">
                             {row.time || '-'}
                           </div>
 
