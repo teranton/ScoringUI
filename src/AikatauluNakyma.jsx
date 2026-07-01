@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
@@ -93,6 +93,53 @@ function getGroupCellStyle(groupIndex) {
 }
 
 export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
+  const laneScrollRef = useRef(null);
+  const laneDragRef = useRef({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+    moved: false
+  });
+
+  const handleLaneMouseDown = useCallback((event) => {
+    if (event.button !== 0) return;
+    const container = laneScrollRef.current;
+    if (!container) return;
+
+    const interactive = event.target.closest('button,a,input,textarea,select,label');
+    if (interactive) return;
+
+    laneDragRef.current.isDown = true;
+    laneDragRef.current.startX = event.clientX;
+    laneDragRef.current.scrollLeft = container.scrollLeft;
+    laneDragRef.current.moved = false;
+  }, []);
+
+  const handleLaneMouseMove = useCallback((event) => {
+    const container = laneScrollRef.current;
+    const state = laneDragRef.current;
+    if (!container || !state.isDown) return;
+
+    const deltaX = event.clientX - state.startX;
+    if (Math.abs(deltaX) > 3) {
+      state.moved = true;
+    }
+
+    container.scrollLeft = state.scrollLeft - deltaX;
+    event.preventDefault();
+  }, []);
+
+  const handleLaneMouseUp = useCallback(() => {
+    laneDragRef.current.isDown = false;
+  }, []);
+
+  const handleLaneClickCapture = useCallback((event) => {
+    if (!laneDragRef.current.moved) return;
+    event.preventDefault();
+    event.stopPropagation();
+    laneDragRef.current.moved = false;
+  }, []);
+
   const tx = locale === 'en'
     ? {
       title: 'Timetable',
@@ -288,7 +335,15 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
             <>
               {/* TYÖPÖYTÄNÄKYMÄ (TABLE GRID) */}
               {/* OPTIMOITU GRID-TAULUKKO (SÄILYTTÄÄ PYSTY- JA SIVUSUUNTAISEN JATKUMON) */}
-              <div className="w-full overflow-x-auto select-none">
+              <div
+                ref={laneScrollRef}
+                className="w-full overflow-x-auto select-none cursor-grab active:cursor-grabbing"
+                onMouseDown={handleLaneMouseDown}
+                onMouseMove={handleLaneMouseMove}
+                onMouseUp={handleLaneMouseUp}
+                onMouseLeave={handleLaneMouseUp}
+                onClickCapture={handleLaneClickCapture}
+              >
                 {/* Taulukon minimileveys pakotetaan, jotta nimet eivät koskaan puristu liian kapeiksi mobiilissakaan */}
                 <div className="min-w-[750px] divide-y divide-[hsl(var(--border))]">
 
@@ -316,7 +371,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                     style={{ gridTemplateColumns: laneGridTemplate }}
                   >
                     {/* Aika saa 2/12 osaa tilasta */}
-                    <div className="text-center text-[hsl(var(--foreground))]">
+                    <div className="sticky left-0 z-20 text-center text-[hsl(var(--foreground))] bg-[hsl(var(--muted))]/20 border-r border-[hsl(var(--border))]">
                       {tx.time}
                     </div>
                     {/* Radat jakavat loput 10/12 osaa dynaamisesti sarakkeittain */}
@@ -338,7 +393,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                         style={{ gridTemplateColumns: laneGridTemplate }}
                       >
                           {/* Kellonaika (AINA SAMALLA RIVILLÄ ALAKKAIN) */}
-                          <div className="text-center font-bold text-base tracking-wide text-[hsl(var(--foreground))] py-3 bg-[hsl(var(--muted))]/5 font-mono">
+                          <div className="sticky left-0 z-10 text-center font-bold text-base tracking-wide text-[hsl(var(--foreground))] py-3 bg-[hsl(var(--muted))]/70 font-mono border-r border-[hsl(var(--border))] backdrop-blur-[1px]">
                             {row.time || '-'}
                           </div>
 
