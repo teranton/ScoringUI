@@ -59,7 +59,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
 
     const laneHeaderRow = rows.find((row) => Array.isArray(row) && row.some(isLaneHeader));
     const laneColumns = [];
-    
+
     if (laneHeaderRow) {
       for (let i = 0; i < laneHeaderRow.length; i++) {
         if (!isLaneHeader(laneHeaderRow[i])) continue;
@@ -183,6 +183,9 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   }
 
   const title = parsed.titleSuffix ? `${tx.title} | ${parsed.titleSuffix}` : tx.title;
+  const laneGridTemplate = parsed.mode === 'lane-grid'
+    ? `minmax(5.5rem, 0.8fr) repeat(${parsed.laneColumns.length}, minmax(11rem, 1fr))`
+    : '';
 
   return (
     <div className="space-y-3">
@@ -196,55 +199,73 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
           {parsed.mode === 'lane-grid' ? (
             <>
               {/* TYÖPÖYTÄNÄKYMÄ (TABLE GRID) */}
-              <div className="hidden overflow-x-auto md:block">
-                <Table>
-                  <TableHeader className="bg-[hsl(var(--muted))]/10">
-                    <TableRow>
-                      <TableHead className="w-20 font-bold text-center text-[hsl(var(--foreground))]">{tx.time}</TableHead>
-                      {parsed.laneColumns.map((lane) => (
-                        <TableHead key={lane.label} className="min-w-44 font-bold text-[hsl(var(--foreground))] border-l">
-                          {lane.label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {parsed.laneRows.map((row) => (
-                      <TableRow key={row.id} className="hover:bg-[hsl(var(--muted))]/5 transition-colors">
-                        <TableCell className="font-bold text-base text-center tracking-wide text-[hsl(var(--foreground))] bg-[hsl(var(--muted))]/5">
-                          {row.time || '-'}
-                        </TableCell>
-                        {row.slots.map((slot) => {
-                          // REAALIAIKAINEN KOROSTUS: Jos ruudussa on ampuja, korostetaan se dynaamisesti keltaisella
-                          const isAssigned = !!slot.shooter;
+              {/* OPTIMOITU GRID-TAULUKKO (SÄILYTTÄÄ PYSTY- JA SIVUSUUNTAISEN JATKUMON) */}
+              <div className="w-full overflow-x-auto select-none">
+                {/* Taulukon minimileveys pakotetaan, jotta nimet eivät koskaan puristu liian kapeiksi mobiilissakaan */}
+                <div className="min-w-[750px] divide-y divide-[hsl(var(--border))]">
 
-                          return (
-                            <TableCell
-                              key={`${row.id}-${slot.lane}`}
-                              className={`border-l transition-all duration-150 ${isAssigned
-                                  ? 'bg-amber-50/60 dark:bg-amber-950/20 border-l-amber-500/60'
-                                  : 'border-l-[hsl(var(--border))]'
-                                }`}
-                            >
-                              <div className="flex items-baseline gap-2 max-w-[180px]">
-                                {slot.number && (
-                                  <span className="text-xs font-mono font-medium text-[hsl(var(--muted-foreground))] w-6 shrink-0">
-                                    {slot.number}
+                  {/* OTSIKKORIVI */}
+                  <div
+                    className="grid bg-[hsl(var(--muted))]/20 font-bold text-sm items-center py-2.5"
+                    style={{ gridTemplateColumns: laneGridTemplate }}
+                  >
+                    {/* Aika saa 2/12 osaa tilasta */}
+                    <div className="text-center text-[hsl(var(--foreground))]">
+                      {tx.time}
+                    </div>
+                    {/* Radat jakavat loput 10/12 osaa dynaamisesti sarakkeittain */}
+                    {parsed.laneColumns.map((lane) => {
+                      return (
+                        <div key={lane.label} className="border-l border-[hsl(var(--border))] pl-3 text-[hsl(var(--foreground))]">
+                          {lane.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* DATARIVIT */}
+                  <div className="divide-y divide-[hsl(var(--border))]/60">
+                    {parsed.laneRows.map((row) => (
+                      <div
+                        key={row.id}
+                        className="grid items-center hover:bg-[hsl(var(--muted))]/5 transition-colors group"
+                        style={{ gridTemplateColumns: laneGridTemplate }}
+                      >
+                          {/* Kellonaika (AINA SAMALLA RIVILLÄ ALAKKAIN) */}
+                          <div className="text-center font-bold text-base tracking-wide text-[hsl(var(--foreground))] py-3 bg-[hsl(var(--muted))]/5 font-mono">
+                            {row.time || '-'}
+                          </div>
+
+                          {/* Radat rinnakkain (AINA KOHDAKKAIN VIEREKKÄIN) */}
+                          {row.slots.map((slot, slotIdx) => {
+                            const isAssigned = !!slot.shooter;
+                            const onParillinenSarake = slotIdx % 2 === 1;
+
+                            return (
+                              <div
+                                key={`${row.id}-${slot.lane}`}
+                                className={`border-l border-[hsl(var(--border))] px-3 py-2 h-full flex flex-col justify-center transition-all ${onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {slot.number && (
+                                    <span className="font-mono text-xs font-semibold text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/60 px-1 py-0.5 rounded shrink-0">
+                                      {slot.number}
+                                    </span>
+                                  )}
+                                  {/* Poistettu truncate, sallitaan nimen rivittyminen jos se on todella pitkä, jotta etunimikin näkyy */}
+                                  <span className={`text-sm break-words line-clamp-2 ${isAssigned ? 'font-semibold text-[hsl(var(--foreground))]' : 'text-[hsl(var(--muted-foreground))] italic'}`}>
+                                    {slot.shooter || '-'}
                                   </span>
-                                )}
-                                <div className={`text-sm truncate ${isAssigned ? 'font-semibold text-amber-950 dark:text-amber-200' : 'text-[hsl(var(--muted-foreground))]'}`}>
-                                  {slot.shooter || '-'}
                                 </div>
                               </div>
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
+                            );
+                          })}
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  </div>
 
+                </div>
+              </div>
               {/* MOBIILINÄKYMÄ (RESPONSIIVISET KORTIT) */}
               <div className="p-3 space-y-2.5 md:hidden">
                 {parsed.laneRows.map((row) => (
@@ -253,19 +274,19 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                       {tx.time}: {row.time || '-'}
                     </div>
                     <div className="divide-y divide-[hsl(var(--border))]/50">
-                      {row.slots.map((slot) => {
+                      {row.slots.map((slot, slotIdx) => {
                         const isAssigned = !!slot.shooter;
+                        const onParillinenSarake = slotIdx % 2 === 1;
 
                         return (
                           <div
                             key={`${row.id}-${slot.lane}`}
-                            className={`flex items-center justify-between gap-3 px-3 py-2 text-xs ${isAssigned ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''
-                              }`}
+                            className={`flex items-center justify-between gap-3 px-3 py-2 text-xs ${onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
                           >
                             <span className="font-semibold text-[hsl(var(--muted-foreground))]">{slot.lane}</span>
                             <div className="text-right flex items-center gap-1.5">
                               {slot.number && <span className="font-mono text-[hsl(var(--muted-foreground))]">#{slot.number}</span>}
-                              <span className={`font-medium ${isAssigned ? 'font-semibold text-amber-950 dark:text-amber-200' : 'text-[hsl(var(--foreground))]'}`}>
+                              <span className={`font-medium ${isAssigned ? 'font-semibold text-[hsl(var(--foreground))]' : 'text-[hsl(var(--foreground))]'}`}>
                                 {slot.shooter || '-'}
                               </span>
                             </div>

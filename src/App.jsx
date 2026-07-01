@@ -606,8 +606,8 @@ useEffect(() => {
   }
 
   // --- NÄKYMÄ 2: VALITUN KISAN NÄKYMÄ ---
-  const onkoTaulukkoNakyma = aktiivinenSivu === 'taulukko';
-  const kilpailuNakymaMaxWidth = onkoTaulukkoNakyma ? 'min(96vw, 1320px)' : '560px';
+  const onkoLeveaNakyma = aktiivinenSivu === 'taulukko' || aktiivinenSivu === 'aikataulu';
+  const kilpailuNakymaMaxWidth = onkoLeveaNakyma ? 'min(96vw, 1320px)' : '560px';
 
   return (
     <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 bg-[hsl(var(--background))] px-4 py-6 text-[hsl(var(--foreground))]" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
