@@ -101,8 +101,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
     moved: false
   });
 
-  const handleLaneMouseDown = useCallback((event) => {
-    if (event.button !== 0) return;
+  const handleLanePointerDown = useCallback((event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     const container = laneScrollRef.current;
     if (!container) return;
 
@@ -113,9 +113,13 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
     laneDragRef.current.startX = event.clientX;
     laneDragRef.current.scrollLeft = container.scrollLeft;
     laneDragRef.current.moved = false;
+
+    if (typeof event.currentTarget.setPointerCapture === 'function') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
   }, []);
 
-  const handleLaneMouseMove = useCallback((event) => {
+  const handleLanePointerMove = useCallback((event) => {
     const container = laneScrollRef.current;
     const state = laneDragRef.current;
     if (!container || !state.isDown) return;
@@ -129,8 +133,15 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
     event.preventDefault();
   }, []);
 
-  const handleLaneMouseUp = useCallback(() => {
+  const handleLanePointerUp = useCallback((event) => {
     laneDragRef.current.isDown = false;
+    if (typeof event.currentTarget.releasePointerCapture === 'function') {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // Ignore if capture was not active.
+      }
+    }
   }, []);
 
   const handleLaneClickCapture = useCallback((event) => {
@@ -337,11 +348,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
               {/* OPTIMOITU GRID-TAULUKKO (SÄILYTTÄÄ PYSTY- JA SIVUSUUNTAISEN JATKUMON) */}
               <div
                 ref={laneScrollRef}
-                className="w-full max-h-[68vh] overflow-auto overscroll-contain select-none cursor-grab active:cursor-grabbing"
-                onMouseDown={handleLaneMouseDown}
-                onMouseMove={handleLaneMouseMove}
-                onMouseUp={handleLaneMouseUp}
-                onMouseLeave={handleLaneMouseUp}
+                className="relative isolate w-full max-h-[68vh] overflow-auto overscroll-contain select-none cursor-grab active:cursor-grabbing"
+                style={{ touchAction: 'pan-y' }}
+                onPointerDown={handleLanePointerDown}
+                onPointerMove={handleLanePointerMove}
+                onPointerUp={handleLanePointerUp}
+                onPointerCancel={handleLanePointerUp}
                 onClickCapture={handleLaneClickCapture}
               >
                 {/* Taulukon minimileveys pakotetaan, jotta nimet eivät koskaan puristu liian kapeiksi mobiilissakaan */}
@@ -367,11 +379,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
 
                   {/* OTSIKKORIVI */}
                   <div
-                    className="sticky top-0 z-30 grid bg-[hsl(var(--muted))]/95 backdrop-blur-[1px] font-bold text-xs items-center py-1.5"
+                    className="sticky top-0 z-30 grid bg-[hsl(var(--muted))] font-bold text-xs items-center py-1.5"
                     style={{ gridTemplateColumns: laneGridTemplate }}
                   >
                     {/* Aika saa 2/12 osaa tilasta */}
-                    <div className="sticky left-0 z-40 text-center text-[hsl(var(--foreground))] bg-[hsl(var(--muted))]/95 border-r border-[hsl(var(--border))] px-1.5">
+                    <div className="sticky left-0 z-40 text-center text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] border-r border-[hsl(var(--border))] px-1.5">
                       {tx.time}
                     </div>
                     {/* Radat jakavat loput 10/12 osaa dynaamisesti sarakkeittain */}
@@ -431,42 +443,6 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                   </div>
 
                 </div>
-              </div>
-              {/* MOBIILINÄKYMÄ (RESPONSIIVISET KORTIT) */}
-              <div className="p-3 space-y-2.5 md:hidden">
-                {parsed.laneRows.map((row) => (
-                  <div key={row.id} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm overflow-hidden">
-                    <div className="bg-[hsl(var(--muted))]/30 px-3 py-2 text-sm font-bold tracking-wide text-[hsl(var(--foreground))] border-b">
-                      {tx.time}: {row.time || '-'}
-                    </div>
-                    <div className="divide-y divide-[hsl(var(--border))]/50">
-                      {row.slots.map((slot, slotIdx) => {
-                        const isAssigned = !!slot.shooter;
-                        const onParillinenSarake = slotIdx % 2 === 1;
-                        const shooterNumber = toShooterNumber(slot.number);
-                        const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
-                        const hasGroupColor = Number.isInteger(groupIndex);
-                        const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
-
-                        return (
-                          <div
-                            key={`${row.id}-${slot.lane}`}
-                            className={`flex items-center justify-between gap-3 px-3 py-2 text-xs ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
-                            style={cellStyle}
-                          >
-                            <span className="font-semibold text-[hsl(var(--muted-foreground))]">{slot.lane}</span>
-                            <div className="text-right flex items-center gap-1.5">
-                              {slot.number && <span className="font-mono text-[hsl(var(--muted-foreground))]">#{slot.number}</span>}
-                              <span className={`font-medium ${isAssigned ? 'font-semibold text-[hsl(var(--foreground))]' : 'text-[hsl(var(--foreground))]'}`}>
-                                {slot.shooter || '-'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
               </div>
             </>
           ) : (
