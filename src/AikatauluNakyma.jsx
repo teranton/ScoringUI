@@ -330,7 +330,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
 
   const title = parsed.titleSuffix ? `${tx.title} | ${parsed.titleSuffix}` : tx.title;
   const laneGridTemplate = parsed.mode === 'lane-grid'
-    ? `minmax(clamp(3.25rem, 15vw, 4.5rem), 0.65fr) repeat(${parsed.laneColumns.length}, minmax(clamp(6.2rem, 29vw, 9rem), 1fr))`
+    ? `minmax(clamp(2.8rem, 12vw, 3.8rem), 0.55fr) repeat(${parsed.laneColumns.length}, minmax(clamp(6.2rem, 29vw, 9rem), 1fr))`
     : '';
 
   return (
@@ -383,7 +383,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                     style={{ gridTemplateColumns: laneGridTemplate }}
                   >
                     {/* Aika saa 2/12 osaa tilasta */}
-                    <div className="sticky left-0 z-40 text-center text-[10px] md:text-xs text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] border-r border-[hsl(var(--border))] px-1 md:px-1.5">
+                    <div className="sticky left-0 z-40 text-center text-[10px] md:text-xs text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] border-r border-[hsl(var(--border))] px-0.5 md:px-1">
                       {tx.time}
                     </div>
                     {/* Radat jakavat loput 10/12 osaa dynaamisesti sarakkeittain */}
@@ -405,7 +405,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                         style={{ gridTemplateColumns: laneGridTemplate }}
                       >
                           {/* Kellonaika (AINA SAMALLA RIVILLÄ ALAKKAIN) */}
-                          <div className="sticky left-0 z-10 text-center font-semibold text-[11px] md:text-sm tracking-wide text-[hsl(var(--foreground))] py-1 md:py-1.5 bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-1 md:px-1.5 leading-tight">
+                          <div className="sticky left-0 z-10 text-center font-semibold text-[11px] md:text-sm tracking-normal text-[hsl(var(--foreground))] py-1 md:py-1.5 bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-0.5 md:px-1 leading-tight">
                             {row.time || '-'}
                           </div>
 
