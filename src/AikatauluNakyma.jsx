@@ -59,18 +59,22 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
 
     const laneHeaderRow = rows.find((row) => Array.isArray(row) && row.some(isLaneHeader));
     const laneColumns = [];
+    
     if (laneHeaderRow) {
-      const firstDataRow = rows.find((row) => Array.isArray(row) && row.some((cell) => isTimeLike(cell)));
-
       for (let i = 0; i < laneHeaderRow.length; i++) {
         if (!isLaneHeader(laneHeaderRow[i])) continue;
 
-        // In many sheets the lane label sits above shooter number column,
-        // while the actual block starts one cell earlier: [time, number, shooter].
+        // KORJAUS: Koska "RATA X" teksti on aina numeron/ampujan yläpuolella,
+        // ja sitä edeltää (tai pitäisi edeltää) aika-sarake,
+        // pakotetaan blokin alkukohdaksi i - 1, jos edellinen sarake ei ole edellisen radan aluetta.
+        // Turvallisinta on katsoa, onko kyseessä Rata 1 (yleensä alkaa sarakkeesta 0 tai 1)
+        // tai laskea indeksit suoraan:
         let startIndex = i;
-        const prevCell = i > 0 ? firstDataRow?.[i - 1] : '';
-        const currentCell = firstDataRow?.[i];
-        if (i > 0 && isTimeLike(prevCell) && !isTimeLike(currentCell)) {
+
+        // Jos "RATA" otsikon solu on tyhjä sen vasemmalta puolelta (aika), 
+        // siirretään aloitusta yksi taaksepäin, jotta saadaan koko 3 sarakkeen paketti [aika, nro, ampuja]
+        if (i > 0 && !isLaneHeader(laneHeaderRow[i - 1])) {
+          // Tarkistetaan ettei hypätä edellisen radan päälle
           startIndex = i - 1;
         }
 
@@ -88,26 +92,38 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
         if (!Array.isArray(row)) return;
 
         const laneSlots = laneColumns.map((lane) => {
-          const time = String(row[lane.startIndex] || '').trim();
+          // Luetaan arvot tiukasti suhteessa lukittuun aloitushakemistoon
+          const rawTime = String(row[lane.startIndex] || '').trim();
           const number = String(row[lane.startIndex + 1] || '').trim();
           const shooter = String(row[lane.startIndex + 2] || '').trim();
+
+          // Jos tällä radalla ei ole omaa aikaa (tyhjä solu), se perii sen myöhemmin rivin yleisestä ajasta
           return {
             lane: lane.label,
-            time,
+            time: rawTime,
             number,
             shooter
           };
         });
 
         const hasAnyShooter = laneSlots.some((slot) => slot.shooter);
-        const hasAnyTime = laneSlots.some((slot) => isTimeLike(slot.time));
-        if (!hasAnyShooter || !hasAnyTime) return;
+        // Etsitään riviltä mikä tahansa validi kellonaika
+        const globalTimeSlot = laneSlots.find((slot) => isTimeLike(slot.time));
 
-        const time = laneSlots.find((slot) => isTimeLike(slot.time))?.time || '';
+        if (!hasAnyShooter || !globalTimeSlot) return;
+
+        const rowTime = globalTimeSlot.time;
+
+        // Korjataan sloteille puuttuvat kellonajat, jos sarakkeessa oli tyhjää
+        const finalizedSlots = laneSlots.map(slot => ({
+          ...slot,
+          time: isTimeLike(slot.time) ? slot.time : rowTime
+        }));
+
         laneRows.push({
-          id: `${rowIndex}-${time}`,
-          time,
-          slots: laneSlots
+          id: `${rowIndex}-${rowTime}`,
+          time: rowTime,
+          slots: finalizedSlots
         });
       });
 
@@ -166,57 +182,96 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
     return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.empty}</div>;
   }
 
-  const title = parsed.titleSuffix ? `${tx.title} ${parsed.titleSuffix}` : tx.title;
+  const title = parsed.titleSuffix ? `${tx.title} | ${parsed.titleSuffix}` : tx.title;
 
   return (
     <div className="space-y-3">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">{title}</CardTitle>
+      <Card className="w-full shadow-sm">
+        <CardHeader className="pb-3 bg-[hsl(var(--muted))]/20 border-b">
+          <CardTitle className="text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">
+            {title}
+          </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="p-0">
           {parsed.mode === 'lane-grid' ? (
             <>
+              {/* TYÖPÖYTÄNÄKYMÄ (TABLE GRID) */}
               <div className="hidden overflow-x-auto md:block">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-[hsl(var(--muted))]/10">
                     <TableRow>
-                      <TableHead className="w-24">{tx.time}</TableHead>
+                      <TableHead className="w-20 font-bold text-center text-[hsl(var(--foreground))]">{tx.time}</TableHead>
                       {parsed.laneColumns.map((lane) => (
-                        <TableHead key={lane.label} className="min-w-44">{lane.label}</TableHead>
+                        <TableHead key={lane.label} className="min-w-44 font-bold text-[hsl(var(--foreground))] border-l">
+                          {lane.label}
+                        </TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {parsed.laneRows.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell className="font-semibold">{row.time || '-'}</TableCell>
-                        {row.slots.map((slot) => (
-                          <TableCell key={`${row.id}-${slot.lane}`}>
-                            <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{slot.shooter || '-'}</div>
-                            {slot.number && <div className="text-xs text-[hsl(var(--muted-foreground))]">#{slot.number}</div>}
-                          </TableCell>
-                        ))}
+                      <TableRow key={row.id} className="hover:bg-[hsl(var(--muted))]/5 transition-colors">
+                        <TableCell className="font-bold text-base text-center tracking-wide text-[hsl(var(--foreground))] bg-[hsl(var(--muted))]/5">
+                          {row.time || '-'}
+                        </TableCell>
+                        {row.slots.map((slot) => {
+                          // REAALIAIKAINEN KOROSTUS: Jos ruudussa on ampuja, korostetaan se dynaamisesti keltaisella
+                          const isAssigned = !!slot.shooter;
+
+                          return (
+                            <TableCell
+                              key={`${row.id}-${slot.lane}`}
+                              className={`border-l transition-all duration-150 ${isAssigned
+                                  ? 'bg-amber-50/60 dark:bg-amber-950/20 border-l-amber-500/60'
+                                  : 'border-l-[hsl(var(--border))]'
+                                }`}
+                            >
+                              <div className="flex items-baseline gap-2 max-w-[180px]">
+                                {slot.number && (
+                                  <span className="text-xs font-mono font-medium text-[hsl(var(--muted-foreground))] w-6 shrink-0">
+                                    {slot.number}
+                                  </span>
+                                )}
+                                <div className={`text-sm truncate ${isAssigned ? 'font-semibold text-amber-950 dark:text-amber-200' : 'text-[hsl(var(--muted-foreground))]'}`}>
+                                  {slot.shooter || '-'}
+                                </div>
+                              </div>
+                            </TableCell>
+                          );
+                        })}
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="space-y-2 md:hidden">
+              {/* MOBIILINÄKYMÄ (RESPONSIIVISET KORTIT) */}
+              <div className="p-3 space-y-2.5 md:hidden">
                 {parsed.laneRows.map((row) => (
-                  <div key={row.id} className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-                    <div className="mb-2 text-sm font-bold text-[hsl(var(--foreground))]">{tx.time}: {row.time || '-'}</div>
-                    <div className="space-y-1.5">
-                      {row.slots.map((slot) => (
-                        <div key={`${row.id}-${slot.lane}`} className="flex items-start justify-between gap-3 text-xs">
-                          <span className="font-semibold text-[hsl(var(--muted-foreground))]">{slot.lane}</span>
-                          <span className="text-right font-medium text-[hsl(var(--foreground))]">
-                            {slot.shooter || '-'}
-                            {slot.number ? ` (#${slot.number})` : ''}
-                          </span>
-                        </div>
-                      ))}
+                  <div key={row.id} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm overflow-hidden">
+                    <div className="bg-[hsl(var(--muted))]/30 px-3 py-2 text-sm font-bold tracking-wide text-[hsl(var(--foreground))] border-b">
+                      {tx.time}: {row.time || '-'}
+                    </div>
+                    <div className="divide-y divide-[hsl(var(--border))]/50">
+                      {row.slots.map((slot) => {
+                        const isAssigned = !!slot.shooter;
+
+                        return (
+                          <div
+                            key={`${row.id}-${slot.lane}`}
+                            className={`flex items-center justify-between gap-3 px-3 py-2 text-xs ${isAssigned ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''
+                              }`}
+                          >
+                            <span className="font-semibold text-[hsl(var(--muted-foreground))]">{slot.lane}</span>
+                            <div className="text-right flex items-center gap-1.5">
+                              {slot.number && <span className="font-mono text-[hsl(var(--muted-foreground))]">#{slot.number}</span>}
+                              <span className={`font-medium ${isAssigned ? 'font-semibold text-amber-950 dark:text-amber-200' : 'text-[hsl(var(--foreground))]'}`}>
+                                {slot.shooter || '-'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -224,41 +279,42 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
             </>
           ) : (
             <>
+              {/* VAKIOMUOTOISET TAPAHTUMAT (EVENTS MODE) */}
               <div className="hidden overflow-x-auto md:block">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-[hsl(var(--muted))]/10">
                     <TableRow>
-                      <TableHead className="w-28">{tx.time}</TableHead>
-                      <TableHead className="w-24">{tx.end}</TableHead>
-                      <TableHead>{tx.event}</TableHead>
-                      <TableHead className="w-40">{tx.location}</TableHead>
-                      <TableHead>{tx.notes}</TableHead>
+                      <TableHead className="w-28 font-bold text-[hsl(var(--foreground))]">{tx.time}</TableHead>
+                      <TableHead className="w-24 font-bold text-[hsl(var(--foreground))]">{tx.end}</TableHead>
+                      <TableHead className="font-bold text-[hsl(var(--foreground))]">{tx.event}</TableHead>
+                      <TableHead className="w-40 font-bold text-[hsl(var(--foreground))]">{tx.location}</TableHead>
+                      <TableHead className="font-bold text-[hsl(var(--foreground))]">{tx.notes}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {parsed.events.map((e) => (
-                      <TableRow key={e.id}>
-                        <TableCell className="font-semibold">{e.time || '-'}</TableCell>
+                      <TableRow key={e.id} className="hover:bg-[hsl(var(--muted))]/5 transition-colors">
+                        <TableCell className="font-semibold text-[hsl(var(--foreground))]">{e.time || '-'}</TableCell>
                         <TableCell>{e.end || '-'}</TableCell>
-                        <TableCell>{e.event || '-'}</TableCell>
+                        <TableCell className="font-medium text-[hsl(var(--foreground))]">{e.event || '-'}</TableCell>
                         <TableCell>{e.location || '-'}</TableCell>
-                        <TableCell>{e.notes || '-'}</TableCell>
+                        <TableCell className="text-[hsl(var(--muted-foreground))]">{e.notes || '-'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="space-y-2 md:hidden">
+              <div className="p-3 space-y-2 md:hidden">
                 {parsed.events.map((e) => (
-                  <div key={e.id} className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+                  <div key={e.id} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 shadow-sm">
                     <div className="text-sm font-bold text-[hsl(var(--foreground))]">{e.time || '-'}{e.end ? ` - ${e.end}` : ''}</div>
-                    <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{e.event || '-'}</div>
+                    <div className="text-sm font-semibold text-[hsl(var(--foreground))] mt-0.5">{e.event || '-'}</div>
                     {(e.location || e.notes) && (
-                      <div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                        {e.location ? `${tx.location}: ${e.location}` : ''}
-                        {e.location && e.notes ? ' | ' : ''}
-                        {e.notes ? `${tx.notes}: ${e.notes}` : ''}
+                      <div className="mt-1.5 pt-1.5 border-t border-[hsl(var(--border))]/40 text-xs text-[hsl(var(--muted-foreground))] flex flex-wrap gap-x-2">
+                        {e.location ? <span><span className="font-medium text-[hsl(var(--foreground))]">{tx.location}:</span> {e.location}</span> : ''}
+                        {e.location && e.notes ? <span className="text-[hsl(var(--border))]">|</span> : ''}
+                        {e.notes ? <span><span className="font-medium text-[hsl(var(--foreground))]">{tx.notes}:</span> {e.notes}</span> : ''}
                       </div>
                     )}
                   </div>
