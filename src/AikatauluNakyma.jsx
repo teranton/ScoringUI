@@ -330,7 +330,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
 
   const title = parsed.titleSuffix ? `${tx.title} | ${parsed.titleSuffix}` : tx.title;
   const laneGridTemplate = parsed.mode === 'lane-grid'
-    ? `minmax(clamp(2.8rem, 12vw, 3.8rem), 0.55fr) repeat(${parsed.laneColumns.length}, minmax(clamp(6.2rem, 29vw, 9rem), 1fr))`
+    ? `clamp(2.35rem, 9vw, 3rem) repeat(${parsed.laneColumns.length}, minmax(clamp(6.2rem, 29vw, 9rem), 1fr))`
     : '';
 
   return (
