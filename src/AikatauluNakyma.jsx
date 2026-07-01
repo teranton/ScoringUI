@@ -1,8 +1,26 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+
+
+let laneNameMeasureCanvas = null;
+
+function measureShooterTextWidth(text) {
+  const value = String(text || '').trim();
+  if (!value) return 0;
+  if (typeof document === 'undefined') return value.length * 6.2;
+
+  if (!laneNameMeasureCanvas) {
+    laneNameMeasureCanvas = document.createElement('canvas');
+  }
+  const context = laneNameMeasureCanvas.getContext('2d');
+  if (!context) return value.length * 6.2;
+
+  // TÄRKEÄÄ: Tämän fonttimäärityksen täytyy vastata täsmälleen taulukon solujen fonttia
+  context.font = '500 12px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'; return context.measureText(value).width;
+}
 
 function normalizeHeader(value) {
   return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -94,64 +112,6 @@ function getGroupCellStyle(groupIndex) {
 }
 
 export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
-  const laneScrollRef = useRef(null);
-  const laneDragRef = useRef({
-    isDown: false,
-    startX: 0,
-    scrollLeft: 0,
-    moved: false
-  });
-
-  const handleLanePointerDown = useCallback((event) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    const container = laneScrollRef.current;
-    if (!container) return;
-
-    const interactive = event.target.closest('button,a,input,textarea,select,label');
-    if (interactive) return;
-
-    laneDragRef.current.isDown = true;
-    laneDragRef.current.startX = event.clientX;
-    laneDragRef.current.scrollLeft = container.scrollLeft;
-    laneDragRef.current.moved = false;
-
-    if (typeof event.currentTarget.setPointerCapture === 'function') {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-  }, []);
-
-  const handleLanePointerMove = useCallback((event) => {
-    const container = laneScrollRef.current;
-    const state = laneDragRef.current;
-    if (!container || !state.isDown) return;
-
-    const deltaX = event.clientX - state.startX;
-    if (Math.abs(deltaX) > 3) {
-      state.moved = true;
-    }
-
-    container.scrollLeft = state.scrollLeft - deltaX;
-    event.preventDefault();
-  }, []);
-
-  const handleLanePointerUp = useCallback((event) => {
-    laneDragRef.current.isDown = false;
-    if (typeof event.currentTarget.releasePointerCapture === 'function') {
-      try {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      } catch {
-        // Ignore if capture was not active.
-      }
-    }
-  }, []);
-
-  const handleLaneClickCapture = useCallback((event) => {
-    if (!laneDragRef.current.moved) return;
-    event.preventDefault();
-    event.stopPropagation();
-    laneDragRef.current.moved = false;
-  }, []);
-
   const tx = locale === 'en'
     ? {
       title: 'Timetable',
@@ -192,17 +152,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
       for (let i = 0; i < laneHeaderRow.length; i++) {
         if (!isLaneHeader(laneHeaderRow[i])) continue;
 
-        // KORJAUS: Koska "RATA X" teksti on aina numeron/ampujan yläpuolella,
-        // ja sitä edeltää (tai pitäisi edeltää) aika-sarake,
-        // pakotetaan blokin alkukohdaksi i - 1, jos edellinen sarake ei ole edellisen radan aluetta.
-        // Turvallisinta on katsoa, onko kyseessä Rata 1 (yleensä alkaa sarakkeesta 0 tai 1)
-        // tai laskea indeksit suoraan:
         let startIndex = i;
-
-        // Jos "RATA" otsikon solu on tyhjä sen vasemmalta puolelta (aika), 
-        // siirretään aloitusta yksi taaksepäin, jotta saadaan koko 3 sarakkeen paketti [aika, nro, ampuja]
         if (i > 0 && !isLaneHeader(laneHeaderRow[i - 1])) {
-          // Tarkistetaan ettei hypätä edellisen radan päälle
           startIndex = i - 1;
         }
 
@@ -220,12 +171,10 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
         if (!Array.isArray(row)) return;
 
         const laneSlots = laneColumns.map((lane) => {
-          // Luetaan arvot tiukasti suhteessa lukittuun aloitushakemistoon
           const rawTime = String(row[lane.startIndex] || '').trim();
           const number = String(row[lane.startIndex + 1] || '').trim();
           const shooter = String(row[lane.startIndex + 2] || '').trim();
 
-          // Jos tällä radalla ei ole omaa aikaa (tyhjä solu), se perii sen myöhemmin rivin yleisestä ajasta
           return {
             lane: lane.label,
             time: rawTime,
@@ -235,14 +184,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
         });
 
         const hasAnyShooter = laneSlots.some((slot) => slot.shooter);
-        // Etsitään riviltä mikä tahansa validi kellonaika
         const globalTimeSlot = laneSlots.find((slot) => isTimeLike(slot.time));
 
         if (!hasAnyShooter || !globalTimeSlot) return;
 
         const rowTime = globalTimeSlot.time;
-
-        // Korjataan sloteille puuttuvat kellonajat, jos sarakkeessa oli tyhjää
         const finalizedSlots = laneSlots.map(slot => ({
           ...slot,
           time: isTimeLike(slot.time) ? slot.time : rowTime
@@ -330,8 +276,37 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   }
 
   const title = parsed.titleSuffix ? `${tx.title} | ${parsed.titleSuffix}` : tx.title;
+  const laneNameColumnWidth = parsed.mode === 'lane-grid'
+    ? (() => {
+      let maxShooterWidth = 0;
+
+      for (const row of parsed.laneRows) {
+        for (const slot of row.slots || []) {
+          const width = measureShooterTextWidth(slot?.shooter);
+          if (width > maxShooterWidth) {
+            maxShooterWidth = width;
+          }
+        }
+      }
+
+      // Korjataan marginaalit:
+      const horizontalPadding = 16;  // px-5 molemmin puolin (yhteensä vähintään 16-20px tilaa)
+      const numberBadgeReserve = 28; // Numerolapun viemä tila
+
+      // NOSTETAAN TÄMÄÄ: Lisätään 16px "varmuusilmaa", jotta pisinkään nimi ei 
+      // missään olosuhteissa hypää seuraavan sarakkeen päälle.
+      const tinySafetyMargin = 16;
+
+      const computed = Math.ceil(maxShooterWidth + horizontalPadding + numberBadgeReserve + tinySafetyMargin);
+
+      return Math.max(120, computed);
+    })()
+    : 0;
+  /* MUUTOS: Jokainen rata-sarake mukautuu itsenäisesti oman maksimisisältönsä mukaan (max-content).
+    Aika-sarake käyttää pientä minimiväliä (minmax). Tämä poistaa ylimääräisen tyhjän tilan kokonaan!
+  */
   const laneGridTemplate = parsed.mode === 'lane-grid'
-    ? `clamp(2.35rem, 9vw, 3rem) repeat(${parsed.laneColumns.length}, minmax(clamp(6.2rem, 29vw, 9rem), 1fr))`
+    ? `minmax(50px, max-content) repeat(${parsed.laneColumns.length}, ${laneNameColumnWidth}px)`
     : '';
 
   return (
@@ -345,112 +320,139 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
         <CardContent className="p-0">
           {parsed.mode === 'lane-grid' ? (
             <>
-              {/* TYÖPÖYTÄ- JA MOBIILINÄKYMÄ (SÄILYTTÄÄ PYSTY- JA SIVUSUUNTAISEN JATKUMON) */}
-              <div
-                ref={laneScrollRef}
-                className="relative isolate w-full max-h-[68vh] overflow-auto overscroll-contain select-none cursor-grab active:cursor-grabbing sidebar-scrollbar"
-                style={{ touchAction: 'pan-y' }}
-                onPointerDown={handleLanePointerDown}
-                onPointerMove={handleLanePointerMove}
-                onPointerUp={handleLanePointerUp}
-                onPointerCancel={handleLanePointerUp}
-                onClickCapture={handleLaneClickCapture}
-              >
-                {/* KORJAUS 1: Nostettu minimileveys vähintään 850 pikseliin. 
-                  Tämä varmistaa, että jokaiselle radalle jää aina ~200px tilaa, jolloin nimet mahtuvat!
-                */}
-                <div className="min-w-[850px] divide-y divide-[hsl(var(--border))]">
+              {/* ZOOMATTAVA JA RAAHATTAVA KANGASALUSTA */}
+              <div className="relative w-full border rounded-b-xl overflow-hidden bg-[hsl(var(--card))] select-none">
 
-                  {parsed.groupCount > 0 && (
-                    <div className="sticky left-0 z-50 flex flex-wrap items-center gap-1.5 px-3 py-2 text-[11px] border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/10">
-                      {Array.from({ length: parsed.groupCount }).map((_, idx) => {
-                        const range = parsed.groupRanges?.[idx];
-                        const rangeLabel = range ? ` (${range.start}-${range.end})` : '';
-                        return (
-                          <span
-                            key={`group-legend-${idx}`}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold text-[hsl(var(--foreground))]"
-                            style={getGroupCellStyle(idx)}
-                          >
-                            {tx.group} {idx + 1}{rangeLabel}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* OTSIKKORIVI */}
-                  <div
-                    className="sticky top-0 z-30 grid bg-[hsl(var(--muted))] font-bold text-xs items-center py-2 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                    style={{ gridTemplateColumns: laneGridTemplate }}
+                {/* ZOOM-PAINIKKEET */}
+                <div className="absolute bottom-4 right-4 z-50 flex gap-2 bg-[hsl(var(--background))]/95 backdrop-blur-sm p-1.5 rounded-lg border shadow-sm">
+                  <button
+                    onClick={() => document.getElementById('z-in')?.click()}
+                    className="w-8 h-8 flex items-center justify-center font-bold text-lg rounded hover:bg-[hsl(var(--muted))] active:scale-95 transition-transform"
                   >
-                    {/* Aika pysyy lukittuna vasempaan reunaan swipatessa */}
-                    <div className="sticky left-0 z-40 text-center font-bold text-[11px] md:text-xs text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] border-r border-[hsl(var(--border))] py-1">
-                      {tx.time}
-                    </div>
-                    {/* Radat */}
-                    {parsed.laneColumns.map((lane) => {
-                      return (
-                        <div key={lane.label} className="border-l border-[hsl(var(--border))] pl-3 font-bold text-[11px] md:text-xs text-[hsl(var(--foreground))] uppercase tracking-wider">
-                          {lane.label}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* DATARIVIT */}
-                  <div className="divide-y divide-[hsl(var(--border))]/60">
-                    {parsed.laneRows.map((row) => (
-                      <div
-                        key={row.id}
-                        className="grid items-stretch hover:bg-[hsl(var(--muted))]/5 transition-colors group"
-                        style={{ gridTemplateColumns: laneGridTemplate }}
-                      >
-                        {/* Kellonaika (Pysyy paikoillaan vasemmassa reunassa) */}
-                        <div className="sticky left-0 z-20 h-full text-center font-bold text-xs md:text-sm tracking-wide text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] font-mono border-r border-[hsl(var(--border))] px-1 shadow-[1px_0_0_0_hsl(var(--border))] flex items-center justify-center">
-                          <span>{row.time || '-'}</span>
-                        </div>
-
-                        {/* Radat rinnakkain */}
-                        {row.slots.map((slot, slotIdx) => {
-                          const isAssigned = !!slot.shooter;
-                          const onParillinenSarake = slotIdx % 2 === 1;
-                          const shooterNumber = toShooterNumber(slot.number);
-                          const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
-                          const hasGroupColor = Number.isInteger(groupIndex);
-                          const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
-
-                          return (
-                            <div
-                              key={`${row.id}-${slot.lane}`}
-                              className={`border-l border-[hsl(var(--border))] px-3 py-1.5 h-full flex flex-col justify-center transition-all ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
-                              style={cellStyle}
-                            >
-                              {/* KORJAUS 2: items-start ja nimen max-width varmistavat, 
-                                että teksti rivittyy kauniisti numeron viereen ilman litistymistä.
-                              */}
-                              <div className="flex items-start gap-1.5 min-w-0 w-full">
-                                {slot.number && (
-                                  <span className="font-mono text-[10px] md:text-[11px] font-bold text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/80 px-1 py-0.5 rounded shrink-0 mt-0.5 leading-none">
-                                    {slot.number}
-                                  </span>
-                                )}
-                                <span className={`text-[11px] md:text-xs break-words line-clamp-2 leading-tight flex-1 ${
-                                  isAssigned 
-                                    ? 'font-medium text-[hsl(var(--foreground))]' 
-                                    : 'text-[hsl(var(--muted-foreground))] italic opacity-40'
-                                }`}>
-                                  {slot.shooter || '-'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-
+                    +
+                  </button>
+                  <button
+                    onClick={() => document.getElementById('z-out')?.click()}
+                    className="w-8 h-8 flex items-center justify-center font-bold text-lg rounded hover:bg-[hsl(var(--muted))] active:scale-95 transition-transform"
+                  >
+                    −
+                  </button>
+                  <button
+                    onClick={() => document.getElementById('z-res')?.click()}
+                    className="px-2.5 h-8 flex items-center justify-center text-xs font-semibold rounded hover:bg-[hsl(var(--muted))] active:scale-95 transition-transform"
+                  >
+                    Nollaa
+                  </button>
                 </div>
+
+                <TransformWrapper
+                  initialScale={1}
+                  minScale={0.4}
+                  maxScale={3}
+                  doubleClick={{ mode: "reset" }}
+                  panning={{ velocityDisabled: false }}
+                >
+                  {({ zoomIn, zoomOut, resetTransform }) => (
+                    <>
+                      <button id="z-in" onClick={() => zoomIn()} className="hidden" />
+                      <button id="z-out" onClick={() => zoomOut()} className="hidden" />
+                      <button id="z-res" onClick={() => resetTransform()} className="hidden" />
+
+                      <TransformComponent wrapperClass="!w-full !max-h-[70vh] cursor-grab active:cursor-grabbing">
+
+                        {/* KANGAS: Leveys määräytyy nyt täysin solujen max-content-leveyden summana (w-max).
+                          Ei enää keinotekoisia pikselirajoja tai tyhjää tilaa nimien perässä.
+                        */}
+                        <div className="w-max divide-y divide-[hsl(var(--border))] bg-[hsl(var(--card))]">
+
+                          {/* RYHMÄLEGENDAT */}
+                          {parsed.groupCount > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 text-[11px] bg-[hsl(var(--muted))]/10 border-b">
+                              {Array.from({ length: parsed.groupCount }).map((_, idx) => {
+                                const range = parsed.groupRanges?.[idx];
+                                const rangeLabel = range ? ` (${range.start}-${range.end})` : '';
+                                return (
+                                  <span
+                                    key={`group-legend-${idx}`}
+                                    className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold text-[hsl(var(--foreground))]"
+                                    style={getGroupCellStyle(idx)}
+                                  >
+                                    {tx.group} {idx + 1}{rangeLabel}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* OTSIKKORIVI */}
+                          <div
+                            className="grid bg-[hsl(var(--muted))] font-bold text-xs items-center py-2.5"
+                            style={{ gridTemplateColumns: laneGridTemplate }}
+                          >
+                            <div className="text-center font-bold text-xs text-[hsl(var(--foreground))] px-4">
+                              {tx.time}
+                            </div>
+                            {parsed.laneColumns.map((lane) => (
+                              <div key={lane.label} className="border-l border-[hsl(var(--border))] px-5 font-bold text-xs text-[hsl(var(--foreground))] uppercase tracking-wider">
+                                {lane.label}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* DATARIVIT */}
+                          <div className="divide-y divide-[hsl(var(--border))]/60">
+                            {parsed.laneRows.map((row) => (
+                              <div
+                                key={row.id}
+                                className="grid items-stretch hover:bg-[hsl(var(--muted))]/5 transition-colors"
+                                style={{ gridTemplateColumns: laneGridTemplate }}
+                              >
+                                {/* Kellonaika */}
+                                <div className="text-center font-bold text-xs md:text-sm tracking-wide text-[hsl(var(--foreground))] py-3 bg-[hsl(var(--muted))]/10 font-mono px-4 flex items-center justify-center">
+                                  {row.time || '-'}
+                                </div>
+
+                                {/* Radat rinnakkain */}
+                                {row.slots.map((slot, slotIdx) => {
+                                  const isAssigned = !!slot.shooter;
+                                  const onParillinenSarake = slotIdx % 2 === 1;
+                                  const shooterNumber = toShooterNumber(slot.number);
+                                  const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
+                                  const hasGroupColor = Number.isInteger(groupIndex);
+                                  const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
+
+                                  return (
+                                    <div
+                                      key={`${row.id}-${slot.lane}`}
+                                      className={`border-l border-[hsl(var(--border))] px-5 py-2 h-full flex flex-col justify-center ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                                      style={cellStyle}
+                                    >
+                                      {/* whitespace-nowrap pitää nimen siististi yhdellä rivillä ilman turhaa pystyrivitystä */}
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        {slot.number && (
+                                          <span className="font-mono text-[10px] md:text-[11px] font-bold text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/80 px-1 py-0.5 rounded shrink-0 leading-none">
+                                            {slot.number}
+                                          </span>
+                                        )}
+                                        <span className={`text-xs whitespace-nowrap tracking-wide ${isAssigned
+                                          ? 'font-medium text-[hsl(var(--foreground))]'
+                                          : 'text-[hsl(var(--muted-foreground))] italic opacity-35'
+                                          }`}>
+                                          {slot.shooter || '-'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </div>
+
+                        </div>
+                      </TransformComponent>
+                    </>
+                  )}
+                </TransformWrapper>
               </div>
             </>
           ) : (
