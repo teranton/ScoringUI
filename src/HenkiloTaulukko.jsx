@@ -218,7 +218,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     sarjaDragRef.current.moved = false;
   };
 
-  const rankColWidth = kaytaKompaktiTilaa ? 42 : (onMobiili ? 52 : 64);
+  const rankColWidth = kaytaKompaktiTilaa ? 28 : (onMobiili ? 34 : 46);
   const nameColWidth = kaytaKompaktiTilaa ? 112 : (onMobiili ? 148 : 240);
   const stickyRankStyle = {
     left: 0,
@@ -354,7 +354,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
           <thead className="[&_tr]:border-b">
             <tr className="border-b border-[hsl(var(--border))]">
               <th
-                className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-50 border-r border-slate-200 bg-slate-50')}
+                className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-50 border-r border-slate-200 bg-slate-50 px-0.5 md:px-1')}
                 style={stickyRankStyle}
               >
                 {tx.rank}
@@ -386,7 +386,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             {naytettavatAmpujat.map((ampuja) => (
               <tr key={ampuja.id} className="border-b border-[hsl(var(--border))]">
                 <td
-                  className={cn(soluLuokka('rank'), 'sticky left-0 z-30 border-r border-slate-200 bg-slate-50')}
+                  className={cn(soluLuokka('rank'), 'sticky left-0 z-30 border-r border-slate-200 bg-slate-50 px-0.5 md:px-1')}
                   style={stickyRankStyle}
                 >
                   {ampuja.laskettuSija}
