@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
@@ -112,6 +112,8 @@ function getGroupCellStyle(groupIndex) {
 }
 
 export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
+  const [searchQuery, setSearchQuery] = useState('');
+
   const tx = locale === 'en'
     ? {
       title: 'Timetable',
@@ -271,6 +273,30 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
     };
   }, [rawCsv]);
 
+  const txSearch = locale === 'en'
+    ? { placeholder: 'Search shooter...', results: 'Shooter schedules', noResults: 'No matches found' }
+    : { placeholder: 'Hae ampujaa...', results: 'Ampujan aikataulu', noResults: 'Ei osumia' };
+
+  const shooterMatches = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query || parsed.mode !== 'lane-grid') return [];
+
+    const matches = [];
+    for (const row of parsed.laneRows) {
+      for (const slot of row.slots || []) {
+        if (slot.shooter && slot.shooter.toLowerCase().includes(query)) {
+          matches.push({
+            time: row.time,
+            lane: slot.lane,
+            number: slot.number,
+            shooter: slot.shooter
+          });
+        }
+      }
+    }
+    return matches;
+  }, [searchQuery, parsed]);
+
   if (parsed.mode === 'empty' || (parsed.mode === 'events' && parsed.events.length === 0) || (parsed.mode === 'lane-grid' && parsed.laneRows.length === 0)) {
     return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.empty}</div>;
   }
@@ -311,6 +337,72 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
 
   return (
     <div className="space-y-3">
+
+      {/* HAKUKENTTÄ (Näkyy vain jos ollaan rata-näkymässä) */}
+      {parsed.mode === 'lane-grid' && (
+        <div className="relative w-full">
+          <input
+            type="text"
+            placeholder={txSearch.placeholder}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2.5 text-sm rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] shadow-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]/50 transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] px-1.5 py-0.5 rounded bg-[hsl(var(--muted))]/50"
+            >
+              Tyhjennä
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* HAKUTULOSKORTTI */}
+      {searchQuery.trim() !== '' && parsed.mode === 'lane-grid' && (
+        <Card className="w-full shadow-sm border-[hsl(var(--primary))]/30 bg-[hsl(var(--primary))]/5">
+          <CardHeader className="py-2.5 border-b border-[hsl(var(--border))]/40">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-[hsl(var(--primary))]">
+              {txSearch.results} ({shooterMatches.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3">
+            {shooterMatches.length === 0 ? (
+              <p className="text-xs italic text-[hsl(var(--muted-foreground))] py-1">{txSearch.noResults}</p>
+            ) : (
+              // Lista aikajärjestyksessä (aikaisimmasta myöhäisimpään)
+              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                {shooterMatches.map((match, idx) => (
+                  <div
+                    key={`match-${idx}`}
+                    className="flex items-center justify-between gap-3 p-2 rounded-md border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono font-bold text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] px-1.5 py-0.5 rounded shrink-0">
+                        {match.time}
+                      </span>
+                      <span className="font-medium truncate text-[hsl(var(--foreground))]">
+                        {match.shooter}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {match.number && (
+                        <span className="font-mono text-[10px] text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/60 px-1 py-0.5 rounded">
+                          Nro {match.number}
+                        </span>
+                      )}
+                      <span className="font-semibold text-[hsl(var(--foreground))] bg-[hsl(var(--primary))]/10 border border-[hsl(var(--primary))]/20 px-2 py-0.5 rounded-sm text-[11px]">
+                        {match.lane}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
       <Card className="w-full shadow-sm">
         <CardHeader className="pb-3 bg-[hsl(var(--muted))]/20 border-b">
           <CardTitle className="text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">
