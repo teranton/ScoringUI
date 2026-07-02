@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef } from 'react';
 import { parseCsvRows } from './utils/csv'; // Varmista oikea polku projektissasi
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
@@ -106,6 +107,7 @@ function measureShooterTextWidth(text) {
 
 export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileViewMode, setMobileViewMode] = useState('lanes');
   
   // Ref vain yläreunan rataotsikoiden synkronointiin
   const headerRef = useRef(null);
@@ -123,6 +125,16 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   const txSearch = locale === 'en'
     ? { placeholder: 'Search shooter...', results: 'Shooter schedules', noResults: 'No matches found' }
     : { placeholder: 'Hae ampujaa...', results: 'Ampujan aikataulu', noResults: 'Ei osumia' };
+
+  const txMobile = locale === 'en'
+    ? {
+      lanes: 'Lanes',
+      largeTable: 'Large table'
+    }
+    : {
+      lanes: 'Ratat',
+      largeTable: 'Taulukkonakyma'
+    };
 
   // DATA PARSINTA
   const parsed = useMemo(() => {
@@ -355,7 +367,26 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
         <CardContent className="p-0">
           {parsed.mode === 'lane-grid' ? (
             <>
-              <div className="space-y-2 p-2 md:hidden">
+              <div className="flex gap-2 p-2 pb-0 md:hidden">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={mobileViewMode === 'lanes' ? 'default' : 'outline'}
+                  onClick={() => setMobileViewMode('lanes')}
+                >
+                  {txMobile.lanes}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={mobileViewMode === 'table' ? 'default' : 'outline'}
+                  onClick={() => setMobileViewMode('table')}
+                >
+                  {txMobile.largeTable}
+                </Button>
+              </div>
+
+              <div className={`${mobileViewMode === 'lanes' ? 'block' : 'hidden'} space-y-2 p-2 md:hidden`}>
                 <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 text-[11px] text-[hsl(var(--muted-foreground))]">
                   {locale === 'en'
                     ? 'Swipe left/right to switch lanes. Scroll up/down inside a lane to see earlier and next shooters.'
@@ -395,7 +426,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                 </div>
               </div>
 
-              <div className="relative hidden h-[68vh] w-full select-none overflow-hidden rounded-b-xl border bg-[hsl(var(--card))] md:block">
+              <div className={`${mobileViewMode === 'table' ? 'block' : 'hidden'} relative h-[68vh] w-full select-none overflow-hidden rounded-b-xl border bg-[hsl(var(--card))] md:block`}>
                 <div
                   className="absolute left-0 top-0 z-50 flex items-center justify-center border-b border-r bg-[hsl(var(--muted))] text-xs font-bold shadow-sm"
                   style={{ width: `${timeColumnWidth}px`, height: '36px' }}
