@@ -125,7 +125,24 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const radatList = Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1);
   const loydetytSarjat = Array.from(new Set(ampujat.map((a) => String(a.sarja || '').trim()).filter(Boolean))).sort();
   const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
-  const naytaRatkoSarake = naytettavatAmpujat.some((a) => a.ratkoNaytto?.statusEtiketit?.length > 0 || (sarjaSuodatin !== 'OPEN (Y)' && a.ratkoNaytto?.teksti) || (sarjaSuodatin === 'OPEN (Y)' && parseInt(a.laskettuSija, 10) <= 3 && a.ratkoNaytto?.teksti));
+  const openRatkoRajatulos = useMemo(() => {
+    if (sarjaSuodatin !== 'OPEN (Y)' || naytettavatAmpujat.length < 3) {
+      return null;
+    }
+    const kolmasTulos = parseInt(naytettavatAmpujat[2]?.tulos, 10);
+    return Number.isNaN(kolmasTulos) ? null : kolmasTulos;
+  }, [naytettavatAmpujat, sarjaSuodatin]);
+
+  const onkoRatkoSallittuAmpujalle = (ampuja) => {
+    if (sarjaSuodatin !== 'OPEN (Y)' || openRatkoRajatulos === null) return true;
+    const tulosNum = parseInt(ampuja?.tulos, 10);
+    if (Number.isNaN(tulosNum)) return false;
+    return tulosNum >= openRatkoRajatulos;
+  };
+
+  const naytaRatkoSarake = naytettavatAmpujat.some(
+    (a) => onkoRatkoSallittuAmpujalle(a) && (a.ratkoNaytto?.statusEtiketit?.length > 0 || a.ratkoNaytto?.teksti)
+  );
 
   const tx = locale === 'en'
     ? {
@@ -410,13 +427,16 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                     title={[...ampuja.ratkoNaytto.statusEtiketit, ampuja.ratkoNaytto.teksti].filter(Boolean).join(' | ')}
                   >
                     {(() => {
-                      const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
-                      if (!(ampuja.ratkoNaytto.statusEtiketit.length > 0 || (naytaRatko && ampuja.ratkoNaytto.teksti))) {
+                      const onkoRatkoSallittu = onkoRatkoSallittuAmpujalle(ampuja);
+                      const naytaRatko = onkoRatkoSallittu && Boolean(ampuja.ratkoNaytto.teksti);
+                      const naytaRatkoStatus = onkoRatkoSallittu && ampuja.ratkoNaytto.statusEtiketit.length > 0;
+
+                      if (!(naytaRatkoStatus || (naytaRatko && ampuja.ratkoNaytto.teksti))) {
                         return '-';
                       }
 
                       if (kaytaKompaktiTilaa) {
-                        const compactText = ampuja.ratkoNaytto.statusEtiketit.length > 0
+                        const compactText = naytaRatkoStatus
                           ? ampuja.ratkoNaytto.statusEtiketit.join('/')
                           : ampuja.ratkoNaytto.teksti;
 
@@ -429,7 +449,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
                       return (
                         <span className="inline-flex flex-wrap items-center justify-center gap-1">
-                          {ampuja.ratkoNaytto.statusEtiketit.map((status) => (
+                          {naytaRatkoStatus && ampuja.ratkoNaytto.statusEtiketit.map((status) => (
                             <span
                               key={`${ampuja.id}-${status}`}
                               className={cn(

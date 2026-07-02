@@ -10,7 +10,7 @@ import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { Trophy, Table2, ClipboardList, CalendarDays, Users } from 'lucide-react';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home } from 'lucide-react';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
@@ -174,6 +174,7 @@ export default function App() {
   const [kisaCache, setKisaCache] = useState({});
   const [ladataanKisaa, setLadataanKisaa] = useState(false);
   const [virhe, setVirhe] = useState(null);
+  const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
 
@@ -187,7 +188,7 @@ export default function App() {
         appTitle: '🎯 T&T Competition Results',
         appSubtitle: 'Live and archived competition results',
         loadingRegistry: 'Loading competition registry...',
-        backHome: 'Back to Home',
+        backHome: 'Homepage',
         results: 'Results',
         table: 'Table',
         registrations: 'Registrations',
@@ -205,7 +206,7 @@ export default function App() {
       appTitle: '🎯 T&T Tulospalvelu',
       appSubtitle: 'Tämänkin voi tehdä helpommin',
       loadingRegistry: 'Ladataan kilpailurekisteriä...',
-      backHome: 'Takaisin etusivulle',
+      backHome: 'Etusivu',
       results: 'Tulokset',
       table: 'Taulukko',
       registrations: 'Ilmoittautuneet',
@@ -454,6 +455,63 @@ useEffect(() => {
     return `📅 ${alku} – ${loppu}`;
   };
 
+  const haeKisanVuosi = (kisa) => {
+    const alku = parsiPaivamaara(kisa?.alkuPvm);
+    if (alku) return alku.getFullYear();
+
+    const loppu = parsiPaivamaara(kisa?.loppuPvm);
+    if (loppu) return loppu.getFullYear();
+
+    const fallback = String(kisa?.alkuPvm || kisa?.loppuPvm || '');
+    const osuma = fallback.match(/(19|20)\d{2}/);
+    return osuma ? parseInt(osuma[0], 10) : null;
+  };
+
+  const kuluvaVuosi = new Date().getFullYear();
+
+  const kisaRyhmat = useMemo(() => {
+    const vuosiMap = new Map();
+    const ilmanVuotta = [];
+
+    for (const kisa of kisat) {
+      const vuosi = haeKisanVuosi(kisa);
+      if (!Number.isInteger(vuosi)) {
+        ilmanVuotta.push(kisa);
+        continue;
+      }
+
+      if (!vuosiMap.has(vuosi)) {
+        vuosiMap.set(vuosi, []);
+      }
+      vuosiMap.get(vuosi).push(kisa);
+    }
+
+    const vuodet = Array.from(vuosiMap.keys()).sort((a, b) => b - a);
+    const aktiiviset = [];
+    const vanhat = [];
+
+    for (const vuosi of vuodet) {
+      const ryhma = { vuosi, kisat: vuosiMap.get(vuosi) || [] };
+      if (vuosi >= kuluvaVuosi) {
+        aktiiviset.push(ryhma);
+      } else {
+        vanhat.push(ryhma);
+      }
+    }
+
+    return { aktiiviset, vanhat, ilmanVuotta };
+  }, [kisat, kuluvaVuosi]);
+
+  useEffect(() => {
+    setAvoinnaVanhatVuodet((prev) => {
+      const next = {};
+      for (const ryhma of kisaRyhmat.vanhat) {
+        next[ryhma.vuosi] = Boolean(prev[ryhma.vuosi]);
+      }
+      return next;
+    });
+  }, [kisaRyhmat.vanhat]);
+
   const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
 
   const nykyisenKisanParsitutRivit = useMemo(() => {
@@ -551,6 +609,30 @@ useEffect(() => {
     return <div data-theme={theme} className="px-4 py-16 text-center text-[hsl(var(--muted-foreground))]">{tx.loadingRegistry}</div>;
   }
 
+  const renderKisaKortti = (kisa) => {
+    const statusData = laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm);
+    return (
+      <Card
+        key={kisa.id}
+        onClick={() => {
+          if (!kisa.apiUrl) return;
+          avaaKisaNakyma(kisa);
+        }}
+        className={`cursor-pointer transition-all hover:border-[hsl(var(--border))] hover:shadow-md ${!kisa.apiUrl ? 'cursor-not-allowed opacity-60' : ''}`}
+      >
+        <CardContent className="flex items-center justify-between p-4">
+          <div className="flex flex-col gap-1">
+            <div className="text-lg font-semibold text-[hsl(var(--foreground))]">{kisa.nimi}</div>
+            <div className="text-sm text-[hsl(var(--muted-foreground))]">
+              {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
+            </div>
+          </div>
+          <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
+        </CardContent>
+      </Card>
+    );
+  };
+
   // --- NÄKYMÄ 1: ETUSIVU ---
   if (!valittuKisa) {
     return (
@@ -577,30 +659,51 @@ useEffect(() => {
 
         {virhe && <div className="text-sm font-medium text-rose-600">{virhe}</div>}
 
-        <div className="flex flex-col gap-3">
-          {kisat.map(kisa => {
-            const statusData = laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm);
+        <div className="flex flex-col gap-4">
+          {kisaRyhmat.aktiiviset.map((ryhma) => (
+            <section key={`aktiivinen-${ryhma.vuosi}`} className="space-y-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                {ryhma.vuosi}
+              </h2>
+              <div className="flex flex-col gap-3">
+                {ryhma.kisat.map(renderKisaKortti)}
+              </div>
+            </section>
+          ))}
+
+          {kisaRyhmat.vanhat.map((ryhma) => {
+            const onAuki = Boolean(avoinnaVanhatVuodet[ryhma.vuosi]);
             return (
-              <Card
-                key={kisa.id}
-                onClick={() => {
-                  if (!kisa.apiUrl) return;
-                  avaaKisaNakyma(kisa);
-                }}
-                className={`cursor-pointer transition-all hover:border-[hsl(var(--border))] hover:shadow-md ${!kisa.apiUrl ? 'cursor-not-allowed opacity-60' : ''}`}
-              >
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex flex-col gap-1">
-                    <div className="text-lg font-semibold text-[hsl(var(--foreground))]">{kisa.nimi}</div>
-                    <div className="text-sm text-[hsl(var(--muted-foreground))]">
-                    {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
-                    </div>
+              <section key={`vanha-${ryhma.vuosi}`} className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setAvoinnaVanhatVuodet((prev) => ({ ...prev, [ryhma.vuosi]: !prev[ryhma.vuosi] }))}
+                  className="flex w-full items-center justify-between rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-left transition-colors hover:bg-[hsl(var(--muted))]/30"
+                >
+                  <span className="inline-flex items-center gap-2 text-sm font-semibold text-[hsl(var(--foreground))]">
+                    {onAuki ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+                    {ryhma.vuosi}
+                  </span>
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">{ryhma.kisat.length} kisaa</span>
+                </button>
+
+                {onAuki && (
+                  <div className="flex flex-col gap-3">
+                    {ryhma.kisat.map(renderKisaKortti)}
                   </div>
-                    <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
-                </CardContent>
-              </Card>
+                )}
+              </section>
             );
           })}
+
+          {kisaRyhmat.ilmanVuotta.length > 0 && (
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Muut</h2>
+              <div className="flex flex-col gap-3">
+                {kisaRyhmat.ilmanVuotta.map(renderKisaKortti)}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     );
@@ -614,7 +717,10 @@ useEffect(() => {
       <Card>
         <CardHeader className="gap-2 border-b border-[hsl(var(--border))] pb-4">
           <div className="flex items-center justify-between gap-2">
-            <Button onClick={palaaEtusivulle} variant="outline" size="sm" className="w-fit">{tx.backHome}</Button>
+            <Button onClick={palaaEtusivulle} variant="outline" size="sm" className="w-fit gap-1.5">
+              <Home className="h-4 w-4" aria-hidden="true" />
+              {tx.backHome}
+            </Button>
             {/*
             Later enable controls by restoring this block:
             <div className="flex flex-wrap items-center gap-1">

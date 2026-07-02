@@ -125,6 +125,13 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, rivit]);
 
   const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
+  const openRatkoRajatulos = useMemo(() => {
+    if (sarjaSuodatin !== 'OPEN (Y)' || naytettavatAmpujat.length < 3) {
+      return null;
+    }
+    const kolmasTulos = parseInt(naytettavatAmpujat[2]?.tulos, 10);
+    return Number.isNaN(kolmasTulos) ? null : kolmasTulos;
+  }, [naytettavatAmpujat, sarjaSuodatin]);
 
   const tx = locale === 'en'
     ? {
@@ -233,7 +240,12 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         {naytettavatAmpujat.map((ampuja) => {
           const onAuki = valittuAmpujaId === ampuja.id;
           const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
-          const naytaRatko = sarjaSuodatin !== 'OPEN (Y)' || parseInt(ampuja.laskettuSija, 10) <= 3;
+          const ampujaTulosNum = parseInt(ampuja.tulos, 10);
+          const onkoRatkoSallittu = sarjaSuodatin !== 'OPEN (Y)'
+            || openRatkoRajatulos === null
+            || (!Number.isNaN(ampujaTulosNum) && ampujaTulosNum >= openRatkoRajatulos);
+          const naytaRatko = onkoRatkoSallittu && Boolean(ratkoNakyma.teksti);
+          const naytaRatkoStatus = onkoRatkoSallittu && ratkoNakyma.statusEtiketit.length > 0;
           const ampujaValmis = onkoAmpujaValmis(ampuja);
           const sijoitusNumero = parseInt(ampuja.laskettuSija || '0', 10);
           const sijoitusKorostusLuokka = sijoitusNumero === 1
@@ -279,9 +291,9 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                 <div className="flex min-w-20 flex-col items-end justify-center">
                   <div className="text-xl font-black leading-none text-slate-900">{ampuja.tulos}</div>
 
-                  {(ratkoNakyma.statusEtiketit.length > 0 || (naytaRatko && ratkoNakyma.teksti)) && (
+                  {(naytaRatkoStatus || (naytaRatko && ratkoNakyma.teksti)) && (
                     <div className="mt-1 flex items-center gap-1">
-                      {ratkoNakyma.statusEtiketit.map((status) => (
+                      {naytaRatkoStatus && ratkoNakyma.statusEtiketit.map((status) => (
                         <span
                           key={`${ampuja.id}-${status}`}
                           className={cn(
