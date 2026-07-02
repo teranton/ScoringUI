@@ -6,6 +6,43 @@ export function tulkitseTotuusarvo(arvo) {
   return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
 }
 
+function normalizeSpeksiHeader(value) {
+  return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function detectSpeksiColumnIndexes(speksiRivit) {
+  const fallback = { asemaIdx: 9, maksimiIdx: 10, toiseksiParasIdx: 11, headerRowIdx: -1 };
+  if (!Array.isArray(speksiRivit) || speksiRivit.length === 0) return fallback;
+
+  const asemaMatchers = ['ASEMA', 'RATA', 'LANE', 'STATION'];
+  const maksimiMatchers = ['MAKS', 'MAX', 'MAARA', 'COUNT'];
+  const secondMatchers = ['TOISEKSI', 'SECOND', 'PARAS2', 'SECONDBEST'];
+
+  const scanLimit = Math.min(8, speksiRivit.length);
+  for (let rowIdx = 0; rowIdx < scanLimit; rowIdx++) {
+    const row = speksiRivit[rowIdx];
+    if (!Array.isArray(row) || row.length < 2) continue;
+
+    const normalized = row.map(normalizeSpeksiHeader);
+    const asemaIdx = normalized.findIndex((h) => asemaMatchers.some((token) => h.includes(token)));
+    const maksimiIdx = normalized.findIndex((h) => maksimiMatchers.some((token) => h.includes(token)));
+
+    if (asemaIdx === -1 || maksimiIdx === -1 || asemaIdx === maksimiIdx) {
+      continue;
+    }
+
+    const toiseksiParasIdx = normalized.findIndex((h) => secondMatchers.some((token) => h.includes(token)));
+    return {
+      asemaIdx,
+      maksimiIdx,
+      toiseksiParasIdx: toiseksiParasIdx === -1 ? maksimiIdx + 1 : toiseksiParasIdx,
+      headerRowIdx: rowIdx
+    };
+  }
+
+  return fallback;
+}
+
 export function parseAsemaSpeksitRows(speksiRivit) {
   const asemaMaksimit = {};
   const asemaToiseksiParasKaytossa = {};
@@ -14,16 +51,18 @@ export function parseAsemaSpeksitRows(speksiRivit) {
     return { asemaMaksimit, asemaToiseksiParasKaytossa };
   }
 
-  speksiRivit.forEach((rivi) => {
-    if (!rivi || rivi.length < 11) return;
+  const { asemaIdx, maksimiIdx, toiseksiParasIdx, headerRowIdx } = detectSpeksiColumnIndexes(speksiRivit);
 
-    const raakaAsema = rivi[9];
-    const raakaMaksimi = rivi[10];
+  speksiRivit.forEach((rivi, rowIdx) => {
+    if (!rivi || rowIdx === headerRowIdx) return;
+
+    const raakaAsema = rivi[asemaIdx];
+    const raakaMaksimi = rivi[maksimiIdx];
 
     if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
       const asemaTunnus = raakaAsema.toString().trim();
       const maksimiArvo = parseInt(raakaMaksimi, 10);
-      const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
+      const naytaToiseksiParas = tulkitseTotuusarvo(rivi[toiseksiParasIdx]);
 
       if (asemaTunnus && !Number.isNaN(maksimiArvo)) {
         const asemaNumero = asemaTunnus.replace(/\D/g, '');

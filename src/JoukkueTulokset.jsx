@@ -1,7 +1,7 @@
 // src/JoukkueTulokset.jsx
 import { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
-import { tulkitseTotuusarvo } from './utils/henkiloTulokset';
+import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './components/ui/table';
@@ -15,38 +15,25 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
   const speksit = useMemo(() => {
     const maksimit = {};
     const toiseksiParasKaytossa = {};
-    let ratojenMaara = 0;
 
     if (data?.speksitCsvRaw) {
       try {
         const speksiRivit = Array.isArray(parsedRows?.speksitRows)
           ? parsedRows.speksitRows
           : parseCsvRows(data.speksitCsvRaw);
-        speksiRivit.forEach((rivi) => {
-          if (!rivi || rivi.length < 11) return;
-
-          const raakaAsema = rivi[9];
-          const raakaMaksimi = rivi[10];
-
-          if (raakaAsema !== undefined && raakaAsema !== null && raakaMaksimi !== undefined && raakaMaksimi !== null) {
-            const asemaTunnus = raakaAsema.toString().trim();
-            const maksimiArvo = parseInt(raakaMaksimi, 10);
-            const naytaToiseksiParas = tulkitseTotuusarvo(rivi[11]);
-
-            // HUOMITAVAT RADAT: Aseman pitää olla olemassa ja maksimin pitää olla YLI nollan
-            if (asemaTunnus && !isNaN(maksimiArvo) && maksimiArvo > 0) {
-              const asemaNumero = asemaTunnus.replace(/\D/g, '');
-              const avain = asemaNumero || asemaTunnus;
-              maksimit[avain] = maksimiArvo;
-              toiseksiParasKaytossa[avain] = naytaToiseksiParas;
-              ratojenMaara++; // Kasvatetaan vain, jos kyseessä on oikea aktiivinen rata
-            }
+        const parsedSpeksit = parseAsemaSpeksitRows(speksiRivit);
+        Object.entries(parsedSpeksit.asemaMaksimit).forEach(([avain, maksimiArvo]) => {
+          if (Number.isFinite(maksimiArvo) && maksimiArvo > 0) {
+            maksimit[avain] = maksimiArvo;
+            toiseksiParasKaytossa[avain] = Boolean(parsedSpeksit.asemaToiseksiParasKaytossa[avain]);
           }
         });
       } catch (e) {
         console.error("Virhe joukkue-speksien parsinnoissa:", e);
       }
     }
+
+    const ratojenMaara = Object.keys(maksimit).length;
 
     return {
       asemaMaksimit: maksimit,

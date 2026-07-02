@@ -365,7 +365,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
             {shooterMatches.length === 0 ? (
               <p className="text-xs italic text-[hsl(var(--muted-foreground))] py-1">{txSearch.noResults}</p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2">
                 {shooterMatches.map((match, idx) => (
                   <div key={`match-${idx}`} className="flex items-center justify-between gap-3 p-2 rounded-md border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                     <div className="flex items-center gap-2 min-w-0">

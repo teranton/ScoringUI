@@ -5,12 +5,14 @@ import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import AikatauluNakyma from './AikatauluNakyma';
+import MateriaaliNakyma from './MateriaaliNakyma';
 import { parseCsvRows } from './utils/csv';
+import { extractMaterialGuidesFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass } from 'lucide-react';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText } from 'lucide-react';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
@@ -193,6 +195,7 @@ export default function App() {
         table: 'Table',
         registrations: 'Registrations',
         timetable: 'Timetable',
+        materials: 'Materials',
         teamResults: 'Team Results',
         themeLabel: 'Theme',
         themeDefault: 'Default',
@@ -211,6 +214,7 @@ export default function App() {
       table: 'Taulukko',
       registrations: 'Ilmoittautuneet',
       timetable: 'Aikataulu',
+      materials: 'Materiaalit',
       teamResults: 'Joukkuetulokset',
       themeLabel: 'Teema',
       themeDefault: 'Oletus',
@@ -554,6 +558,11 @@ useEffect(() => {
   const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
   const onkoAikataulua = nykyisenKisanData?.aikatauluCsvRaw?.trim().length > 10;
   const onkoAikatauluSallittu = onkoAikataulua && !onkoKisaPaattynyt;
+  const onkoMateriaaleja = useMemo(() => {
+    const rivit = nykyisenKisanParsitutRivit.speksitRows || [];
+    return extractMaterialGuidesFromRows(rivit).length > 0;
+  }, [nykyisenKisanParsitutRivit.speksitRows]);
+
   const onkoJoukkueTuloksetSallittu = valittuKisa
     ? (valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi))
     : false;
@@ -565,8 +574,8 @@ useEffect(() => {
   useEffect(() => {
     if (!valittuKisa) return;
 
-    if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'aikataulu') {
-      setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet'));
+    if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'aikataulu' && aktiivinenSivu !== 'materiaalit') {
+      setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : (onkoAikatauluSallittu ? 'aikataulu' : (onkoMateriaaleja ? 'materiaalit' : 'ilmoittautuneet')));
       return;
     }
 
@@ -580,7 +589,12 @@ useEffect(() => {
       return;
     }
 
-    if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && !(onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') && aktiivinenSivu !== 'joukkueet') {
+    if (!onkoMateriaaleja && aktiivinenSivu === 'materiaalit') {
+      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet'));
+      return;
+    }
+
+    if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && !(onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') && aktiivinenSivu !== 'joukkueet' && !(onkoMateriaaleja && aktiivinenSivu === 'materiaalit')) {
       setAktiivinenSivu('tulokset');
       return;
     }
@@ -597,6 +611,7 @@ useEffect(() => {
     aktiivinenSivu,
     onkoAikatauluSallittu,
     onkoIlmoittautuneita,
+    onkoMateriaaleja,
     onkoJoukkueKisa,
     onkoKisaPaattynyt,
     onkoKisaTulossa,
@@ -768,6 +783,12 @@ useEffect(() => {
             {tx.timetable}
           </Button>
         )}
+        {onkoMateriaaleja && (
+          <Button onClick={() => setAktiivinenSivu('materiaalit')} variant={aktiivinenSivu === 'materiaalit' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <FileText className="h-4 w-4" aria-hidden="true" />
+            {tx.materials}
+          </Button>
+        )}
         {onkoJoukkueKisa && (
           <Button onClick={() => setAktiivinenSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Users className="h-4 w-4" aria-hidden="true" />
@@ -802,6 +823,11 @@ useEffect(() => {
           )}
           {aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && (
             <AikatauluNakyma rawCsv={nykyisenKisanData.aikatauluCsvRaw} locale={locale} />
+          )}
+          {aktiivinenSivu === 'materiaalit' && onkoMateriaaleja && nykyisenKisanData && (
+            <div className="mx-auto w-full max-w-3xl">
+              <MateriaaliNakyma specsCsv={nykyisenKisanData.speksitCsvRaw} locale={locale} />
+            </div>
           )}
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
             <div className="mx-auto w-full max-w-3xl">
