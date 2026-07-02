@@ -10,7 +10,7 @@ import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home } from 'lucide-react';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass } from 'lucide-react';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
@@ -734,7 +734,7 @@ useEffect(() => {
             */}
           </div>
           <CardTitle className="text-2xl font-bold tracking-normal">
-            {valittuKisa.nimi} {ladataanKisaa && <span className="text-[hsl(var(--muted-foreground))]">↻</span>}
+            {valittuKisa.nimi} {ladataanKisaa && <Hourglass className="ml-1 inline h-4 w-4 animate-pulse text-[hsl(var(--muted-foreground))]" aria-label="Loading" />}
           </CardTitle>
           <CardDescription>
             {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
