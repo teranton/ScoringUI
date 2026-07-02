@@ -412,12 +412,6 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
               </div>
 
               <div className={`${mobileViewMode === 'lanes' ? 'block' : 'hidden'} space-y-2 p-2 md:hidden`}>
-                <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 px-2.5 py-1.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-                  {locale === 'en'
-                    ? 'Swipe left/right to switch lanes. Scroll up/down inside a lane to see earlier and next shooters.'
-                    : 'Pyyhkäise vasen/oikea vaihtaaksesi rataa. Vieritä ylös/alas radan sisällä nähdäksesi aiemmat ja seuraavat ampujat.'}
-                </div>
-
                 <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                   {mobileLaneTimelines.map((lane) => (
                     <section
