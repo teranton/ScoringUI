@@ -1,9 +1,8 @@
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv'; // Varmista oikea polku projektissasi
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 // --- APUFUNKTIOT ---
 
@@ -109,8 +108,6 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
   
-  // Ref vain yläreunan rataotsikoiden synkronointiin
-  const headerRef = useRef(null);
 
   const tx = locale === 'en'
     ? {
@@ -297,16 +294,6 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   
   // Rakennetaan yhtenäinen master-grid, jossa aika ja radat ovat samassa pöydässä
   const masterGridTemplate = `${timeColumnWidth}px repeat(${parsed.laneColumns.length}, ${laneNameColumnWidth}px)`;
-  const lanesOnlyGridTemplate = `repeat(${parsed.laneColumns.length}, ${laneNameColumnWidth}px)`;
-
-  // REALIAIKAINEN SIVUTTAISOTSIKOIDEN LUKITUSSYNKRONEINTI
-  const handleTransform = (ref) => {
-    const { positionX, scale } = ref.state;
-    // Liikutetaan yläreunan rataotsikoita täsmälleen saman verran kuin datakangas liikkuu X-suunnassa
-    if (headerRef.current) {
-      headerRef.current.style.transform = `translate3d(${positionX}px, 0px, 0px) scale(${scale})`;
-    }
-  };
 
   return (
     <div className="space-y-3">
@@ -500,98 +487,78 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                 </div>
               </div>
 
-              <div className="relative hidden h-[68vh] w-full select-none overflow-hidden rounded-b-xl border bg-[hsl(var(--card))] md:block">
-                <div
-                  className="absolute left-0 top-0 z-50 flex items-center justify-center border-b border-r bg-[hsl(var(--muted))] text-xs font-bold shadow-sm"
-                  style={{ width: `${timeColumnWidth}px`, height: '36px' }}
-                >
-                  {tx.time}
-                </div>
-
-                <div
-                  className="absolute left-0 top-0 z-40 h-[36px] w-full overflow-hidden border-b bg-[hsl(var(--muted))]"
-                  style={{ paddingLeft: `${timeColumnWidth}px` }}
-                >
+              <div className="hidden md:block">
+                <div className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))]">
                   <div
-                    ref={headerRef}
-                    className="grid h-full items-center text-xs font-bold will-change-transform"
-                    style={{ gridTemplateColumns: lanesOnlyGridTemplate, width: `${lanesTotalWidth}px`, transformOrigin: '0 0' }}
+                    className="min-w-max"
+                    style={{ width: `${timeColumnWidth + lanesTotalWidth}px` }}
                   >
-                    {parsed.laneColumns.map((lane) => (
-                      <div key={lane.label} className="truncate border-l border-[hsl(var(--border))] px-5 text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
-                        {lane.label}
+                    <div
+                      className="sticky top-0 z-40 grid border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]"
+                      style={{ gridTemplateColumns: masterGridTemplate }}
+                    >
+                      <div
+                        className="sticky left-0 z-50 flex items-center justify-center border-r border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-1 py-2 text-xs font-bold md:text-sm"
+                        style={{ width: `${timeColumnWidth}px` }}
+                      >
+                        {tx.time}
                       </div>
-                    ))}
+                      {parsed.laneColumns.map((lane) => (
+                        <div
+                          key={`desktop-sticky-header-${lane.label}`}
+                          className="truncate border-l border-[hsl(var(--border))] px-5 py-2 text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]"
+                        >
+                          {lane.label}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="divide-y divide-[hsl(var(--border))]/60">
+                      {parsed.laneRows.map((row) => (
+                        <div
+                          key={`desktop-sticky-row-${row.id}`}
+                          className="grid items-stretch"
+                          style={{ gridTemplateColumns: masterGridTemplate, minHeight: '40px' }}
+                        >
+                          <div
+                            className="sticky left-0 z-30 flex items-center justify-center border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/80 px-1 py-1 font-mono text-xs font-bold md:text-sm"
+                            style={{ width: `${timeColumnWidth}px` }}
+                          >
+                            {row.time || '-'}
+                          </div>
+
+                          {row.slots.map((slot, slotIdx) => {
+                            const isAssigned = !!slot.shooter;
+                            const onParillinenSarake = slotIdx % 2 === 1;
+                            const shooterNumber = toShooterNumber(slot.number);
+                            const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
+                            const hasGroupColor = Number.isInteger(groupIndex);
+                            const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
+
+                            return (
+                              <div
+                                key={`desktop-sticky-slot-${row.id}-${slot.lane}`}
+                                className={`flex min-h-[40px] flex-col justify-center border-l border-[hsl(var(--border))]/60 px-5 py-1 ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                                style={cellStyle}
+                              >
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                  {slot.number && (
+                                    <span className="shrink-0 rounded bg-[hsl(var(--muted))]/80 px-1 py-0.5 font-mono text-[10px] font-bold leading-none text-[hsl(var(--muted-foreground))]">
+                                      {slot.number}
+                                    </span>
+                                  )}
+                                  <span className={`truncate whitespace-nowrap text-xs tracking-wide ${isAssigned ? 'font-medium text-[hsl(var(--foreground))]' : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}>
+                                    {slot.shooter || '-'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-
-                <TransformWrapper
-                  initialScale={1}
-                  minScale={0.3}
-                  maxScale={3}
-                  centerOnInit={false}
-                  onTransformed={handleTransform}
-                >
-                  {({ zoomIn, zoomOut, resetTransform }) => (
-                    <>
-                      <TransformComponent wrapperClass="!w-full !h-full cursor-grab active:cursor-grabbing">
-                        <div
-                          className="divide-y divide-[hsl(var(--border))]/60 bg-[hsl(var(--card))]"
-                          style={{ paddingTop: '36px', width: `${timeColumnWidth + lanesTotalWidth}px` }}
-                        >
-                          {parsed.laneRows.map((row) => (
-                            <div
-                              key={row.id}
-                              className="grid items-stretch transition-colors hover:bg-[hsl(var(--muted))]/5"
-                              style={{ gridTemplateColumns: masterGridTemplate, height: '38px' }}
-                            >
-                              <div
-                                className="flex shrink-0 items-center justify-center border-b border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/40 font-mono text-xs font-bold tracking-wide text-[hsl(var(--foreground))] md:text-sm"
-                                style={{ width: `${timeColumnWidth}px` }}
-                              >
-                                {row.time || '-'}
-                              </div>
-
-                              {row.slots.map((slot, slotIdx) => {
-                                const isAssigned = !!slot.shooter;
-                                const onParillinenSarake = slotIdx % 2 === 1;
-                                const shooterNumber = toShooterNumber(slot.number);
-                                const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
-                                const hasGroupColor = Number.isInteger(groupIndex);
-                                const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
-
-                                return (
-                                  <div
-                                    key={`${row.id}-${slot.lane}`}
-                                    className={`flex h-full flex-col justify-center border-b border-l border-[hsl(var(--border))]/60 px-5 py-0.5 ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
-                                    style={cellStyle}
-                                  >
-                                    <div className="flex min-w-0 items-center gap-2.5">
-                                      {slot.number && (
-                                        <span className="shrink-0 rounded bg-[hsl(var(--muted))]/80 px-1 py-0.5 font-mono text-[10px] font-bold leading-none text-[hsl(var(--muted-foreground))]">
-                                          {slot.number}
-                                        </span>
-                                      )}
-                                      <span className={`truncate whitespace-nowrap text-xs tracking-wide ${isAssigned ? 'font-medium text-[hsl(var(--foreground))]' : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}>
-                                        {slot.shooter || '-'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ))}
-                        </div>
-                      </TransformComponent>
-
-                      <div className="absolute bottom-4 right-4 z-50 flex gap-2 rounded-lg border bg-[hsl(var(--background))]/95 p-1.5 shadow-sm backdrop-blur-sm">
-                        <button onClick={() => zoomIn()} className="flex h-8 w-8 items-center justify-center rounded text-lg font-bold transition-transform hover:bg-[hsl(var(--muted))] active:scale-95">+</button>
-                        <button onClick={() => zoomOut()} className="flex h-8 w-8 items-center justify-center rounded text-lg font-bold transition-transform hover:bg-[hsl(var(--muted))] active:scale-95">−</button>
-                        <button onClick={() => resetTransform()} className="flex h-8 items-center justify-center rounded px-2.5 text-xs font-semibold font-sans transition-transform hover:bg-[hsl(var(--muted))] active:scale-95">Nollaa</button>
-                      </div>
-                    </>
-                  )}
-                </TransformWrapper>
               </div>
             </>
           ) : (

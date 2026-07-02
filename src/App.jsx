@@ -636,7 +636,7 @@ useEffect(() => {
   // --- NÄKYMÄ 1: ETUSIVU ---
   if (!valittuKisa) {
     return (
-      <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 bg-[hsl(var(--background))] px-4 py-8 text-[hsl(var(--foreground))]">
+      <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-3 bg-[hsl(var(--background))] px-3 py-3 text-[hsl(var(--foreground))] md:gap-4 md:px-4 md:py-5">
         <header className="space-y-2">
           <div className="relative">
             <div className="space-y-2 text-center">
@@ -659,13 +659,13 @@ useEffect(() => {
 
         {virhe && <div className="text-sm font-medium text-rose-600">{virhe}</div>}
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 md:gap-4">
           {kisaRyhmat.aktiiviset.map((ryhma) => (
             <section key={`aktiivinen-${ryhma.vuosi}`} className="space-y-2">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
                 {ryhma.vuosi}
               </h2>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2.5 md:gap-3">
                 {ryhma.kisat.map(renderKisaKortti)}
               </div>
             </section>
@@ -688,7 +688,7 @@ useEffect(() => {
                 </button>
 
                 {onAuki && (
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2.5 md:gap-3">
                     {ryhma.kisat.map(renderKisaKortti)}
                   </div>
                 )}
@@ -699,7 +699,7 @@ useEffect(() => {
           {kisaRyhmat.ilmanVuotta.length > 0 && (
             <section className="space-y-2">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Muut</h2>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2.5 md:gap-3">
                 {kisaRyhmat.ilmanVuotta.map(renderKisaKortti)}
               </div>
             </section>
@@ -713,9 +713,9 @@ useEffect(() => {
   const kilpailuNakymaMaxWidth = 'min(96vw, 1320px)';
 
   return (
-    <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 bg-[hsl(var(--background))] px-4 py-6 text-[hsl(var(--foreground))]" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+    <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
       <Card>
-        <CardHeader className="gap-2 border-b border-[hsl(var(--border))] pb-4">
+        <CardHeader className="gap-1.5 border-b border-[hsl(var(--border))] pb-3.5">
           <div className="flex items-center justify-between gap-2">
             <Button onClick={palaaEtusivulle} variant="outline" size="sm" className="w-fit gap-1.5">
               <Home className="h-4 w-4" aria-hidden="true" />
