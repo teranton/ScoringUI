@@ -132,8 +132,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
       largeTable: 'Large table'
     }
     : {
-      lanes: 'Ratat',
-      largeTable: 'Taulukkonakyma'
+      lanes: 'Radat',
+      largeTable: 'Taulukkonäkymä'
     };
 
   // DATA PARSINTA
@@ -426,7 +426,81 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                 </div>
               </div>
 
-              <div className={`${mobileViewMode === 'table' ? 'block' : 'hidden'} relative h-[68vh] w-full select-none overflow-hidden rounded-b-xl border bg-[hsl(var(--card))] md:block`}>
+              <div className={`${mobileViewMode === 'table' ? 'block' : 'hidden'} md:hidden`}>
+                <div className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))]">
+                  <div
+                    className="min-w-max"
+                    style={{ width: `${timeColumnWidth + lanesTotalWidth}px` }}
+                  >
+                    <div
+                      className="sticky top-0 z-40 grid border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]"
+                      style={{ gridTemplateColumns: masterGridTemplate }}
+                    >
+                      <div
+                        className="sticky left-0 z-50 flex items-center justify-center border-r border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-1 py-2 text-xs font-bold"
+                        style={{ width: `${timeColumnWidth}px` }}
+                      >
+                        {tx.time}
+                      </div>
+                      {parsed.laneColumns.map((lane) => (
+                        <div
+                          key={`mobile-sticky-header-${lane.label}`}
+                          className="truncate border-l border-[hsl(var(--border))] px-2 py-2 text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]"
+                        >
+                          {lane.label}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="divide-y divide-[hsl(var(--border))]/60">
+                      {parsed.laneRows.map((row) => (
+                        <div
+                          key={`mobile-sticky-row-${row.id}`}
+                          className="grid items-stretch"
+                          style={{ gridTemplateColumns: masterGridTemplate, minHeight: '40px' }}
+                        >
+                          <div
+                            className="sticky left-0 z-30 flex items-center justify-center border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/80 px-1 py-1 font-mono text-xs font-bold"
+                            style={{ width: `${timeColumnWidth}px` }}
+                          >
+                            {row.time || '-'}
+                          </div>
+
+                          {row.slots.map((slot, slotIdx) => {
+                            const isAssigned = !!slot.shooter;
+                            const onParillinenSarake = slotIdx % 2 === 1;
+                            const shooterNumber = toShooterNumber(slot.number);
+                            const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
+                            const hasGroupColor = Number.isInteger(groupIndex);
+                            const cellStyle = hasGroupColor ? getGroupCellStyle(groupIndex) : undefined;
+
+                            return (
+                              <div
+                                key={`mobile-sticky-slot-${row.id}-${slot.lane}`}
+                                className={`flex min-h-[40px] flex-col justify-center border-l border-[hsl(var(--border))]/60 px-2 py-1 ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                                style={cellStyle}
+                              >
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  {slot.number && (
+                                    <span className="shrink-0 rounded bg-[hsl(var(--muted))]/80 px-1 py-0.5 font-mono text-[10px] font-bold leading-none text-[hsl(var(--muted-foreground))]">
+                                      {slot.number}
+                                    </span>
+                                  )}
+                                  <span className={`truncate text-[11px] tracking-wide ${isAssigned ? 'font-medium text-[hsl(var(--foreground))]' : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}>
+                                    {slot.shooter || '-'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative hidden h-[68vh] w-full select-none overflow-hidden rounded-b-xl border bg-[hsl(var(--card))] md:block">
                 <div
                   className="absolute left-0 top-0 z-50 flex items-center justify-center border-b border-r bg-[hsl(var(--muted))] text-xs font-bold shadow-sm"
                   style={{ width: `${timeColumnWidth}px`, height: '36px' }}
