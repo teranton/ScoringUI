@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv'; // Varmista oikea polku projektissasi
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
@@ -107,6 +107,15 @@ function measureShooterTextWidth(text) {
 export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
+  const desktopScrollRef = useRef(null);
+  const desktopDragRef = useRef({
+    isDown: false,
+    startX: 0,
+    startY: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+    moved: false
+  });
   
 
   const tx = locale === 'en'
@@ -294,6 +303,35 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
   
   // Rakennetaan yhtenäinen master-grid, jossa aika ja radat ovat samassa pöydässä
   const masterGridTemplate = `${timeColumnWidth}px repeat(${parsed.laneColumns.length}, ${laneNameColumnWidth}px)`;
+
+  const handleDesktopMouseDown = (e) => {
+    if (e.button !== 0 || !desktopScrollRef.current) return;
+    desktopDragRef.current = {
+      isDown: true,
+      startX: e.pageX,
+      startY: e.pageY,
+      scrollLeft: desktopScrollRef.current.scrollLeft,
+      scrollTop: desktopScrollRef.current.scrollTop,
+      moved: false
+    };
+  };
+
+  const handleDesktopMouseMove = (e) => {
+    if (!desktopDragRef.current.isDown || !desktopScrollRef.current) return;
+
+    const dx = e.pageX - desktopDragRef.current.startX;
+    const dy = e.pageY - desktopDragRef.current.startY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+      desktopDragRef.current.moved = true;
+    }
+
+    desktopScrollRef.current.scrollLeft = desktopDragRef.current.scrollLeft - dx;
+    desktopScrollRef.current.scrollTop = desktopDragRef.current.scrollTop - dy;
+  };
+
+  const handleDesktopMouseUpOrLeave = () => {
+    desktopDragRef.current.isDown = false;
+  };
 
   return (
     <div className="space-y-3">
@@ -488,7 +526,15 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
               </div>
 
               <div className="hidden md:block">
-                <div className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))]">
+                <div
+                  ref={desktopScrollRef}
+                  className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))] cursor-grab active:cursor-grabbing"
+                  onMouseDown={handleDesktopMouseDown}
+                  onMouseMove={handleDesktopMouseMove}
+                  onMouseUp={handleDesktopMouseUpOrLeave}
+                  onMouseLeave={handleDesktopMouseUpOrLeave}
+                  onDragStart={(e) => e.preventDefault()}
+                >
                   <div
                     className="min-w-max"
                     style={{ width: `${timeColumnWidth + lanesTotalWidth}px` }}
