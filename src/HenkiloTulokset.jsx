@@ -258,9 +258,11 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
           return (
             <Card key={ampuja.id} className={cn('overflow-hidden border-[hsl(var(--border))]', sijoitusKorostusLuokka)}>
-              <div
+              <button
+                type="button"
+                aria-expanded={onAuki}
                 className={cn(
-                  'flex min-h-[52px] cursor-pointer items-center px-3 py-3 transition-colors',
+                  'flex min-h-[52px] w-full items-center px-3 py-3 text-left transition-colors',
                   onAuki ? 'bg-slate-50' : 'bg-white'
                 )}
                 onClick={() => setValittuAmpujaId(onAuki ? null : ampuja.id)}
@@ -310,7 +312,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                     </div>
                   )}
                 </div>
-              </div>
+              </button>
 
               {onAuki && ampuja.sarjat.length > 0 && (
                 <CardContent className="border-t border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">

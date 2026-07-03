@@ -303,29 +303,36 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
               return (
                 <Card key={joukkueAlkio.id} className={cn('overflow-hidden', sijoitusKorostusLuokka)}>
                   
-                  <CardContent onClick={() => toggleJoukkue(joukkueAlkio.id)} className="flex cursor-pointer select-none items-center gap-3 p-4">
-                    <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm', sijoitusPalloLuokka)}>
-                      {joukkueAlkio.sijoitus}
-                    </span>
-                    <div className="flex flex-1 flex-col gap-1">
-                      <span className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                        {joukkueAlkio.joukkue}
-                        <span className="text-xs text-slate-400">{onAuki ? '▼' : '▶'}</span>
-                        {naytaValmiusIndikaattori && (
-                          <span
-                            className={cn(
-                              'inline-block h-2 w-2 rounded-full ring-1 ring-black/10',
-                              joukkueValmis ? 'bg-[hsl(var(--status-ready))]' : 'bg-[hsl(var(--status-missing))]'
-                            )}
-                            title={joukkueValmis ? tx.allStagesReady : tx.stagesMissing}
-                          />
-                        )}
+                  <CardContent className="p-0">
+                    <button
+                      type="button"
+                      aria-expanded={onAuki}
+                      onClick={() => toggleJoukkue(joukkueAlkio.id)}
+                      className="flex w-full select-none items-center gap-3 p-4 text-left"
+                    >
+                      <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm', sijoitusPalloLuokka)}>
+                        {joukkueAlkio.sijoitus}
                       </span>
-                      <span className="text-sm text-slate-600">{jasenetTeksti}</span>
-                    </div>
-                    <Badge variant="default" className="bg-slate-100 px-3 py-1 text-base font-bold text-slate-900">
-                      {joukkueAlkio.kokonaistulos}
-                    </Badge>
+                      <div className="flex flex-1 flex-col gap-1">
+                        <span className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                          {joukkueAlkio.joukkue}
+                          <span className="text-xs text-slate-400">{onAuki ? '▼' : '▶'}</span>
+                          {naytaValmiusIndikaattori && (
+                            <span
+                              className={cn(
+                                'inline-block h-2 w-2 rounded-full ring-1 ring-black/10',
+                                joukkueValmis ? 'bg-[hsl(var(--status-ready))]' : 'bg-[hsl(var(--status-missing))]'
+                              )}
+                              title={joukkueValmis ? tx.allStagesReady : tx.stagesMissing}
+                            />
+                          )}
+                        </span>
+                        <span className="text-sm text-slate-600">{jasenetTeksti}</span>
+                      </div>
+                      <Badge variant="default" className="bg-slate-100 px-3 py-1 text-base font-bold text-slate-900">
+                        {joukkueAlkio.kokonaistulos}
+                      </Badge>
+                    </button>
                   </CardContent>
                   
                   {onAuki && (

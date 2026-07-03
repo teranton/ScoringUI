@@ -205,7 +205,7 @@ export default function App() {
   const [ladataanKisalista, setLadataanKisalista] = useState(true);
 
   const [kisaCache, setKisaCache] = useState({});
-  const [ladataanKisaa, setLadataanKisaa] = useState(false);
+  const [ladataanKisaaBySheet, setLadataanKisaaBySheet] = useState({});
   const [virhe, setVirhe] = useState(null);
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const kisaCacheRef = useRef(kisaCache);
@@ -421,7 +421,7 @@ useEffect(() => {
     try {
       setVirhe(null);
       if (!kisaCacheRef.current[sheetId]) {
-        setLadataanKisaa(true);
+        setLadataanKisaaBySheet((prev) => ({ ...prev, [sheetId]: true }));
       }
 
       const startTime = performance.now();
@@ -460,7 +460,10 @@ useEffect(() => {
       setVirhe("Tietojen päivitys epäonnistui taustalla.");
     } finally {
       fetchInFlightRef.current[sheetId] = false;
-      setLadataanKisaa(false);
+      setLadataanKisaaBySheet((prev) => {
+        if (!prev[sheetId]) return prev;
+        return { ...prev, [sheetId]: false };
+      });
     }
   }
 
@@ -555,6 +558,18 @@ useEffect(() => {
   }, [kisaRyhmat.vanhat]);
 
   const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
+  const ladataanKisaa = valittuKisa?.apiUrl ? Boolean(ladataanKisaaBySheet[valittuKisa.apiUrl]) : false;
+
+  const kisaStatusById = useMemo(() => {
+    const statusMap = {};
+
+    for (const kisa of kisat) {
+      const speksitRaw = kisa?.apiUrl ? (kisaCache[kisa.apiUrl]?.speksitCsvRaw || '') : '';
+      statusMap[kisa.id] = laskeKisanEfektiivinenStatus(kisa.alkuPvm, kisa.loppuPvm, speksitRaw);
+    }
+
+    return statusMap;
+  }, [kisat, kisaCache]);
 
   const nykyisenKisanParsitutRivit = useMemo(() => {
     if (!nykyisenKisanData) {
@@ -663,26 +678,35 @@ useEffect(() => {
   }
 
   const renderKisaKortti = (kisa) => {
-    const statusData = laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm);
+    const statusData = kisaStatusById[kisa.id] || laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm);
+    const onValittavissa = Boolean(kisa.apiUrl);
+
     return (
-      <Card
+      <button
+        type="button"
         key={kisa.id}
+        disabled={!onValittavissa}
         onClick={() => {
-          if (!kisa.apiUrl) return;
+          if (!onValittavissa) return;
           avaaKisaNakyma(kisa);
         }}
-        className={`cursor-pointer transition-all hover:border-[hsl(var(--border))] hover:shadow-md ${!kisa.apiUrl ? 'cursor-not-allowed opacity-60' : ''}`}
+        className="w-full text-left"
+        aria-disabled={!onValittavissa}
       >
-        <CardContent className="flex items-center justify-between p-4">
-          <div className="flex flex-col gap-1">
-            <div className="text-lg font-semibold text-[hsl(var(--foreground))]">{kisa.nimi}</div>
-            <div className="text-sm text-[hsl(var(--muted-foreground))]">
-              {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
+        <Card
+          className={`transition-all hover:border-[hsl(var(--border))] hover:shadow-md ${onValittavissa ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2`}
+        >
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex flex-col gap-1">
+              <div className="text-lg font-semibold text-[hsl(var(--foreground))]">{kisa.nimi}</div>
+              <div className="text-sm text-[hsl(var(--muted-foreground))]">
+                {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
+              </div>
             </div>
-          </div>
-          <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
-        </CardContent>
-      </Card>
+            <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
+          </CardContent>
+        </Card>
+      </button>
     );
   };
 
