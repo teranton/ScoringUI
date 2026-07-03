@@ -7,6 +7,44 @@ import { Badge } from './components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './components/ui/table';
 import { cn } from './lib/utils';
 
+function normalisoiOtsikko(arvo) {
+  return String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function etsiIndeksi(otsikotNormalisoitu, ehdot) {
+  for (const ehto of ehdot) {
+    const idx = otsikotNormalisoitu.findIndex((h) => ehto(h));
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function laskeRiviTulosJaErat(row, rataAlkuIndeksi, ratojenMaara, idxYhteistulos) {
+  const eratMap = {};
+  let laskettuSumma = 0;
+  let onkoPisteita = false;
+
+  for (let i = 0; i < ratojenMaara; i++) {
+    const eraNum = i + 1;
+    const col = rataAlkuIndeksi + i;
+    const arvo = row[col] !== undefined ? row[col] : '';
+    eratMap[eraNum] = arvo;
+
+    const p = parseInt(arvo, 10);
+    if (!isNaN(p)) {
+      laskettuSumma += p;
+      onkoPisteita = true;
+    }
+  }
+
+  const raakaYhteistulos = idxYhteistulos !== -1 ? String(row[idxYhteistulos] || '').trim() : '';
+  const lopullinenTulos = (raakaYhteistulos && raakaYhteistulos !== '0')
+    ? raakaYhteistulos
+    : (onkoPisteita ? String(laskettuSumma) : '0');
+
+  return { eratMap, lopullinenTulos };
+}
+
 export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale = 'fi' }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
 
@@ -60,10 +98,10 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
 
   const onkoDataPuuttuu = !data || !data.joukkueetCsvRaw;
 
-  const toggleJoukkue = (joukkueNimi) => {
+  const toggleJoukkue = (joukkueId) => {
     setAvatutJoukkueet(prev => ({
       ...prev,
-      [joukkueNimi]: !prev[joukkueNimi]
+      [joukkueId]: !prev[joukkueId]
     }));
   };
 
@@ -72,45 +110,44 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
     const raakaRivit = Array.isArray(parsedRows?.joukkueRows)
       ? parsedRows.joukkueRows
       : parseCsvRows(data.joukkueetCsvRaw);
+    if (!Array.isArray(raakaRivit) || raakaRivit.length < 2) return { sarjat: {} };
+
+    const otsikkoRivi = Array.isArray(raakaRivit[0]) ? raakaRivit[0] : [];
+    const otsikotNormalisoitu = otsikkoRivi.map(normalisoiOtsikko);
+    const idxSijoitus = etsiIndeksi(otsikotNormalisoitu, [(h) => h === 'SIJA', (h) => h.includes('SIJA'), (h) => h === 'RANK']);
+    const idxJoukkue = etsiIndeksi(otsikotNormalisoitu, [(h) => h === 'JOUKKUE', (h) => h.includes('JOUKKUE'), (h) => h === 'TEAM']);
+    const idxAmpuja = etsiIndeksi(otsikotNormalisoitu, [(h) => h === 'NIMI', (h) => h.includes('AMPUJA'), (h) => h === 'SHOOTER', (h) => h.includes('NIMI')]);
+    const idxSarja = etsiIndeksi(otsikotNormalisoitu, [(h) => h === 'SARJA', (h) => h.includes('SARJA'), (h) => h === 'CLASS']);
+    const idxYhteistulos = etsiIndeksi(otsikotNormalisoitu, [(h) => h === 'TULOS', (h) => h.startsWith('YHT'), (h) => h.startsWith('TOTAL')]);
+    const idxRata1 = otsikkoRivi.findIndex((o) => String(o || '').trim() === '1');
+    const rataAlkuIndeksi = idxRata1 !== -1 ? idxRata1 : 4;
+
     const parsedJoukkueet = [];
     let currentTeam = null;
 
     for (let i = 1; i < raakaRivit.length; i++) {
       const row = raakaRivit[i];
-      if (!row || (!row[0] && !row[1] && !row[2])) continue;
+      if (!Array.isArray(row)) continue;
 
-      const ranking = row[0] || '';
-      const teamName = row[1] || '';
-      const shooterName = row[2] || '';
-      const category = row[3] || '';
-      // Tallennetaan erät dynaamisesti speksien ilmoittaman ratamäärän mukaan
-// 1. Tallennetaan erät dynaamisesti speksien ilmoittaman ratamäärän mukaan
-      const eratMap = {};
-      let laskettuSumma = 0;
-      let onkoPisteita = false;
+      const ranking = idxSijoitus !== -1 ? String(row[idxSijoitus] || '').trim() : String(row[0] || '').trim();
+      const teamName = idxJoukkue !== -1 ? String(row[idxJoukkue] || '').trim() : String(row[1] || '').trim();
+      const shooterName = idxAmpuja !== -1 ? String(row[idxAmpuja] || '').trim() : String(row[2] || '').trim();
+      const category = idxSarja !== -1 ? String(row[idxSarja] || '').trim() : String(row[3] || '').trim();
 
-      for (let col = 4; col <= 3 + speksit.ratojenMaara; col++) {
-        const eraNum = col - 3;
-        const arvo = row[col] !== undefined ? row[col] : "";
-        eratMap[eraNum] = arvo;
+      if (!ranking && !teamName && !shooterName && !category) continue;
 
-        // Lasketaan vain numeeriset arvot mukaan summaan
-        const p = parseInt(arvo, 10);
-        if (!isNaN(p)) {
-          laskettuSumma += p;
-          onkoPisteita = true;
-        }
-      }
+      const { eratMap, lopullinenTulos } = laskeRiviTulosJaErat(row, rataAlkuIndeksi, speksit.ratojenMaara, idxYhteistulos);
 
-      // 2. Käytetään ensisijaisesti taulukon ilmoittamaa tulosta, 
-      // mutta jos se puuttuu tai on "0", käytetään laskettua summaa.
-      const raakaYhteistulos = row[28] || "";
-      const lopullinenTulos = (raakaYhteistulos && raakaYhteistulos !== "0") 
-        ? raakaYhteistulos 
-        : (onkoPisteita ? laskettuSumma.toString() : "0");
+      const onUusiJoukkueRivi = Boolean(teamName) && (
+        !currentTeam
+        || Boolean(ranking)
+        || !shooterName
+        || teamName !== currentTeam.joukkue
+        || (Boolean(category) && category !== currentTeam.sarja)
+      );
+      const onShooterRivi = Boolean(shooterName);
 
-      // 3. Luodaan tai päivitetään joukkueet ja ampujat
-      if (teamName !== "" && shooterName === "") {
+      if (onUusiJoukkueRivi) {
         if (currentTeam) parsedJoukkueet.push(currentTeam);
         currentTeam = {
           id: `${teamName}|${category}|${i}`,
@@ -121,7 +158,9 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
           erat: eratMap,
           ampujat: []
         };
-      } else if (shooterName !== "" && currentTeam) {
+      }
+
+      if (onShooterRivi && currentTeam) {
         currentTeam.ampujat.push({
           id: `${currentTeam.id}|${shooterName}|${currentTeam.ampujat.length}`,
           nimi: shooterName,
@@ -257,14 +296,14 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
                   : sijoitusNumero === 3
                     ? 'bg-[hsl(var(--rank-3))] text-[hsl(var(--primary-foreground))] font-bold'
                     : 'bg-[hsl(var(--rank-pill-default-bg))] text-[hsl(var(--rank-pill-default-fg))]';
-              const onAuki = !!avatutJoukkueet[joukkueAlkio.joukkue];
+              const onAuki = !!avatutJoukkueet[joukkueAlkio.id];
               const joukkueValmis = onkoJoukkueValmis(joukkueAlkio);
               const jasenetTeksti = joukkueAlkio.ampujat.map(a => a.nimi).join(', ');
 
               return (
                 <Card key={joukkueAlkio.id} className={cn('overflow-hidden', sijoitusKorostusLuokka)}>
                   
-                  <CardContent onClick={() => toggleJoukkue(joukkueAlkio.joukkue)} className="flex cursor-pointer select-none items-center gap-3 p-4">
+                  <CardContent onClick={() => toggleJoukkue(joukkueAlkio.id)} className="flex cursor-pointer select-none items-center gap-3 p-4">
                     <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm', sijoitusPalloLuokka)}>
                       {joukkueAlkio.sijoitus}
                     </span>

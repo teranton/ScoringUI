@@ -16,6 +16,37 @@ import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, Chevr
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 
+function muunnaPaivamaaraJarjestysavaimeksi(pvmStr) {
+  if (!pvmStr) return null;
+
+  const teksti = String(pvmStr).trim();
+  if (!teksti) return null;
+
+  if (teksti.includes('.')) {
+    const osat = teksti.split('.');
+    if (osat.length !== 3) return null;
+    const paiva = osat[0]?.trim();
+    const kuukausi = osat[1]?.trim();
+    const vuosi = osat[2]?.trim();
+    if (!paiva || !kuukausi || !vuosi) return null;
+    if (!/^\d+$/.test(paiva) || !/^\d+$/.test(kuukausi) || !/^\d{4}$/.test(vuosi)) return null;
+    return `${vuosi}-${kuukausi.padStart(2, '0')}-${paiva.padStart(2, '0')}`;
+  }
+
+  if (teksti.includes('-')) {
+    const osat = teksti.split('-');
+    if (osat.length !== 3) return null;
+    const vuosi = osat[0]?.trim();
+    const kuukausi = osat[1]?.trim();
+    const paiva = osat[2]?.trim();
+    if (!paiva || !kuukausi || !vuosi) return null;
+    if (!/^\d{4}$/.test(vuosi) || !/^\d+$/.test(kuukausi) || !/^\d+$/.test(paiva)) return null;
+    return `${vuosi}-${kuukausi.padStart(2, '0')}-${paiva.padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
 function parsiPaivamaara(pvmStr) {
   if (!pvmStr) return null;
   const osat = pvmStr.split('.');
@@ -308,12 +339,13 @@ export default function App() {
         }
 
         parsitutKisat.sort((a, b) => {
-          const kaannaDate = (pvmStr) => {
-            if (!pvmStr) return '9999-12-31';
-            const osat = pvmStr.split('.');
-            return `${osat[2]}-${osat[1].padStart(2, '0')}-${osat[0].padStart(2, '0')}`;
-          };
-          return kaannaDate(b.alkuPvm).localeCompare(kaannaDate(a.alkuPvm));
+          const aKey = muunnaPaivamaaraJarjestysavaimeksi(a.alkuPvm);
+          const bKey = muunnaPaivamaaraJarjestysavaimeksi(b.alkuPvm);
+
+          if (aKey && bKey) return bKey.localeCompare(aKey);
+          if (aKey) return -1;
+          if (bKey) return 1;
+          return String(b.nimi || '').localeCompare(String(a.nimi || ''), 'fi');
         });
 
         setKisat(parsitutKisat);
@@ -367,6 +399,11 @@ export default function App() {
     }
   }, [kisat, ladataanKisalista, valittuKisa]);
 
+  const valitunKisanSpeksitRaw = valittuKisa?.apiUrl ? (kisaCache[valittuKisa.apiUrl]?.speksitCsvRaw || '') : '';
+  const valitunKisanEfektiivinenStatus = valittuKisa
+    ? laskeKisanEfektiivinenStatus(valittuKisa.alkuPvm, valittuKisa.loppuPvm, valitunKisanSpeksitRaw).status
+    : 'tulossa';
+
   // 2. REAALIAIKAINEN BATCH-DATAHAKU BACKENDISTÄ (Yksivaiheinen, ultra-optimoitu kutsu)
 // 2. REAALIAIKAINEN BATCH-DATAHAKU BACKENDISTÄ (Säästeliäs päivitys)
 useEffect(() => {
@@ -374,10 +411,8 @@ useEffect(() => {
 
   const sheetId = valittuKisa.apiUrl;
 
-  // Tarkistetaan kisan tämänhetkinen status ennen hakuja
-  // Huom: Koska speksitDataa ei ole vielä ladattu, tämä pohjaa tässä vaiheessa pvm-tietoihin
-  const alustavaStatusInfo = laskeKisanStatusJaTyyli(valittuKisa.alkuPvm, valittuKisa.loppuPvm);
-  const onkoStaattinen = alustavaStatusInfo.status === 'paattynyt';
+  const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
+  const onkoDataValimuistissa = Boolean(kisaCacheRef.current[sheetId]);
 
   async function haeYhdistettyKisaData() {
     if (fetchInFlightRef.current[sheetId]) return;
@@ -429,8 +464,11 @@ useEffect(() => {
     }
   }
 
-  // Haetaan data aina vähintään kerran, kun kisanäkymä avataan
-  haeYhdistettyKisaData();
+  // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
+  // Päättyneessä kisassa vältetään turha lisähaku, jos data on jo välimuistissa.
+  if (!onkoStaattinen || !onkoDataValimuistissa) {
+    haeYhdistettyKisaData();
+  }
 
   // Jos kisa on päättynyt, ÄLÄ luo intervallia lainkaan!
   if (onkoStaattinen) {
@@ -451,7 +489,7 @@ useEffect(() => {
     clearInterval(intervalli);
     document.removeEventListener('visibilitychange', kasitteleNakymattomyys);
   };
-}, [valittuKisa]);
+}, [valittuKisa, valitunKisanEfektiivinenStatus]);
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
     if (!alku) return 'Päivämäärä ei tiedossa';
@@ -758,7 +796,7 @@ useEffect(() => {
         </CardHeader>
       </Card>
 
-      <nav className="flex w-full flex-wrap gap-2">
+      <nav className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {onkoTuloksetSallittu && (
           <Button onClick={() => setAktiivinenSivu('tulokset')} variant={aktiivinenSivu === 'tulokset' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Trophy className="h-4 w-4" aria-hidden="true" />
