@@ -36,6 +36,10 @@ function getInlineTitleFromKey(key) {
   return text.slice(separatorIndex + 1).trim();
 }
 
+function toLogoProxyUrl(rawUrl) {
+  return `/api/logoProxy?url=${encodeURIComponent(rawUrl)}`;
+}
+
 export function extractMaterialGuidesFromRows(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return [];
 
@@ -108,7 +112,7 @@ export function extractSponsorLogosFromRows(rows) {
 
       logos.push({
         alt,
-        src: urls[0],
+        src: toLogoProxyUrl(urls[0]),
         href: urls[1] || null
       });
       break;

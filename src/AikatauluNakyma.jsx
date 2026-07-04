@@ -285,22 +285,22 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
   const title = parsed.titleSuffix ? `${tx.title} | ${parsed.titleSuffix}` : tx.title;
 
   // LEVEYDET JA GRIDIT
-  const laneNameColumnWidth = parsed.mode === 'lane-grid'
-    ? (() => {
-        let maxShooterWidth = 0;
-        for (const row of parsed.laneRows) {
-          for (const slot of row.slots || []) {
-            const width = measureShooterTextWidth(slot?.shooter);
-            if (width > maxShooterWidth) maxShooterWidth = width;
-          }
-        }
-        const horizontalPadding = 18; 
-        const numberBadgeReserve = 28; 
-        const safetyMargin = 16; 
-        const computed = Math.ceil(maxShooterWidth + horizontalPadding + numberBadgeReserve + safetyMargin);
-        return Math.max(120, computed);
-      })()
-    : 0;
+  const laneNameColumnWidth = useMemo(() => {
+    if (parsed.mode !== 'lane-grid') return 0;
+
+    let maxShooterWidth = 0;
+    for (const row of parsed.laneRows) {
+      for (const slot of row.slots || []) {
+        const width = measureShooterTextWidth(slot?.shooter);
+        if (width > maxShooterWidth) maxShooterWidth = width;
+      }
+    }
+    const horizontalPadding = 18;
+    const numberBadgeReserve = 28;
+    const safetyMargin = 16;
+    const computed = Math.ceil(maxShooterWidth + horizontalPadding + numberBadgeReserve + safetyMargin);
+    return Math.max(120, computed);
+  }, [parsed]);
 
   const timeColumnWidth = 65; 
   const lanesTotalWidth = parsed.laneColumns.length * laneNameColumnWidth;
@@ -337,22 +337,38 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     desktopDragRef.current.isDown = false;
   };
 
-  const findMatchingLaneLogo = (laneLabel) => {
-    const laneText = String(laneLabel || '').trim().toUpperCase();
-    if (!laneText) return null;
+  const laneLogoMap = useMemo(() => {
+    const map = new Map();
+    if (parsed.mode !== 'lane-grid' || !Array.isArray(parsed.laneColumns) || sponsorLogos.length === 0) {
+      return map;
+    }
 
-    return sponsorLogos.find((logo) => {
+    parsed.laneColumns.forEach((lane) => {
+      const laneText = String(lane?.label || '').trim().toUpperCase();
+      if (!laneText) {
+        map.set(lane?.label || '', null);
+        return;
+      }
+
+      const match = sponsorLogos.find((logo) => {
+        const logoKey = String(logo?.alt || '').trim().toUpperCase();
+        if (!logoKey) return false;
+        return laneText.includes(logoKey);
+      }) || null;
+
+      map.set(lane.label, match);
+    });
+
+    return map;
+  }, [parsed, sponsorLogos]);
+
+  const globalSponsorLogos = useMemo(() => {
+    return sponsorLogos.filter((logo) => {
       const logoKey = String(logo?.alt || '').trim().toUpperCase();
-      if (!logoKey) return false;
-      return laneText.includes(logoKey);
-    }) || null;
-  };
-
-  const globalSponsorLogos = sponsorLogos.filter((logo) => {
-    const logoKey = String(logo?.alt || '').trim().toUpperCase();
-    if (!logoKey) return true;
-    return !parsed.laneColumns?.some((lane) => String(lane?.label || '').toUpperCase().includes(logoKey));
-  });
+      if (!logoKey) return true;
+      return !parsed.laneColumns?.some((lane) => String(lane?.label || '').toUpperCase().includes(logoKey));
+    });
+  }, [parsed.laneColumns, sponsorLogos]);
 
   return (
     <div className="space-y-3">
@@ -453,52 +469,53 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                 </Button>
               </div>
 
-              <div className={`${mobileViewMode === 'lanes' ? 'block' : 'hidden'} space-y-2 p-2 md:hidden`}>
-                <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  {mobileLaneTimelines.map((lane) => {
-                    const laneLogo = findMatchingLaneLogo(lane.laneLabel);
-                    return (
-                    <section
-                      key={`lane-mobile-${lane.laneLabel}`}
-                      className="w-[86vw] max-w-[30rem] shrink-0 snap-start overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm"
-                    >
-                      <div className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/25 px-3 py-2">
-                        <div className="flex min-w-0 items-center gap-2">
-                          {laneLogo && (
-                            <img
-                              src={laneLogo.src}
-                              alt={laneLogo.alt}
-                              className="h-6 max-w-[80px] object-contain opacity-90 shrink-0"
-                            />
-                          )}
-                          <span className="truncate text-sm font-bold tracking-wide text-[hsl(var(--foreground))]">{lane.laneLabel}</span>
-                        </div>
-                        <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))]">{lane.entries.length} {locale === 'en' ? 'shooters' : 'ampujaa'}</span>
-                      </div>
-
-                      <div className="max-h-[62vh] overflow-y-auto divide-y divide-[hsl(var(--border))]/60">
-                        {lane.entries.length === 0 ? (
-                          <div className="px-3 py-3 text-xs italic text-[hsl(var(--muted-foreground))]">{locale === 'en' ? 'No shooters on this lane.' : 'Ei ampujia tällä radalla.'}</div>
-                        ) : lane.entries.map((entry) => (
-                          <div key={entry.id} className="flex items-start gap-2 px-3 py-2.5" style={entry.style}>
-                            <span className="mt-0.5 inline-flex min-w-[52px] justify-center rounded bg-[hsl(var(--muted))]/85 px-1.5 py-0.5 font-mono text-xs font-bold text-[hsl(var(--foreground))]">
-                              {entry.time}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium leading-tight text-[hsl(var(--foreground))]">{entry.shooter}</div>
-                              {entry.number && (
-                                <div className="mt-0.5 text-[11px] font-mono text-[hsl(var(--muted-foreground))]">#{entry.number}</div>
-                              )}
-                            </div>
+              <div className="md:hidden">
+                {mobileViewMode === 'lanes' ? (
+                <div className="space-y-2 p-2">
+                  <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                    {mobileLaneTimelines.map((lane) => {
+                      const laneLogo = laneLogoMap.get(lane.laneLabel);
+                      return (
+                      <section
+                        key={`lane-mobile-${lane.laneLabel}`}
+                        className="w-[86vw] max-w-[30rem] shrink-0 snap-start overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/25 px-3 py-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            {laneLogo && (
+                              <img
+                                src={laneLogo.src}
+                                alt={laneLogo.alt}
+                                className="h-6 max-w-[80px] object-contain opacity-90 shrink-0"
+                              />
+                            )}
+                            <span className="truncate text-sm font-bold tracking-wide text-[hsl(var(--foreground))]">{lane.laneLabel}</span>
                           </div>
-                        ))}
-                      </div>
-                    </section>
-                  );})}
-                </div>
-              </div>
+                          <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))]">{lane.entries.length} {locale === 'en' ? 'shooters' : 'ampujaa'}</span>
+                        </div>
 
-              <div className={`${mobileViewMode === 'table' ? 'block' : 'hidden'} md:hidden`}>
+                        <div className="max-h-[62vh] overflow-y-auto divide-y divide-[hsl(var(--border))]/60">
+                          {lane.entries.length === 0 ? (
+                            <div className="px-3 py-3 text-xs italic text-[hsl(var(--muted-foreground))]">{locale === 'en' ? 'No shooters on this lane.' : 'Ei ampujia tällä radalla.'}</div>
+                          ) : lane.entries.map((entry) => (
+                            <div key={entry.id} className="flex items-start gap-2 px-3 py-2.5" style={entry.style}>
+                              <span className="mt-0.5 inline-flex min-w-[52px] justify-center rounded bg-[hsl(var(--muted))]/85 px-1.5 py-0.5 font-mono text-xs font-bold text-[hsl(var(--foreground))]">
+                                {entry.time}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-medium leading-tight text-[hsl(var(--foreground))]">{entry.shooter}</div>
+                                {entry.number && (
+                                  <div className="mt-0.5 text-[11px] font-mono text-[hsl(var(--muted-foreground))]">#{entry.number}</div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    );})}
+                  </div>
+                </div>
+                ) : (
                 <div className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))]">
                   <div
                     className="min-w-max"
@@ -515,7 +532,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         {tx.time}
                       </div>
                       {parsed.laneColumns.map((lane) => {
-                        const matchingLogo = findMatchingLaneLogo(lane.label);
+                        const matchingLogo = laneLogoMap.get(lane.label);
                         return (
                           <div
                             key={`mobile-sticky-header-${lane.label}`}
@@ -582,6 +599,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                     </div>
                   </div>
                 </div>
+                )}
               </div>
 
               <div className="hidden md:block">
@@ -609,7 +627,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         {tx.time}
                       </div>
                       {parsed.laneColumns.map((lane) => {
-                        const matchingLogo = findMatchingLaneLogo(lane.label);
+                        const matchingLogo = laneLogoMap.get(lane.label);
                         return (
                           <div
                             key={`desktop-sticky-header-${lane.label}`}
