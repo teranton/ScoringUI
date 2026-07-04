@@ -178,6 +178,49 @@ function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData) {
   return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
 }
 
+function normalisoiAikatauluNakyvyysArvo(arvo) {
+  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  if (!norm) return null;
+
+  if (['ALWAYS', 'AINA', 'ON', 'TRUE', 'YES', '1', 'PUBLIC', 'ENABLED'].includes(norm)) return 'always';
+  if (['AFTERSTART', 'AFTER_START', 'START', 'KAYNNISSA', 'LIVE', 'RESULTS'].includes(norm)) return 'after-start';
+  if (['OFF', 'FALSE', 'NO', '0', 'HIDDEN', 'DISABLED', 'NONE', 'EI'].includes(norm)) return 'off';
+  return null;
+}
+
+function haeAikatauluNakyvyysSpekseista(speksitData) {
+  const rivit = Array.isArray(speksitData)
+    ? speksitData
+    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
+
+  if (!Array.isArray(rivit) || rivit.length === 0) return null;
+
+  const avainSanat = new Set([
+    'AIKATAULUNAKYVYYS', 'AIKATAULU_NAKYVYYS', 'AIKATAULUJULKINEN', 'AIKATAULU_JULKINEN',
+    'TIMETABLEVISIBILITY', 'TIMETABLE_VISIBILITY', 'TIMETABLEPUBLIC', 'TIMETABLE_PUBLIC'
+  ]);
+
+  for (const rivi of rivit) {
+    if (!Array.isArray(rivi) || rivi.length === 0) continue;
+
+    const solut = rivi.map((s) => String(s || '').trim());
+    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
+
+    for (let i = 0; i < normalisoidut.length; i++) {
+      const avain = normalisoidut[i];
+      if (!avainSanat.has(avain)) continue;
+
+      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
+      for (const ehdokas of ehdokasArvot) {
+        const tulkinta = normalisoiAikatauluNakyvyysArvo(ehdokas);
+        if (tulkinta) return tulkinta;
+      }
+    }
+  }
+
+  return null;
+}
+
 function statusToBadgeVariant(status) {
   if (status === 'kaynnissa') return 'ongoing';
   if (status === 'paattynyt') return 'ended';
@@ -208,6 +251,7 @@ export default function App() {
   const [ladataanKisaaBySheet, setLadataanKisaaBySheet] = useState({});
   const [virhe, setVirhe] = useState(null);
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
+  const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
 
@@ -261,6 +305,13 @@ export default function App() {
     : taulukkoLippuEnv === '0' || taulukkoLippuEnv === 'false'
       ? false
       : Boolean(import.meta.env.DEV);
+
+  const aikatauluPreviewOverrideEnv = String(
+    import.meta.env.VITE_TIMETABLE_PREVIEW_OVERRIDE
+      ?? import.meta.env.VITE_FORCE_TIMETABLE_VISIBLE
+      ?? ''
+  ).toLowerCase();
+  const onkoAikatauluPreviewOverride = ['1', 'true', 'yes', 'on'].includes(aikatauluPreviewOverrideEnv);
 
   const avaaKisaNakyma = (kisa) => {
     setAktiivinenSivu('tulokset');
@@ -413,6 +464,9 @@ useEffect(() => {
 
   const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
   const onkoDataValimuistissa = Boolean(kisaCacheRef.current[sheetId]);
+  const cacheData = kisaCacheRef.current[sheetId] || null;
+  const puuttuuMonipaivainenAikatauluCache = onkoDataValimuistissa
+    && (cacheData?.aikatauluLaCsvRaw === undefined || cacheData?.aikatauluSuCsvRaw === undefined);
 
   async function haeYhdistettyKisaData() {
     if (fetchInFlightRef.current[sheetId]) return;
@@ -425,7 +479,7 @@ useEffect(() => {
       }
 
       const startTime = performance.now();
-      const sivut = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu'];
+      const sivut = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
       
       const params = new URLSearchParams();
       params.append('mode', 'batchCsv');
@@ -451,6 +505,8 @@ useEffect(() => {
           eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
           ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
           aikatauluCsvRaw: csvByName['Aikataulu'] || csvByName['Timetable'] || vanhaData.aikatauluCsvRaw || "",
+          aikatauluLaCsvRaw: csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "",
+          aikatauluSuCsvRaw: csvByName['Aikataulu Su'] || vanhaData.aikatauluSuCsvRaw || "",
           speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || ""
         }
       }));
@@ -469,7 +525,7 @@ useEffect(() => {
 
   // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
   // Päättyneessä kisassa vältetään turha lisähaku, jos data on jo välimuistissa.
-  if (!onkoStaattinen || !onkoDataValimuistissa) {
+  if (!onkoStaattinen || !onkoDataValimuistissa || puuttuuMonipaivainenAikatauluCache) {
     haeYhdistettyKisaData();
   }
 
@@ -606,16 +662,79 @@ useEffect(() => {
     ? laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm)
     : true;
 
+  const aikatauluCsvList = useMemo(() => {
+    if (!nykyisenKisanData) return [];
+
+    const extractAikatauluLabel = (rawCsv, fallback) => {
+      const rows = parseCsvRows(rawCsv || '');
+      const titleRow = rows[0] || [];
+      const first = String(titleRow[0] || '').trim();
+      const second = String(titleRow[1] || '').trim();
+      if (second) return second;
+      const pipeIndex = first.indexOf('|');
+      if (pipeIndex !== -1) {
+        const suffix = first.slice(pipeIndex + 1).trim();
+        if (suffix) return suffix;
+      }
+      return fallback;
+    };
+
+    const candidates = [
+      { key: 'aikataulu-main', raw: nykyisenKisanData.aikatauluCsvRaw, fallbackLabel: 'Aikataulu' },
+      { key: 'aikataulu-la', raw: nykyisenKisanData.aikatauluLaCsvRaw, fallbackLabel: 'Aikataulu La' },
+      { key: 'aikataulu-su', raw: nykyisenKisanData.aikatauluSuCsvRaw, fallbackLabel: 'Aikataulu Su' }
+    ];
+
+    return candidates
+      .filter((item) => String(item.raw || '').trim().length > 10)
+      .map((item) => ({
+        key: item.key,
+        raw: item.raw,
+        label: extractAikatauluLabel(item.raw, item.fallbackLabel)
+      }));
+  }, [
+    nykyisenKisanData?.aikatauluCsvRaw,
+    nykyisenKisanData?.aikatauluLaCsvRaw,
+    nykyisenKisanData?.aikatauluSuCsvRaw
+  ]);
+
+  useEffect(() => {
+    if (aikatauluCsvList.length === 0) {
+      if (aktiivinenAikatauluKey !== '') setAktiivinenAikatauluKey('');
+      return;
+    }
+
+    const currentExists = aikatauluCsvList.some((item) => item.key === aktiivinenAikatauluKey);
+    if (!currentExists) {
+      setAktiivinenAikatauluKey(aikatauluCsvList[0].key);
+    }
+  }, [aikatauluCsvList, aktiivinenAikatauluKey]);
+
+  const valittuAikatauluCsv = useMemo(
+    () => aikatauluCsvList.find((item) => item.key === aktiivinenAikatauluKey) || aikatauluCsvList[0] || null,
+    [aikatauluCsvList, aktiivinenAikatauluKey]
+  );
+
   const onkoTuloksetSallittu = !onkoKisaTulossa;
   const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
   const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
-  const onkoAikataulua = nykyisenKisanData?.aikatauluCsvRaw?.trim().length > 10;
+  const onkoAikataulua = aikatauluCsvList.length > 0;
+
+  const aikatauluNakyvyysAsetus = useMemo(
+    () => haeAikatauluNakyvyysSpekseista(nykyisenKisanParsitutRivit.speksitRows || []),
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
 
   const kisanSponsorit = useMemo(
     () => extractSponsorLogosFromRows(nykyisenKisanParsitutRivit.speksitRows || []),
     [nykyisenKisanParsitutRivit.speksitRows]
   );
-  const onkoAikatauluSallittu = onkoAikataulua && !onkoKisaPaattynyt;
+  const onkoAikatauluSallittu = onkoAikataulua && (() => {
+    if (onkoAikatauluPreviewOverride) return !onkoKisaPaattynyt;
+    if (aikatauluNakyvyysAsetus === 'off') return false;
+    if (aikatauluNakyvyysAsetus === 'after-start') return onkoTuloksetSallittu && !onkoKisaPaattynyt;
+    return !onkoKisaPaattynyt;
+  })();
   const onkoMateriaaleja = useMemo(() => {
     const rivit = nykyisenKisanParsitutRivit.speksitRows || [];
     return extractMaterialGuidesFromRows(rivit).length > 0;
@@ -889,7 +1008,27 @@ useEffect(() => {
             </div>
           )}
           {aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && (
-            <AikatauluNakyma rawCsv={nykyisenKisanData.aikatauluCsvRaw} locale={locale} sponsorLogos={kisanSponsorit} />
+            <div className="space-y-3">
+              {aikatauluCsvList.length > 1 && (
+                <div className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  {aikatauluCsvList.map((item) => (
+                    <Button
+                      key={`aikataulu-switch-${item.key}`}
+                      type="button"
+                      size="sm"
+                      variant={valittuAikatauluCsv?.key === item.key ? 'default' : 'outline'}
+                      onClick={() => setAktiivinenAikatauluKey(item.key)}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              {valittuAikatauluCsv && (
+                <AikatauluNakyma rawCsv={valittuAikatauluCsv.raw} locale={locale} sponsorLogos={kisanSponsorit} />
+              )}
+            </div>
           )}
           {aktiivinenSivu === 'materiaalit' && onkoMateriaaleja && nykyisenKisanData && (
             <div className="mx-auto w-full max-w-3xl">

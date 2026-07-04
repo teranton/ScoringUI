@@ -5,22 +5,38 @@ import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 
 function isPerfLoggingEnabled() {
-  if (typeof window === 'undefined') return false;
+  const envValue = String(import.meta.env.VITE_SCORINGUI_PERF || '').trim().toLowerCase();
+  const envEnabled = envValue === '1' || envValue === 'true' || envValue === 'yes' || envValue === 'on';
+  const envDisabled = envValue === '0' || envValue === 'false' || envValue === 'no' || envValue === 'off';
 
-  if (window.__SCORINGUI_PERF__ === true) return true;
-
-  try {
-    if (window.localStorage?.getItem('scoringui:perf') === '1') return true;
-  } catch {
-    // Ignore storage access errors in restricted environments.
+  if (typeof window === 'undefined') {
+    if (envEnabled) return true;
+    if (envDisabled) return false;
+    return false;
   }
 
   try {
     const params = new URLSearchParams(window.location.search || '');
-    if (params.get('perf') === '1') return true;
+    const qp = String(params.get('perf') || '').trim().toLowerCase();
+    if (qp === '1' || qp === 'true' || qp === 'yes' || qp === 'on') return true;
+    if (qp === '0' || qp === 'false' || qp === 'no' || qp === 'off') return false;
   } catch {
     // Ignore URL parsing failures.
   }
+
+  if (window.__SCORINGUI_PERF__ === true) return true;
+  if (window.__SCORINGUI_PERF__ === false) return false;
+
+  try {
+    const stored = String(window.localStorage?.getItem('scoringui:perf') || '').trim().toLowerCase();
+    if (stored === '1' || stored === 'true' || stored === 'yes' || stored === 'on') return true;
+    if (stored === '0' || stored === 'false' || stored === 'no' || stored === 'off') return false;
+  } catch {
+    // Ignore storage access errors in restricted environments.
+  }
+
+  if (envEnabled) return true;
+  if (envDisabled) return false;
 
   return false;
 }
@@ -54,6 +70,17 @@ function isTimeLike(value) {
 function isLaneHeader(value) {
   const text = String(value || '').trim().toUpperCase();
   return /^RATA\s*\d+/.test(text) || /^LANE\s*\d+/.test(text);
+}
+
+function extractTitleSuffixFromFirstRow(row) {
+  const first = String(row?.[0] || '').trim();
+  const second = String(row?.[1] || '').trim();
+  if (second) return second;
+
+  const separatorIndex = first.indexOf('|');
+  if (separatorIndex === -1) return '';
+
+  return first.slice(separatorIndex + 1).trim();
 }
 
 function toShooterNumber(value) {
@@ -184,7 +211,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     }
 
     const titleRow = rows[0] || [];
-    const titleSuffix = String(titleRow[1] || '').trim();
+    const titleSuffix = extractTitleSuffixFromFirstRow(titleRow);
     const laneHeaderRow = rows.find((row) => Array.isArray(row) && row.some(isLaneHeader));
     const laneColumns = [];
 
