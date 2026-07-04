@@ -337,6 +337,23 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     desktopDragRef.current.isDown = false;
   };
 
+  const findMatchingLaneLogo = (laneLabel) => {
+    const laneText = String(laneLabel || '').trim().toUpperCase();
+    if (!laneText) return null;
+
+    return sponsorLogos.find((logo) => {
+      const logoKey = String(logo?.alt || '').trim().toUpperCase();
+      if (!logoKey) return false;
+      return laneText.includes(logoKey);
+    }) || null;
+  };
+
+  const globalSponsorLogos = sponsorLogos.filter((logo) => {
+    const logoKey = String(logo?.alt || '').trim().toUpperCase();
+    if (!logoKey) return true;
+    return !parsed.laneColumns?.some((lane) => String(lane?.label || '').toUpperCase().includes(logoKey));
+  });
+
   return (
     <div className="space-y-3">
       {/* HAKUKENTTÄ */}
@@ -393,13 +410,9 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
         <CardHeader className="pb-3 bg-[hsl(var(--muted))]/20 border-b">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <CardTitle className="text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">{title}</CardTitle>
-            {sponsorLogos.length > 0 && (() => {
-              const globalLogos = sponsorLogos.filter(
-                (logo) => !parsed.laneColumns?.some((lane) => lane.label.toUpperCase().includes(logo.alt.toUpperCase()))
-              );
-              return globalLogos.length > 0 ? (
+            {globalSponsorLogos.length > 0 && (
                 <div className="flex items-center gap-3 flex-wrap">
-                  {globalLogos.map((logo, idx) => {
+                  {globalSponsorLogos.map((logo, idx) => {
                     const img = (
                       <img
                         key={`sponsor-global-${idx}`}
@@ -415,8 +428,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                     ) : img;
                   })}
                 </div>
-              ) : null;
-            })()}
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -443,14 +455,25 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
               <div className={`${mobileViewMode === 'lanes' ? 'block' : 'hidden'} space-y-2 p-2 md:hidden`}>
                 <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  {mobileLaneTimelines.map((lane) => (
+                  {mobileLaneTimelines.map((lane) => {
+                    const laneLogo = findMatchingLaneLogo(lane.laneLabel);
+                    return (
                     <section
                       key={`lane-mobile-${lane.laneLabel}`}
                       className="w-[86vw] max-w-[30rem] shrink-0 snap-start overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm"
                     >
-                      <div className="flex items-center justify-between border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/25 px-3 py-2">
-                        <span className="text-sm font-bold tracking-wide text-[hsl(var(--foreground))]">{lane.laneLabel}</span>
-                        <span className="text-[11px] text-[hsl(var(--muted-foreground))]">{lane.entries.length} {locale === 'en' ? 'shooters' : 'ampujaa'}</span>
+                      <div className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/25 px-3 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          {laneLogo && (
+                            <img
+                              src={laneLogo.src}
+                              alt={laneLogo.alt}
+                              className="h-6 max-w-[80px] object-contain opacity-90 shrink-0"
+                            />
+                          )}
+                          <span className="truncate text-sm font-bold tracking-wide text-[hsl(var(--foreground))]">{lane.laneLabel}</span>
+                        </div>
+                        <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))]">{lane.entries.length} {locale === 'en' ? 'shooters' : 'ampujaa'}</span>
                       </div>
 
                       <div className="max-h-[62vh] overflow-y-auto divide-y divide-[hsl(var(--border))]/60">
@@ -471,7 +494,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         ))}
                       </div>
                     </section>
-                  ))}
+                  );})}
                 </div>
               </div>
 
@@ -492,7 +515,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         {tx.time}
                       </div>
                       {parsed.laneColumns.map((lane) => {
-                        const matchingLogo = sponsorLogos.find((logo) => lane.label.toUpperCase().includes(logo.alt.toUpperCase()));
+                        const matchingLogo = findMatchingLaneLogo(lane.label);
                         return (
                           <div
                             key={`mobile-sticky-header-${lane.label}`}
@@ -586,7 +609,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         {tx.time}
                       </div>
                       {parsed.laneColumns.map((lane) => {
-                        const matchingLogo = sponsorLogos.find((logo) => lane.label.toUpperCase().includes(logo.alt.toUpperCase()));
+                        const matchingLogo = findMatchingLaneLogo(lane.label);
                         return (
                           <div
                             key={`desktop-sticky-header-${lane.label}`}
