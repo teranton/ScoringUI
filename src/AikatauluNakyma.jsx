@@ -157,6 +157,10 @@ function measureShooterTextWidth(text) {
   return context.measureText(value).width;
 }
 
+function onkoPelkaNumero(value) {
+  return /^\d+$/.test(String(value || '').trim());
+}
+
 // --- PÄÄKOMPONENTTI ---
 
 export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [] }) {
@@ -325,6 +329,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
     const timelines = parsed.laneColumns.map((lane, laneIdx) => {
       const entries = [];
+      let visibleCount = 0;
 
       for (const row of parsed.laneRows) {
         const slot = row.slots?.[laneIdx];
@@ -344,11 +349,16 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
           shooter,
           style: hasGroupColor ? getGroupCellStyle(groupIndex) : undefined
         });
+
+        if (!onkoPelkaNumero(shooter)) {
+          visibleCount += 1;
+        }
       }
 
       return {
         laneLabel: lane.label,
-        entries
+        entries,
+        visibleCount
       };
     });
     const totalEntries = timelines.reduce((sum, lane) => sum + lane.entries.length, 0);
@@ -632,7 +642,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                             )}
                             <span className="truncate text-sm font-bold tracking-wide text-[hsl(var(--foreground))]">{lane.laneLabel}</span>
                           </div>
-                          <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))]">{lane.entries.length} {locale === 'en' ? 'shooters' : 'ampujaa'}</span>
+                          <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))]">{lane.visibleCount} {locale === 'en' ? 'shooters' : 'ampujaa'}</span>
                         </div>
 
                         <div className="max-h-[62vh] overflow-y-auto divide-y divide-[hsl(var(--border))]/60">

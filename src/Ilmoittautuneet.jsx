@@ -7,6 +7,10 @@ import { Badge } from './components/ui/badge';
 export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetitionNumbers = false }) {
   const onkoRawTyhja = !rawCsv || rawCsv.trim().length < 10;
 
+  function onkoPelkaNumero(value) {
+    return /^\d+$/.test(String(value || '').trim());
+  }
+
   const tx = locale === 'en'
     ? {
       title: 'Registered participants',
@@ -67,7 +71,8 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
       const nimiArvo = String(row[lopullinenIdxNimi] || '').trim();
       const sarjaArvo = String(row[lopullinenIdxSarja] || '').trim() || 'Määrittelemätön';
       const seuraArvo = String(row[lopullinenIdxSeura] || '').trim();
-      const kilpailuNumeroArvo = String(row[lopullinenIdxKilpailuNumero] || '').trim();
+      const raakakilpailuNumero = String(row[lopullinenIdxKilpailuNumero] || '').trim();
+      const kilpailuNumeroArvo = onkoPelkaNumero(raakakilpailuNumero) ? raakakilpailuNumero : '';
 
       // Ohitetaan tyhjät rivit tai otsikoiden "Päivitetty" apurivit
       if (!nimiArvo || nimiArvo.toLowerCase().includes('päivitetty')) continue;
@@ -84,6 +89,8 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
     // Järjestetään kaikki osallistujat sukunimen/nimen mukaan aakkosiin
     osallistujat.sort((a, b) => a.nimi.localeCompare(b.nimi, 'fi'));
 
+    const kokonaismaara = osallistujat.filter((o) => !onkoPelkaNumero(o.nimi)).length;
+
     // Ryhmitellään sarjoittain
     const ryhmittely = {};
     osallistujat.forEach((o) => {
@@ -91,11 +98,11 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
       ryhmittely[o.sarja].push(o);
     });
 
-    return { ryhmitellytSarjat: ryhmittely, kokonaismaara: osallistujat.length };
+    return { ryhmitellytSarjat: ryhmittely, kokonaismaara };
   }, [rawCsv]);
 
   if (onkoRawTyhja) return null;
-  if (kokonaismaara === 0) return null;
+  if (Object.keys(ryhmitellytSarjat).length === 0) return null;
 
   return (
     <Card className="border-slate-200">
@@ -118,15 +125,15 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
 
             <div className="divide-y divide-slate-100">
               {ryhmitellytSarjat[sarja].map((o) => (
-                <div key={o.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <div key={o.id} className="grid grid-cols-[minmax(0,1fr)_7rem] items-center gap-3 py-2 text-sm md:grid-cols-[minmax(0,1fr)_8rem]">
                   <span className="truncate font-medium text-slate-900">{o.nimi}</span>
-                  <div className="flex shrink-0 items-center gap-2 text-slate-500">
+                  <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-2 text-slate-500">
                     {showCompetitionNumbers && o.kilpailuNumero && (
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
+                      <span className="w-16 rounded bg-slate-100 px-1.5 py-0.5 text-center font-mono text-[11px] font-semibold text-slate-700">
                         {o.kilpailuNumero}
                       </span>
                     )}
-                    <span>{o.seura || '—'}</span>
+                    <span className="truncate">{o.seura || '—'}</span>
                   </div>
                 </div>
               ))}
