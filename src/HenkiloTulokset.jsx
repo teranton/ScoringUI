@@ -245,7 +245,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
             || openRatkoRajatulos === null
             || (!Number.isNaN(ampujaTulosNum) && ampujaTulosNum >= openRatkoRajatulos);
           const naytaRatko = onkoRatkoSallittu && Boolean(ratkoNakyma.teksti);
-          const naytaRatkoStatus = onkoRatkoSallittu && ratkoNakyma.statusEtiketit.length > 0;
+          const naytaRatkoStatus = ratkoNakyma.statusEtiketit.length > 0;
           const ampujaValmis = onkoAmpujaValmis(ampuja);
           const sijoitusNumero = parseInt(ampuja.laskettuSija || '0', 10);
           const sijoitusKorostusLuokka = sijoitusNumero === 1
@@ -300,7 +300,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                           key={`${ampuja.id}-${status}`}
                           className={cn(
                             getStatusLabelSizeClass(),
-                            getStatusLabelToneClass(status)
+                            getStatusLabelToneClass(status),
+                            'text-[9px] px-1 py-0 rounded font-bold scale-95'
                           )}
                         >
                           {status}

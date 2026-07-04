@@ -216,9 +216,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return tulosNum >= openRatkoRajatulos;
   };
 
-  const naytaRatkoSarake = naytettavatAmpujat.some(
-    (a) => onkoRatkoSallittuAmpujalle(a) && (a.ratkoNaytto?.statusEtiketit?.length > 0 || a.ratkoNaytto?.teksti)
-  );
+  const naytaRatkoSarake = naytettavatAmpujat.some((a) => {
+    const onStatus = (a.ratkoNaytto?.statusEtiketit?.length || 0) > 0;
+    const onTeksti = Boolean(a.ratkoNaytto?.teksti);
+    return onStatus || (onkoRatkoSallittuAmpujalle(a) && onTeksti);
+  });
 
   useEffect(() => {
     if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
@@ -326,7 +328,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const rankColWidth = kaytaKompaktiTilaa ? 32 : (onMobiili ? 42 : 52);
   const nameColWidth = kaytaKompaktiTilaa ? 118 : (onMobiili ? 154 : 240);
   const totalColWidth = kaytaKompaktiTilaa ? 38 : (onMobiili ? 44 : 56);
-  const ratkoColWidth = kaytaKompaktiTilaa ? 46 : (onMobiili ? 58 : 84);
+  const ratkoColWidth = kaytaKompaktiTilaa ? 40 : (onMobiili ? 52 : 72);
   const stageColWidth = kaytaKompaktiTilaa ? 28 : (onMobiili ? 34 : 44);
 
   const stickyRankStyle = {
@@ -356,9 +358,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       return 'bg-slate-200 text-center text-sm font-bold text-slate-800 border-b border-r border-slate-300';
     }
     if (tyyppi === 'ratko') {
-      if (kokoLuokka === 'compact') return 'bg-amber-100 text-amber-900 text-center text-[10px] font-bold border-b border-r border-amber-200';
-      if (kokoLuokka === 'mobile') return 'bg-amber-100 text-amber-900 text-center text-xs font-bold border-b border-r border-amber-200';
-      return 'bg-amber-100 text-amber-900 text-center text-sm font-bold border-b border-r border-amber-200';
+      if (kokoLuokka === 'compact') return 'bg-[hsl(var(--ratko-bg))] text-[hsl(var(--ratko-fg))] text-center text-[10px] font-bold border-b border-r border-[hsl(var(--ratko-fg)/0.25)]';
+      if (kokoLuokka === 'mobile') return 'bg-[hsl(var(--ratko-bg))] text-[hsl(var(--ratko-fg))] text-center text-xs font-bold border-b border-r border-[hsl(var(--ratko-fg)/0.25)]';
+      return 'bg-[hsl(var(--ratko-bg))] text-[hsl(var(--ratko-fg))] text-center text-sm font-bold border-b border-r border-[hsl(var(--ratko-fg)/0.25)]';
     }
     if (kokoLuokka === 'compact') return 'bg-slate-50 text-center text-[11px] font-semibold text-slate-600 border-b border-r border-slate-200/60';
     if (kokoLuokka === 'mobile') return 'bg-slate-50 text-center text-xs font-semibold text-slate-600 border-b border-r border-slate-200/60';
@@ -386,9 +388,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       return 'text-center font-mono text-sm font-bold text-slate-900 border-r border-slate-300 bg-slate-100/60';
     }
     if (tyyppi === 'ratko') {
-      if (kokoLuokka === 'compact') return 'text-center text-[10px] border-r border-amber-200/60 bg-amber-50/40 text-amber-900';
-      if (kokoLuokka === 'mobile') return 'text-center text-xs border-r border-amber-200/60 bg-amber-50/40 text-amber-900';
-      return 'text-center text-sm border-r border-amber-200/60 bg-amber-50/40 text-amber-900';
+      if (kokoLuokka === 'compact') return 'text-center text-[10px] border-r border-[hsl(var(--ratko-fg)/0.22)] bg-[hsl(var(--ratko-bg)/0.45)] text-[hsl(var(--ratko-fg))]';
+      if (kokoLuokka === 'mobile') return 'text-center text-xs border-r border-[hsl(var(--ratko-fg)/0.22)] bg-[hsl(var(--ratko-bg)/0.45)] text-[hsl(var(--ratko-fg))]';
+      return 'text-center text-sm border-r border-[hsl(var(--ratko-fg)/0.22)] bg-[hsl(var(--ratko-bg)/0.45)] text-[hsl(var(--ratko-fg))]';
     }
     if (kokoLuokka === 'compact') return 'text-center font-mono text-[11px] border-r border-slate-200/40';
     if (kokoLuokka === 'mobile') return 'text-center font-mono text-xs border-r border-slate-200/40';
@@ -570,14 +572,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                           
                           {naytaRatkoSarake && (
                             <td
-                              className={cn(soluLuokka('ratko'), 'align-middle px-1')}
+                              className={cn(soluLuokka('ratko'), 'align-middle px-0.5')}
                               style={{ width: `${ratkoColWidth}px` }}
                               title={[...ampuja.ratkoNaytto.statusEtiketit, ampuja.ratkoNaytto.teksti].filter(Boolean).join(' | ')}
                             >
                               {(() => {
                                 const onkoRatkoSallittu = onkoRatkoSallittuAmpujalle(ampuja);
                                 const naytaRatko = onkoRatkoSallittu && Boolean(ampuja.ratkoNaytto.teksti);
-                                const naytaRatkoStatus = onkoRatkoSallittu && ampuja.ratkoNaytto.statusEtiketit.length > 0;
+                                const naytaRatkoStatus = ampuja.ratkoNaytto.statusEtiketit.length > 0;
 
                                 if (!(naytaRatkoStatus || (naytaRatko && ampuja.ratkoNaytto.teksti))) {
                                   return <span className="text-slate-300">—</span>;
@@ -587,6 +589,22 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                                   const compactText = naytaRatkoStatus
                                     ? ampuja.ratkoNaytto.statusEtiketit.join('/')
                                     : ampuja.ratkoNaytto.teksti;
+
+                                  if (naytaRatkoStatus) {
+                                    const compactToneStatus = ampuja.ratkoNaytto.statusEtiketit[0] || '';
+                                    return (
+                                      <span
+                                        className={cn(
+                                          'inline-flex max-w-full items-center justify-center truncate mx-auto',
+                                          getStatusLabelSizeClass({ compact: true }),
+                                          getStatusLabelToneClass(compactToneStatus)
+                                        )}
+                                        title={compactText}
+                                      >
+                                        {compactText}
+                                      </span>
+                                    );
+                                  }
 
                                   return (
                                     <span className="block truncate text-[9px] font-bold tracking-tight leading-none text-[hsl(var(--ratko-fg))] text-center" title={compactText}>
