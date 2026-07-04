@@ -610,13 +610,25 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         <div className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/25 px-3 py-2">
                           <div className="flex min-w-0 items-center gap-2">
                             {laneLogo && (
-                              <img
-                                src={laneLogo.src}
-                                alt={laneLogo.alt}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-6 max-w-[80px] object-contain opacity-90 shrink-0"
-                              />
+                              laneLogo.href ? (
+                                <a href={laneLogo.href} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:opacity-75 transition-opacity">
+                                  <img
+                                    src={laneLogo.src}
+                                    alt={laneLogo.alt}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="h-6 max-w-[80px] object-contain opacity-90"
+                                  />
+                                </a>
+                              ) : (
+                                <img
+                                  src={laneLogo.src}
+                                  alt={laneLogo.alt}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-6 max-w-[80px] object-contain opacity-90 shrink-0"
+                                />
+                              )
                             )}
                             <span className="truncate text-sm font-bold tracking-wide text-[hsl(var(--foreground))]">{lane.laneLabel}</span>
                           </div>
@@ -668,13 +680,25 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                             className="flex flex-col items-center justify-center gap-1 border-l border-[hsl(var(--border))] px-2 py-2"
                           >
                             {matchingLogo && (
-                              <img
-                                src={matchingLogo.src}
-                                alt={matchingLogo.alt}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-6 max-w-[80px] object-contain opacity-90"
-                              />
+                              matchingLogo.href ? (
+                                <a href={matchingLogo.href} target="_blank" rel="noopener noreferrer" className="hover:opacity-75 transition-opacity">
+                                  <img
+                                    src={matchingLogo.src}
+                                    alt={matchingLogo.alt}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="h-6 max-w-[80px] object-contain opacity-90"
+                                  />
+                                </a>
+                              ) : (
+                                <img
+                                  src={matchingLogo.src}
+                                  alt={matchingLogo.alt}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-6 max-w-[80px] object-contain opacity-90"
+                                />
+                              )
                             )}
                             <div className="truncate text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
                               {lane.label}
@@ -769,13 +793,25 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                             className="flex flex-col items-center justify-center gap-1.5 border-l border-[hsl(var(--border))] px-5 py-2"
                           >
                             {matchingLogo && (
-                              <img
-                                src={matchingLogo.src}
-                                alt={matchingLogo.alt}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-7 max-w-[100px] object-contain opacity-90"
-                              />
+                              matchingLogo.href ? (
+                                <a href={matchingLogo.href} target="_blank" rel="noopener noreferrer" className="hover:opacity-75 transition-opacity">
+                                  <img
+                                    src={matchingLogo.src}
+                                    alt={matchingLogo.alt}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="h-7 max-w-[100px] object-contain opacity-90"
+                                  />
+                                </a>
+                              ) : (
+                                <img
+                                  src={matchingLogo.src}
+                                  alt={matchingLogo.alt}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-7 max-w-[100px] object-contain opacity-90"
+                                />
+                              )
                             )}
                             <div className="truncate text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
                               {lane.label}

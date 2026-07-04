@@ -4,7 +4,7 @@ import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 
-export default function Ilmoittautuneet({ rawCsv, locale = 'fi' }) {
+export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetitionNumbers = false }) {
   const onkoRawTyhja = !rawCsv || rawCsv.trim().length < 10;
 
   const tx = locale === 'en'
@@ -40,11 +40,22 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi' }) {
     const idxNimi = etsiSarakkeenIndeksi([(h) => h === 'NIMI', (h) => h.includes('NIMI')]);
     const idxSarja = etsiSarakkeenIndeksi([(h) => h === 'SARJA', (h) => h.includes('SARJA')]);
     const idxSeura = etsiSarakkeenIndeksi([(h) => h === 'SEURA', (h) => h.includes('SEURA')]);
+    const idxKilpailuNumero = etsiSarakkeenIndeksi([
+      (h) => h === 'KILPAILUNUMERO',
+      (h) => h === 'KISA_NUMERO',
+      (h) => h === 'NUMERO',
+      (h) => h === 'NRO',
+      (h) => h === 'BIB',
+      (h) => h.includes('KILPAILUNUMERO'),
+      (h) => h.includes('BIB'),
+      (h) => h.includes('NUMERO')
+    ]);
 
     // Jos otsikoita ei jostain syystä löydy lainkaan, käytetään varuiksi antamasi datan indeksejä (3, 4, 5)
     const lopullinenIdxNimi = idxNimi !== -1 ? idxNimi : 3;
     const lopullinenIdxSarja = idxSarja !== -1 ? idxSarja : 4;
     const lopullinenIdxSeura = idxSeura !== -1 ? idxSeura : 5;
+    const lopullinenIdxKilpailuNumero = idxKilpailuNumero !== -1 ? idxKilpailuNumero : 2;
 
     const osallistujat = [];
 
@@ -56,6 +67,7 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi' }) {
       const nimiArvo = String(row[lopullinenIdxNimi] || '').trim();
       const sarjaArvo = String(row[lopullinenIdxSarja] || '').trim() || 'Määrittelemätön';
       const seuraArvo = String(row[lopullinenIdxSeura] || '').trim();
+      const kilpailuNumeroArvo = String(row[lopullinenIdxKilpailuNumero] || '').trim();
 
       // Ohitetaan tyhjät rivit tai otsikoiden "Päivitetty" apurivit
       if (!nimiArvo || nimiArvo.toLowerCase().includes('päivitetty')) continue;
@@ -64,7 +76,8 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi' }) {
         id: `${nimiArvo}-${sarjaArvo}-${i}`,
         nimi: nimiArvo,
         seura: seuraArvo,
-        sarja: sarjaArvo
+        sarja: sarjaArvo,
+        kilpailuNumero: kilpailuNumeroArvo
       });
     }
 
@@ -107,7 +120,14 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi' }) {
               {ryhmitellytSarjat[sarja].map((o) => (
                 <div key={o.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <span className="truncate font-medium text-slate-900">{o.nimi}</span>
-                  <span className="shrink-0 text-slate-500">{o.seura || '—'}</span>
+                  <div className="flex shrink-0 items-center gap-2 text-slate-500">
+                    {showCompetitionNumbers && o.kilpailuNumero && (
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
+                        {o.kilpailuNumero}
+                      </span>
+                    )}
+                    <span>{o.seura || '—'}</span>
+                  </div>
                 </div>
               ))}
             </div>

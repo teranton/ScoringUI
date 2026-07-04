@@ -1004,7 +1004,11 @@ useEffect(() => {
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <div className="mx-auto w-full max-w-3xl">
-              <Ilmoittautuneet rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw} locale={locale} />
+              <Ilmoittautuneet
+                rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw}
+                locale={locale}
+                showCompetitionNumbers={onkoAikatauluSallittu}
+              />
             </div>
           )}
           {aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && (
