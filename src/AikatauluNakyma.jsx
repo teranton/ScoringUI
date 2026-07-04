@@ -543,7 +543,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                       <span className="font-medium truncate text-[hsl(var(--foreground))]">{match.shooter}</span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {match.number && <span className="font-mono text-[10px] text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/60 px-1 py-0.5 rounded">Nro {match.number}</span>}
+                      {match.number && <span className="font-mono text-[10px] text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/60 px-1 py-0.5 rounded">#{match.number}</span>}
                       <span className="font-semibold text-[hsl(var(--foreground))] bg-[hsl(var(--primary))]/10 border border-[hsl(var(--primary))]/20 px-2 py-0.5 rounded-sm text-[11px]">{match.lane}</span>
                     </div>
                   </div>
