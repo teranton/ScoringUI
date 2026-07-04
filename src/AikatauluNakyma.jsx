@@ -615,7 +615,6 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                       <section
                         key={`lane-mobile-${lane.laneLabel}`}
                         className="w-[86vw] max-w-[30rem] shrink-0 snap-start overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm"
-                        style={{ contentVisibility: 'auto', containIntrinsicSize: '620px' }}
                       >
                         <div className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/25 px-3 py-2">
                           <div className="flex min-w-0 items-center gap-2">
