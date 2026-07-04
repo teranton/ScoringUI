@@ -7,7 +7,7 @@ import Ilmoittautuneet from './Ilmoittautuneet';
 import AikatauluNakyma from './AikatauluNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import { parseCsvRows } from './utils/csv';
-import { extractMaterialGuidesFromRows } from './utils/materials';
+import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
@@ -610,6 +610,11 @@ useEffect(() => {
   const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
   const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
   const onkoAikataulua = nykyisenKisanData?.aikatauluCsvRaw?.trim().length > 10;
+
+  const kisanSponsorit = useMemo(
+    () => extractSponsorLogosFromRows(nykyisenKisanParsitutRivit.speksitRows || []),
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
   const onkoAikatauluSallittu = onkoAikataulua && !onkoKisaPaattynyt;
   const onkoMateriaaleja = useMemo(() => {
     const rivit = nykyisenKisanParsitutRivit.speksitRows || [];
@@ -884,7 +889,7 @@ useEffect(() => {
             </div>
           )}
           {aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && (
-            <AikatauluNakyma rawCsv={nykyisenKisanData.aikatauluCsvRaw} locale={locale} />
+            <AikatauluNakyma rawCsv={nykyisenKisanData.aikatauluCsvRaw} locale={locale} sponsorLogos={kisanSponsorit} />
           )}
           {aktiivinenSivu === 'materiaalit' && onkoMateriaaleja && nykyisenKisanData && (
             <div className="mx-auto w-full max-w-3xl">

@@ -25,7 +25,7 @@ function isTimeLike(value) {
 
 function isLaneHeader(value) {
   const text = String(value || '').trim().toUpperCase();
-  return /^RATA\s*\d+$/.test(text) || /^LANE\s*\d+$/.test(text);
+  return /^RATA\s*\d+/.test(text) || /^LANE\s*\d+/.test(text);
 }
 
 function toShooterNumber(value) {
@@ -104,7 +104,7 @@ function measureShooterTextWidth(text) {
 
 // --- PÄÄKOMPONENTTI ---
 
-export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
+export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [] }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
   const desktopScrollRef = useRef(null);
@@ -161,7 +161,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
         if (i > 0 && !isLaneHeader(laneHeaderRow[i - 1])) {
           startIndex = i - 1;
         }
-        laneColumns.push({ label: String(laneHeaderRow[i]).trim(), startIndex });
+        const rawLabel = String(laneHeaderRow[i]).trim();
+        // Extract "1 Jake" from "RATA 1 Jake" or "LANE 1 Jake"
+        const match = rawLabel.toUpperCase().match(/^(?:RATA|LANE)\s*(\d+\s*.*)/i);
+        const cleanLabel = match ? match[1] : rawLabel;
+        laneColumns.push({ label: cleanLabel, startIndex });
       }
     }
 
@@ -387,7 +391,33 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
       {/* AIKATAULUKORTTI */}
       <Card className="w-full shadow-sm">
         <CardHeader className="pb-3 bg-[hsl(var(--muted))]/20 border-b">
-          <CardTitle className="text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">{title}</CardTitle>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <CardTitle className="text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">{title}</CardTitle>
+            {sponsorLogos.length > 0 && (() => {
+              const globalLogos = sponsorLogos.filter(
+                (logo) => !parsed.laneColumns?.some((lane) => lane.label.toUpperCase().includes(logo.alt.toUpperCase()))
+              );
+              return globalLogos.length > 0 ? (
+                <div className="flex items-center gap-3 flex-wrap">
+                  {globalLogos.map((logo, idx) => {
+                    const img = (
+                      <img
+                        key={`sponsor-global-${idx}`}
+                        src={logo.src}
+                        alt={logo.alt}
+                        className="h-8 max-w-[120px] object-contain opacity-90"
+                      />
+                    );
+                    return logo.href ? (
+                      <a key={`sponsor-global-${idx}`} href={logo.href} target="_blank" rel="noopener noreferrer" className="flex items-center hover:opacity-75 transition-opacity">
+                        {img}
+                      </a>
+                    ) : img;
+                  })}
+                </div>
+              ) : null;
+            })()}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {parsed.mode === 'lane-grid' ? (
@@ -461,14 +491,26 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                       >
                         {tx.time}
                       </div>
-                      {parsed.laneColumns.map((lane) => (
-                        <div
-                          key={`mobile-sticky-header-${lane.label}`}
-                          className="truncate border-l border-[hsl(var(--border))] px-2 py-2 text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]"
-                        >
-                          {lane.label}
-                        </div>
-                      ))}
+                      {parsed.laneColumns.map((lane) => {
+                        const matchingLogo = sponsorLogos.find((logo) => lane.label.toUpperCase().includes(logo.alt.toUpperCase()));
+                        return (
+                          <div
+                            key={`mobile-sticky-header-${lane.label}`}
+                            className="flex flex-col items-center justify-center gap-1 border-l border-[hsl(var(--border))] px-2 py-2"
+                          >
+                            {matchingLogo && (
+                              <img
+                                src={matchingLogo.src}
+                                alt={matchingLogo.alt}
+                                className="h-6 max-w-[80px] object-contain opacity-90"
+                              />
+                            )}
+                            <div className="truncate text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
+                              {lane.label}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <div className="divide-y divide-[hsl(var(--border))]/60">
@@ -543,14 +585,26 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi' }) {
                       >
                         {tx.time}
                       </div>
-                      {parsed.laneColumns.map((lane) => (
-                        <div
-                          key={`desktop-sticky-header-${lane.label}`}
-                          className="truncate border-l border-[hsl(var(--border))] px-5 py-2 text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]"
-                        >
-                          {lane.label}
-                        </div>
-                      ))}
+                      {parsed.laneColumns.map((lane) => {
+                        const matchingLogo = sponsorLogos.find((logo) => lane.label.toUpperCase().includes(logo.alt.toUpperCase()));
+                        return (
+                          <div
+                            key={`desktop-sticky-header-${lane.label}`}
+                            className="flex flex-col items-center justify-center gap-1.5 border-l border-[hsl(var(--border))] px-5 py-2"
+                          >
+                            {matchingLogo && (
+                              <img
+                                src={matchingLogo.src}
+                                alt={matchingLogo.alt}
+                                className="h-7 max-w-[100px] object-contain opacity-90"
+                              />
+                            )}
+                            <div className="truncate text-xs font-bold uppercase tracking-wider text-[hsl(var(--foreground))]">
+                              {lane.label}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <div className="divide-y divide-[hsl(var(--border))]/60">

@@ -4,6 +4,34 @@ import { extractMaterialGuidesFromRows } from './utils/materials';
 import EsikatseltavaMateriaali from './components/EsikatseltavaMateriaali';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 
+function onkoPdfLinkki(urlArvo) {
+  const teksti = String(urlArvo || '').trim();
+  if (!teksti) return false;
+
+  const lower = teksti.toLowerCase();
+  if (lower.endsWith('.pdf')) return true;
+  if (lower.includes('.pdf?')) return true;
+  if (lower.includes('/export?format=pdf')) return true;
+  if (lower.includes('format=pdf')) return true;
+  if (lower.includes('mime=application/pdf')) return true;
+
+  try {
+    const parsed = new URL(teksti);
+    const host = parsed.hostname.toLowerCase();
+
+    if (host.includes('drive.google.com')) {
+      const pathname = parsed.pathname.toLowerCase();
+      const hasPdfPath = pathname.endsWith('.pdf') || pathname.includes('.pdf/');
+      const hasPdfQuery = parsed.searchParams.get('export') === 'download' && parsed.searchParams.get('format') === 'pdf';
+      return hasPdfPath || hasPdfQuery;
+    }
+  } catch {
+    // Invalid URL; rely on string heuristics above.
+  }
+
+  return false;
+}
+
 export default function MateriaaliNakyma({ specsCsv, locale = 'fi' }) {
   const tx = locale === 'en'
     ? {
@@ -53,7 +81,7 @@ export default function MateriaaliNakyma({ specsCsv, locale = 'fi' }) {
       <CardContent className="p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           {guides.map((guide, idx) => {
-            const isPdf = guide.url.toLowerCase().includes('.pdf') || guide.url.includes('drive.google.com');
+            const isPdf = onkoPdfLinkki(guide.url);
 
             return (
               <EsikatseltavaMateriaali

@@ -75,3 +75,45 @@ export function extractMaterialGuidesFromRows(rows) {
 
   return guides;
 }
+
+function isLogoKey(value) {
+  const key = normalizeKey(value);
+  return key === 'LOGO' || key.startsWith('LOGO:');
+}
+
+export function extractSponsorLogosFromRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  const logos = [];
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 2) continue;
+
+    for (let i = 0; i < row.length - 1; i++) {
+      const keyCell = row[i];
+      if (!isLogoKey(keyCell)) continue;
+
+      const followingCells = row.slice(i + 1).map(toText);
+      const urls = [];
+      for (const cell of followingCells) {
+        const safe = getSafeExternalUrl(cell);
+        if (safe) urls.push(safe);
+        if (urls.length === 2) break;
+      }
+
+      if (urls.length === 0) break;
+
+      const inlineAlt = getInlineTitleFromKey(keyCell);
+      const nonUrlCells = followingCells.filter((cell) => !getSafeExternalUrl(cell) && cell);
+      const alt = inlineAlt || nonUrlCells[0] || '';
+
+      logos.push({
+        alt,
+        src: urls[0],
+        href: urls[1] || null
+      });
+      break;
+    }
+  }
+
+  return logos;
+}
