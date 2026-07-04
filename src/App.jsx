@@ -9,6 +9,7 @@ import MateriaaliNakyma from './MateriaaliNakyma';
 import { parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
+import { track } from '@vercel/analytics';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
@@ -239,6 +240,14 @@ function labelForStatus(status, locale) {
   return 'Tulossa';
 }
 
+function trackAnalyticsEvent(eventName, properties = {}) {
+  try {
+    track(eventName, properties);
+  } catch {
+    // Ignore analytics tracking errors to avoid affecting UI behavior.
+  }
+}
+
 export default function App() {
   const theme = 'default';
   const locale = 'fi';
@@ -314,6 +323,11 @@ export default function App() {
   const onkoAikatauluPreviewOverride = ['1', 'true', 'yes', 'on'].includes(aikatauluPreviewOverrideEnv);
 
   const avaaKisaNakyma = (kisa) => {
+    trackAnalyticsEvent('competition_open', {
+      competitionId: String(kisa?.id || ''),
+      competitionName: String(kisa?.nimi || ''),
+      status: String(kisaStatusById[kisa?.id]?.status || '')
+    });
     setAktiivinenSivu('tulokset');
     setValittuKisa(kisa);
     window.history.pushState(
@@ -324,6 +338,10 @@ export default function App() {
   };
 
   const palaaEtusivulle = () => {
+    trackAnalyticsEvent('back_home', {
+      competitionId: String(valittuKisa?.id || ''),
+      fromView: String(aktiivinenSivu || '')
+    });
     if (window.history.state?.view === 'competition' && !window.history.state?.directLink) {
       window.history.back();
       return;
@@ -450,6 +468,13 @@ export default function App() {
     }
   }, [kisat, ladataanKisalista, valittuKisa]);
 
+  useEffect(() => {
+    trackAnalyticsEvent('view_change', {
+      view: String(valittuKisa ? aktiivinenSivu : 'home'),
+      competitionId: String(valittuKisa?.id || '')
+    });
+  }, [aktiivinenSivu, valittuKisa]);
+
   const valitunKisanSpeksitRaw = valittuKisa?.apiUrl ? (kisaCache[valittuKisa.apiUrl]?.speksitCsvRaw || '') : '';
   const valitunKisanEfektiivinenStatus = valittuKisa
     ? laskeKisanEfektiivinenStatus(valittuKisa.alkuPvm, valittuKisa.loppuPvm, valitunKisanSpeksitRaw).status
@@ -494,8 +519,17 @@ useEffect(() => {
       const tulos = await response.json();
       const csvByName = tulos.csvByName || {};
       const vanhaData = kisaCacheRef.current[sheetId] || {};
+      const durationMs = Math.round(performance.now() - startTime);
 
-      console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}): ${(performance.now() - startTime).toFixed(0)}ms`);
+      console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}): ${durationMs.toFixed(0)}ms`);
+
+      trackAnalyticsEvent('competition_fetch', {
+        competitionId: String(valittuKisa?.id || ''),
+        mode: onkoStaattinen ? 'static' : 'live',
+        ok: 'true',
+        durationMs,
+        sheets: String(sivut.length)
+      });
 
       setKisaCache(prevCache => ({
         ...prevCache,
@@ -514,6 +548,11 @@ useEffect(() => {
     } catch (err) {
       console.error("Datan päivitys epäonnistui palvelimelta:", err);
       setVirhe("Tietojen päivitys epäonnistui taustalla.");
+      trackAnalyticsEvent('competition_fetch', {
+        competitionId: String(valittuKisa?.id || ''),
+        mode: onkoStaattinen ? 'static' : 'live',
+        ok: 'false'
+      });
     } finally {
       fetchInFlightRef.current[sheetId] = false;
       setLadataanKisaaBySheet((prev) => {
