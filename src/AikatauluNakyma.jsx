@@ -1,8 +1,36 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv'; // Varmista oikea polku projektissasi
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
+
+function isPerfLoggingEnabled() {
+  if (typeof window === 'undefined') return false;
+
+  if (window.__SCORINGUI_PERF__ === true) return true;
+
+  try {
+    if (window.localStorage?.getItem('scoringui:perf') === '1') return true;
+  } catch {
+    // Ignore storage access errors in restricted environments.
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    if (params.get('perf') === '1') return true;
+  } catch {
+    // Ignore URL parsing failures.
+  }
+
+  return false;
+}
+
+function logPerf(scope, startTime, details = {}) {
+  if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
+  const ms = performance.now() - startTime;
+  // Keep logs compact so they are easy to compare between runs.
+  console.log(`[AikatauluPerf] ${scope}: ${ms.toFixed(1)}ms`, details);
+}
 
 // --- APUFUNKTIOT ---
 
@@ -107,6 +135,10 @@ function measureShooterTextWidth(text) {
 export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [] }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(max-width: 767px)').matches;
+  });
   const desktopScrollRef = useRef(null);
   const desktopDragRef = useRef({
     isDown: false,
@@ -144,8 +176,10 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
   // DATA PARSINTA
   const parsed = useMemo(() => {
+    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
     const rows = parseCsvRows(rawCsv || '');
     if (!Array.isArray(rows) || rows.length < 2) {
+      logPerf('parseCsvRows(empty)', perfStart, { rows: Array.isArray(rows) ? rows.length : 0 });
       return { mode: 'empty', titleSuffix: '', events: [], laneColumns: [], laneRows: [] };
     }
 
@@ -195,6 +229,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
       laneRows.sort((a, b) => toSortValue(a.time) - toSortValue(b.time));
       const { numberGroupMap, groupCount, groupRanges } = buildGroupMeta(laneRows, laneColumns.length);
+      logPerf('parseCsvRows(lane-grid)', perfStart, {
+        rows: rows.length,
+        lanes: laneColumns.length,
+        laneRows: laneRows.length,
+        groups: groupCount
+      });
       return { mode: 'lane-grid', titleSuffix, events: [], laneColumns, laneRows, numberGroupMap, groupCount, groupRanges };
     }
 
@@ -227,11 +267,13 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     }
 
     events.sort((a, b) => toSortValue(a.time) - toSortValue(b.time));
+    logPerf('parseCsvRows(events)', perfStart, { rows: rows.length, events: events.length });
     return { mode: 'events', titleSuffix, events, laneColumns: [], laneRows: [], numberGroupMap: new Map(), groupCount: 0, groupRanges: [] };
   }, [rawCsv]);
 
   // HAKUTOIMINTO
   const shooterMatches = useMemo(() => {
+    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
     const query = searchQuery.trim().toLowerCase();
     if (!query || parsed.mode !== 'lane-grid') return [];
     const matches = [];
@@ -242,13 +284,19 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
         }
       }
     }
+    logPerf('shooterMatches', perfStart, {
+      queryLength: query.length,
+      laneRows: parsed.laneRows.length,
+      matches: matches.length
+    });
     return matches;
   }, [searchQuery, parsed]);
 
   const mobileLaneTimelines = useMemo(() => {
+    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
     if (parsed.mode !== 'lane-grid') return [];
 
-    return parsed.laneColumns.map((lane, laneIdx) => {
+    const timelines = parsed.laneColumns.map((lane, laneIdx) => {
       const entries = [];
 
       for (const row of parsed.laneRows) {
@@ -276,6 +324,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
         entries
       };
     });
+    const totalEntries = timelines.reduce((sum, lane) => sum + lane.entries.length, 0);
+    logPerf('mobileLaneTimelines', perfStart, {
+      lanes: timelines.length,
+      entries: totalEntries
+    });
+    return timelines;
   }, [parsed]);
 
   if (parsed.mode === 'empty' || (parsed.mode === 'events' && parsed.events.length === 0) || (parsed.mode === 'lane-grid' && parsed.laneRows.length === 0)) {
@@ -286,6 +340,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
   // LEVEYDET JA GRIDIT
   const laneNameColumnWidth = useMemo(() => {
+    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
     if (parsed.mode !== 'lane-grid') return 0;
 
     let maxShooterWidth = 0;
@@ -299,7 +354,9 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     const numberBadgeReserve = 28;
     const safetyMargin = 16;
     const computed = Math.ceil(maxShooterWidth + horizontalPadding + numberBadgeReserve + safetyMargin);
-    return Math.max(120, computed);
+    const width = Math.max(120, computed);
+    logPerf('laneNameColumnWidth', perfStart, { laneRows: parsed.laneRows.length, width });
+    return width;
   }, [parsed]);
 
   const timeColumnWidth = 65; 
@@ -337,7 +394,24 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     desktopDragRef.current.isDown = false;
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+
+    const media = window.matchMedia('(max-width: 767px)');
+    const handleChange = (e) => setIsMobileViewport(e.matches);
+    setIsMobileViewport(media.matches);
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', handleChange);
+      return () => media.removeEventListener('change', handleChange);
+    }
+
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
+  }, []);
+
   const laneLogoMap = useMemo(() => {
+    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
     const map = new Map();
     if (parsed.mode !== 'lane-grid' || !Array.isArray(parsed.laneColumns) || sponsorLogos.length === 0) {
       return map;
@@ -359,16 +433,38 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
       map.set(lane.label, match);
     });
 
+    logPerf('laneLogoMap', perfStart, {
+      lanes: parsed.laneColumns.length,
+      sponsorLogos: sponsorLogos.length
+    });
     return map;
   }, [parsed, sponsorLogos]);
 
   const globalSponsorLogos = useMemo(() => {
-    return sponsorLogos.filter((logo) => {
+    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const filtered = sponsorLogos.filter((logo) => {
       const logoKey = String(logo?.alt || '').trim().toUpperCase();
       if (!logoKey) return true;
       return !parsed.laneColumns?.some((lane) => String(lane?.label || '').toUpperCase().includes(logoKey));
     });
+    logPerf('globalSponsorLogos', perfStart, {
+      sponsorLogos: sponsorLogos.length,
+      global: filtered.length
+    });
+    return filtered;
   }, [parsed.laneColumns, sponsorLogos]);
+
+  useEffect(() => {
+    if (!isPerfLoggingEnabled() || typeof performance === 'undefined' || !isMobileViewport) return;
+    const start = performance.now();
+    requestAnimationFrame(() => {
+      logPerf('mobileViewSwitchPaint', start, {
+        mode: mobileViewMode,
+        laneRows: parsed.mode === 'lane-grid' ? parsed.laneRows.length : 0,
+        lanes: parsed.mode === 'lane-grid' ? parsed.laneColumns.length : 0
+      });
+    });
+  }, [mobileViewMode, parsed, isMobileViewport]);
 
   return (
     <div className="space-y-3">
@@ -434,6 +530,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         key={`sponsor-global-${idx}`}
                         src={logo.src}
                         alt={logo.alt}
+                        loading="lazy"
+                        decoding="async"
                         className="h-8 max-w-[120px] object-contain opacity-90"
                       />
                     );
@@ -450,26 +548,27 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
         <CardContent className="p-0">
           {parsed.mode === 'lane-grid' ? (
             <>
-              <div className="flex gap-2 p-2 pb-0 md:hidden">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={mobileViewMode === 'lanes' ? 'default' : 'outline'}
-                  onClick={() => setMobileViewMode('lanes')}
-                >
-                  {txMobile.lanes}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={mobileViewMode === 'table' ? 'default' : 'outline'}
-                  onClick={() => setMobileViewMode('table')}
-                >
-                  {txMobile.largeTable}
-                </Button>
-              </div>
+              {isMobileViewport ? (
+                <>
+                <div className="flex gap-2 p-2 pb-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={mobileViewMode === 'lanes' ? 'default' : 'outline'}
+                    onClick={() => setMobileViewMode('lanes')}
+                  >
+                    {txMobile.lanes}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={mobileViewMode === 'table' ? 'default' : 'outline'}
+                    onClick={() => setMobileViewMode('table')}
+                  >
+                    {txMobile.largeTable}
+                  </Button>
+                </div>
 
-              <div className="md:hidden">
                 {mobileViewMode === 'lanes' ? (
                 <div className="space-y-2 p-2">
                   <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -479,6 +578,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                       <section
                         key={`lane-mobile-${lane.laneLabel}`}
                         className="w-[86vw] max-w-[30rem] shrink-0 snap-start overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm"
+                        style={{ contentVisibility: 'auto', containIntrinsicSize: '620px' }}
                       >
                         <div className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/25 px-3 py-2">
                           <div className="flex min-w-0 items-center gap-2">
@@ -486,6 +586,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                               <img
                                 src={laneLogo.src}
                                 alt={laneLogo.alt}
+                                loading="lazy"
+                                decoding="async"
                                 className="h-6 max-w-[80px] object-contain opacity-90 shrink-0"
                               />
                             )}
@@ -542,6 +644,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                               <img
                                 src={matchingLogo.src}
                                 alt={matchingLogo.alt}
+                                loading="lazy"
+                                decoding="async"
                                 className="h-6 max-w-[80px] object-contain opacity-90"
                               />
                             )}
@@ -558,7 +662,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         <div
                           key={`mobile-sticky-row-${row.id}`}
                           className="grid items-stretch"
-                          style={{ gridTemplateColumns: masterGridTemplate, minHeight: '40px' }}
+                          style={{
+                            gridTemplateColumns: masterGridTemplate,
+                            minHeight: '40px',
+                            contentVisibility: 'auto',
+                            containIntrinsicSize: '40px'
+                          }}
                         >
                           <div
                             className="sticky left-0 z-30 flex items-center justify-center border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/80 px-1 py-1 font-mono text-xs font-bold"
@@ -600,9 +709,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                   </div>
                 </div>
                 )}
-              </div>
-
-              <div className="hidden md:block">
+                </>
+              ) : (
                 <div
                   ref={desktopScrollRef}
                   className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))] cursor-grab active:cursor-grabbing"
@@ -637,6 +745,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                               <img
                                 src={matchingLogo.src}
                                 alt={matchingLogo.alt}
+                                loading="lazy"
+                                decoding="async"
                                 className="h-7 max-w-[100px] object-contain opacity-90"
                               />
                             )}
@@ -653,7 +763,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                         <div
                           key={`desktop-sticky-row-${row.id}`}
                           className="grid items-stretch"
-                          style={{ gridTemplateColumns: masterGridTemplate, minHeight: '40px' }}
+                          style={{
+                            gridTemplateColumns: masterGridTemplate,
+                            minHeight: '40px',
+                            contentVisibility: 'auto',
+                            containIntrinsicSize: '40px'
+                          }}
                         >
                           <div
                             className="sticky left-0 z-30 flex items-center justify-center border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/80 px-1 py-1 font-mono text-xs font-bold md:text-sm"
@@ -694,7 +809,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </>
           ) : (
             /* TAVALLINEN LISTANÄKYMÄ (EVENTS MODE) */
