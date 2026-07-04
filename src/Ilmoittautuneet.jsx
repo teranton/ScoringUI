@@ -71,7 +71,8 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
       const nimiArvo = String(row[lopullinenIdxNimi] || '').trim();
       const sarjaArvo = String(row[lopullinenIdxSarja] || '').trim() || 'Määrittelemätön';
       const seuraArvo = String(row[lopullinenIdxSeura] || '').trim();
-      const kilpailuNumeroArvo = String(row[lopullinenIdxKilpailuNumero] || '').trim();
+      const raakakilpailuNumero = String(row[lopullinenIdxKilpailuNumero] || '').trim();
+      const kilpailuNumeroArvo = onkoPelkaNumero(raakakilpailuNumero) ? raakakilpailuNumero : '';
 
       // Ohitetaan tyhjät rivit tai otsikoiden "Päivitetty" apurivit
       if (!nimiArvo || nimiArvo.toLowerCase().includes('päivitetty')) continue;
