@@ -62,6 +62,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
   const sarjaScrollRef = useRef(null);
   const taulukkoScrollRef = useRef(null);
+  const sarakeAnkkuriRef = useRef({});
+  const taulukkoReunaVarjotRef = useRef({ vasen: false, oikea: false });
+  const [taulukkoReunaVarjot, setTaulukkoReunaVarjot] = useState({ vasen: false, oikea: false });
+  const [aktiivinenAnkkuri, setAktiivinenAnkkuri] = useState('tulos');
   
   const sarjaDragRef = useRef({
     isDown: false,
@@ -429,7 +433,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const onTaulukkoPointerDown = (event) => {
     if (!onMobiili) return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.pointerType !== 'mouse') return;
+    if (event.button !== 0) return;
 
     const target = event.target;
     if (
@@ -478,6 +483,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     taulukkoDragRef.current.moved = false;
   };
 
+  const rekisteroiSarakeAnkkuri = (sarake, elementti) => {
+    if (elementti) {
+      sarakeAnkkuriRef.current[sarake] = elementti;
+      return;
+    }
+    delete sarakeAnkkuriRef.current[sarake];
+  };
+
   // --- DYNAMIC WIDTH CALCULATIONS ---
   const rankColWidth = kaytaKompaktiTilaa ? 32 : (onMobiili ? 42 : 52);
   const nameColWidth = kaytaKompaktiTilaa ? 118 : (onMobiili ? 154 : 240);
@@ -488,6 +501,85 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const clubColWidth = onMobiili ? 72 : 84;
   const paivaColWidth = onMobiili ? 42 : 48;
   const taulukkoKorkeusLuokka = onkoKokoNaytto ? 'h-[calc(100vh-170px)] md:h-[calc(100vh-176px)]' : 'h-[60vh] md:h-[68vh]';
+
+  const paivitaTaulukkoReunaVarjot = () => {
+    const container = taulukkoScrollRef.current;
+    if (!container || !onMobiili) {
+      const seuraava = { vasen: false, oikea: false };
+      if (
+        taulukkoReunaVarjotRef.current.vasen !== seuraava.vasen
+        || taulukkoReunaVarjotRef.current.oikea !== seuraava.oikea
+      ) {
+        taulukkoReunaVarjotRef.current = seuraava;
+        setTaulukkoReunaVarjot(seuraava);
+      }
+      return;
+    }
+
+    const toleranssi = 2;
+    const maksimiVasen = container.scrollWidth - container.clientWidth;
+    const voiScrollataSivulle = maksimiVasen > toleranssi;
+
+    if (!voiScrollataSivulle) {
+      const seuraava = { vasen: false, oikea: false };
+      if (
+        taulukkoReunaVarjotRef.current.vasen !== seuraava.vasen
+        || taulukkoReunaVarjotRef.current.oikea !== seuraava.oikea
+      ) {
+        taulukkoReunaVarjotRef.current = seuraava;
+        setTaulukkoReunaVarjot(seuraava);
+      }
+      return;
+    }
+
+    const vasen = container.scrollLeft > toleranssi;
+    const oikea = container.scrollLeft < (maksimiVasen - toleranssi);
+    const seuraava = { vasen, oikea };
+    if (
+      taulukkoReunaVarjotRef.current.vasen !== seuraava.vasen
+      || taulukkoReunaVarjotRef.current.oikea !== seuraava.oikea
+    ) {
+      taulukkoReunaVarjotRef.current = seuraava;
+      setTaulukkoReunaVarjot(seuraava);
+    }
+  };
+
+  const siirrySarakkeeseen = (sarake) => {
+    setAktiivinenAnkkuri(sarake);
+    const container = taulukkoScrollRef.current;
+    const kohde = sarakeAnkkuriRef.current[sarake];
+    if (!container || !kohde) return;
+
+    const stickyLeveys = rankColWidth + nameColWidth;
+    const tavoiteX = Math.max(0, kohde.offsetLeft - stickyLeveys + 10);
+    container.scrollTo({ left: tavoiteX, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (!onMobiili) return;
+    const container = taulukkoScrollRef.current;
+    if (!container) return;
+
+    let frameId = null;
+    const paivita = () => {
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        paivitaTaulukkoReunaVarjot();
+      });
+    };
+    paivita();
+
+    container.addEventListener('scroll', paivita, { passive: true });
+    window.addEventListener('resize', paivita);
+    return () => {
+      container.removeEventListener('scroll', paivita);
+      window.removeEventListener('resize', paivita);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [onMobiili, onkoKokoNaytto, kaytaKompaktiTilaa, naytaRatkoSarake, naytaLaSarake, naytaSuSarake, radatList.length]);
 
   const muotoilePaivaTulos = (arvo) => {
     const teksti = String(arvo ?? '').trim();
@@ -504,6 +596,15 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     if (jarjestysSarake !== sarake) return '';
     return jarjestysSuunta === 'asc' ? ' ▲' : ' ▼';
   };
+
+  const mobiiliAnkkurit = [
+    { key: 'tulos', label: tx.total },
+    ...(naytaRatkoSarake ? [{ key: 'ratko', label: 'Ratko' }] : []),
+    ...(naytaLaSarake ? [{ key: 'la', label: tx.laLabel }] : []),
+    ...(naytaSuSarake ? [{ key: 'su', label: tx.suLabel }] : []),
+    ...(radatList.length > 0 ? [{ key: 'era-1', label: 'R1' }] : []),
+    ...(radatList.length > 1 ? [{ key: `era-${radatList.length}`, label: `R${radatList.length}` }] : [])
+  ];
 
   const stickyRankStyle = {
     left: 0,
@@ -657,6 +758,27 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
           </div>
         </div>
 
+        {onMobiili && (
+          <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Siirry:</span>
+            {mobiiliAnkkurit.map((ankkuri) => (
+              <button
+                key={ankkuri.key}
+                type="button"
+                onClick={() => siirrySarakkeeseen(ankkuri.key)}
+                className={cn(
+                  'shrink-0 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors',
+                  aktiivinenAnkkuri === ankkuri.key
+                    ? 'border-slate-400 bg-slate-100 text-slate-900'
+                    : 'border-slate-200 bg-white text-slate-600'
+                )}
+              >
+                {ankkuri.label}
+              </button>
+            ))}
+          </div>
+        )}
+
       </CardHeader>
 
       <CardContent className="p-0 relative">
@@ -667,7 +789,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             taulukkoKorkeusLuokka,
             onMobiili && 'cursor-grab active:cursor-grabbing'
           )}
-          style={onMobiili ? { touchAction: 'none' } : undefined}
+          style={onMobiili ? { touchAction: 'pan-x pan-y' } : undefined}
           onPointerDown={onMobiili ? onTaulukkoPointerDown : undefined}
           onPointerMove={onMobiili ? onTaulukkoPointerMove : undefined}
           onPointerUp={onMobiili ? onTaulukkoPointerUp : undefined}
@@ -716,7 +838,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         )}
 
                         {naytaLaSarake && (
-                          <th className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')} style={{ width: `${paivaColWidth}px` }}>
+                          <th
+                            ref={(el) => rekisteroiSarakeAnkkuri('la', el)}
+                            className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')}
+                            style={{ width: `${paivaColWidth}px` }}
+                          >
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys('la')}>
                               {tx.laLabel}{jarjestysMerkki('la')}
                             </button>
@@ -724,21 +850,33 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         )}
 
                         {naytaSuSarake && (
-                          <th className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')} style={{ width: `${paivaColWidth}px` }}>
+                          <th
+                            ref={(el) => rekisteroiSarakeAnkkuri('su', el)}
+                            className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')}
+                            style={{ width: `${paivaColWidth}px` }}
+                          >
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys('su')}>
                               {tx.suLabel}{jarjestysMerkki('su')}
                             </button>
                           </th>
                         )}
                         
-                        <th className={cn(otsikkoLuokka('sum'), 'sticky top-0 z-30')} style={{ width: `${totalColWidth}px` }}>
+                        <th
+                          ref={(el) => rekisteroiSarakeAnkkuri('tulos', el)}
+                          className={cn(otsikkoLuokka('sum'), 'sticky top-0 z-30')}
+                          style={{ width: `${totalColWidth}px` }}
+                        >
                           <button type="button" className="w-full" onClick={() => paivitaJarjestys('tulos')}>
                             {tx.total}{jarjestysMerkki('tulos')}
                           </button>
                         </th>
                         
                         {naytaRatkoSarake && (
-                          <th className={cn(otsikkoLuokka('ratko'), 'sticky top-0 z-30')} style={{ width: `${ratkoColWidth}px` }}>
+                          <th
+                            ref={(el) => rekisteroiSarakeAnkkuri('ratko', el)}
+                            className={cn(otsikkoLuokka('ratko'), 'sticky top-0 z-30')}
+                            style={{ width: `${ratkoColWidth}px` }}
+                          >
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys('ratko')}>
                               Ratko{jarjestysMerkki('ratko')}
                             </button>
@@ -748,6 +886,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         {radatList.map(n => (
                           <th
                             key={n}
+                            ref={(el) => rekisteroiSarakeAnkkuri(`era-${n}`, el)}
                             className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')}
                             style={{ width: `${stageColWidth}px` }}
                           >
@@ -923,6 +1062,13 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                     </tbody>
                   </table>
         </div>
+
+        {onMobiili && taulukkoReunaVarjot.vasen && (
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-30 w-4 bg-gradient-to-r from-slate-200/80 to-transparent" />
+        )}
+        {onMobiili && taulukkoReunaVarjot.oikea && (
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-30 w-4 bg-gradient-to-l from-slate-200/80 to-transparent" />
+        )}
       </CardContent>
     </Card>
   );
