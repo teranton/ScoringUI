@@ -482,14 +482,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   };
 
   // --- DYNAMIC WIDTH CALCULATIONS ---
-  const rankColWidth = kaytaKompaktiTilaa ? 32 : (onMobiili ? 42 : 52);
+  const rankColWidth = kaytaKompaktiTilaa ? 34 : (onMobiili ? 38 : 46);
   const nameColWidth = kaytaKompaktiTilaa ? 118 : (onMobiili ? 154 : 240);
-  const totalColWidth = kaytaKompaktiTilaa ? 38 : (onMobiili ? 44 : 56);
+  const totalColWidth = kaytaKompaktiTilaa ? 34 : (onMobiili ? 38 : 46);
   const ratkoColWidth = kaytaKompaktiTilaa ? 40 : (onMobiili ? 52 : 72);
   const stageColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 30 : 40);
   const seriesColWidth = onMobiili ? 50 : 56;
-  const clubColWidth = onMobiili ? 72 : 84;
-  const paivaColWidth = onMobiili ? 42 : 48;
+  const clubColWidth = onMobiili ? 56 : 64;
+  const paivaColWidth = onMobiili ? 30 : 40;
   const taulukkoKorkeusLuokka = onkoKokoNaytto ? 'h-[calc(100vh-170px)] md:h-[calc(100vh-176px)]' : 'h-[60vh] md:h-[68vh]';
 
   const paivitaTaulukkoReunaVarjot = () => {
