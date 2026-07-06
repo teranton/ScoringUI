@@ -486,7 +486,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const nameColWidth = kaytaKompaktiTilaa ? 118 : (onMobiili ? 154 : 240);
   const totalColWidth = kaytaKompaktiTilaa ? 38 : (onMobiili ? 44 : 56);
   const ratkoColWidth = kaytaKompaktiTilaa ? 40 : (onMobiili ? 52 : 72);
-  const stageColWidth = kaytaKompaktiTilaa ? 28 : (onMobiili ? 34 : 44);
+  const stageColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 30 : 40);
   const seriesColWidth = onMobiili ? 50 : 56;
   const clubColWidth = onMobiili ? 72 : 84;
   const paivaColWidth = onMobiili ? 42 : 48;
@@ -823,7 +823,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                             style={{ width: `${stageColWidth}px` }}
                           >
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys(`era-${n}`)}>
-                              R{n}{jarjestysMerkki(`era-${n}`)}
+                              {n}{jarjestysMerkki(`era-${n}`)}
                             </button>
                           </th>
                         ))}
