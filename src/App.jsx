@@ -16,6 +16,7 @@ import { Badge } from './components/ui/badge';
 import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText } from 'lucide-react';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
+const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
 
 function muunnaPaivamaaraJarjestysavaimeksi(pvmStr) {
   if (!pvmStr) return null;
@@ -120,6 +121,7 @@ function normalisoiStatusArvo(arvo) {
 
   if (['PÄÄTTYNYT', 'PAATTYNYT', 'FINISHED', 'CLOSED', 'LOPPUNUT'].includes(norm)) return 'paattynyt';
   if (['KÄYNNISSÄ', 'KAYNNISSA', 'ONGOING', 'RUNNING', 'LIVE'].includes(norm)) return 'kaynnissa';
+  if (['TAUOLLA', 'TAUKO', 'PAUSED', 'PAUSE', 'BREAK', 'INTERMISSION'].includes(norm)) return 'tauolla';
   if (['TULOSSA', 'UPCOMING', 'PENDING'].includes(norm)) return 'tulossa';
   return null;
 }
@@ -167,14 +169,23 @@ function haeStatusOverrideSpekseista(speksitData) {
 
 function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData) {
   const oletus = laskeKisanStatusJaTyyli(alkuStr, loppuStr);
+
+  // Date-active competitions are controlled by sheet status flag.
+  if (oletus.status !== 'kaynnissa') return oletus;
+
   const override = haeStatusOverrideSpekseista(speksitData);
-  if (!override) return oletus;
+  if (!override) {
+    return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+  }
 
   if (override === 'paattynyt') {
     return { teksti: 'Päättynyt', tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
   }
   if (override === 'kaynnissa') {
     return { teksti: 'Käynnissä', tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
+  }
+  if (override === 'tauolla') {
+    return { teksti: 'Tauolla', tyyli: { background: '#fff4e5', color: '#8a4b00' }, status: 'tauolla' };
   }
   return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
 }
@@ -224,6 +235,7 @@ function haeAikatauluNakyvyysSpekseista(speksitData) {
 
 function statusToBadgeVariant(status) {
   if (status === 'kaynnissa') return 'ongoing';
+  if (status === 'tauolla') return 'paused';
   if (status === 'paattynyt') return 'ended';
   return 'upcoming';
 }
@@ -231,11 +243,13 @@ function statusToBadgeVariant(status) {
 function labelForStatus(status, locale) {
   if (locale === 'en') {
     if (status === 'kaynnissa') return 'Ongoing';
+    if (status === 'tauolla') return 'Paused';
     if (status === 'paattynyt') return 'Ended';
     return 'Upcoming';
   }
 
   if (status === 'kaynnissa') return 'Käynnissä';
+  if (status === 'tauolla') return 'Tauolla';
   if (status === 'paattynyt') return 'Päättynyt';
   return 'Tulossa';
 }
@@ -273,6 +287,7 @@ export default function App() {
       return {
         appTitle: '🎯 T&T Competition Results',
         appSubtitle: 'Live and archived competition results',
+        contactLabel: 'Contact',
         loadingRegistry: 'Loading competition registry...',
         backHome: 'Homepage',
         results: 'Results',
@@ -292,6 +307,7 @@ export default function App() {
     return {
       appTitle: '🎯 T&T Tulospalvelu',
       appSubtitle: 'Tämänkin voi tehdä helpommin',
+      contactLabel: 'Yhteys',
       loadingRegistry: 'Ladataan kilpailurekisteriä...',
       backHome: 'Etusivu',
       results: 'Tulokset',
@@ -321,6 +337,7 @@ export default function App() {
       ?? ''
   ).toLowerCase();
   const onkoAikatauluPreviewOverride = ['1', 'true', 'yes', 'on'].includes(aikatauluPreviewOverrideEnv);
+  const yhteysSahkoposti = String(import.meta.env.VITE_CONTACT_EMAIL || 'tt.tulospalvelu@gmail.com').trim();
 
   const avaaKisaNakyma = (kisa) => {
     trackAnalyticsEvent('competition_open', {
@@ -428,6 +445,68 @@ export default function App() {
 
     haeKisalistaCsv();
   }, []);
+
+  // 1b. HAETAAN SPEKSIT ETUSIVULLE VAIN KÄYNNISSÄ OLEVILLE KISOILLE
+  // ja virkistetään säännöllisesti, jotta manuaaliset status-override -muutokset päivittyvät.
+  useEffect(() => {
+    if (valittuKisa || kisat.length === 0) return; // Etusivulla ollessa ja vain silloin
+
+    async function haeatKisaSpeksitBatch() {
+      const nyt = Date.now();
+      const haettavat = kisat.filter((kisa) => {
+        if (!kisa.apiUrl) return false;
+
+        const paivapohjainenStatus = laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm).status;
+        if (paivapohjainenStatus !== 'kaynnissa') return false;
+
+        const cacheData = kisaCacheRef.current[kisa.apiUrl] || null;
+        const viimeisinSpeksitHaku = Number(cacheData?.speksitFetchedAt || 0);
+        const onkoVanhentunut = !viimeisinSpeksitHaku || (nyt - viimeisinSpeksitHaku) >= STATUS_OVERRIDE_REFRESH_MS;
+
+        return onkoVanhentunut;
+      });
+
+      if (haettavat.length === 0) return;
+
+      const sheetIds = [...new Set(haettavat.map((k) => k.apiUrl))];
+
+      for (const sheetId of sheetIds) {
+        if (fetchInFlightRef.current[sheetId]) continue;
+        fetchInFlightRef.current[sheetId] = true;
+
+        try {
+          const params = new URLSearchParams();
+          params.append('mode', 'batchCsv');
+          params.append('sheetId', sheetId);
+          params.append('sheetNames', 'KISANSPEKSIT');
+
+          const response = await fetch(`/api/kisaData?${params.toString()}`);
+          if (!response.ok) continue;
+
+          const tulos = await response.json();
+          const csvByName = tulos.csvByName || {};
+          const fetchedAt = Date.now();
+
+          setKisaCache((prevCache) => ({
+            ...prevCache,
+            [sheetId]: {
+              ...(prevCache[sheetId] || {}),
+              speksitCsvRaw: csvByName['KISANSPEKSIT'] || prevCache[sheetId]?.speksitCsvRaw || "",
+              speksitFetchedAt: fetchedAt
+            }
+          }));
+        } catch (err) {
+          console.error(`Speksit-haku epäonnistui sheetille ${sheetId}:`, err);
+        } finally {
+          fetchInFlightRef.current[sheetId] = false;
+        }
+      }
+    }
+
+    haeatKisaSpeksitBatch();
+    const virkistysIntervalli = setInterval(haeatKisaSpeksitBatch, STATUS_OVERRIDE_REFRESH_MS);
+    return () => clearInterval(virkistysIntervalli);
+  }, [kisat, valittuKisa]);
 
   useEffect(() => {
     if (!window.history.state?.view) {
@@ -541,7 +620,8 @@ useEffect(() => {
           aikatauluCsvRaw: csvByName['Aikataulu'] || csvByName['Timetable'] || vanhaData.aikatauluCsvRaw || "",
           aikatauluLaCsvRaw: csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "",
           aikatauluSuCsvRaw: csvByName['Aikataulu Su'] || vanhaData.aikatauluSuCsvRaw || "",
-          speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || ""
+          speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
+          speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0)
         }
       }));
 
@@ -698,7 +778,9 @@ useEffect(() => {
   const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
   const onkoKisaPaattynyt = kisanStatusInfo.status === 'paattynyt';
   const onkoIlmoittautuminenAikaIkkunaOhi = valittuKisa
-    ? laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm)
+    ? (kisanStatusInfo.status === 'tulossa'
+      ? false
+      : laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm))
     : true;
 
   const aikatauluCsvList = useMemo(() => {
@@ -945,6 +1027,13 @@ useEffect(() => {
             </section>
           )}
         </div>
+
+        <footer className="pt-2 text-center text-xs text-[hsl(var(--muted-foreground))]">
+          {tx.contactLabel}:{' '}
+          <a href={`mailto:${yhteysSahkoposti}`} className="underline hover:text-[hsl(var(--foreground))]">
+            {yhteysSahkoposti}
+          </a>
+        </footer>
       </div>
     );
   }
@@ -973,12 +1062,17 @@ useEffect(() => {
             </div>
             */}
           </div>
-          <CardTitle className="text-2xl font-bold tracking-normal">
-            {valittuKisa.nimi} {ladataanKisaa && <Hourglass className="ml-1 inline h-4 w-4 animate-pulse text-[hsl(var(--muted-foreground))]" aria-label="Loading" />}
-          </CardTitle>
-          <CardDescription>
-            {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
-          </CardDescription>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-2xl font-bold tracking-normal">
+                {valittuKisa.nimi} {ladataanKisaa && <Hourglass className="ml-1 inline h-4 w-4 animate-pulse text-[hsl(var(--muted-foreground))]" aria-label="Loading" />}
+              </CardTitle>
+              <CardDescription>
+                {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
+              </CardDescription>
+            </div>
+            <Badge variant={statusToBadgeVariant(kisanStatusInfo.status)}>{labelForStatus(kisanStatusInfo.status, locale)}</Badge>
+          </div>
           {virhe && <div className="text-sm font-medium text-rose-600">{virhe}</div>}
         </CardHeader>
       </Card>
@@ -1085,6 +1179,13 @@ useEffect(() => {
           )}
         </main>
       )}
+
+      <footer className="pt-1 text-center text-xs text-[hsl(var(--muted-foreground))]">
+        {tx.contactLabel}:{' '}
+        <a href={`mailto:${yhteysSahkoposti}`} className="underline hover:text-[hsl(var(--foreground))]">
+          {yhteysSahkoposti}
+        </a>
+      </footer>
     </div>
   );
 }

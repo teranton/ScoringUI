@@ -20,6 +20,8 @@
   --badge-upcoming-fg: 215 88% 35%;
   --badge-ongoing-bg: 152 62% 90%;
   --badge-ongoing-fg: 152 76% 22%;
+  --badge-paused-bg: 36 100% 92%;
+  --badge-paused-fg: 28 88% 30%;
   --badge-ended-bg: 214 16% 85%;
   --badge-ended-fg: 215 16% 35%;
 
@@ -63,6 +65,8 @@
   --badge-upcoming-fg: 209 76% 32%;
   --badge-ongoing-bg: 174 55% 88%;
   --badge-ongoing-fg: 171 74% 24%;
+  --badge-paused-bg: 42 100% 90%;
+  --badge-paused-fg: 32 82% 30%;
   --badge-ended-bg: 202 32% 84%;
   --badge-ended-fg: 205 42% 32%;
 
@@ -106,6 +110,8 @@
   --badge-upcoming-fg: 110 26% 32%;
   --badge-ongoing-bg: 140 32% 86%;
   --badge-ongoing-fg: 134 38% 26%;
+  --badge-paused-bg: 46 70% 86%;
+  --badge-paused-fg: 30 52% 30%;
   --badge-ended-bg: 90 18% 82%;
   --badge-ended-fg: 112 18% 30%;
 

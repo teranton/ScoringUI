@@ -10,6 +10,7 @@ const badgeVariants = cva(
         default: 'bg-[hsl(var(--badge-default-bg))] text-[hsl(var(--badge-default-fg))]',
         upcoming: 'bg-[hsl(var(--badge-upcoming-bg))] text-[hsl(var(--badge-upcoming-fg))]',
         ongoing: 'bg-[hsl(var(--badge-ongoing-bg))] text-[hsl(var(--badge-ongoing-fg))]',
+        paused: 'bg-[hsl(var(--badge-paused-bg))] text-[hsl(var(--badge-paused-fg))]',
         ended: 'bg-[hsl(var(--badge-ended-bg))] text-[hsl(var(--badge-ended-fg))]'
       }
     },
