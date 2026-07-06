@@ -507,7 +507,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const rankColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 24 : 35);
   const nameColWidth = kaytaKompaktiTilaa ? 90 : (onMobiili ? 154 : 200);
   const totalColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 24 : 35);
-  const ratkoColWidth = kaytaKompaktiTilaa ? 40 : (onMobiili ? 52 : 62);
+  const ratkoColWidth = kaytaKompaktiTilaa ? 30 : (onMobiili ? 42 : 52);
   const stageColWidth = kaytaKompaktiTilaa ? 18 : (onMobiili ? 24 : 30);
   const categoryColWidth = onMobiili ? 20 : 50;
   const clubColWidth = onMobiili ? 30 : 54;
