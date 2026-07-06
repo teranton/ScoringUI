@@ -57,6 +57,7 @@ function logPerf(scope, startTime, details = {}) {
 export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
+  const [onkoKokoNaytto, setOnkoKokoNaytto] = useState(false);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
   const sarjaScrollRef = useRef(null);
   
@@ -239,12 +240,33 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     });
   }, [sarjaSuodatin, onkoKompaktiTila, onMobiili, naytettavatAmpujat.length, radatList.length]);
 
+  useEffect(() => {
+    if (!onkoKokoNaytto || typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const alkuperainenOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const kasitteleEsc = (event) => {
+      if (event.key === 'Escape') {
+        setOnkoKokoNaytto(false);
+      }
+    };
+
+    window.addEventListener('keydown', kasitteleEsc);
+    return () => {
+      window.removeEventListener('keydown', kasitteleEsc);
+      document.body.style.overflow = alkuperainenOverflow;
+    };
+  }, [onkoKokoNaytto]);
+
   const tx = locale === 'en'
     ? {
       loading: 'Loading table data...',
       title: 'All Results (Table)',
       normal: 'Normal',
       compact: 'Compact',
+      fullscreen: 'Fullscreen Sheet',
+      exitFullscreen: 'Exit Fullscreen',
       rank: 'Rank',
       name: 'Name',
       classLabel: 'Class',
@@ -259,6 +281,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       title: 'Kaikki tulokset taulukkona',
       normal: 'Normaali',
       compact: 'Kompakti',
+      fullscreen: 'Koko näyttö',
+      exitFullscreen: 'Poistu koko näytöstä',
       rank: 'Sija',
       name: 'Nimi',
       classLabel: 'Sarja',
@@ -336,6 +360,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const stageColWidth = kaytaKompaktiTilaa ? 28 : (onMobiili ? 34 : 44);
   const seriesColWidth = onMobiili ? 50 : 56;
   const clubColWidth = onMobiili ? 72 : 84;
+  const taulukkoKorkeusLuokka = onkoKokoNaytto ? 'h-[calc(100vh-170px)] md:h-[calc(100vh-176px)]' : 'h-[60vh] md:h-[68vh]';
 
   const stickyRankStyle = {
     left: 0,
@@ -404,8 +429,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   };
 
   return (
-    <Card className="border-slate-200 shadow-sm overflow-hidden">
-      <CardHeader className="gap-3 px-4 pb-3 pt-4 md:p-6 md:pb-4 border-b bg-slate-50/50">
+    <Card className={cn(
+      'border-slate-200 shadow-sm overflow-hidden',
+      onkoKokoNaytto && 'fixed inset-0 z-[70] m-0 rounded-none border-0 shadow-none'
+    )}>
+      <CardHeader className={cn(
+        'gap-3 px-4 pb-3 pt-4 md:p-6 md:pb-4 border-b bg-slate-50/50',
+        onkoKokoNaytto && 'sticky top-0 z-[71] bg-white/95 backdrop-blur-sm'
+      )}>
         <CardTitle className="text-lg font-bold text-slate-800">{tx.title}</CardTitle>
 
         {/* Categories Toolbar Container */}
@@ -445,42 +476,271 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               ))}
           </div>
 
-          {onMobiili && (
-            <div className="flex gap-1.5 bg-slate-100 p-1 rounded-lg self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => setOnkoKompaktiTila(false)}
-                className={cn(
-                  "px-3 py-1 text-xs font-medium rounded-md transition-all",
-                  !onkoKompaktiTila ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                )}
-              >
-                {tx.normal}
-              </button>
-              <button
-                type="button"
-                onClick={() => setOnkoKompaktiTila(true)}
-                className={cn(
-                  "px-3 py-1 text-xs font-medium rounded-md transition-all",
-                  onkoKompaktiTila ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                )}
-              >
-                {tx.compact}
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 self-start sm:self-auto">
+            {onMobiili && (
+              <div className="flex gap-1.5 bg-slate-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setOnkoKompaktiTila(false)}
+                  className={cn(
+                    'px-3 py-1 text-xs font-medium rounded-md transition-all',
+                    !onkoKompaktiTila ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  {tx.normal}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOnkoKompaktiTila(true)}
+                  className={cn(
+                    'px-3 py-1 text-xs font-medium rounded-md transition-all',
+                    onkoKompaktiTila ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  {tx.compact}
+                </button>
+              </div>
+            )}
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 px-3 text-xs font-semibold"
+              onClick={() => setOnkoKokoNaytto((prev) => !prev)}
+            >
+              {onkoKokoNaytto ? tx.exitFullscreen : tx.fullscreen}
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
       <CardContent className="p-0 relative">
-        <TransformWrapper initialScale={1} minScale={0.6} maxScale={2.5}>
+        <TransformWrapper
+          initialScale={1}
+          minScale={0.6}
+          maxScale={2.5}
+          disabled={!onMobiili}
+          panning={{ disabled: !onMobiili }}
+          wheel={{ disabled: !onMobiili }}
+          pinch={{ disabled: !onMobiili }}
+          doubleClick={{ disabled: !onMobiili }}
+        >
           {({ zoomIn, zoomOut, resetTransform }) => (
             <>
               {/* Native Scroll Canvas Area */}
-              <div className="w-full h-[60vh] md:h-[68vh] overflow-auto select-none bg-white">
-                <TransformComponent wrapperClass="!w-full !h-full cursor-grab active:cursor-grabbing">
-                  
-                  {/* Performance-Enhanced Table Layout */}
+              <div className={cn('w-full overflow-auto bg-white', taulukkoKorkeusLuokka)}>
+                {onMobiili ? (
+                  <TransformComponent wrapperClass="!w-full !h-full cursor-grab active:cursor-grabbing">
+                    
+                    {/* Performance-Enhanced Table Layout */}
+                    <table className="border-separate border-spacing-0 table-fixed min-w-max text-left border-collapse">
+                      <thead>
+                        <tr className="h-9 md:h-11">
+                          
+                          {/* Sticky Header Box: Rank */}
+                          <th
+                            className={cn(otsikkoLuokka('fixed'), 'sticky left-0 top-0 z-45 shadow-[1px_0_0_0_rgba(226,232,240,1)]')}
+                            style={stickyRankStyle}
+                          >
+                            {tx.rank}
+                          </th>
+                          
+                          {/* Sticky Header Box: Name */}
+                          <th
+                            className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-45 text-left px-2 md:px-3 shadow-[1px_0_0_0_rgba(226,232,240,1)]')}
+                            style={stickyNameStyle}
+                          >
+                            {tx.name}
+                          </th>
+                          
+                          {!kaytaKompaktiTilaa && (
+                            <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30')} style={{ width: `${seriesColWidth}px` }}>
+                              {tx.classLabel}
+                            </th>
+                          )}
+
+                          {!kaytaKompaktiTilaa && (
+                            <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30 text-left px-2 md:px-3')} style={{ width: `${clubColWidth}px` }}>
+                              {tx.clubLabel}
+                            </th>
+                          )}
+                          
+                          <th className={cn(otsikkoLuokka('sum'), 'sticky top-0 z-30')} style={{ width: `${totalColWidth}px` }}>
+                            {tx.total}
+                          </th>
+                          
+                          {naytaRatkoSarake && (
+                            <th className={cn(otsikkoLuokka('ratko'), 'sticky top-0 z-30')} style={{ width: `${ratkoColWidth}px` }}>
+                              Ratko
+                            </th>
+                          )}
+                          
+                          {radatList.map(n => (
+                            <th
+                              key={n}
+                              className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')}
+                              style={{ width: `${stageColWidth}px` }}
+                            >
+                              R{n}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      
+                      <tbody className="divide-y divide-slate-100">
+                        {naytettavatAmpujat.map((ampuja) => (
+                          <tr
+                            key={ampuja.id}
+                            className="h-9 md:h-11 hover:bg-slate-50/60 transition-colors group"
+                            style={{
+                              contentVisibility: 'auto',
+                              containIntrinsicSize: kaytaKompaktiTilaa ? '36px' : (onMobiili ? '44px' : '44px')
+                            }}
+                          >
+                            {/* Sticky Cell: Numerical Placement */}
+                            <td
+                              className={cn(soluLuokka('rank'), 'sticky left-0 z-25 bg-slate-50 group-hover:bg-slate-100 transition-colors shadow-[1px_0_0_0_rgba(226,232,240,1)]')}
+                              style={stickyRankStyle}
+                            >
+                              {ampuja.laskettuSija}
+                            </td>
+                            
+                            {/* Sticky Cell: Full/Shortened Name Display */}
+                            <td
+                              className={cn(soluLuokka('name'), 'sticky z-25 bg-white group-hover:bg-slate-50 transition-colors shadow-[1px_0_0_0_rgba(226,232,240,1)]')}
+                              style={stickyNameStyle}
+                            >
+                              <div className="flex items-center gap-1.5 overflow-hidden w-full h-full align-middle">
+                                <span className="truncate">{muotoileNimiTaulukkoon(ampuja.nimi)}</span>
+                                {naytaValmiusIndikaattori && (
+                                  <span
+                                    className={cn(
+                                      'inline-block h-2 w-2 shrink-0 rounded-full ring-1 ring-black/5',
+                                      onkoAmpujaValmis(ampuja) ? 'bg-emerald-500' : 'bg-amber-400'
+                                    )}
+                                    title={onkoAmpujaValmis(ampuja) ? tx.allStagesReady : tx.stagesMissing}
+                                  />
+                                )}
+                              </div>
+                            </td>
+                            
+                            {!kaytaKompaktiTilaa && (
+                              <td className={cn(soluLuokka('series'), 'bg-white group-hover:bg-slate-50/30')} style={{ width: `${seriesColWidth}px` }}>
+                                {ampuja.sarja}
+                              </td>
+                            )}
+
+                            {!kaytaKompaktiTilaa && (
+                              <td className={cn('bg-white group-hover:bg-slate-50/30 text-left text-xs md:text-sm text-slate-700 border-r border-slate-200/60 px-2 md:px-3 truncate')} style={{ width: `${clubColWidth}px` }}>
+                                {ampuja.seura || '—'}
+                              </td>
+                            )}
+                            
+                            <td className={soluLuokka('sum')} style={{ width: `${totalColWidth}px` }}>
+                              {ampuja.kokonaistulos}
+                            </td>
+                            
+                            {naytaRatkoSarake && (
+                              <td
+                                className={cn(soluLuokka('ratko'), 'align-middle px-0.5')}
+                                style={{ width: `${ratkoColWidth}px` }}
+                                title={[...ampuja.ratkoNaytto.statusEtiketit, ampuja.ratkoNaytto.teksti].filter(Boolean).join(' | ')}
+                              >
+                                {(() => {
+                                  const onkoRatkoSallittu = onkoRatkoSallittuAmpujalle(ampuja);
+                                  const naytaRatko = onkoRatkoSallittu && Boolean(ampuja.ratkoNaytto.teksti);
+                                  const naytaRatkoStatus = ampuja.ratkoNaytto.statusEtiketit.length > 0;
+
+                                  if (!(naytaRatkoStatus || (naytaRatko && ampuja.ratkoNaytto.teksti))) {
+                                    return <span className="text-slate-300">—</span>;
+                                  }
+
+                                  if (kaytaKompaktiTilaa) {
+                                    const compactText = naytaRatkoStatus
+                                      ? ampuja.ratkoNaytto.statusEtiketit.join('/')
+                                      : ampuja.ratkoNaytto.teksti;
+
+                                    if (naytaRatkoStatus) {
+                                      const compactToneStatus = ampuja.ratkoNaytto.statusEtiketit[0] || '';
+                                      return (
+                                        <span
+                                          className={cn(
+                                            'inline-flex max-w-full items-center justify-center truncate mx-auto',
+                                            getStatusLabelSizeClass({ compact: true }),
+                                            getStatusLabelToneClass(compactToneStatus)
+                                          )}
+                                          title={compactText}
+                                        >
+                                          {compactText}
+                                        </span>
+                                      );
+                                    }
+
+                                    return (
+                                      <span className="block truncate text-[9px] font-bold tracking-tight leading-none text-[hsl(var(--ratko-fg))] text-center" title={compactText}>
+                                        {compactText}
+                                      </span>
+                                    );
+                                  }
+
+                                  return (
+                                    <div className="flex flex-wrap items-center justify-center gap-0.5 max-w-full">
+                                      {naytaRatkoStatus && ampuja.ratkoNaytto.statusEtiketit.map((status) => (
+                                        <span
+                                          key={`${ampuja.id}-${status}`}
+                                          className={cn(
+                                            getStatusLabelSizeClass(),
+                                            getStatusLabelToneClass(status),
+                                            'text-[9px] px-1 py-0 rounded font-bold scale-95'
+                                          )}
+                                        >
+                                          {status}
+                                        </span>
+                                      ))}
+                                      {naytaRatko && ampuja.ratkoNaytto.teksti && (
+                                        <span className="font-bold text-xs text-[hsl(var(--ratko-fg))]">{ampuja.ratkoNaytto.teksti}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                            )}
+
+                            {/* Individual Score Cells mapped to High/Second Best Tones */}
+                            {radatList.map(n => {
+                              const pisteArvo = ampuja.erat[n] || '-';
+                              const pisteNum = parseInt(pisteArvo, 10);
+                              const maksimiTulos = speksit.asemaMaksimit[n] || speksit.asemaMaksimit[`${n}`];
+                              const naytaToiseksiParas = Boolean(speksit.asemaToiseksiParasKaytossa[n] ?? speksit.asemaToiseksiParasKaytossa[`${n}`]);
+                              const onkoMaksimi = !isNaN(pisteNum) && maksimiTulos !== undefined && pisteNum === maksimiTulos;
+                              const onkoToiseksiParas = !isNaN(pisteNum) && maksimiTulos !== undefined && naytaToiseksiParas && pisteNum === (maksimiTulos - 1);
+
+                              return (
+                                <td
+                                  key={n}
+                                  style={{ width: `${stageColWidth}px` }}
+                                  className={cn(
+                                    soluLuokka('stage'),
+                                    'bg-white group-hover:bg-slate-50/30 transition-colors',
+                                    onkoMaksimi
+                                      ? 'font-bold text-[hsl(var(--score-best-fg))]'
+                                      : onkoToiseksiParas
+                                        ? 'font-bold text-[hsl(var(--score-second-fg))]'
+                                        : 'text-slate-600',
+                                    pisteArvo === '-' && 'text-slate-300'
+                                  )}
+                                >
+                                  {pisteArvo}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TransformComponent>
+                ) : (
                   <table className="border-separate border-spacing-0 table-fixed min-w-max text-left border-collapse">
                     <thead>
                       <tr className="h-9 md:h-11">
@@ -686,35 +946,36 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                       ))}
                     </tbody>
                   </table>
-
-                </TransformComponent>
+                )}
               </div>
 
               {/* Float Interface Action Elements for Canvas Zoom Control */}
-              <div className="absolute bottom-3 right-3 z-45 flex items-center gap-1 bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200 shadow-md">
-                <button 
-                  type="button"
-                  onClick={() => zoomIn()} 
-                  className="w-7 h-7 flex items-center justify-center font-bold text-sm text-slate-700 rounded-lg hover:bg-slate-100 active:scale-90 transition-all select-none"
-                >
-                  ＋
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => zoomOut()} 
-                  className="w-7 h-7 flex items-center justify-center font-bold text-sm text-slate-700 rounded-lg hover:bg-slate-100 active:scale-90 transition-all select-none"
-                >
-                  －
-                </button>
-                <div className="w-px h-4 bg-slate-200 mx-0.5" />
-                <button 
-                  type="button"
-                  onClick={() => resetTransform()} 
-                  className="px-2.5 h-7 flex items-center justify-center text-[10px] font-bold tracking-wider uppercase text-slate-600 rounded-lg hover:bg-slate-100 active:scale-95 transition-all select-none"
-                >
-                  {tx.zoomReset}
-                </button>
-              </div>
+              {onMobiili && (
+                <div className="absolute bottom-3 right-3 z-45 flex items-center gap-1 bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200 shadow-md">
+                  <button 
+                    type="button"
+                    onClick={() => zoomIn()} 
+                    className="w-7 h-7 flex items-center justify-center font-bold text-sm text-slate-700 rounded-lg hover:bg-slate-100 active:scale-90 transition-all select-none"
+                  >
+                    ＋
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => zoomOut()} 
+                    className="w-7 h-7 flex items-center justify-center font-bold text-sm text-slate-700 rounded-lg hover:bg-slate-100 active:scale-90 transition-all select-none"
+                  >
+                    －
+                  </button>
+                  <div className="w-px h-4 bg-slate-200 mx-0.5" />
+                  <button 
+                    type="button"
+                    onClick={() => resetTransform()} 
+                    className="px-2.5 h-7 flex items-center justify-center text-[10px] font-bold tracking-wider uppercase text-slate-600 rounded-lg hover:bg-slate-100 active:scale-95 transition-all select-none"
+                  >
+                    {tx.zoomReset}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </TransformWrapper>
