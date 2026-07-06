@@ -64,6 +64,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const taulukkoScrollRef = useRef(null);
   const taulukkoReunaVarjotRef = useRef({ vasen: false, oikea: false });
   const [taulukkoReunaVarjot, setTaulukkoReunaVarjot] = useState({ vasen: false, oikea: false });
+  const [taulukkoNakymaLeveys, setTaulukkoNakymaLeveys] = useState(0);
   
   const sarjaDragRef = useRef({
     isDown: false,
@@ -128,6 +129,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       const idxLa = etsiSarakkeenIndeksi([(h) => h === 'LA', (h) => h.startsWith('LAUANTAI')]);
       const idxSu = etsiSarakkeenIndeksi([(h) => h === 'SU', (h) => h.startsWith('SUNNUNTAI')]);
       const idxRata1 = otsikot.findIndex((o) => o.trim() === '1');
+      const idxRatkoOtsikko = etsiSarakkeenIndeksi([(h) => h === 'RATKO', (h) => h.startsWith('RATKO')]);
 
       const nimiFallback = 0;
       const sarjaFallback = 1;
@@ -137,8 +139,18 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       const nimiIndeksi = idxNimi !== -1 ? idxNimi : nimiFallback;
       const sarjaIndeksi = idxSarja !== -1 ? idxSarja : sarjaFallback;
       const aloitusIndeksi = idxRata1 !== -1 ? idxRata1 : rata1Fallback;
-      const idxRatko = aloitusIndeksi + speksit.ratojenMaara + 1;
+      const idxRatko = idxRatkoOtsikko !== -1 ? idxRatkoOtsikko : (aloitusIndeksi + speksit.ratojenMaara + 1);
       const idxRatko2 = idxRatko !== -1 ? idxRatko + 1 : -1;
+
+      const rataSarakkeet = [];
+      for (let col = aloitusIndeksi; col < otsikot.length; col++) {
+        const otsikko = String(otsikot[col] || '').trim();
+        if (/^\d+$/.test(otsikko)) {
+          rataSarakkeet.push(col);
+          continue;
+        }
+        if (rataSarakkeet.length > 0) break;
+      }
 
       let idxTulos = etsiSarakkeenIndeksi([(h) => h === 'TULOS', (h) => h.startsWith('TULOS'), (h) => h === 'YHT', (h) => h.startsWith('YHT')]);
       if (idxTulos === -1 && idxSeura !== -1) {
@@ -165,9 +177,19 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
         const ratkoNaytto = muodostaRatkoNakyma(ratko, ratko2);
 
         const eratMap = {};
-        for (let col = aloitusIndeksi; col <= aloitusIndeksi + speksit.ratojenMaara - 1; col++) {
-          const eraNum = (col - aloitusIndeksi) + 1;
-          eratMap[eraNum] = row[col] !== undefined ? row[col] : '';
+        if (rataSarakkeet.length > 0) {
+          for (const col of rataSarakkeet) {
+            const otsikko = String(otsikot[col] || '').trim();
+            const eraNum = parseInt(otsikko, 10);
+            if (!Number.isNaN(eraNum)) {
+              eratMap[eraNum] = row[col] !== undefined ? row[col] : '';
+            }
+          }
+        } else {
+          for (let col = aloitusIndeksi; col <= aloitusIndeksi + speksit.ratojenMaara - 1; col++) {
+            const eraNum = (col - aloitusIndeksi) + 1;
+            eratMap[eraNum] = row[col] !== undefined ? row[col] : '';
+          }
         }
 
         lista.push({
@@ -482,15 +504,62 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   };
 
   // --- DYNAMIC WIDTH CALCULATIONS ---
-  const rankColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 30 : 40);
-  const nameColWidth = kaytaKompaktiTilaa ? 90 : (onMobiili ? 154 : 240);
-  const totalColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 30 : 40);
-  const ratkoColWidth = kaytaKompaktiTilaa ? 40 : (onMobiili ? 52 : 72);
-  const stageColWidth = kaytaKompaktiTilaa ? 18 : (onMobiili ? 30 : 40);
-  const categoryColWidth = onMobiili ? 50 : 56;
-  const clubColWidth = onMobiili ? 56 : 64;
-  const paivaColWidth = onMobiili ? 30 : 40;
+  const rankColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 24 : 35);
+  const nameColWidth = kaytaKompaktiTilaa ? 90 : (onMobiili ? 154 : 200);
+  const totalColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 24 : 35);
+  const ratkoColWidth = kaytaKompaktiTilaa ? 40 : (onMobiili ? 52 : 62);
+  const stageColWidth = kaytaKompaktiTilaa ? 18 : (onMobiili ? 24 : 30);
+  const categoryColWidth = onMobiili ? 20 : 50;
+  const clubColWidth = onMobiili ? 30 : 54;
+  const paivaColWidth = onMobiili ? 24 : 35;
   const taulukkoKorkeusLuokka = onkoKokoNaytto ? 'h-[calc(100vh-170px)] md:h-[calc(100vh-176px)]' : 'h-[60vh] md:h-[68vh]';
+  const laskettuStageColWidth = useMemo(() => {
+    if (!kaytaKompaktiTilaa) return stageColWidth;
+    if (radatList.length === 0 || taulukkoNakymaLeveys <= 0) return stageColWidth;
+
+    // Fill compact-mode whitespace with stage columns, but cap growth to avoid oversized cells.
+    const kiinteaLeveys = rankColWidth + nameColWidth + totalColWidth + (naytaRatkoSarake ? ratkoColWidth : 0);
+    const tavoite = Math.floor((taulukkoNakymaLeveys - kiinteaLeveys - 8) / radatList.length);
+    return Math.max(stageColWidth, Math.min(26, tavoite));
+  }, [
+    kaytaKompaktiTilaa,
+    stageColWidth,
+    radatList.length,
+    taulukkoNakymaLeveys,
+    rankColWidth,
+    nameColWidth,
+    totalColWidth,
+    naytaRatkoSarake,
+    ratkoColWidth
+  ]);
+
+  useEffect(() => {
+    const container = taulukkoScrollRef.current;
+    if (!container) return;
+
+    const paivitaLeveys = () => {
+      const seuraava = container.clientWidth || 0;
+      setTaulukkoNakymaLeveys((nykyinen) => (nykyinen === seuraava ? nykyinen : seuraava));
+    };
+
+    paivitaLeveys();
+
+    let observer = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(paivitaLeveys);
+      observer.observe(container);
+    } else {
+      window.addEventListener('resize', paivitaLeveys);
+    }
+
+    return () => {
+      if (observer) {
+        observer.disconnect();
+      } else {
+        window.removeEventListener('resize', paivitaLeveys);
+      }
+    };
+  }, [onkoKokoNaytto, onMobiili]);
 
   const paivitaTaulukkoReunaVarjot = () => {
     const container = taulukkoScrollRef.current;
@@ -820,7 +889,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                           <th
                             key={n}
                             className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')}
-                            style={{ width: `${stageColWidth}px` }}
+                            style={{ width: `${laskettuStageColWidth}px` }}
                           >
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys(`era-${n}`)}>
                               {n}{jarjestysMerkki(`era-${n}`)}
@@ -973,7 +1042,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                             return (
                               <td
                                 key={n}
-                                style={{ width: `${stageColWidth}px` }}
+                                style={{ width: `${laskettuStageColWidth}px` }}
                                 className={cn(
                                   soluLuokka('stage'),
                                   'bg-white group-hover:bg-slate-50/30 transition-colors',
