@@ -482,12 +482,12 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   };
 
   // --- DYNAMIC WIDTH CALCULATIONS ---
-  const rankColWidth = kaytaKompaktiTilaa ? 34 : (onMobiili ? 38 : 46);
-  const nameColWidth = kaytaKompaktiTilaa ? 118 : (onMobiili ? 154 : 240);
-  const totalColWidth = kaytaKompaktiTilaa ? 34 : (onMobiili ? 38 : 46);
+  const rankColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 30 : 40);
+  const nameColWidth = kaytaKompaktiTilaa ? 90 : (onMobiili ? 154 : 240);
+  const totalColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 30 : 40);
   const ratkoColWidth = kaytaKompaktiTilaa ? 40 : (onMobiili ? 52 : 72);
-  const stageColWidth = kaytaKompaktiTilaa ? 24 : (onMobiili ? 30 : 40);
-  const seriesColWidth = onMobiili ? 50 : 56;
+  const stageColWidth = kaytaKompaktiTilaa ? 18 : (onMobiili ? 30 : 40);
+  const categoryColWidth = onMobiili ? 50 : 56;
   const clubColWidth = onMobiili ? 56 : 64;
   const paivaColWidth = onMobiili ? 30 : 40;
   const taulukkoKorkeusLuokka = onkoKokoNaytto ? 'h-[calc(100vh-170px)] md:h-[calc(100vh-176px)]' : 'h-[60vh] md:h-[68vh]';
@@ -771,7 +771,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         </th>
                         
                         {!kaytaKompaktiTilaa && (
-                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30')} style={{ width: `${seriesColWidth}px` }}>
+                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30')} style={{ width: `${categoryColWidth}px` }}>
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys('sarja')}>
                               {tx.classLabel}{jarjestysMerkki('sarja')}
                             </button>
@@ -868,7 +868,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                           </td>
                           
                           {!kaytaKompaktiTilaa && (
-                            <td className={cn(soluLuokka('series'), 'bg-white group-hover:bg-slate-50/30')} style={{ width: `${seriesColWidth}px` }}>
+                            <td className={cn(soluLuokka('series'), 'bg-white group-hover:bg-slate-50/30')} style={{ width: `${categoryColWidth}px` }}>
                               {ampuja.sarja}
                             </td>
                           )}
