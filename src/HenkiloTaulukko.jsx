@@ -140,6 +140,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
         const name = row[nimiIndeksi] || '';
         const category = row[sarjaIndeksi] || '';
+        const seura = idxSeura !== -1 ? (row[idxSeura] || '') : '';
         const yhteistulos = row[idxTulos] || '0';
         const ratko = idxRatko !== -1 ? row[idxRatko] || '' : '';
         const ratko2 = idxRatko2 !== -1 ? row[idxRatko2] || '' : '';
@@ -155,6 +156,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
           id: `${name}|${i}`,
           nimi: name,
           sarja: category,
+          seura,
           tulos: yhteistulos,
           kokonaistulos: yhteistulos,
           ratko,
@@ -246,6 +248,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       rank: 'Rank',
       name: 'Name',
       classLabel: 'Class',
+      clubLabel: 'Club',
       total: 'Total',
       allStagesReady: 'All stage scores are complete',
       stagesMissing: 'Some stage scores are missing',
@@ -259,6 +262,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       rank: 'Sija',
       name: 'Nimi',
       classLabel: 'Sarja',
+      clubLabel: 'Seura',
       total: 'Yht',
       allStagesReady: 'Kaikki alitulokset valmiit',
       stagesMissing: 'Alituloksia puuttuu',
@@ -330,6 +334,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const totalColWidth = kaytaKompaktiTilaa ? 38 : (onMobiili ? 44 : 56);
   const ratkoColWidth = kaytaKompaktiTilaa ? 40 : (onMobiili ? 52 : 72);
   const stageColWidth = kaytaKompaktiTilaa ? 28 : (onMobiili ? 34 : 44);
+  const seriesColWidth = onMobiili ? 50 : 56;
+  const clubColWidth = onMobiili ? 72 : 84;
 
   const stickyRankStyle = {
     left: 0,
@@ -496,8 +502,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         </th>
                         
                         {!kaytaKompaktiTilaa && (
-                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30')} style={{ width: '60px' }}>
+                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30')} style={{ width: `${seriesColWidth}px` }}>
                             {tx.classLabel}
+                          </th>
+                        )}
+
+                        {!kaytaKompaktiTilaa && (
+                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30 text-left px-2 md:px-3')} style={{ width: `${clubColWidth}px` }}>
+                            {tx.clubLabel}
                           </th>
                         )}
                         
@@ -561,8 +573,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                           </td>
                           
                           {!kaytaKompaktiTilaa && (
-                            <td className={cn(soluLuokka('series'), 'bg-white group-hover:bg-slate-50/30')} style={{ width: '60px' }}>
+                            <td className={cn(soluLuokka('series'), 'bg-white group-hover:bg-slate-50/30')} style={{ width: `${seriesColWidth}px` }}>
                               {ampuja.sarja}
+                            </td>
+                          )}
+
+                          {!kaytaKompaktiTilaa && (
+                            <td className={cn('bg-white group-hover:bg-slate-50/30 text-left text-xs md:text-sm text-slate-700 border-r border-slate-200/60 px-2 md:px-3 truncate')} style={{ width: `${clubColWidth}px` }}>
+                              {ampuja.seura || '—'}
                             </td>
                           )}
                           
