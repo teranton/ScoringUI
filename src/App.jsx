@@ -1155,6 +1155,12 @@ useEffect(() => {
             {tx.table}
           </Button>
         )}
+        {onkoJoukkueKisa && (
+          <Button onClick={() => setAktiivinenSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Users className="h-4 w-4" aria-hidden="true" />
+            {tx.teamResults}
+          </Button>
+        )}
         {onkoIlmoittautuneita && (
           <Button onClick={() => setAktiivinenSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <ClipboardList className="h-4 w-4" aria-hidden="true" />
@@ -1171,12 +1177,6 @@ useEffect(() => {
           <Button onClick={() => setAktiivinenSivu('materiaalit')} variant={aktiivinenSivu === 'materiaalit' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <FileText className="h-4 w-4" aria-hidden="true" />
             {tx.materials}
-          </Button>
-        )}
-        {onkoJoukkueKisa && (
-          <Button onClick={() => setAktiivinenSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
-            <Users className="h-4 w-4" aria-hidden="true" />
-            {tx.teamResults}
           </Button>
         )}
       </nav>
