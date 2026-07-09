@@ -69,7 +69,7 @@ function isTimeLike(value) {
 
 function isLaneHeader(value) {
   const text = String(value || '').trim().toUpperCase();
-  return /^RATA\s*\d+/.test(text) || /^LANE\s*\d+/.test(text);
+  return /^RATA\s*\d+/.test(text) || /^LANE\s*\d+/.test(text) || /^\d+\s+\S+/.test(text);
 }
 
 function extractTitleSuffixFromFirstRow(row) {
@@ -161,6 +161,14 @@ function onkoPelkaNumero(value) {
   return /^\d+$/.test(String(value || '').trim());
 }
 
+function sisaltaaNakymaattomanNimimerkin(value) {
+  return /\u200B/.test(String(value || ''));
+}
+
+function poistaNakymaattomatNimimerkit(value) {
+  return String(value || '').replace(/\u200B/g, '').trim();
+}
+
 // --- PÄÄKOMPONENTTI ---
 
 export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [] }) {
@@ -198,11 +206,13 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
   const txMobile = locale === 'en'
     ? {
       lanes: 'Lanes',
-      largeTable: 'Large table'
+      largeTable: 'Large table',
+      hiddenMarkerTitle: 'Name contains hidden backend marker (U+200B).'
     }
     : {
       lanes: 'Radat',
-      largeTable: 'Taulukkonäkymä'
+      largeTable: 'Taulukkonäkymä',
+      hiddenMarkerTitle: 'Aloitustuomarointi.'
     };
 
   // DATA PARSINTA
@@ -337,6 +347,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
         const shooter = String(slot.shooter || '').trim();
         if (!shooter) continue;
+        const hasHiddenMarker = sisaltaaNakymaattomanNimimerkin(shooter);
+        const cleanedShooter = poistaNakymaattomatNimimerkit(shooter);
 
         const shooterNumber = toShooterNumber(slot.number);
         const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
@@ -346,11 +358,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
           id: `${row.id}-${lane.label}`,
           time: row.time || '-',
           number: slot.number,
-          shooter,
+          shooter: cleanedShooter,
+          hasHiddenMarker,
           style: hasGroupColor ? getGroupCellStyle(groupIndex) : undefined
         });
 
-        if (!onkoPelkaNumero(shooter)) {
+        if (!onkoPelkaNumero(cleanedShooter)) {
           visibleCount += 1;
         }
       }
@@ -653,7 +666,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                                 {entry.time}
                               </span>
                               <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium leading-tight text-[hsl(var(--foreground))]">{entry.shooter}</div>
+                                <div
+                                  className={`inline-flex max-w-full rounded-sm px-1 text-sm font-medium leading-tight ${entry.hasHiddenMarker ? 'bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))] ring-1 ring-[hsl(var(--status-missing)/0.28)]' : 'text-[hsl(var(--foreground))]'}`}
+                                  title={entry.hasHiddenMarker ? txMobile.hiddenMarkerTitle : undefined}
+                                >
+                                  <span className="truncate">{entry.shooter}</span>
+                                </div>
                                 {entry.number && (
                                   <div className="mt-0.5 text-[11px] font-mono text-[hsl(var(--muted-foreground))]">#{entry.number}</div>
                                 )}
@@ -739,6 +757,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                           {row.slots.map((slot, slotIdx) => {
                             const isAssigned = !!slot.shooter;
                             const onParillinenSarake = slotIdx % 2 === 1;
+                            const hasHiddenMarker = sisaltaaNakymaattomanNimimerkin(slot.shooter);
+                            const cleanedShooter = poistaNakymaattomatNimimerkit(slot.shooter);
                             const shooterNumber = toShooterNumber(slot.number);
                             const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
                             const hasGroupColor = Number.isInteger(groupIndex);
@@ -756,8 +776,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                                       {slot.number}
                                     </span>
                                   )}
-                                  <span className={`truncate text-[11px] tracking-wide ${isAssigned ? 'font-medium text-[hsl(var(--foreground))]' : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}>
-                                    {slot.shooter || '-'}
+                                  <span
+                                    className={`truncate rounded-sm px-1 text-[11px] tracking-wide ${isAssigned ? (hasHiddenMarker ? 'font-semibold bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))] ring-1 ring-[hsl(var(--status-missing)/0.28)]' : 'font-medium text-[hsl(var(--foreground))]') : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}
+                                    title={hasHiddenMarker ? txMobile.hiddenMarkerTitle : undefined}
+                                  >
+                                    {cleanedShooter || '-'}
                                   </span>
                                 </div>
                               </div>
@@ -852,6 +875,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                           {row.slots.map((slot, slotIdx) => {
                             const isAssigned = !!slot.shooter;
                             const onParillinenSarake = slotIdx % 2 === 1;
+                            const hasHiddenMarker = sisaltaaNakymaattomanNimimerkin(slot.shooter);
+                            const cleanedShooter = poistaNakymaattomatNimimerkit(slot.shooter);
                             const shooterNumber = toShooterNumber(slot.number);
                             const groupIndex = shooterNumber !== null ? parsed.numberGroupMap.get(shooterNumber) : undefined;
                             const hasGroupColor = Number.isInteger(groupIndex);
@@ -869,8 +894,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                                       {slot.number}
                                     </span>
                                   )}
-                                  <span className={`truncate whitespace-nowrap text-xs tracking-wide ${isAssigned ? 'font-medium text-[hsl(var(--foreground))]' : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}>
-                                    {slot.shooter || '-'}
+                                  <span
+                                    className={`truncate whitespace-nowrap rounded-sm px-1 text-xs tracking-wide ${isAssigned ? (hasHiddenMarker ? 'font-semibold bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))] ring-1 ring-[hsl(var(--status-missing)/0.28)]' : 'font-medium text-[hsl(var(--foreground))]') : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}
+                                    title={hasHiddenMarker ? txMobile.hiddenMarkerTitle : undefined}
+                                  >
+                                    {cleanedShooter || '-'}
                                   </span>
                                 </div>
                               </div>

@@ -762,26 +762,28 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
           <div className="flex items-center gap-1.5 self-start sm:self-auto">
             {onMobiili && (
               <div className="flex gap-1.5 bg-slate-100 p-1 rounded-lg">
-                <button
+                <Button
                   type="button"
                   onClick={() => setOnkoKompaktiTila(false)}
+                  size="sm"
+                  variant={!onkoKompaktiTila ? 'default' : 'outline'}
                   className={cn(
-                    'px-3 py-1 text-xs font-medium rounded-md transition-all',
-                    !onkoKompaktiTila ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                    'h-7 rounded-md px-3 text-xs font-semibold shadow-none'
                   )}
                 >
                   {tx.normal}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setOnkoKompaktiTila(true)}
+                  size="sm"
+                  variant={onkoKompaktiTila ? 'default' : 'outline'}
                   className={cn(
-                    'px-3 py-1 text-xs font-medium rounded-md transition-all',
-                    onkoKompaktiTila ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                    'h-7 rounded-md px-3 text-xs font-semibold shadow-none'
                   )}
                 >
                   {tx.compact}
-                </button>
+                </Button>
               </div>
             )}
 
