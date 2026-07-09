@@ -930,7 +930,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                                 <span
                                   className={cn(
                                     'inline-block h-2 w-2 shrink-0 rounded-full ring-1 ring-black/5',
-                                    onkoAmpujaValmis(ampuja) ? 'bg-emerald-500' : 'bg-amber-400'
+                                    onkoAmpujaValmis(ampuja)
+                                      ? 'bg-[hsl(var(--status-ready))]'
+                                      : 'bg-[hsl(var(--status-missing))]'
                                   )}
                                   title={onkoAmpujaValmis(ampuja) ? tx.allStagesReady : tx.stagesMissing}
                                 />

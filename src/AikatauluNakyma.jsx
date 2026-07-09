@@ -171,7 +171,7 @@ function poistaNakymaattomatNimimerkit(value) {
 
 // --- PÄÄKOMPONENTTI ---
 
-export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [] }) {
+export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [], showGlobalSponsorLogos = true }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
   const [isMobileViewport, setIsMobileViewport] = useState(() => {
@@ -492,6 +492,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
   const globalSponsorLogos = useMemo(() => {
     const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    if (!showGlobalSponsorLogos) return [];
     const filtered = sponsorLogos.filter((logo) => {
       const logoKey = String(logo?.alt || '').trim().toUpperCase();
       if (!logoKey) return true;
@@ -502,7 +503,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
       global: filtered.length
     });
     return filtered;
-  }, [parsed.laneColumns, sponsorLogos]);
+  }, [parsed.laneColumns, sponsorLogos, showGlobalSponsorLogos]);
 
   useEffect(() => {
     if (!isPerfLoggingEnabled() || typeof performance === 'undefined' || !isMobileViewport) return;
@@ -570,28 +571,28 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
       {/* AIKATAULUKORTTI */}
       <Card className="w-full shadow-sm">
         <CardHeader className="pb-3 bg-[hsl(var(--muted))]/20 border-b">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <CardTitle className="text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">{title}</CardTitle>
-            {globalSponsorLogos.length > 0 && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  {globalSponsorLogos.map((logo, idx) => {
-                    const img = (
-                      <img
-                        key={`sponsor-global-${idx}`}
-                        src={logo.src}
-                        alt={logo.alt}
-                        loading="lazy"
-                        decoding="async"
-                        className="h-8 max-w-[120px] object-contain opacity-90"
-                      />
-                    );
-                    return logo.href ? (
-                      <a key={`sponsor-global-${idx}`} href={logo.href} target="_blank" rel="noopener noreferrer" className="flex items-center hover:opacity-75 transition-opacity">
-                        {img}
-                      </a>
-                    ) : img;
-                  })}
-                </div>
+          <div className="flex items-center gap-3">
+            <CardTitle className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">{title}</CardTitle>
+            {showGlobalSponsorLogos && globalSponsorLogos.length > 0 && (
+              <div className="flex max-w-[62%] shrink-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {globalSponsorLogos.map((logo, idx) => {
+                  const img = (
+                    <img
+                      key={`sponsor-global-${idx}`}
+                      src={logo.src}
+                      alt={logo.alt}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-6 max-w-[84px] object-contain opacity-90"
+                    />
+                  );
+                  return logo.href ? (
+                    <a key={`sponsor-global-${idx}`} href={logo.href} target="_blank" rel="noopener noreferrer" className="flex items-center hover:opacity-75 transition-opacity">
+                      {img}
+                    </a>
+                  ) : img;
+                })}
+              </div>
             )}
           </div>
         </CardHeader>

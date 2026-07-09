@@ -181,6 +181,12 @@ function vertaaCountbackSarjoja(ampujaA, ampujaB) {
   return 0;
 }
 
+function onkoRatkoArvoAnnettu(ampuja) {
+  const ratko1 = String(ampuja?.ratko || '').trim();
+  const ratko2 = String(ampuja?.ratko2 || '').trim();
+  return Boolean(ratko1 || ratko2);
+}
+
 export function laskeHenkilosijoitukset(ampujat, sarjaSuodatin = 'OPEN (Y)') {
   const onKaikkiNakyma = sarjaSuodatin === 'OPEN (Y)';
   const lajiteltuLista = onKaikkiNakyma
@@ -222,10 +228,13 @@ export function laskeHenkilosijoitukset(ampujat, sarjaSuodatin = 'OPEN (Y)') {
       const countbackVertailu = vertaaCountbackSarjoja(ampuja, edellinen);
 
       const onkoMukanaRatkoissa = index < 3 || tulosNum >= top3Rajatulos;
+      const onkoRatkoAnnettuVertailuparille = onkoRatkoArvoAnnettu(ampuja) || onkoRatkoArvoAnnettu(edellinen);
 
       if (edellinenTulos === tulosNum) {
         if (onkoMukanaRatkoissa) {
-          if (!(edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste && countbackVertailu === 0)) {
+          // Älä riko tasatulosta ennen kuin ratkoarvoja on oikeasti annettu.
+          if (onkoRatkoAnnettuVertailuparille
+            && !(edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste && countbackVertailu === 0)) {
             aktiivinenSija = index + 1;
           }
         }

@@ -63,12 +63,15 @@ async function getAuthClientWithLogs(options = {}) {
 }
 
 export default async function handler(req, res) {
-  const { sheetId, sheetName, mode, sheetNames } = req.query;
+  const { sheetId, sheetName, mode, sheetNames, status } = req.query;
 
   // BATCH MODE: Haetaan useat CSV-tiedostot yhdessä pyynnössä
   if (mode === 'batchCsv' && sheetNames) {
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 's-maxage=15, stale-while-revalidate=45, public');
+    
+    // Dynaaminen cache TTL: live-kisoille 20s, muille 60s
+    const cacheTtl = status === 'kaynnissa' ? 20 : 60;
+    res.setHeader('Cache-Control', `public, s-maxage=${cacheTtl}, stale-while-revalidate=60`);
 
     const batchStartTime = Date.now();
     console.log(`[BATCH START] ${new Date().toISOString()}`);
@@ -83,6 +86,7 @@ export default async function handler(req, res) {
       const metaStartTime = Date.now();
 
       if (!gidMap) {
+        console.log(`[BATCH META] Välimuisti tyhjä, haetaan...`);
         try {
           const client = await getAuthClientWithLogs({ includeToken: false });
           // Haetaan sekä työkirjan otsikko (properties/title) että välilehdet
@@ -101,13 +105,15 @@ export default async function handler(req, res) {
 
           // Tallennetaan molemmat tiedot välimuistiin
           gidMapCache[mapCacheKey] = { gidMap, spreadsheetTitle };
-          console.log(`[BATCH] Optimoitu API-metadata haettu: ${Date.now() - metaStartTime}ms (uusi cache)`);
+          const metaDuration = Date.now() - metaStartTime;
+          console.log(`[BATCH META] Metadata: ${metaDuration}ms (uusi cache, ${Object.keys(gidMap).length} levyä)`);
         } catch (error) {
           console.error("[BATCH] Kriittinen virhe metadatan haussa:", error);
           throw error;
         }
       } else {
-        console.log('[BATCH] Metadata cache osuma');
+        const metaDuration = Date.now() - metaStartTime;
+        console.log(`[BATCH META] Metadata: ${metaDuration}ms (välimuistista, ${Object.keys(gidMap).length} levyä)`);
       }
 
       // 2. VAIHE: Muutetaan pyydetyt nimet gideiksi
@@ -128,10 +134,13 @@ export default async function handler(req, res) {
 
         res.setHeader('X-ScoringUI-Batch-Cache', 'memory-hit');
         res.setHeader('X-ScoringUI-Batch-Cache-Age-Ms', String(cacheAgeMs));
+        res.setHeader('Cache-Control', `public, s-maxage=${cacheTtl}, stale-while-revalidate=10`);
 
         // Tulostetaan lokit myös välimuistiosumista, jotta näet mistä tiedostosta on kyse
+        const totalBatchTime = Date.now() - batchStartTime;
         console.log(`\n--- TIEDOSTO: "${spreadsheetTitle}" (MUISTIVÄLIMUISTIOSUMA) ---`);
-        console.log(`[BATCH DONE] Kokonaisaika: ${Date.now() - batchStartTime}ms`);
+        console.log(`[BATCH CACHE] TTL: ${cacheTtl}s (status: ${status || 'unknown'})`);
+        console.log(`[BATCH DONE] Yhteensä: ${totalBatchTime}ms (välimuistista, ikä: ${cacheAgeMs}ms)`);
 
         return res.status(200).json({
           ...cachedBatch.payload,
@@ -186,7 +195,7 @@ export default async function handler(req, res) {
       const csvStartTime = Date.now();
       const results = await Promise.all(gidRequests);
       const csvDuration = Date.now() - csvStartTime;
-      console.log(`[BATCH] CSV:t haettu: ${csvDuration}ms (${results.length} levyä rinnakkain)`);
+      console.log(`[BATCH CSV] ${results.length} levyä rinnakkain: ${csvDuration}ms`);
 
       const csvByName = {};
       const sheetDiagnostics = {};
@@ -209,11 +218,12 @@ export default async function handler(req, res) {
         response.availableSheets = Object.keys(gidMap);
       }
 
+      const metaDuration = csvStartTime - metaStartTime;
       const totalTime = Date.now() - batchStartTime;
       const generatedAtMs = Date.now();
       response.timing = {
         total_ms: totalTime,
-        meta_ms: metaStartTime ? (csvStartTime - metaStartTime) : 0,
+        meta_ms: metaDuration,
         csv_ms: csvDuration,
         source: 'origin',
         cache_age_ms: 0,
@@ -230,9 +240,9 @@ export default async function handler(req, res) {
 
       // TULOSTETAAN DIAGNOSTIIKKARAPORTTI KONSOLIIN
       console.log(`\n--- TIEDOSTO: "${spreadsheetTitle}" ---`);
-      console.log(`--- LATAUSRAPORTTI (Kokonaisaika: ${csvDuration}ms) ---`);
+      console.log(`[BATCH CACHE] TTL: ${cacheTtl}s (status: ${status || 'unknown'})`);
       console.table(sheetDiagnostics);
-      console.log(`[BATCH DONE] Kokonaisaika: ${totalTime}ms`);
+      console.log(`[BATCH DONE] Yhteensä: ${totalTime}ms (meta: ${metaDuration}ms + csv: ${csvDuration}ms)`);
 
       return res.status(200).json(response);
     } catch (error) {
