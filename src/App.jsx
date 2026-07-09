@@ -233,6 +233,48 @@ function haeAikatauluNakyvyysSpekseista(speksitData) {
   return null;
 }
 
+function normalisoiSponsoriLogoNakyvyysArvo(arvo) {
+  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  if (!norm) return null;
+
+  if (['ON', 'TRUE', 'YES', '1', 'SHOW', 'VISIBLE', 'ENABLED', 'AINA', 'ALWAYS'].includes(norm)) return 'on';
+  if (['OFF', 'FALSE', 'NO', '0', 'HIDE', 'HIDDEN', 'DISABLED', 'EI', 'NONE'].includes(norm)) return 'off';
+  return null;
+}
+
+function haeSponsoriLogoNakyvyysSpekseista(speksitData) {
+  const rivit = Array.isArray(speksitData)
+    ? speksitData
+    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
+
+  if (!Array.isArray(rivit) || rivit.length === 0) return null;
+
+  const avainSanat = new Set([
+    'LOGOTNAKYVYYS', 'LOGOT_NAKYVYYS', 'SPONSORLOGOSVISIBILITY', 'SPONSOR_LOGOS_VISIBILITY',
+    'SPONSORLOGONAKYVYYS', 'SPONSOR_LOGO_NAKYVYYS', 'AIKATAULULOGOT', 'AIKATAULU_LOGOT'
+  ]);
+
+  for (const rivi of rivit) {
+    if (!Array.isArray(rivi) || rivi.length === 0) continue;
+
+    const solut = rivi.map((s) => String(s || '').trim());
+    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
+
+    for (let i = 0; i < normalisoidut.length; i++) {
+      const avain = normalisoidut[i];
+      if (!avainSanat.has(avain)) continue;
+
+      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
+      for (const ehdokas of ehdokasArvot) {
+        const tulkinta = normalisoiSponsoriLogoNakyvyysArvo(ehdokas);
+        if (tulkinta) return tulkinta;
+      }
+    }
+  }
+
+  return null;
+}
+
 function statusToBadgeVariant(status) {
   if (status === 'kaynnissa') return 'ongoing';
   if (status === 'tauolla') return 'paused';
@@ -259,6 +301,17 @@ function trackAnalyticsEvent(eventName, properties = {}) {
     track(eventName, properties);
   } catch {
     // Ignore analytics tracking errors to avoid affecting UI behavior.
+  }
+}
+
+function onkoPreviewOverrideAktiivinen() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    const value = String(params.get('preview') || params.get('showHidden') || '').trim().toLowerCase();
+    return ['1', 'true', 'yes', 'on'].includes(value);
+  } catch {
+    return false;
   }
 }
 
@@ -337,6 +390,8 @@ export default function App() {
       ?? ''
   ).toLowerCase();
   const onkoAikatauluPreviewOverride = ['1', 'true', 'yes', 'on'].includes(aikatauluPreviewOverrideEnv);
+  const hiddenCompetitionOverrideEnv = String(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS ?? '').toLowerCase();
+  const onkoPiilotettujenKisojenOverride = ['1', 'true', 'yes', 'on'].includes(hiddenCompetitionOverrideEnv) || onkoPreviewOverrideAktiivinen();
   const yhteysSahkoposti = String(import.meta.env.VITE_CONTACT_EMAIL || 'tt.tulospalvelu@gmail.com').trim();
 
   const avaaKisaNakyma = (kisa) => {
@@ -419,7 +474,8 @@ export default function App() {
               alkuPvm: muotoileIsoPaivamaaraSuomeksi(row[2]),
               loppuPvm: muotoileIsoPaivamaaraSuomeksi(row[3]),
               apiUrl: row[4] || "",
-              joukkueKisaAsetus
+              joukkueKisaAsetus,
+              piilotettu: tulkitseTotuusarvo(row[6]) === true
             });
           }
         }
@@ -434,7 +490,11 @@ export default function App() {
           return String(b.nimi || '').localeCompare(String(a.nimi || ''), 'fi');
         });
 
-        setKisat(parsitutKisat);
+        const naytettavatKisat = onkoPiilotettujenKisojenOverride
+          ? parsitutKisat
+          : parsitutKisat.filter((kisa) => !kisa.piilotettu);
+
+        setKisat(naytettavatKisat);
       } catch (error) {
         console.error("Virhe kilpailurekisterin haussa:", error);
         setVirhe("Kilpailurekisterin lataus epäonnistui.");
@@ -444,7 +504,7 @@ export default function App() {
     }
 
     haeKisalistaCsv();
-  }, []);
+  }, [onkoPiilotettujenKisojenOverride]);
 
   // 1b. HAETAAN SPEKSIT ETUSIVULLE VAIN KÄYNNISSÄ OLEVILLE KISOILLE
   // ja virkistetään säännöllisesti, jotta manuaaliset status-override -muutokset päivittyvät.
@@ -850,6 +910,11 @@ useEffect(() => {
     () => extractSponsorLogosFromRows(nykyisenKisanParsitutRivit.speksitRows || []),
     [nykyisenKisanParsitutRivit.speksitRows]
   );
+  const sponsoriLogoNakyvyysAsetus = useMemo(
+    () => haeSponsoriLogoNakyvyysSpekseista(nykyisenKisanParsitutRivit.speksitRows || []),
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
+  const naytaAikatauluOtsikonSponsorilogot = sponsoriLogoNakyvyysAsetus !== 'off';
   const onkoAikatauluSallittu = onkoAikataulua && (() => {
     if (onkoAikatauluPreviewOverride) return !onkoKisaPaattynyt;
     if (aikatauluNakyvyysAsetus === 'off') return false;
@@ -1163,7 +1228,12 @@ useEffect(() => {
               )}
 
               {valittuAikatauluCsv && (
-                <AikatauluNakyma rawCsv={valittuAikatauluCsv.raw} locale={locale} sponsorLogos={kisanSponsorit} />
+                <AikatauluNakyma
+                  rawCsv={valittuAikatauluCsv.raw}
+                  locale={locale}
+                  sponsorLogos={kisanSponsorit}
+                  showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
+                />
               )}
             </div>
           )}
