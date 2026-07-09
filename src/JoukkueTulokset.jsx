@@ -339,10 +339,10 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
                     <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-4">
                       
                       <Card className="border-slate-200">
-                        <CardHeader className="pb-2">
+                        <CardHeader className="px-3 pb-2 pt-3">
                           <CardTitle className="text-xs uppercase tracking-wide text-slate-500">{tx.teamStageTotals}</CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-0">
+                        <CardContent className="px-3 pb-3 pt-0">
                         {renderöiEräTaulukko(joukkueAlkio.erat, true)}
                         </CardContent>
                       </Card>
