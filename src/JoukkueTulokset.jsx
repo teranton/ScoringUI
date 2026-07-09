@@ -1,11 +1,14 @@
 // src/JoukkueTulokset.jsx
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
+import { Button } from './components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './components/ui/table';
 import { cn } from './lib/utils';
+
+const KAIKKI_SARJAT = '__ALL_CLASSES__';
 
 function normalisoiOtsikko(arvo) {
   return String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -47,6 +50,7 @@ function laskeRiviTulosJaErat(row, rataAlkuIndeksi, ratojenMaara, idxYhteistulos
 
 export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale = 'fi' }) {
   const [avatutJoukkueet, setAvatutJoukkueet] = useState({});
+  const [sarjaSuodatin, setSarjaSuodatin] = useState(KAIKKI_SARJAT);
 
   // 1. HAETAAN KISASPEKSIT (Ratojen määrä ja asemakohtaiset maksimit)
 // 1. HAETAAN KISASPEKSIT (Vain ne radat, joiden maksimi > 0)
@@ -186,6 +190,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
   const tx = locale === 'en'
     ? {
       loading: 'Loading result data...',
+      allClasses: 'All classes',
       lane: 'Lane',
       totalShort: 'Tot',
       pointsShort: 'Pts',
@@ -198,6 +203,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
     }
     : {
       loading: 'Ladataan tulosdataa...',
+      allClasses: 'Kaikki sarjat',
       lane: 'Rata',
       totalShort: 'Yht',
       pointsShort: 'Pst',
@@ -212,6 +218,21 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
   if (onkoDataPuuttuu) {
     return <div className="py-6 text-sm text-slate-500">{tx.loading}</div>;
   }
+
+  const sarjaNimet = useMemo(
+    () => Object.keys(sarjat).sort((a, b) => a.localeCompare(b, 'fi', { sensitivity: 'base', numeric: true })),
+    [sarjat]
+  );
+
+  const naytettavatSarjaNimet = sarjaSuodatin === KAIKKI_SARJAT
+    ? sarjaNimet
+    : sarjaNimet.filter((sarjaNimi) => sarjaNimi === sarjaSuodatin);
+
+  useEffect(() => {
+    if (sarjaSuodatin !== KAIKKI_SARJAT && !sarjaNimet.includes(sarjaSuodatin)) {
+      setSarjaSuodatin(KAIKKI_SARJAT);
+    }
+  }, [sarjaNimet, sarjaSuodatin]);
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
@@ -274,9 +295,37 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
 
   return (
     <div className="space-y-8">
-      {Object.keys(sarjat).map(sarjaNimi => (
+      {sarjaNimet.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={sarjaSuodatin === KAIKKI_SARJAT ? 'default' : 'outline'}
+            className="h-8 px-3 text-xs font-semibold"
+            onClick={() => setSarjaSuodatin(KAIKKI_SARJAT)}
+          >
+            {tx.allClasses}
+          </Button>
+          {sarjaNimet.map((sarjaNimi) => (
+            <Button
+              key={`sarja-suodatin-${sarjaNimi}`}
+              type="button"
+              size="sm"
+              variant={sarjaSuodatin === sarjaNimi ? 'default' : 'outline'}
+              className="h-8 px-3 text-xs font-semibold"
+              onClick={() => setSarjaSuodatin(sarjaNimi)}
+            >
+              {sarjaNimi}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {naytettavatSarjaNimet.map(sarjaNimi => (
         <section key={sarjaNimi} className="space-y-3">
-          <h2 className="border-b border-slate-200 pb-2 text-xl font-semibold text-slate-900">{tx.classLabel} {sarjaNimi}</h2>
+          {sarjaSuodatin === KAIKKI_SARJAT && (
+            <h2 className="border-b border-slate-200 pb-2 text-xl font-semibold text-slate-900">{tx.classLabel} {sarjaNimi}</h2>
+          )}
           
           <div className="flex max-w-3xl flex-col gap-3">
             {sarjat[sarjaNimi].map((joukkueAlkio, indeksi) => {
