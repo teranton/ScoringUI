@@ -678,8 +678,8 @@ useEffect(() => {
           eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
           ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
           aikatauluCsvRaw: csvByName['Aikataulu'] || csvByName['Timetable'] || vanhaData.aikatauluCsvRaw || "",
-          aikatauluLaCsvRaw: csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "",
-          aikatauluSuCsvRaw: csvByName['Aikataulu Su'] || vanhaData.aikatauluSuCsvRaw || "",
+          aikatauluLaCsvRaw: csvByName['Aikataulu La'] || "",
+          aikatauluSuCsvRaw: csvByName['Aikataulu Su'] || "",
           speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
           speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0)
         }
