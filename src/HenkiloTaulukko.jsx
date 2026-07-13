@@ -835,9 +835,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               ))}
           </div>
 
-          <div className="flex items-center gap-1.5 self-start sm:self-auto">
+          <div className="flex w-full items-center gap-1.5 self-start overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:w-auto sm:self-auto sm:overflow-visible">
             {onMobiili && (
-              <div className="flex gap-1.5 bg-slate-100 p-1 rounded-lg">
+              <div className="flex shrink-0 gap-1.5 rounded-lg bg-slate-100 p-1">
                 <Button
                   type="button"
                   onClick={() => setOnkoKompaktiTila(false)}
@@ -867,20 +867,20 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               type="button"
               size="sm"
               variant="outline"
-              className="h-8 px-3 text-xs font-semibold"
-              onClick={() => setNaytaRataAnalyysi((prev) => !prev)}
+              className="h-8 shrink-0 px-3 text-xs font-semibold"
+              onClick={() => setOnkoKokoNaytto((prev) => !prev)}
             >
-              {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
+              {onkoKokoNaytto ? tx.exitFullscreen : tx.fullscreen}
             </Button>
 
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="h-8 px-3 text-xs font-semibold"
-              onClick={() => setOnkoKokoNaytto((prev) => !prev)}
+              className="h-8 shrink-0 px-3 text-xs font-semibold"
+              onClick={() => setNaytaRataAnalyysi((prev) => !prev)}
             >
-              {onkoKokoNaytto ? tx.exitFullscreen : tx.fullscreen}
+              {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
             </Button>
           </div>
         </div>
