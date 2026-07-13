@@ -317,37 +317,66 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
               {onAuki && ampuja.sarjat.length > 0 && (
                 <CardContent className="border-t border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
-                  <div className="flex flex-wrap gap-1">
-                    {ampuja.sarjat.map((s, sIdx) => {
-                      const puhdistettuNumero = s.numero.replace(/\D/g, '');
-                      const maksimiTulos = asemaMaksimit[puhdistettuNumero] || asemaMaksimit[s.numero];
-                      const ampujaTulosNum = parseInt(s.tulos, 10);
-                      const naytaToiseksiParas = Boolean(asemaToiseksiParasKaytossa[puhdistettuNumero] ?? asemaToiseksiParasKaytossa[s.numero]);
-                      const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
-                      const onkoToiseksiParasOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && naytaToiseksiParas && ampujaTulosNum === (maksimiTulos - 1);
+                  {(() => {
+                    const sarjatParillisena = ampuja.sarjat.length % 2 === 0
+                      ? ampuja.sarjat
+                      : [...ampuja.sarjat, { numero: '', tulos: '', onTayte: true }];
 
-                      return (
-                        <div
-                          key={`${ampuja.id}-${s.numero}-${sIdx}`}
-                          className="min-w-9 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center"
-                        >
-                          <div className="text-[10px] text-slate-500">S{s.numero}</div>
-                          <div
-                            className={cn(
-                              'text-sm font-bold',
-                              onkoMaksimiOsuma
-                                ? 'text-[hsl(var(--score-best-fg))]'
-                                : onkoToiseksiParasOsuma
-                                  ? 'text-[hsl(var(--score-second-fg))]'
-                                  : 'text-slate-900'
-                            )}
-                          >
-                            {s.tulos}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                    // Pienet määrät yhdelle riville, suuremmat kahdelle riville (esim. 24 => 12 + 12).
+                    const tavoiteRivit = sarjatParillisena.length > 12 ? 2 : 1;
+                    const laskettuSarakkeet = Math.ceil(sarjatParillisena.length / tavoiteRivit);
+                    const parillinenSarakkeet = laskettuSarakkeet % 2 === 0
+                      ? laskettuSarakkeet
+                      : laskettuSarakkeet + 1;
+                    const sarakkeet = Math.max(2, Math.min(12, parillinenSarakkeet));
+
+                    return (
+                      <div
+                        className="grid gap-1"
+                        style={{ gridTemplateColumns: `repeat(${sarakkeet}, minmax(0, 1fr))` }}
+                      >
+                        {sarjatParillisena.map((s, sIdx) => {
+                          if (s.onTayte) {
+                            return (
+                              <div
+                                key={`${ampuja.id}-tayte-${sIdx}`}
+                                aria-hidden="true"
+                                className="min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5"
+                              />
+                            );
+                          }
+
+                          const puhdistettuNumero = s.numero.replace(/\D/g, '');
+                          const maksimiTulos = asemaMaksimit[puhdistettuNumero] || asemaMaksimit[s.numero];
+                          const ampujaTulosNum = parseInt(s.tulos, 10);
+                          const naytaToiseksiParas = Boolean(asemaToiseksiParasKaytossa[puhdistettuNumero] ?? asemaToiseksiParasKaytossa[s.numero]);
+                          const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
+                          const onkoToiseksiParasOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && naytaToiseksiParas && ampujaTulosNum === (maksimiTulos - 1);
+
+                          return (
+                            <div
+                              key={`${ampuja.id}-${s.numero}-${sIdx}`}
+                              className="min-w-0 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center"
+                            >
+                              <div className="text-[10px] text-slate-500">S{s.numero}</div>
+                              <div
+                                className={cn(
+                                  'text-sm font-bold',
+                                  onkoMaksimiOsuma
+                                    ? 'text-[hsl(var(--score-best-fg))]'
+                                    : onkoToiseksiParasOsuma
+                                      ? 'text-[hsl(var(--score-second-fg))]'
+                                      : 'text-slate-900'
+                                )}
+                              >
+                                {s.tulos}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               )}
             </Card>
