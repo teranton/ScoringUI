@@ -57,6 +57,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [onkoKokoNaytto, setOnkoKokoNaytto] = useState(false);
+  const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
   const [jarjestysSarake, setJarjestysSarake] = useState('sija');
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
@@ -320,6 +321,53 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const naytaLaSarake = !kaytaKompaktiTilaa && ampujat.some((a) => a.la !== null);
   const naytaSuSarake = !kaytaKompaktiTilaa && ampujat.some((a) => a.su !== null);
 
+  const rataTilastot = useMemo(() => {
+    const parseRataArvo = (arvo) => {
+      const teksti = String(arvo ?? '').trim().toUpperCase();
+      if (!teksti || teksti === '-' || teksti === '—' || teksti === 'N/A') return null;
+      const num = parseInt(teksti, 10);
+      return Number.isNaN(num) ? null : num;
+    };
+
+    const laskeMediaani = (arr) => {
+      if (!arr.length) return null;
+      const sorted = [...arr].sort((a, b) => a - b);
+      const keskikohta = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 !== 0) return sorted[keskikohta];
+      return (sorted[keskikohta - 1] + sorted[keskikohta]) / 2;
+    };
+
+    return radatList.map((rataNumero) => {
+      const arvot = [];
+
+      for (const ampuja of naytettavatAmpujat) {
+        const parsed = parseRataArvo(ampuja?.erat?.[rataNumero]);
+        if (parsed === null) {
+          continue;
+        } else {
+          arvot.push(parsed);
+        }
+      }
+
+      const count = arvot.length;
+      const avg = count ? (arvot.reduce((sum, value) => sum + value, 0) / count) : null;
+      const median = laskeMediaani(arvot);
+      const maksimiTulos = speksit.asemaMaksimit[rataNumero] || speksit.asemaMaksimit[`${rataNumero}`];
+      const maxHits = (count && maksimiTulos !== undefined)
+        ? arvot.filter((value) => value === maksimiTulos).length
+        : 0;
+      const maxPct = count ? ((maxHits / count) * 100) : null;
+
+      return {
+        rataNumero,
+        count,
+        avg,
+        median,
+        maxPct
+      };
+    });
+  }, [naytettavatAmpujat, radatList, speksit.asemaMaksimit]);
+
   useEffect(() => {
     if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
     const start = performance.now();
@@ -371,7 +419,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       total: 'Total',
       allStagesReady: 'All stage scores are complete',
       stagesMissing: 'Some stage scores are missing',
-      zoomReset: 'Reset Zoom'
+      zoomReset: 'Reset Zoom',
+      showStageAnalytics: 'Stage Analytics',
+      hideStageAnalytics: 'Hide Analytics',
+      analyticsAvg: 'Avg (n)',
+      analyticsDetails: 'Md / Max%'
     }
     : {
       loading: 'Ladataan taulukkodataa...',
@@ -389,7 +441,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       total: 'Yht',
       allStagesReady: 'Kaikki alitulokset valmiit',
       stagesMissing: 'Alituloksia puuttuu',
-      zoomReset: 'Nollaa zoom'
+      zoomReset: 'Nollaa zoom',
+      showStageAnalytics: 'Rata-analyysi',
+      hideStageAnalytics: 'Piilota analyysi',
+      analyticsAvg: 'KA (n)',
+      analyticsDetails: 'Md / Max%'
     };
 
   if (onkoDataPuuttuu) {
@@ -645,6 +701,26 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return jarjestysSuunta === 'asc' ? ' ▲' : ' ▼';
   };
 
+  const numerotFormatter = useMemo(
+    () => new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'fi-FI', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+    [locale]
+  );
+  const prosenttiFormatter = useMemo(
+    () => new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'fi-FI', { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
+    [locale]
+  );
+
+  const muotoileNumero = (arvo) => (arvo == null ? '—' : numerotFormatter.format(arvo));
+  const muotoileProsentti = (arvo) => (arvo == null ? '—' : `${prosenttiFormatter.format(arvo)}%`);
+
+  const etusarakkeetMaara = 2
+    + (kaytaKompaktiTilaa ? 0 : 1)
+    + (kaytaKompaktiTilaa ? 0 : 1)
+    + (naytaLaSarake ? 1 : 0)
+    + (naytaSuSarake ? 1 : 0)
+    + 1
+    + (naytaRatkoSarake ? 1 : 0);
+
   const stickyRankStyle = {
     left: 0,
     width: `${rankColWidth}px`,
@@ -792,6 +868,16 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               size="sm"
               variant="outline"
               className="h-8 px-3 text-xs font-semibold"
+              onClick={() => setNaytaRataAnalyysi((prev) => !prev)}
+            >
+              {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 px-3 text-xs font-semibold"
               onClick={() => setOnkoKokoNaytto((prev) => !prev)}
             >
               {onkoKokoNaytto ? tx.exitFullscreen : tx.fullscreen}
@@ -902,6 +988,39 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                     </thead>
                     
                     <tbody className="divide-y divide-slate-100">
+                      {naytaRataAnalyysi && (
+                        <>
+                          <tr className="h-8 bg-amber-50/70">
+                            <td colSpan={etusarakkeetMaara} className="px-2 text-[11px] font-semibold text-slate-700 border-r border-slate-200">
+                              {tx.analyticsAvg}
+                            </td>
+                            {rataTilastot.map((tilasto) => (
+                              <td
+                                key={`analyysi-ka-${tilasto.rataNumero}`}
+                                style={{ width: `${laskettuStageColWidth}px` }}
+                                className="text-center text-[10px] font-semibold text-slate-700 border-r border-slate-200/60"
+                              >
+                                {tilasto.count > 0 ? `${muotoileNumero(tilasto.avg)} (${tilasto.count})` : '—'}
+                              </td>
+                            ))}
+                          </tr>
+                          <tr className="h-8 bg-amber-50/40">
+                            <td colSpan={etusarakkeetMaara} className="px-2 text-[11px] font-semibold text-slate-700 border-r border-slate-200">
+                              {tx.analyticsDetails}
+                            </td>
+                            {rataTilastot.map((tilasto) => (
+                              <td
+                                key={`analyysi-detail-${tilasto.rataNumero}`}
+                                style={{ width: `${laskettuStageColWidth}px` }}
+                                className="text-center text-[9px] leading-tight text-slate-700 border-r border-slate-200/60"
+                                title={`Md ${muotoileNumero(tilasto.median)} | Max ${muotoileProsentti(tilasto.maxPct)}`}
+                              >
+                                {`Md ${muotoileNumero(tilasto.median)} · Max ${muotoileProsentti(tilasto.maxPct)}`}
+                              </td>
+                            ))}
+                          </tr>
+                        </>
+                      )}
                       {naytettavatAmpujat.map((ampuja) => (
                         <tr
                           key={ampuja.id}
