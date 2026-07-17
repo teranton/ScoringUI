@@ -127,8 +127,18 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       const idxNimi = etsiSarakkeenIndeksi([(h) => h === 'NIMI', (h) => h.includes('NIMI')]);
       const idxSarja = etsiSarakkeenIndeksi([(h) => h === 'SARJA', (h) => h.includes('SARJA')]);
       const idxSeura = etsiSarakkeenIndeksi([(h) => h === 'SEURA', (h) => h.includes('SEURA')]);
-      const idxLa = etsiSarakkeenIndeksi([(h) => h === 'LA', (h) => h.startsWith('LAUANTAI')]);
-      const idxSu = etsiSarakkeenIndeksi([(h) => h === 'SU', (h) => h.startsWith('SUNNUNTAI')]);
+      const idxLa = etsiSarakkeenIndeksi([
+        (h) => h === 'LA',
+        (h) => h === 'AP',
+        (h) => h.startsWith('LAUANTAI'),
+        (h) => h.startsWith('AAMUP')
+      ]);
+      const idxSu = etsiSarakkeenIndeksi([
+        (h) => h === 'SU',
+        (h) => h === 'IP',
+        (h) => h.startsWith('SUNNUNTAI'),
+        (h) => h.startsWith('ILTAP')
+      ]);
       const idxRata1 = otsikot.findIndex((o) => o.trim() === '1');
       const idxRatkoOtsikko = etsiSarakkeenIndeksi([(h) => h === 'RATKO', (h) => h.startsWith('RATKO')]);
 
@@ -317,6 +327,59 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     const onTeksti = Boolean(a.ratkoNaytto?.teksti);
     return onStatus || (onkoRatkoSallittuAmpujalle(a) && onTeksti);
   });
+
+  const paivaSarakeNimet = useMemo(() => {
+    const fallback = {
+      laLabel: locale === 'en' ? 'Sat' : 'La',
+      suLabel: locale === 'en' ? 'Sun' : 'Su'
+    };
+
+    if (!data?.henkilotCsvRaw) return fallback;
+
+    try {
+      const raakaRivit = Array.isArray(parsedRows?.henkilotRows)
+        ? parsedRows.henkilotRows
+        : parseCsvRows(data.henkilotCsvRaw);
+      if (!Array.isArray(raakaRivit) || raakaRivit.length < 1) return fallback;
+
+      const otsikot = (raakaRivit[0] || []).map((o) => String(o || '').toUpperCase());
+      const otsikotNormalisoitu = otsikot.map((o) => o.replace(/[^A-Z0-9]/g, ''));
+
+      const etsiSarakkeenIndeksi = (ehdot) => {
+        for (const ehto of ehdot) {
+          const idx = otsikotNormalisoitu.findIndex((h) => ehto(h));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+
+      const idxLa = etsiSarakkeenIndeksi([
+        (h) => h === 'LA',
+        (h) => h === 'AP',
+        (h) => h.startsWith('LAUANTAI'),
+        (h) => h.startsWith('AAMUP')
+      ]);
+      const idxSu = etsiSarakkeenIndeksi([
+        (h) => h === 'SU',
+        (h) => h === 'IP',
+        (h) => h.startsWith('SUNNUNTAI'),
+        (h) => h.startsWith('ILTAP')
+      ]);
+
+      const laOtsikko = idxLa !== -1 ? String(otsikotNormalisoitu[idxLa] || '') : '';
+      const suOtsikko = idxSu !== -1 ? String(otsikotNormalisoitu[idxSu] || '') : '';
+
+      const kaytaAp = laOtsikko === 'AP' || laOtsikko.startsWith('AAMUP');
+      const kaytaIp = suOtsikko === 'IP' || suOtsikko.startsWith('ILTAP');
+
+      return {
+        laLabel: kaytaAp ? 'AP' : fallback.laLabel,
+        suLabel: kaytaIp ? 'IP' : fallback.suLabel
+      };
+    } catch {
+      return fallback;
+    }
+  }, [data, parsedRows, locale]);
 
   const naytaLaSarake = !kaytaKompaktiTilaa && ampujat.some((a) => a.la !== null);
   const naytaSuSarake = !kaytaKompaktiTilaa && ampujat.some((a) => a.su !== null);
@@ -946,7 +1009,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         {naytaLaSarake && (
                           <th className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')} style={{ width: `${paivaColWidth}px` }}>
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys('la')}>
-                              {tx.laLabel}{jarjestysMerkki('la')}
+                              {paivaSarakeNimet.laLabel}{jarjestysMerkki('la')}
                             </button>
                           </th>
                         )}
@@ -954,7 +1017,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         {naytaSuSarake && (
                           <th className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')} style={{ width: `${paivaColWidth}px` }}>
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys('su')}>
-                              {tx.suLabel}{jarjestysMerkki('su')}
+                              {paivaSarakeNimet.suLabel}{jarjestysMerkki('su')}
                             </button>
                           </th>
                         )}

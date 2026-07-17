@@ -72,8 +72,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   // Ensisijaisesti etsitään RATKO otsikosta, koska rata-/speksimäärä voi vaihdella eri kisoissa.
   const idxRatkoOtsikko = etsiSarakkeenIndeksi([(h) => h === 'RATKO', (h) => h.startsWith('RATKO')]);
   const idxRatko = idxRatkoOtsikko !== -1 ? idxRatkoOtsikko : aloitusIndeksi + kisanRatojenMaara + 1;
-  const idxLa = etsiSarakkeenIndeksi([(h) => h === 'LA', (h) => h.startsWith('LAUANTAI')]);
-  const idxSu = etsiSarakkeenIndeksi([(h) => h === 'SU', (h) => h.startsWith('SUNNUNTAI')]);
+  const idxLa = etsiSarakkeenIndeksi([
+    (h) => h === 'LA',
+    (h) => h === 'AP',
+    (h) => h.startsWith('LAUANTAI'),
+    (h) => h.startsWith('AAMUP')
+  ]);
+  const idxSu = etsiSarakkeenIndeksi([
+    (h) => h === 'SU',
+    (h) => h === 'IP',
+    (h) => h.startsWith('SUNNUNTAI'),
+    (h) => h.startsWith('ILTAP')
+  ]);
 
   let idxTulos = etsiSarakkeenIndeksi([(h) => h === 'TULOS', (h) => h.startsWith('TULOS')]);
   if (idxTulos === -1 && idxSeura !== -1) {
