@@ -325,10 +325,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                     // Pienet määrät yhdelle riville, suuremmat kahdelle riville (esim. 24 => 12 + 12).
                     const tavoiteRivit = sarjatParillisena.length > 12 ? 2 : 1;
                     const laskettuSarakkeet = Math.ceil(sarjatParillisena.length / tavoiteRivit);
-                    const parillinenSarakkeet = laskettuSarakkeet % 2 === 0
-                      ? laskettuSarakkeet
-                      : laskettuSarakkeet + 1;
-                    const sarakkeet = Math.max(2, Math.min(12, parillinenSarakkeet));
+                    const sarakkeet = Math.max(2, Math.min(12, laskettuSarakkeet));
 
                     return (
                       <div

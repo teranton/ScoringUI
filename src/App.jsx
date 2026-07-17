@@ -649,7 +649,7 @@ useEffect(() => {
   const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
   const onkoDataValimuistissa = Boolean(kisaCacheRef.current[sheetId]);
   const cacheData = kisaCacheRef.current[sheetId] || null;
-  const puuttuuMonipaivainenAikatauluCache = onkoDataValimuistissa
+  const puuttuuMonipaivainenAikatauluCache = !onkoStaattinen && onkoDataValimuistissa
     && (cacheData?.aikatauluLaCsvRaw === undefined || cacheData?.aikatauluSuCsvRaw === undefined);
 
   async function haeYhdistettyKisaData() {
@@ -663,7 +663,9 @@ useEffect(() => {
       }
 
       const startTime = performance.now();
-      const sivut = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
+      const sivut = onkoStaattinen
+        ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
+        : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
       
       const params = new URLSearchParams();
       params.append('mode', 'batchCsv');
@@ -698,8 +700,12 @@ useEffect(() => {
           eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
           ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
           aikatauluCsvRaw: csvByName['Aikataulu'] || csvByName['Timetable'] || vanhaData.aikatauluCsvRaw || "",
-          aikatauluLaCsvRaw: csvByName['Aikataulu La'] || "",
-          aikatauluSuCsvRaw: csvByName['Aikataulu Su'] || "",
+          aikatauluLaCsvRaw: onkoStaattinen
+            ? (csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "")
+            : (csvByName['Aikataulu La'] || ""),
+          aikatauluSuCsvRaw: onkoStaattinen
+            ? (csvByName['Aikataulu Su'] || vanhaData.aikatauluSuCsvRaw || "")
+            : (csvByName['Aikataulu Su'] || ""),
           speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
           speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0)
         }
