@@ -9,7 +9,6 @@ import MateriaaliNakyma from './MateriaaliNakyma';
 import { parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
-import { track } from '@vercel/analytics';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
@@ -17,6 +16,7 @@ import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, Chevr
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
+let analyticsTrack = null;
 
 function muunnaPaivamaaraJarjestysavaimeksi(pvmStr) {
   if (!pvmStr) return null;
@@ -298,7 +298,9 @@ function labelForStatus(status, locale) {
 
 function trackAnalyticsEvent(eventName, properties = {}) {
   try {
-    track(eventName, properties);
+    if (typeof analyticsTrack === 'function') {
+      analyticsTrack(eventName, properties);
+    }
   } catch {
     // Ignore analytics tracking errors to avoid affecting UI behavior.
   }
@@ -330,6 +332,24 @@ export default function App() {
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    // Load analytics lazily so ad blockers cannot prevent app rendering.
+    import('@vercel/analytics')
+      .then((module) => {
+        if (isCancelled) return;
+        analyticsTrack = typeof module?.track === 'function' ? module.track : null;
+      })
+      .catch(() => {
+        analyticsTrack = null;
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     kisaCacheRef.current = kisaCache;
@@ -1107,8 +1127,8 @@ useEffect(() => {
   const kilpailuNakymaMaxWidth = 'min(96vw, 1320px)';
 
   return (
-    <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
-      <Card>
+    <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+      <Card className="app-print-hide-header">
         <CardHeader className="gap-1.5 border-b border-[hsl(var(--border))] pb-3.5">
           <div className="flex items-center justify-between gap-2">
             <Button onClick={palaaEtusivulle} variant="outline" size="sm" className="w-fit gap-1.5">
@@ -1142,7 +1162,7 @@ useEffect(() => {
         </CardHeader>
       </Card>
 
-      <nav className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <nav className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden app-print-hide-nav">
         {onkoTuloksetSallittu && (
           <Button onClick={() => setAktiivinenSivu('tulokset')} variant={aktiivinenSivu === 'tulokset' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Trophy className="h-4 w-4" aria-hidden="true" />
@@ -1212,7 +1232,7 @@ useEffect(() => {
           {aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && (
             <div className="space-y-3">
               {aikatauluCsvList.length > 1 && (
-                <div className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden app-print-hide-nav">
                   {aikatauluCsvList.map((item) => (
                     <Button
                       key={`aikataulu-switch-${item.key}`}

@@ -174,6 +174,8 @@ function poistaNakymaattomatNimimerkit(value) {
 export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [], showGlobalSponsorLogos = true }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
+  const [mobileViewModeBeforePrint, setMobileViewModeBeforePrint] = useState(null);
+  const [printScale, setPrintScale] = useState(1);
   const [isMobileViewport, setIsMobileViewport] = useState(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
     return window.matchMedia('(max-width: 767px)').matches;
@@ -214,6 +216,10 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
       largeTable: 'Taulukkonäkymä',
       hiddenMarkerTitle: 'Aloitustuomarointi.'
     };
+
+  const txPrint = locale === 'en'
+    ? { button: 'Print / PDF' }
+    : { button: 'Tulosta / PDF' };
 
   // DATA PARSINTA
   const parsed = useMemo(() => {
@@ -517,11 +523,61 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     });
   }, [mobileViewMode, parsed, isMobileViewport]);
 
+  const calculatePrintScale = () => {
+    if (parsed.mode !== 'lane-grid') return 1;
+    const fullWidth = timeColumnWidth + lanesTotalWidth;
+    if (!Number.isFinite(fullWidth) || fullWidth <= 0) return 1;
+
+    // A4 portrait printable area at common 96dpi with 4mm margins.
+    // Keep extra safety room for browser-specific print rounding (notably Firefox/Chromium differences)
+    // so the last lane column does not clip at the right edge.
+    const printableWidthPx = 710;
+    return Math.min(1, Math.max(0.4, printableWidthPx / fullWidth));
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleBeforePrint = () => {
+      setPrintScale(calculatePrintScale());
+      if (isMobileViewport && parsed.mode === 'lane-grid' && mobileViewMode !== 'table') {
+        setMobileViewModeBeforePrint(mobileViewMode);
+        setMobileViewMode('table');
+      }
+    };
+
+    const handleAfterPrint = () => {
+      if (mobileViewModeBeforePrint) {
+        setMobileViewMode(mobileViewModeBeforePrint);
+        setMobileViewModeBeforePrint(null);
+      }
+      setPrintScale(1);
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [isMobileViewport, parsed.mode, mobileViewMode, mobileViewModeBeforePrint, timeColumnWidth, lanesTotalWidth]);
+
+  const handlePrint = async () => {
+    if (typeof window === 'undefined') return;
+    setPrintScale(calculatePrintScale());
+    if (isMobileViewport && parsed.mode === 'lane-grid' && mobileViewMode !== 'table') {
+      setMobileViewModeBeforePrint(mobileViewMode);
+      setMobileViewMode('table');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    window.print();
+  };
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 aikataulu-print-root" style={{ '--aikataulu-print-scale': printScale }}>
       {/* HAKUKENTTÄ */}
       {parsed.mode === 'lane-grid' && (
-        <div className="relative w-full">
+        <div className="relative w-full aikataulu-print-hide">
           <input
             type="text"
             placeholder={txSearch.placeholder}
@@ -539,7 +595,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
       {/* HAKUTULOKSET */}
       {searchQuery.trim() !== '' && parsed.mode === 'lane-grid' && (
-        <Card className="w-full shadow-sm border-[hsl(var(--primary))]/30 bg-[hsl(var(--primary))]/5">
+        <Card className="w-full shadow-sm border-[hsl(var(--primary))]/30 bg-[hsl(var(--primary))]/5 aikataulu-print-hide">
           <CardHeader className="py-2.5 border-b border-[hsl(var(--border))]/40">
             <CardTitle className="text-xs font-bold uppercase tracking-wider text-[hsl(var(--primary))]">
               {txSearch.results} ({shooterMatches.length})
@@ -573,8 +629,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
         <CardHeader className="pb-3 bg-[hsl(var(--muted))]/20 border-b">
           <div className="flex items-center gap-3">
             <CardTitle className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">{title}</CardTitle>
+            <Button type="button" size="sm" variant="outline" onClick={handlePrint} className="aikataulu-print-hide">
+              {txPrint.button}
+            </Button>
             {showGlobalSponsorLogos && globalSponsorLogos.length > 0 && (
-              <div className="flex max-w-[62%] shrink-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex max-w-[62%] shrink-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden aikataulu-print-hide">
                 {globalSponsorLogos.map((logo, idx) => {
                   const img = (
                     <img
@@ -601,7 +660,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
             <>
               {isMobileViewport ? (
                 <>
-                <div className="flex gap-2 p-2 pb-0">
+                <div className="flex gap-2 p-2 pb-0 aikataulu-print-hide">
                   <Button
                     type="button"
                     size="sm"
@@ -621,7 +680,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                 </div>
 
                 {mobileViewMode === 'lanes' ? (
-                <div className="space-y-2 p-2">
+                <div className="space-y-2 p-2 aikataulu-print-hide">
                   <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                     {mobileLaneTimelines.map((lane) => {
                       const laneLogo = laneLogoMap.get(lane.laneLabel);
@@ -685,9 +744,9 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                   </div>
                 </div>
                 ) : (
-                <div className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))]">
+                <div className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))] aikataulu-print-grid-shell">
                   <div
-                    className="min-w-max"
+                    className="min-w-max aikataulu-print-grid-content"
                     style={{ width: `${timeColumnWidth + lanesTotalWidth}px` }}
                   >
                     <div
@@ -700,12 +759,13 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                       >
                         {tx.time}
                       </div>
-                      {parsed.laneColumns.map((lane) => {
+                      {parsed.laneColumns.map((lane, laneIdx) => {
                         const matchingLogo = laneLogoMap.get(lane.label);
+                        const isLastLaneColumn = laneIdx === parsed.laneColumns.length - 1;
                         return (
                           <div
                             key={`mobile-sticky-header-${lane.label}`}
-                            className="flex flex-col items-center justify-center gap-1 border-l border-[hsl(var(--border))] px-2 py-2"
+                            className={`flex flex-col items-center justify-center gap-1 border-l border-[hsl(var(--border))] px-2 py-2 ${isLastLaneColumn ? 'border-r border-[hsl(var(--border))]' : ''}`}
                           >
                             {matchingLogo && (
                               matchingLogo.href ? (
@@ -740,7 +800,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                       {parsed.laneRows.map((row) => (
                         <div
                           key={`mobile-sticky-row-${row.id}`}
-                          className="grid items-stretch"
+                          className="grid items-stretch aikataulu-print-row"
                           style={{
                             gridTemplateColumns: masterGridTemplate,
                             minHeight: '40px',
@@ -749,7 +809,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                           }}
                         >
                           <div
-                            className="sticky left-0 z-30 flex items-center justify-center border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/80 px-1 py-1 font-mono text-xs font-bold"
+                            className="sticky left-0 z-30 flex items-center justify-center border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/80 px-1 py-1 font-mono text-xs font-bold aikataulu-print-time-cell"
                             style={{ width: `${timeColumnWidth}px` }}
                           >
                             {row.time || '-'}
@@ -758,6 +818,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                           {row.slots.map((slot, slotIdx) => {
                             const isAssigned = !!slot.shooter;
                             const onParillinenSarake = slotIdx % 2 === 1;
+                            const isLastLaneCell = slotIdx === row.slots.length - 1;
                             const hasHiddenMarker = sisaltaaNakymaattomanNimimerkin(slot.shooter);
                             const cleanedShooter = poistaNakymaattomatNimimerkit(slot.shooter);
                             const shooterNumber = toShooterNumber(slot.number);
@@ -768,17 +829,17 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                             return (
                               <div
                                 key={`mobile-sticky-slot-${row.id}-${slot.lane}`}
-                                className={`flex min-h-[40px] flex-col justify-center border-l border-[hsl(var(--border))]/60 px-2 py-1 ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                                className={`flex min-h-[40px] flex-col justify-center overflow-hidden border-l border-[hsl(var(--border))]/60 px-2 py-1 ${isLastLaneCell ? 'border-r border-[hsl(var(--border))]/60' : ''} ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
                                 style={cellStyle}
                               >
                                 <div className="flex min-w-0 items-center gap-1.5">
                                   {slot.number && (
-                                    <span className="shrink-0 rounded bg-[hsl(var(--muted))]/80 px-1 py-0.5 font-mono text-[10px] font-bold leading-none text-[hsl(var(--muted-foreground))]">
+                                    <span className="shrink-0 rounded bg-[hsl(var(--muted))]/80 px-1 py-0.5 font-mono text-[10px] font-bold leading-none text-[hsl(var(--muted-foreground))] aikataulu-print-number-badge">
                                       {slot.number}
                                     </span>
                                   )}
                                   <span
-                                    className={`truncate rounded-sm px-1 text-[11px] tracking-wide ${isAssigned ? (hasHiddenMarker ? 'font-semibold bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))] ring-1 ring-[hsl(var(--status-missing)/0.28)]' : 'font-medium text-[hsl(var(--foreground))]') : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}
+                                    className={`block min-w-0 flex-1 truncate rounded-sm px-1 text-[11px] tracking-wide ${isAssigned ? (hasHiddenMarker ? 'font-semibold bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))] ring-1 ring-[hsl(var(--status-missing)/0.28)]' : 'font-medium text-[hsl(var(--foreground))]') : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}
                                     title={hasHiddenMarker ? txMobile.hiddenMarkerTitle : undefined}
                                   >
                                     {cleanedShooter || '-'}
@@ -797,7 +858,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
               ) : (
                 <div
                   ref={desktopScrollRef}
-                  className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))] cursor-grab active:cursor-grabbing"
+                  className="relative h-[68vh] w-full overflow-auto rounded-b-xl border bg-[hsl(var(--card))] cursor-grab active:cursor-grabbing aikataulu-print-grid-shell"
                   onMouseDown={handleDesktopMouseDown}
                   onMouseMove={handleDesktopMouseMove}
                   onMouseUp={handleDesktopMouseUpOrLeave}
@@ -805,7 +866,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                   onDragStart={(e) => e.preventDefault()}
                 >
                   <div
-                    className="min-w-max"
+                    className="min-w-max aikataulu-print-grid-content"
                     style={{ width: `${timeColumnWidth + lanesTotalWidth}px` }}
                   >
                     <div
@@ -818,12 +879,13 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                       >
                         {tx.time}
                       </div>
-                      {parsed.laneColumns.map((lane) => {
+                      {parsed.laneColumns.map((lane, laneIdx) => {
                         const matchingLogo = laneLogoMap.get(lane.label);
+                        const isLastLaneColumn = laneIdx === parsed.laneColumns.length - 1;
                         return (
                           <div
                             key={`desktop-sticky-header-${lane.label}`}
-                            className="flex flex-col items-center justify-center gap-1.5 border-l border-[hsl(var(--border))] px-5 py-2"
+                            className={`flex flex-col items-center justify-center gap-1.5 border-l border-[hsl(var(--border))] px-5 py-2 ${isLastLaneColumn ? 'border-r border-[hsl(var(--border))]' : ''}`}
                           >
                             {matchingLogo && (
                               matchingLogo.href ? (
@@ -858,7 +920,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                       {parsed.laneRows.map((row) => (
                         <div
                           key={`desktop-sticky-row-${row.id}`}
-                          className="grid items-stretch"
+                          className="grid items-stretch aikataulu-print-row"
                           style={{
                             gridTemplateColumns: masterGridTemplate,
                             minHeight: '40px',
@@ -867,7 +929,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                           }}
                         >
                           <div
-                            className="sticky left-0 z-30 flex items-center justify-center border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/80 px-1 py-1 font-mono text-xs font-bold md:text-sm"
+                            className="sticky left-0 z-30 flex items-center justify-center border-r border-[hsl(var(--border))]/60 bg-[hsl(var(--muted))]/80 px-1 py-1 font-mono text-xs font-bold md:text-sm aikataulu-print-time-cell"
                             style={{ width: `${timeColumnWidth}px` }}
                           >
                             {row.time || '-'}
@@ -876,6 +938,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                           {row.slots.map((slot, slotIdx) => {
                             const isAssigned = !!slot.shooter;
                             const onParillinenSarake = slotIdx % 2 === 1;
+                            const isLastLaneCell = slotIdx === row.slots.length - 1;
                             const hasHiddenMarker = sisaltaaNakymaattomanNimimerkin(slot.shooter);
                             const cleanedShooter = poistaNakymaattomatNimimerkit(slot.shooter);
                             const shooterNumber = toShooterNumber(slot.number);
@@ -886,17 +949,17 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                             return (
                               <div
                                 key={`desktop-sticky-slot-${row.id}-${slot.lane}`}
-                                className={`flex min-h-[40px] flex-col justify-center border-l border-[hsl(var(--border))]/60 px-5 py-1 ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
+                                className={`flex min-h-[40px] flex-col justify-center overflow-hidden border-l border-[hsl(var(--border))]/60 px-5 py-1 ${isLastLaneCell ? 'border-r border-[hsl(var(--border))]/60' : ''} ${!hasGroupColor && onParillinenSarake ? 'bg-[hsl(var(--muted))]/20' : ''}`}
                                 style={cellStyle}
                               >
                                 <div className="flex min-w-0 items-center gap-2.5">
                                   {slot.number && (
-                                    <span className="shrink-0 rounded bg-[hsl(var(--muted))]/80 px-1 py-0.5 font-mono text-[10px] font-bold leading-none text-[hsl(var(--muted-foreground))]">
+                                    <span className="shrink-0 rounded bg-[hsl(var(--muted))]/80 px-1 py-0.5 font-mono text-[10px] font-bold leading-none text-[hsl(var(--muted-foreground))] aikataulu-print-number-badge">
                                       {slot.number}
                                     </span>
                                   )}
                                   <span
-                                    className={`truncate whitespace-nowrap rounded-sm px-1 text-xs tracking-wide ${isAssigned ? (hasHiddenMarker ? 'font-semibold bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))] ring-1 ring-[hsl(var(--status-missing)/0.28)]' : 'font-medium text-[hsl(var(--foreground))]') : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}
+                                    className={`block min-w-0 flex-1 truncate whitespace-nowrap rounded-sm px-1 text-xs tracking-wide ${isAssigned ? (hasHiddenMarker ? 'font-semibold bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))] ring-1 ring-[hsl(var(--status-missing)/0.28)]' : 'font-medium text-[hsl(var(--foreground))]') : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}
                                     title={hasHiddenMarker ? txMobile.hiddenMarkerTitle : undefined}
                                   >
                                     {cleanedShooter || '-'}

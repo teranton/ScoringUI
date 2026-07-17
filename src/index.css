@@ -157,3 +157,141 @@ body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
 }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 4mm;
+  }
+
+  html,
+  body {
+    overflow: visible !important;
+  }
+
+  .aikataulu-print-hide {
+    display: none !important;
+  }
+
+  .app-print-hide-header,
+  .app-print-hide-nav {
+    display: none !important;
+  }
+
+  .app-print-page-root {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  .aikataulu-print-root {
+    font-size: 11px;
+    line-height: 1.2;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    color: #000 !important;
+    margin: 0 !important;
+  }
+
+  .aikataulu-print-root * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .aikataulu-print-grid-shell {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    background: #fff !important;
+    margin: 0 !important;
+  }
+
+  .aikataulu-print-grid-content {
+    display: block;
+    width: max-content !important;
+    overflow: visible !important;
+    padding-right: 2px;
+    transform: scale(var(--aikataulu-print-scale, 1));
+    transform-origin: top left;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .aikataulu-print-grid-content > .grid,
+  .aikataulu-print-grid-content .divide-y,
+  .aikataulu-print-grid-content .aikataulu-print-row {
+    width: max-content !important;
+  }
+
+  .aikataulu-print-grid-shell img {
+    display: none !important;
+  }
+
+  .aikataulu-print-grid-shell [style*='background-color'] {
+    background-color: transparent !important;
+  }
+
+  .aikataulu-print-grid-shell [style*='border-left-color'] {
+    border-left-color: #d4d4d8 !important;
+  }
+
+  .aikataulu-print-root .sticky {
+    position: static !important;
+    inset: auto !important;
+  }
+
+  .aikataulu-print-root [style*='content-visibility'] {
+    content-visibility: visible !important;
+    contain-intrinsic-size: auto !important;
+  }
+
+  .aikataulu-print-row {
+    min-height: 20px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid-page !important;
+    -webkit-column-break-inside: avoid !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .aikataulu-print-row [style*='min-height'] {
+    min-height: 20px !important;
+  }
+
+  .aikataulu-print-row > div {
+    min-height: 20px !important;
+    padding: 1px 3px !important;
+    overflow: hidden !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid-page !important;
+    -webkit-column-break-inside: avoid !important;
+  }
+
+  .aikataulu-print-time-cell {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    font-family: inherit !important;
+    letter-spacing: 0 !important;
+  }
+
+  .aikataulu-print-number-badge {
+    display: inline-flex !important;
+    width: 3.5ch !important;
+    justify-content: center !important;
+    text-align: center !important;
+    font-family: inherit !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .aikataulu-print-grid-shell .grid {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+}
