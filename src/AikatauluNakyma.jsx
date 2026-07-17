@@ -629,7 +629,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
         <CardHeader className="pb-3 bg-[hsl(var(--muted))]/20 border-b">
           <div className="flex items-center gap-3">
             <CardTitle className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">{title}</CardTitle>
-            <Button type="button" size="sm" variant="outline" onClick={handlePrint} className="aikataulu-print-hide">
+            <Button type="button" size="sm" variant="outline" onClick={handlePrint} className="aikataulu-print-hide hidden md:inline-flex">
               {txPrint.button}
             </Button>
             {showGlobalSponsorLogos && globalSponsorLogos.length > 0 && (
