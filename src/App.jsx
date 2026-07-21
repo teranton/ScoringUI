@@ -5,6 +5,7 @@ import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import AikatauluNakyma from './AikatauluNakyma';
+import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import { parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
@@ -267,6 +268,93 @@ function haeSponsoriLogoNakyvyysSpekseista(speksitData) {
       const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
       for (const ehdokas of ehdokasArvot) {
         const tulkinta = normalisoiSponsoriLogoNakyvyysArvo(ehdokas);
+        if (tulkinta) return tulkinta;
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalisoiAikatauluRyhmittelyArvo(arvo) {
+  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!norm) return null;
+
+  if (['INLINE', 'INLINEAMMUNTA', 'INLINEORDER', 'LANE', 'LANES', 'RADAT', 'RATA'].includes(norm)) return 'inline';
+  if (['5', 'GROUP5', 'RYHMA5', 'GROUPSIZE5', 'SIZE5'].includes(norm)) return 'group5';
+  if (['6', 'GROUP6', 'RYHMA6', 'GROUPSIZE6', 'SIZE6'].includes(norm)) return 'group6';
+  return null;
+}
+
+function haeAikatauluRyhmittelySpekseista(speksitData) {
+  const rivit = Array.isArray(speksitData)
+    ? speksitData
+    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
+
+  if (!Array.isArray(rivit) || rivit.length === 0) return null;
+
+  const avainSanat = new Set([
+    'AIKATAULURYHMITTELY', 'AIKATAULU_RYHMITTELY', 'AIKATAULUGROUPING', 'AIKATAULU_GROUPING',
+    'TIMETABLEGROUPING', 'TIMETABLE_GROUPING', 'AIKATAULURYHMAKOKO', 'AIKATAULU_RYHMAKOKO',
+    'TIMETABLEGROUPSIZE', 'TIMETABLE_GROUP_SIZE', 'GROUPINGMODE', 'GROUPING_MODE'
+  ]);
+
+  for (const rivi of rivit) {
+    if (!Array.isArray(rivi) || rivi.length === 0) continue;
+
+    const solut = rivi.map((s) => String(s || '').trim());
+    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
+
+    for (let i = 0; i < normalisoidut.length; i++) {
+      const avain = normalisoidut[i];
+      if (!avainSanat.has(avain)) continue;
+
+      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
+      for (const ehdokas of ehdokasArvot) {
+        const tulkinta = normalisoiAikatauluRyhmittelyArvo(ehdokas);
+        if (tulkinta) return tulkinta;
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalisoiAikatauluMalliArvo(arvo) {
+  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  if (!norm) return null;
+
+  if (['INLINE', 'INLINEVIEW', 'INLINE_LAYOUT', 'INLINE_MALLI', 'INLINE_NAKYMA'].includes(norm)) return 'inline';
+  if (['GROUPS', 'GROUP', 'HEATS', 'ERAT', 'ERALUETTELO', 'RYHMAT', 'RYHMA'].includes(norm)) return 'groups';
+  return null;
+}
+
+function haeAikatauluMalliSpekseista(speksitData) {
+  const rivit = Array.isArray(speksitData)
+    ? speksitData
+    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
+
+  if (!Array.isArray(rivit) || rivit.length === 0) return null;
+
+  const avainSanat = new Set([
+    'AIKATAULUMALLI', 'AIKATAULU_MALLI', 'AIKATAULUNAKYMA', 'AIKATAULU_NAKYMA',
+    'TIMETABLEMODEL', 'TIMETABLE_MODEL', 'TIMETABLEVIEW', 'TIMETABLE_VIEW',
+    'SCHEDULEMODEL', 'SCHEDULE_MODEL'
+  ]);
+
+  for (const rivi of rivit) {
+    if (!Array.isArray(rivi) || rivi.length === 0) continue;
+
+    const solut = rivi.map((s) => String(s || '').trim());
+    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
+
+    for (let i = 0; i < normalisoidut.length; i++) {
+      const avain = normalisoidut[i];
+      if (!avainSanat.has(avain)) continue;
+
+      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
+      for (const ehdokas of ehdokasArvot) {
+        const tulkinta = normalisoiAikatauluMalliArvo(ehdokas);
         if (tulkinta) return tulkinta;
       }
     }
@@ -940,6 +1028,15 @@ useEffect(() => {
     () => haeSponsoriLogoNakyvyysSpekseista(nykyisenKisanParsitutRivit.speksitRows || []),
     [nykyisenKisanParsitutRivit.speksitRows]
   );
+  const aikatauluRyhmittelyAsetus = useMemo(
+    () => haeAikatauluRyhmittelySpekseista(nykyisenKisanParsitutRivit.speksitRows || []) || 'inline',
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
+  const aikatauluMalliAsetus = useMemo(
+    () => haeAikatauluMalliSpekseista(nykyisenKisanParsitutRivit.speksitRows || []) || 'inline',
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
+  const kaytaRyhmaAikatauluNakymaa = aikatauluMalliAsetus === 'groups' || aikatauluRyhmittelyAsetus !== 'inline';
   const naytaAikatauluOtsikonSponsorilogot = sponsoriLogoNakyvyysAsetus !== 'off';
   const onkoAikatauluSallittu = onkoAikataulua && (() => {
     if (onkoAikatauluPreviewOverride) return !onkoKisaPaattynyt;
@@ -1253,13 +1350,25 @@ useEffect(() => {
                 </div>
               )}
 
-              {valittuAikatauluCsv && (
-                <AikatauluNakyma
-                  rawCsv={valittuAikatauluCsv.raw}
-                  locale={locale}
-                  sponsorLogos={kisanSponsorit}
-                  showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
-                />
+              {Boolean(valittuAikatauluCsv) && (
+                kaytaRyhmaAikatauluNakymaa ? (
+                  <AikatauluRyhmaNakyma
+                    rawCsv={valittuAikatauluCsv?.raw || ''}
+                    locale={locale}
+                    sponsorLogos={kisanSponsorit}
+                    showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
+                    defaultGroupingMode={aikatauluRyhmittelyAsetus}
+                    competitionStartDate={valittuKisa?.alkuPvm || ''}
+                  />
+                ) : (
+                  <AikatauluNakyma
+                    rawCsv={valittuAikatauluCsv?.raw || ''}
+                    locale={locale}
+                    sponsorLogos={kisanSponsorit}
+                    showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
+                    defaultGroupingMode={aikatauluRyhmittelyAsetus}
+                  />
+                )
               )}
             </div>
           )}

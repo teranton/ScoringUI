@@ -776,8 +776,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const muotoileNumero = (arvo) => (arvo == null ? '—' : numerotFormatter.format(arvo));
   const muotoileProsentti = (arvo) => (arvo == null ? '—' : `${prosenttiFormatter.format(arvo)}%`);
 
+  const naytaSarjaSarake = !kaytaKompaktiTilaa && sarjaSuodatin === 'OPEN (Y)';
+
   const etusarakkeetMaara = 2
-    + (kaytaKompaktiTilaa ? 0 : 1)
+    + (naytaSarjaSarake ? 1 : 0)
     + (kaytaKompaktiTilaa ? 0 : 1)
     + (naytaLaSarake ? 1 : 0)
     + (naytaSuSarake ? 1 : 0)
@@ -990,7 +992,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                           </button>
                         </th>
                         
-                        {!kaytaKompaktiTilaa && (
+                        {naytaSarjaSarake && (
                           <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30')} style={{ width: `${categoryColWidth}px` }}>
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys('sarja')}>
                               {tx.classLabel}{jarjestysMerkki('sarja')}
@@ -1122,7 +1124,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                             </div>
                           </td>
                           
-                          {!kaytaKompaktiTilaa && (
+                          {naytaSarjaSarake && (
                             <td className={cn(soluLuokka('series'), 'bg-white group-hover:bg-slate-50/30')} style={{ width: `${categoryColWidth}px` }}>
                               {ampuja.sarja}
                             </td>
