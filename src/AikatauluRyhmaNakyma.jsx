@@ -1041,38 +1041,38 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                   </header>
 
                   <div className="border-b border-[hsl(var(--border))]/45 px-3 py-2">
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[300px] border-collapse text-xs">
+                    <div className="overflow-hidden">
+                      <table className="w-full table-fixed border-collapse text-[11px] md:text-xs">
                         <thead>
                           <tr>
-                            <th className="w-1/2 bg-[hsl(var(--badge-upcoming-bg))] px-2 py-1 text-left font-semibold text-[hsl(var(--badge-upcoming-fg))]">{tx.saturday}</th>
-                            <th className="w-1/2 bg-[hsl(var(--badge-ongoing-bg))] px-2 py-1 text-left font-semibold text-[hsl(var(--badge-ongoing-fg))]">{tx.sunday}</th>
+                            <th className="w-1/2 bg-[hsl(var(--badge-upcoming-bg))] px-1.5 py-1 text-left font-semibold text-[hsl(var(--badge-upcoming-fg))] md:px-2">{tx.saturday}</th>
+                            <th className="w-1/2 bg-[hsl(var(--badge-ongoing-bg))] px-1.5 py-1 text-left font-semibold text-[hsl(var(--badge-ongoing-fg))] md:px-2">{tx.sunday}</th>
                           </tr>
                         </thead>
                         <tbody>
                           {viikonloppuRivit.length === 0 ? (
                             <tr className="border-t border-[hsl(var(--border))]/45">
-                              <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-2 py-1.5 text-[hsl(var(--badge-upcoming-fg))]">-</td>
-                              <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-2 py-1.5 text-[hsl(var(--badge-ongoing-fg))]">-</td>
+                              <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-1.5 py-1.5 text-[hsl(var(--badge-upcoming-fg))] md:px-2">-</td>
+                              <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-1.5 py-1.5 text-[hsl(var(--badge-ongoing-fg))] md:px-2">-</td>
                             </tr>
                           ) : (
                             viikonloppuRivit.map((row, idx) => (
                               <tr key={`${group.key}-weekend-${idx}`} className="border-t border-[hsl(var(--border))]/45">
-                                <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-2 py-1.5 align-top">
+                                <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-1.5 py-1.5 align-top md:px-2">
                                   {row.lauantai ? (
                                     <div className="space-y-0.5">
-                                      <div className="font-semibold text-[hsl(var(--foreground))]">{row.lauantai.time || '—'}</div>
-                                      <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{row.lauantai.layoutLabel || '—'}{row.lauantai.sessionLabel ? ` · ${row.lauantai.sessionLabel}` : ''}</div>
+                                      <div className="font-semibold leading-tight text-[hsl(var(--foreground))]">{row.lauantai.time || '—'}</div>
+                                      <div className="break-all text-[10px] leading-tight text-[hsl(var(--muted-foreground))] md:text-[11px]">{row.lauantai.layoutLabel || '—'}</div>
                                     </div>
                                   ) : (
                                     <span className="text-[hsl(var(--muted-foreground))]">-</span>
                                   )}
                                 </td>
-                                <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-2 py-1.5 align-top">
+                                <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-1.5 py-1.5 align-top md:px-2">
                                   {row.sunnuntai ? (
                                     <div className="space-y-0.5">
-                                      <div className="font-semibold text-[hsl(var(--foreground))]">{row.sunnuntai.time || '—'}</div>
-                                      <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{row.sunnuntai.layoutLabel || '—'}{row.sunnuntai.sessionLabel ? ` · ${row.sunnuntai.sessionLabel}` : ''}</div>
+                                      <div className="font-semibold leading-tight text-[hsl(var(--foreground))]">{row.sunnuntai.time || '—'}</div>
+                                      <div className="break-all text-[10px] leading-tight text-[hsl(var(--muted-foreground))] md:text-[11px]">{row.sunnuntai.layoutLabel || '—'}</div>
                                     </div>
                                   ) : (
                                     <span className="text-[hsl(var(--muted-foreground))]">-</span>
