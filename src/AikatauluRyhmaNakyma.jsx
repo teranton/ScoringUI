@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 
@@ -499,7 +499,6 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       classLabel: 'Class',
       clubLabel: 'Club',
       noShooter: 'No shooters in this heat.',
-      order: 'Order',
       number: 'No.',
       shooter: 'Shooter',
       searchPlaceholder: 'Search shooter...',
@@ -524,7 +523,6 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       classLabel: 'Sarja',
       clubLabel: 'Seura',
       noShooter: 'Ei ampujia tässä erässä.',
-      order: 'Järj.',
       number: 'Nro',
       shooter: 'Ampuja',
       searchPlaceholder: 'Hae ampujaa...',
@@ -830,13 +828,25 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       (group.shooters || []).some((shooter) => String(shooter.shooter || '').toLowerCase().includes(query))
     );
   }, [yhdistetytRyhmaKortit, searchQuery]);
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (combinedTab !== 'groups' || !focusedGroupKey) return;
-    const el = groupCardRefs.current.get(focusedGroupKey);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    let raf1 = 0;
+    let raf2 = 0;
+
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        const el = groupCardRefs.current.get(focusedGroupKey);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'auto', block: 'start' });
+      });
+    });
+
+    return () => {
+      if (raf1) window.cancelAnimationFrame(raf1);
+      if (raf2) window.cancelAnimationFrame(raf2);
+    };
   }, [combinedTab, focusedGroupKey, filteredYhdistetytRyhmaKortit]);
   const ryhmaJarjestysTaulukko = useMemo(() => {
     if (parsed.mode !== 'combined-schedule') {
@@ -901,7 +911,17 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
 
   const avaaRyhmanakyma = (groupLabel) => {
     const key = `group-${groupLabel}`;
+    setSearchQuery('');
     setFocusedGroupKey(key);
+
+    if (combinedTab === 'groups') {
+      const el = groupCardRefs.current.get(key);
+      if (el) {
+        el.scrollIntoView({ behavior: 'auto', block: 'start' });
+      }
+      return;
+    }
+
     setCombinedTab('groups');
   };
 
@@ -1024,20 +1044,21 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[300px] border-collapse text-xs">
                         <thead>
-                          <tr className="bg-[hsl(var(--muted))]/15 text-[hsl(var(--muted-foreground))]">
-                            <th className="w-1/2 px-2 py-1 text-left font-semibold">{tx.saturday}</th>
-                            <th className="w-1/2 px-2 py-1 text-left font-semibold">{tx.sunday}</th>
+                          <tr>
+                            <th className="w-1/2 bg-[hsl(var(--badge-upcoming-bg))] px-2 py-1 text-left font-semibold text-[hsl(var(--badge-upcoming-fg))]">{tx.saturday}</th>
+                            <th className="w-1/2 bg-[hsl(var(--badge-ongoing-bg))] px-2 py-1 text-left font-semibold text-[hsl(var(--badge-ongoing-fg))]">{tx.sunday}</th>
                           </tr>
                         </thead>
                         <tbody>
                           {viikonloppuRivit.length === 0 ? (
                             <tr className="border-t border-[hsl(var(--border))]/45">
-                              <td colSpan={2} className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">-</td>
+                              <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-2 py-1.5 text-[hsl(var(--badge-upcoming-fg))]">-</td>
+                              <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-2 py-1.5 text-[hsl(var(--badge-ongoing-fg))]">-</td>
                             </tr>
                           ) : (
                             viikonloppuRivit.map((row, idx) => (
                               <tr key={`${group.key}-weekend-${idx}`} className="border-t border-[hsl(var(--border))]/45">
-                                <td className="px-2 py-1.5 align-top">
+                                <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-2 py-1.5 align-top">
                                   {row.lauantai ? (
                                     <div className="space-y-0.5">
                                       <div className="font-semibold text-[hsl(var(--foreground))]">{row.lauantai.time || '—'}</div>
@@ -1047,7 +1068,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                                     <span className="text-[hsl(var(--muted-foreground))]">-</span>
                                   )}
                                 </td>
-                                <td className="px-2 py-1.5 align-top">
+                                <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-2 py-1.5 align-top">
                                   {row.sunnuntai ? (
                                     <div className="space-y-0.5">
                                       <div className="font-semibold text-[hsl(var(--foreground))]">{row.sunnuntai.time || '—'}</div>
@@ -1069,7 +1090,6 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                     <table className="w-full border-collapse text-xs">
                       <thead>
                         <tr className="bg-[hsl(var(--muted))]/15 text-[hsl(var(--muted-foreground))]">
-                          <th className="w-10 px-2 py-1 text-left font-semibold">{tx.order}</th>
                           <th className="w-12 px-2 py-1 text-left font-semibold">{tx.number}</th>
                           <th className="px-2 py-1 text-left font-semibold">{tx.shooter}</th>
                           {naytaSarjaSarake && <th className="w-14 px-2 py-1 text-left font-semibold">{tx.classLabel}</th>}
@@ -1077,15 +1097,18 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                         </tr>
                       </thead>
                       <tbody>
-                        {group.shooters.map((shooter, idx) => (
-                          <tr key={`${group.key}-shooter-${idx}`} className="border-t border-[hsl(var(--border))]/45">
-                            <td className="px-2 py-1.5 font-mono text-[hsl(var(--muted-foreground))]">{idx + 1}.</td>
+                        {group.shooters.map((shooter, idx) => {
+                          const highlighted = normalizedSearchQuery
+                            && String(shooter.shooter || '').toLowerCase().includes(normalizedSearchQuery);
+                          return (
+                          <tr key={`${group.key}-shooter-${idx}`} className={`border-t border-[hsl(var(--border))]/45 ${highlighted ? 'bg-[hsl(var(--primary))]/10' : ''}`}>
                             <td className="px-2 py-1.5 font-mono">{shooter.number || '-'}</td>
                             <td className="px-2 py-1.5 font-medium text-[hsl(var(--foreground))]">{shooter.shooter}</td>
                             {naytaSarjaSarake && <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.className || '—'}</td>}
                             {naytaSeuraSarake && <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.club || '—'}</td>}
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1200,7 +1223,6 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                           <table className="w-full border-collapse text-xs">
                             <thead>
                               <tr className="bg-[hsl(var(--muted))]/15 text-[hsl(var(--muted-foreground))]">
-                                <th className="w-10 px-2 py-1 text-left font-semibold">{tx.order}</th>
                                 <th className="w-12 px-2 py-1 text-left font-semibold">{tx.number}</th>
                                 <th className="px-2 py-1 text-left font-semibold">{tx.shooter}</th>
                                 {naytaSarjaSarake && <th className="w-14 px-2 py-1 text-left font-semibold">{tx.classLabel}</th>}
@@ -1210,9 +1232,10 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                             <tbody>
                               {heat.shooters.map((shooter, idx) => {
                                 const laneLogo = laneLogoMap.get(shooter.lane);
+                                const highlighted = normalizedSearchQuery
+                                  && String(shooter.shooter || '').toLowerCase().includes(normalizedSearchQuery);
                                 return (
-                                  <tr key={`${heat.id}-row-${idx}`} className="border-t border-[hsl(var(--border))]/45">
-                                    <td className="px-2 py-1.5 font-mono text-[hsl(var(--muted-foreground))]">{idx + 1}.</td>
+                                  <tr key={`${heat.id}-row-${idx}`} className={`border-t border-[hsl(var(--border))]/45 ${highlighted ? 'bg-[hsl(var(--primary))]/10' : ''}`}>
                                     <td className="px-2 py-1.5 font-mono">{shooter.number || '-'}</td>
                                     <td className="px-2 py-1.5 font-medium text-[hsl(var(--foreground))]">{shooter.shooter}</td>
                                     {naytaSarjaSarake && <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.className || '—'}</td>}
