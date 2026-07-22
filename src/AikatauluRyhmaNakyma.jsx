@@ -486,7 +486,9 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
   const [searchQuery, setSearchQuery] = useState('');
   const [combinedTab, setCombinedTab] = useState('groups');
   const [focusedGroupKey, setFocusedGroupKey] = useState('');
+  const [focusedOrderKey, setFocusedOrderKey] = useState('');
   const groupCardRefs = useRef(new Map());
+  const orderButtonRefs = useRef(new Map());
   const tx = locale === 'en'
     ? {
       title: 'Heat Schedule',
@@ -510,7 +512,8 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       orderTab: 'Order',
       orderOnlyTitle: 'Group Order',
       noOrderRows: 'No order rows found.',
-      openGroup: 'Open group view'
+      openGroup: 'Open group view',
+      openOrder: 'Open in order view'
     }
     : {
       title: 'Eräluettelo',
@@ -534,8 +537,17 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       orderTab: 'Järjestys',
       orderOnlyTitle: 'Ryhmien järjestys',
       noOrderRows: 'Järjestysrivejä ei löytynyt.',
-      openGroup: 'Avaa ryhmänäkymä'
+      openGroup: 'Avaa ryhmänäkymä',
+      openOrder: 'Avaa järjestysnäkymässä'
     };
+
+  const muodostaOrderKey = (dayKey, time, layoutLabel, groupLabel) => {
+    const day = String(dayKey || '').trim();
+    const t = String(time || '').trim();
+    const layout = String(layoutLabel || '').trim();
+    const group = String(groupLabel || '').trim();
+    return `${day}|${t}|${layout}|${group}`;
+  };
 
   const parsed = useMemo(() => {
     const rows = parseCsvRows(rawCsv || '');
@@ -798,6 +810,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
 
           byGroup.get(groupKey).scheduleRows.push({
             id: heat.id,
+            dayKey: heat.dayKey,
             dayNumber: section.dayNumber,
             dayLabel: section.label,
             sessionLabel: session.shortLabel || session.label || '',
@@ -848,6 +861,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       if (raf2) window.cancelAnimationFrame(raf2);
     };
   }, [combinedTab, focusedGroupKey, filteredYhdistetytRyhmaKortit]);
+
   const ryhmaJarjestysTaulukko = useMemo(() => {
     if (parsed.mode !== 'combined-schedule') {
       return { dayTables: [] };
@@ -894,7 +908,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
             time: row.time,
             layouts: layoutOrder.map((layoutLabel) => ({
               layoutLabel,
-              groups: (row.byLayout.get(layoutLabel) || []).slice().sort((a, b) => Number(a) - Number(b))
+              groups: Array.from(new Set((row.byLayout.get(layoutLabel) || []).slice().sort((a, b) => Number(a) - Number(b))))
             }))
           }));
 
@@ -908,6 +922,25 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       })
     };
   }, [parsed.mode, visibleDaySections]);
+
+  useLayoutEffect(() => {
+    if (combinedTab !== 'order' || !focusedOrderKey) return;
+    let raf1 = 0;
+    let raf2 = 0;
+
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        const el = orderButtonRefs.current.get(focusedOrderKey);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+      });
+    });
+
+    return () => {
+      if (raf1) window.cancelAnimationFrame(raf1);
+      if (raf2) window.cancelAnimationFrame(raf2);
+    };
+  }, [combinedTab, focusedOrderKey, ryhmaJarjestysTaulukko]);
 
   const avaaRyhmanakyma = (groupLabel) => {
     const key = `group-${groupLabel}`;
@@ -923,6 +956,22 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
     }
 
     setCombinedTab('groups');
+  };
+
+  const avaaJarjestysNakyma = (slot, groupLabel) => {
+    if (!slot) return;
+    const orderKey = muodostaOrderKey(slot.dayKey, slot.time, slot.layoutLabel, groupLabel);
+    setFocusedOrderKey(orderKey);
+
+    if (combinedTab === 'order') {
+      const el = orderButtonRefs.current.get(orderKey);
+      if (el) {
+        el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+      }
+      return;
+    }
+
+    setCombinedTab('order');
   };
 
   return (
@@ -969,6 +1018,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                   onClick={() => {
                     setCombinedTab('groups');
                     setFocusedGroupKey('');
+                    setFocusedOrderKey('');
                   }}
                   className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${combinedTab === 'groups' ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]' : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
                 >
@@ -976,7 +1026,11 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCombinedTab('order')}
+                  onClick={() => {
+                    setCombinedTab('order');
+                    setFocusedGroupKey('');
+                    setFocusedOrderKey('');
+                  }}
                   className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${combinedTab === 'order' ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]' : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
                 >
                   {tx.orderTab}
@@ -1060,20 +1114,30 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                               <tr key={`${group.key}-weekend-${idx}`} className="border-t border-[hsl(var(--border))]/45">
                                 <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-1.5 py-1.5 align-top md:px-2">
                                   {row.lauantai ? (
-                                    <div className="truncate text-[10px] leading-tight text-[hsl(var(--foreground))] md:text-[11px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => avaaJarjestysNakyma(row.lauantai, group.groupLabel)}
+                                      className="w-full truncate text-left text-[10px] leading-tight text-[hsl(var(--foreground))] hover:underline md:text-[11px]"
+                                      title={tx.openOrder}
+                                    >
                                       <span className="font-semibold">{row.lauantai.time || '—'}</span>
                                       <span className="text-[hsl(var(--muted-foreground))]">{` · ${row.lauantai.layoutLabel || '—'}`}</span>
-                                    </div>
+                                    </button>
                                   ) : (
                                     <span className="text-[hsl(var(--muted-foreground))]">-</span>
                                   )}
                                 </td>
                                 <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-1.5 py-1.5 align-top md:px-2">
                                   {row.sunnuntai ? (
-                                    <div className="truncate text-[10px] leading-tight text-[hsl(var(--foreground))] md:text-[11px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => avaaJarjestysNakyma(row.sunnuntai, group.groupLabel)}
+                                      className="w-full truncate text-left text-[10px] leading-tight text-[hsl(var(--foreground))] hover:underline md:text-[11px]"
+                                      title={tx.openOrder}
+                                    >
                                       <span className="font-semibold">{row.sunnuntai.time || '—'}</span>
                                       <span className="text-[hsl(var(--muted-foreground))]">{` · ${row.sunnuntai.layoutLabel || '—'}`}</span>
-                                    </div>
+                                    </button>
                                   ) : (
                                     <span className="text-[hsl(var(--muted-foreground))]">-</span>
                                   )}
@@ -1159,17 +1223,25 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                                           {layoutCell.groups.length > 0
                                             ? (
                                               <div className="flex flex-wrap gap-1">
-                                                {layoutCell.groups.map((groupLabel) => (
+                                                {layoutCell.groups.map((groupLabel, groupIdx) => {
+                                                  const orderKey = muodostaOrderKey(dayTable.key, row.time, layoutCell.layoutLabel, groupLabel);
+                                                  const highlighted = focusedOrderKey === orderKey;
+                                                  return (
                                                   <button
-                                                    key={`${dayTable.key}-${row.time}-${layoutCell.layoutLabel}-${groupLabel}`}
+                                                    key={`${dayTable.key}-${row.time}-${layoutCell.layoutLabel}-${groupLabel}-${groupIdx}`}
                                                     type="button"
                                                     onClick={() => avaaRyhmanakyma(groupLabel)}
-                                                    className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-1.5 py-0.5 text-[11px] font-semibold text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))]/45 hover:bg-[hsl(var(--primary))]/10"
+                                                    ref={(node) => {
+                                                      if (node) orderButtonRefs.current.set(orderKey, node);
+                                                      else orderButtonRefs.current.delete(orderKey);
+                                                    }}
+                                                    className={`rounded border px-1.5 py-0.5 text-[11px] font-semibold ${highlighted ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/15 text-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary))]/30' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))]/45 hover:bg-[hsl(var(--primary))]/10'}`}
                                                     title={tx.openGroup}
                                                   >
                                                     {tx.group} {groupLabel}
                                                   </button>
-                                                ))}
+                                                  );
+                                                })}
                                               </div>
                                             )
                                             : '-'}
