@@ -82,7 +82,7 @@ function getOrderDayClasses(dayNumber, dayLabel) {
     return {
       title: 'text-[hsl(var(--primary))]',
       container: 'border-[hsl(var(--primary))]/30 bg-[hsl(var(--primary))]/[0.03]',
-      header: 'bg-[hsl(var(--primary))]/12 text-[hsl(var(--primary))]'
+      header: 'bg-[hsl(var(--badge-upcoming-bg))] text-[hsl(var(--badge-upcoming-fg))]'
     };
   }
 
@@ -90,7 +90,7 @@ function getOrderDayClasses(dayNumber, dayLabel) {
     return {
       title: 'text-[hsl(var(--score-second-fg))]',
       container: 'border-[hsl(var(--score-second-fg))]/30 bg-[hsl(var(--score-second-fg))]/[0.03]',
-      header: 'bg-[hsl(var(--score-second-fg))]/12 text-[hsl(var(--score-second-fg))]'
+      header: 'bg-[hsl(var(--badge-ongoing-bg))] text-[hsl(var(--badge-ongoing-fg))]'
     };
   }
 
@@ -108,25 +108,25 @@ function getLayoutColumnClasses(layoutLabel, index) {
 
   if (isOne) {
     return {
-      head: 'bg-[hsl(var(--primary))]/8 text-[hsl(var(--primary))]',
+      head: 'bg-[hsl(var(--badge-upcoming-bg))]/70 text-[hsl(var(--badge-upcoming-fg))]',
       cell: 'bg-[hsl(var(--primary))]/[0.04]'
     };
   }
 
   if (isTwo) {
     return {
-      head: 'bg-[hsl(var(--score-second-fg))]/10 text-[hsl(var(--score-second-fg))]',
+      head: 'bg-[hsl(var(--badge-ongoing-bg))]/70 text-[hsl(var(--badge-ongoing-fg))]',
       cell: 'bg-[hsl(var(--score-second-fg))]/[0.04]'
     };
   }
 
   const fallback = [
     {
-      head: 'bg-[hsl(var(--status-ready))]/10 text-[hsl(var(--status-ready))]',
+      head: 'bg-[hsl(var(--status-neutral-bg))] text-[hsl(var(--status-neutral-fg))]',
       cell: 'bg-[hsl(var(--status-ready))]/[0.04]'
     },
     {
-      head: 'bg-[hsl(var(--rank-1))]/12 text-[hsl(var(--rank-1))]',
+      head: 'bg-[hsl(var(--badge-paused-bg))] text-[hsl(var(--badge-paused-fg))]',
       cell: 'bg-[hsl(var(--rank-1))]/[0.05]'
     }
   ];
