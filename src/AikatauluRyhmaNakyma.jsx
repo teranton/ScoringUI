@@ -1060,9 +1060,9 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                               <tr key={`${group.key}-weekend-${idx}`} className="border-t border-[hsl(var(--border))]/45">
                                 <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-1.5 py-1.5 align-top md:px-2">
                                   {row.lauantai ? (
-                                    <div className="space-y-0.5">
-                                      <div className="font-semibold leading-tight text-[hsl(var(--foreground))]">{row.lauantai.time || '—'}</div>
-                                      <div className="break-all text-[10px] leading-tight text-[hsl(var(--muted-foreground))] md:text-[11px]">{row.lauantai.layoutLabel || '—'}</div>
+                                    <div className="truncate text-[10px] leading-tight text-[hsl(var(--foreground))] md:text-[11px]">
+                                      <span className="font-semibold">{row.lauantai.time || '—'}</span>
+                                      <span className="text-[hsl(var(--muted-foreground))]">{` · ${row.lauantai.layoutLabel || '—'}`}</span>
                                     </div>
                                   ) : (
                                     <span className="text-[hsl(var(--muted-foreground))]">-</span>
@@ -1070,9 +1070,9 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                                 </td>
                                 <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-1.5 py-1.5 align-top md:px-2">
                                   {row.sunnuntai ? (
-                                    <div className="space-y-0.5">
-                                      <div className="font-semibold leading-tight text-[hsl(var(--foreground))]">{row.sunnuntai.time || '—'}</div>
-                                      <div className="break-all text-[10px] leading-tight text-[hsl(var(--muted-foreground))] md:text-[11px]">{row.sunnuntai.layoutLabel || '—'}</div>
+                                    <div className="truncate text-[10px] leading-tight text-[hsl(var(--foreground))] md:text-[11px]">
+                                      <span className="font-semibold">{row.sunnuntai.time || '—'}</span>
+                                      <span className="text-[hsl(var(--muted-foreground))]">{` · ${row.sunnuntai.layoutLabel || '—'}`}</span>
                                     </div>
                                   ) : (
                                     <span className="text-[hsl(var(--muted-foreground))]">-</span>
