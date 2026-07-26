@@ -737,8 +737,24 @@ useEffect(() => {
   const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
   const onkoDataValimuistissa = Boolean(kisaCacheRef.current[sheetId]);
   const cacheData = kisaCacheRef.current[sheetId] || null;
+  const henkilotCsvVirheellinen = !cacheData?.henkilotCsvRaw
+    || String(cacheData.henkilotCsvRaw).trim().length < 10
+    || String(cacheData.henkilotCsvRaw).toLowerCase().includes('html')
+    || String(cacheData.henkilotCsvRaw).toLowerCase().includes('error');
+  const joukkueetCsvVirheellinen = !cacheData?.joukkueetCsvRaw
+    || String(cacheData.joukkueetCsvRaw).trim().length < 10
+    || String(cacheData.joukkueetCsvRaw).toLowerCase().includes('html')
+    || String(cacheData.joukkueetCsvRaw).toLowerCase().includes('error');
+  const speksitCsvVirheellinen = !cacheData?.speksitCsvRaw
+    || String(cacheData.speksitCsvRaw).trim().length < 2
+    || String(cacheData.speksitCsvRaw).toLowerCase().includes('html')
+    || String(cacheData.speksitCsvRaw).toLowerCase().includes('error');
   const puuttuuMonipaivainenAikatauluCache = !onkoStaattinen && onkoDataValimuistissa
     && (cacheData?.aikatauluLaCsvRaw === undefined || cacheData?.aikatauluSuCsvRaw === undefined);
+  const puuttuuPakollistaKisaDataa = !onkoDataValimuistissa
+    || henkilotCsvVirheellinen
+    || joukkueetCsvVirheellinen
+    || speksitCsvVirheellinen;
 
   async function haeYhdistettyKisaData() {
     if (fetchInFlightRef.current[sheetId]) return;
@@ -818,7 +834,7 @@ useEffect(() => {
 
   // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
   // Päättyneessä kisassa vältetään turha lisähaku, jos data on jo välimuistissa.
-  if (!onkoStaattinen || !onkoDataValimuistissa || puuttuuMonipaivainenAikatauluCache) {
+  if (!onkoStaattinen || puuttuuPakollistaKisaDataa || puuttuuMonipaivainenAikatauluCache) {
     haeYhdistettyKisaData();
   }
 
