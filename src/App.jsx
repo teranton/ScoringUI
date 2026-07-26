@@ -172,15 +172,15 @@ function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData) {
   const oletus = laskeKisanStatusJaTyyli(alkuStr, loppuStr);
 
   // Date-active competitions are controlled by sheet status flag.
-  if (oletus.status !== 'kaynnissa') return oletus;
-
   const override = haeStatusOverrideSpekseista(speksitData);
-  if (!override) {
-    return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-  }
-
   if (override === 'paattynyt') {
     return { teksti: 'Päättynyt', tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
+  }
+
+  if (oletus.status !== 'kaynnissa') return oletus;
+
+  if (!override) {
+    return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
   }
   if (override === 'kaynnissa') {
     return { teksti: 'Käynnissä', tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
