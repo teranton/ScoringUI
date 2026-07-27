@@ -241,10 +241,16 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
     // Luodaan lista radoista dynaamisesti (esim. [1, 2, 3, 4, 5, 6, 7, 8])
     const kaikkiRadat = Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1);
     
-    // Jos ratoja on enemmän kuin 12 (kuten 24 erän kisoissa), jaetaan ne edelleen kahteen riviin mobiilia varten
-    const rivit = speksit.ratojenMaara > 12 
-      ? [kaikkiRadat.slice(0, 12), kaikkiRadat.slice(12)]
-      : [kaikkiRadat];
+    // Käytetään samaa logiikkaa kuin HenkiloTulokset: pienet määrät yhdelle riville, suuremmat kahdelle
+    const tavoiteRivit = kaikkiRadat.length > 12 ? 2 : 1;
+    const laskettuSarakkeet = Math.ceil(kaikkiRadat.length / tavoiteRivit);
+    const sarakkeet = Math.max(2, Math.min(12, laskettuSarakkeet));
+    
+    // Jaetaan radot riveihin sarakkeiden perusteella
+    const rivit = [];
+    for (let i = 0; i < kaikkiRadat.length; i += sarakkeet) {
+      rivit.push(kaikkiRadat.slice(i, i + sarakkeet));
+    }
     
     return (
       <div className="flex flex-col gap-2 overflow-x-auto">
