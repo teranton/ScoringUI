@@ -39,14 +39,14 @@ export default function MateriaaliNakyma({ specsCsv, locale = 'fi' }) {
       empty: 'No additional instructions available.',
       pdf: 'PDF document',
       link: 'Website / Link',
-      previewHint: 'Click to open preview'
+      previewHint: 'Click to open the link'
     }
     : {
       title: 'Viralliset materiaalit ja ohjeet',
       empty: 'Ei lisäohjeita saatavilla.',
       pdf: 'PDF-dokumentti',
       link: 'Verkkosivu / Linkki',
-      previewHint: 'Klikkaa avataksesi esikatselun'
+      previewHint: 'Klikkaa avataksesi linkin'
     };
 
   const guides = useMemo(() => {

@@ -1,6 +1,24 @@
 import { useMemo, useState } from 'react';
 import { ExternalLink, FileText, MapPin, X } from 'lucide-react';
 
+function isEmbeddingAllowed(rawUrl) {
+  const value = String(rawUrl || '').trim();
+  if (!value) return false;
+
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+
+    if (host.includes('drive.google.com') || host.includes('docs.google.com')) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function toDriveOrDocsPreviewUrl(rawUrl) {
   const value = String(rawUrl || '').trim();
   if (!value) return value;
@@ -46,14 +64,24 @@ function toDriveOrDocsPreviewUrl(rawUrl) {
 export default function EsikatseltavaMateriaali({ title, url, description, typeLabel, iconType = 'file' }) {
   const [isOpen, setIsOpen] = useState(false);
   const embedUrl = useMemo(() => toDriveOrDocsPreviewUrl(url), [url]);
+  const canEmbed = useMemo(() => isEmbeddingAllowed(url), [url]);
 
   const LeadingIcon = iconType === 'map' ? MapPin : FileText;
+
+  const handleOpen = () => {
+    if (!canEmbed) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    setIsOpen(true);
+  };
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={handleOpen}
         className="group flex w-full items-center justify-between rounded-xl border border-[hsl(var(--border))]/70 bg-[hsl(var(--card))] p-3.5 text-left shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all hover:border-[hsl(var(--primary))]/30 hover:bg-[hsl(var(--muted))]/20"
       >
         <div className="flex min-w-0 items-center gap-3">
@@ -113,12 +141,26 @@ export default function EsikatseltavaMateriaali({ title, url, description, typeL
             </div>
 
             <div className="flex-1 bg-[hsl(var(--muted))]/5">
-              <iframe
-                src={embedUrl}
-                className="h-full w-full border-none"
-                title={title}
-                allow="autoplay"
-              />
+              {canEmbed ? (
+                <iframe
+                  src={embedUrl}
+                  className="h-full w-full border-none"
+                  title={title}
+                  allow="autoplay"
+                />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                  <p>Tämä linkki ei ole upotettavissa tähän näkymään.</p>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md bg-[hsl(var(--primary))] px-3 py-2 text-sm font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
+                  >
+                    Avaa sivu uudessa välilehdessä
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
