@@ -610,7 +610,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                   <div key={`match-${idx}`} className="flex items-center justify-between gap-3 p-2 rounded-md border border-[hsl(var(--border))]/60 bg-[hsl(var(--card))] text-xs shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono font-bold text-[hsl(var(--foreground))] bg-[hsl(var(--muted))] px-1.5 py-0.5 rounded shrink-0">{match.time}</span>
-                      <span className="font-medium truncate text-[hsl(var(--foreground))]">{match.shooter}</span>
+                      <span translate="no" className="font-medium truncate text-[hsl(var(--foreground))]">{match.shooter}</span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {match.number && <span className="font-mono text-[10px] text-[hsl(var(--muted-foreground))] bg-[hsl(var(--muted))]/60 px-1 py-0.5 rounded">#{match.number}</span>}
@@ -842,7 +842,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                                     className={`block min-w-0 flex-1 truncate rounded-sm px-1 text-[11px] tracking-wide ${isAssigned ? (hasHiddenMarker ? 'font-semibold bg-[hsl(var(--status-alert-bg))] text-[hsl(var(--status-alert-fg))] ring-1 ring-[hsl(var(--status-missing)/0.28)]' : 'font-medium text-[hsl(var(--foreground))]') : 'italic text-[hsl(var(--muted-foreground))] opacity-35'}`}
                                     title={hasHiddenMarker ? txMobile.hiddenMarkerTitle : undefined}
                                   >
-                                    {cleanedShooter || '-'}
+                                    <span translate="no">{cleanedShooter || '-'}</span>
                                   </span>
                                 </div>
                               </div>

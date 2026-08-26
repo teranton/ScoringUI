@@ -1167,9 +1167,9 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                           return (
                           <tr key={`${group.key}-shooter-${idx}`} className={`border-t border-[hsl(var(--border))]/45 ${highlighted ? 'bg-[hsl(var(--primary))]/10' : ''}`}>
                             <td className="px-2 py-1.5 font-mono">{shooter.number || '-'}</td>
-                            <td className="px-2 py-1.5 font-medium text-[hsl(var(--foreground))]">{shooter.shooter}</td>
-                            {naytaSarjaSarake && <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.className || '—'}</td>}
-                            {naytaSeuraSarake && <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.club || '—'}</td>}
+                            <td translate="no" className="px-2 py-1.5 font-medium text-[hsl(var(--foreground))]">{shooter.shooter}</td>
+                            {naytaSarjaSarake && <td translate="no" className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.className || '—'}</td>}
+                            {naytaSeuraSarake && <td translate="no" className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.club || '—'}</td>}
                           </tr>
                           );
                         })}
@@ -1309,11 +1309,11 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                                 return (
                                   <tr key={`${heat.id}-row-${idx}`} className={`border-t border-[hsl(var(--border))]/45 ${highlighted ? 'bg-[hsl(var(--primary))]/10' : ''}`}>
                                     <td className="px-2 py-1.5 font-mono">{shooter.number || '-'}</td>
-                                    <td className="px-2 py-1.5 font-medium text-[hsl(var(--foreground))]">{shooter.shooter}</td>
-                                    {naytaSarjaSarake && <td className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.className || '—'}</td>}
+                                    <td translate="no" className="px-2 py-1.5 font-medium text-[hsl(var(--foreground))]">{shooter.shooter}</td>
+                                    {naytaSarjaSarake && <td translate="no" className="px-2 py-1.5 text-[hsl(var(--muted-foreground))]">{shooter.className || '—'}</td>}
                                     {naytaSeuraSarake && <td className="px-2 py-1.5">
                                       <div className="flex items-center gap-1.5">
-                                        <span className="truncate">{shooter.club || shooter.lane || '-'}</span>
+                                        <span translate="no" className="truncate">{shooter.club || shooter.lane || '-'}</span>
                                         {(!shooter.club && laneLogo) && (
                                           laneLogo.href ? (
                                             <a href={laneLogo.href} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:opacity-75 transition-opacity">

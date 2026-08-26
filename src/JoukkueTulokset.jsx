@@ -369,7 +369,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
                         {joukkueAlkio.sijoitus}
                       </span>
                       <div className="flex flex-1 flex-col gap-1">
-                        <span className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                        <span translate="no" className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                           {joukkueAlkio.joukkue}
                           <span className="text-xs text-slate-400">{onAuki ? '▼' : '▶'}</span>
                           {naytaValmiusIndikaattori && (
@@ -408,7 +408,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
                           <Card key={ampuja.id} className="border-slate-200">
                             <CardContent className="space-y-2 p-3">
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-semibold text-slate-700">• {ampuja.nimi}</span>
+                              <span translate="no" className="text-sm font-semibold text-slate-700">• {ampuja.nimi}</span>
                               <span className="font-mono text-sm font-bold text-slate-900">{tx.total}: {ampuja.kokonaistulos}</span>
                             </div>
                             {renderöiEräTaulukko(ampuja.erat, false)}

@@ -1109,7 +1109,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                             style={stickyNameStyle}
                           >
                             <div className="flex items-center gap-1.5 overflow-hidden w-full h-full align-middle">
-                              <span className="truncate">{muotoileNimiTaulukkoon(ampuja.nimi)}</span>
+                              <span translate="no" className="truncate">{muotoileNimiTaulukkoon(ampuja.nimi)}</span>
                               {naytaValmiusIndikaattori && (
                                 <span
                                   className={cn(
@@ -1132,7 +1132,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
                           {!kaytaKompaktiTilaa && (
                             <td className={cn('bg-white group-hover:bg-slate-50/30 text-left text-xs md:text-sm text-slate-700 border-r border-slate-200/60 px-2 md:px-3 truncate')} style={{ width: `${clubColWidth}px` }}>
-                              {ampuja.seura || '—'}
+                              <span translate="no">{ampuja.seura || '—'}</span>
                             </td>
                           )}
 

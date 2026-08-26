@@ -126,14 +126,14 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
             <div className="divide-y divide-slate-100">
               {ryhmitellytSarjat[sarja].map((o) => (
                 <div key={o.id} className="grid grid-cols-[minmax(0,1fr)_7rem] items-center gap-3 py-2 text-sm md:grid-cols-[minmax(0,1fr)_8rem]">
-                  <span className="truncate font-medium text-slate-900">{o.nimi}</span>
+                  <span translate="no" className="truncate font-medium text-slate-900">{o.nimi}</span>
                   <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-2 text-slate-500">
                     {showCompetitionNumbers && o.kilpailuNumero && (
                       <span className="w-16 rounded bg-slate-100 px-1.5 py-0.5 text-center font-mono text-[11px] font-semibold text-slate-700">
                         {o.kilpailuNumero}
                       </span>
                     )}
-                    <span className="truncate">{o.seura || '—'}</span>
+                    <span translate="no" className="truncate">{o.seura || '—'}</span>
                   </div>
                 </div>
               ))}

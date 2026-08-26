@@ -283,7 +283,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5 pr-2">
                   <div className="flex items-center gap-1.5 break-words text-base font-bold text-slate-900">
-                    {ampuja.nimi}
+                    <span translate="no">{ampuja.nimi}</span>
                     {naytaValmiusIndikaattori && (
                       <span
                         className={cn(
@@ -296,7 +296,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Badge variant="default" className="px-2 py-0.5 text-[11px]">{ampuja.sarja}</Badge>
-                    <span className="font-medium text-slate-500">{ampuja.seura || '—'}</span>
+                    <span translate="no" className="font-medium text-slate-500">{ampuja.seura || '—'}</span>
                   </div>
                 </div>
 

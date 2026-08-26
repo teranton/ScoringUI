@@ -89,7 +89,7 @@ export default function EsikatseltavaMateriaali({ title, url, description, typeL
             <LeadingIcon className="h-5 w-5 text-[hsl(var(--primary))]" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[hsl(var(--foreground))] transition-colors group-hover:text-[hsl(var(--primary))]">
+            <p translate="no" className="truncate text-sm font-semibold text-[hsl(var(--foreground))] transition-colors group-hover:text-[hsl(var(--primary))]">
               {title}
             </p>
             {description && (
@@ -117,7 +117,7 @@ export default function EsikatseltavaMateriaali({ title, url, description, typeL
             <div className="flex items-center justify-between border-b bg-[hsl(var(--muted))]/20 px-4 py-3">
               <div className="flex min-w-0 items-center gap-2">
                 <LeadingIcon className="h-4 w-4 shrink-0 text-[hsl(var(--primary))]" />
-                <span className="max-w-xs truncate text-sm font-bold sm:max-w-md">{title}</span>
+                <span translate="no" className="max-w-xs truncate text-sm font-bold sm:max-w-md">{title}</span>
               </div>
 
               <div className="flex items-center gap-3">

@@ -1147,7 +1147,7 @@ useEffect(() => {
         >
           <CardContent className="flex items-center justify-between p-4">
             <div className="flex flex-col gap-1">
-              <div className="text-lg font-semibold text-[hsl(var(--foreground))]">{kisa.nimi}</div>
+              <div translate="no" className="text-lg font-semibold text-[hsl(var(--foreground))]">{kisa.nimi}</div>
               <div className="text-sm text-[hsl(var(--muted-foreground))]">
                 {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
               </div>
@@ -1269,7 +1269,7 @@ useEffect(() => {
           <div className="flex items-center justify-between gap-2">
             <div>
               <CardTitle className="text-2xl font-bold tracking-normal">
-                {valittuKisa.nimi} {ladataanKisaa && <Hourglass className="ml-1 inline h-4 w-4 animate-pulse text-[hsl(var(--muted-foreground))]" aria-label="Loading" />}
+                <span translate="no">{valittuKisa.nimi}</span> {ladataanKisaa && <Hourglass className="ml-1 inline h-4 w-4 animate-pulse text-[hsl(var(--muted-foreground))]" aria-label="Loading" />}
               </CardTitle>
               <CardDescription>
                 {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
