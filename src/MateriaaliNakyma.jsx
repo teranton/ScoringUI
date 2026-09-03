@@ -11,6 +11,7 @@ function onkoPdfLinkki(urlArvo) {
   const lower = teksti.toLowerCase();
   if (lower.endsWith('.pdf')) return true;
   if (lower.includes('.pdf?')) return true;
+  if (lower.includes('/export/pdf')) return true;
   if (lower.includes('/export?format=pdf')) return true;
   if (lower.includes('format=pdf')) return true;
   if (lower.includes('mime=application/pdf')) return true;
