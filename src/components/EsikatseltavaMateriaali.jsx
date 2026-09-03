@@ -45,6 +45,10 @@ function toDriveOrDocsPreviewUrl(rawUrl) {
     }
 
     if (host.includes('docs.google.com')) {
+      if (path.toLowerCase().includes('/export/pdf')) {
+        return value;
+      }
+
       const docMatch = path.match(/^\/(document|spreadsheets|presentation)\/d\/([^/]+)/);
       if (docMatch?.[1] && docMatch?.[2]) {
         return `https://docs.google.com/${docMatch[1]}/d/${docMatch[2]}/preview`;
