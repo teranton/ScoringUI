@@ -10,9 +10,7 @@ function isEmbeddingAllowed(rawUrl) {
     const host = parsed.hostname.toLowerCase();
 
     if (host.includes('drive.google.com') || host.includes('docs.google.com')) {
-      const isPdfExport = parsed.pathname.toLowerCase().includes('/export/pdf')
-        || parsed.searchParams.get('format')?.toLowerCase() === 'pdf';
-      if (isPdfExport) return false;
+      if (parsed.pathname.toLowerCase().includes('/export/pdf')) return false;
 
       return true;
     }
