@@ -339,7 +339,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
                     return (
                       <div
-                        className="grid gap-1"
+                        className="grid w-full justify-items-stretch gap-1"
                         style={{ gridTemplateColumns: `repeat(${sarakkeet}, minmax(0, 1fr))` }}
                       >
                         {sarjatParillisena.map((s, sIdx) => {
@@ -363,7 +363,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                           return (
                             <div
                               key={`${ampuja.id}-${s.numero}-${sIdx}`}
-                              className="min-w-0 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center"
+                                className="flex min-w-0 flex-col items-center justify-center rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center"
                             >
                               <div className="text-[10px] text-slate-500">S{s.numero}</div>
                               <div
