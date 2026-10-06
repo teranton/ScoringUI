@@ -221,7 +221,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
       allStagesReady: 'All stage scores are complete',
       stagesMissing: 'Some stage scores are missing',
       day: 'Day',
-      sort: 'Sort cards by',
+      sort: 'Sort by',
       total: 'Total score',
       stage: 'Stage'
     }
@@ -232,7 +232,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
       allStagesReady: 'Kaikki alitulokset valmiit',
       stagesMissing: 'Alituloksia puuttuu',
       day: 'Päivä',
-      sort: 'Järjestä kortit',
+      sort: 'Järjestä',
       total: 'Kokonaistulos',
       stage: 'Asema'
     };
