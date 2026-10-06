@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
+  laskeNaytettavatRatkoIdt,
   muodostaRatkoNakyma,
   parseAsemaSpeksitCsv
 } from './utils/henkiloTulokset';
@@ -240,14 +241,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   
   const sijoitetutAmpujat = useMemo(() => {
     const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
-    const result = laskeHenkilosijoitukset(ampujat, sarjaSuodatin);
+    const result = laskeHenkilosijoitukset(ampujat, sarjaSuodatin, speksit.ratkoPalkintoSija);
     logPerf('sijoitetutAmpujat', perfStart, {
       sarja: sarjaSuodatin,
       source: ampujat.length,
       shown: result.length
     });
     return result;
-  }, [ampujat, sarjaSuodatin]);
+  }, [ampujat, sarjaSuodatin, speksit.ratkoPalkintoSija]);
 
   const naytettavatAmpujat = useMemo(() => {
     const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
@@ -300,27 +301,18 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return result;
   }, [sijoitetutAmpujat, jarjestysSarake, jarjestysSuunta, sarjaSuodatin]);
 
-  const openRatkoRajatulos = useMemo(() => {
+  const naytaRatkoIds = useMemo(() => {
     const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
-    if (sarjaSuodatin !== 'OPEN (Y)' || sijoitetutAmpujat.length < 3) {
-      return null;
-    }
-    const kolmasTulos = parseInt(sijoitetutAmpujat[2]?.tulos, 10);
-    const result = Number.isNaN(kolmasTulos) ? null : kolmasTulos;
-    logPerf('openRatkoRajatulos', perfStart, {
+    const result = laskeNaytettavatRatkoIdt(sijoitetutAmpujat, sarjaSuodatin, speksit.ratkoPalkintoSija);
+    logPerf('naytaRatkoIds', perfStart, {
       sarja: sarjaSuodatin,
       shown: sijoitetutAmpujat.length,
-      raja: result
+      ratko: result.size
     });
     return result;
-  }, [sijoitetutAmpujat, sarjaSuodatin]);
+  }, [sijoitetutAmpujat, sarjaSuodatin, speksit.ratkoPalkintoSija]);
 
-  const onkoRatkoSallittuAmpujalle = (ampuja) => {
-    if (sarjaSuodatin !== 'OPEN (Y)' || openRatkoRajatulos === null) return true;
-    const tulosNum = parseInt(ampuja?.tulos, 10);
-    if (Number.isNaN(tulosNum)) return false;
-    return tulosNum >= openRatkoRajatulos;
-  };
+  const onkoRatkoSallittuAmpujalle = (ampuja) => naytaRatkoIds.has(ampuja?.id);
 
   const naytaRatkoSarake = naytettavatAmpujat.some((a) => {
     const onStatus = (a.ratkoNaytto?.statusEtiketit?.length || 0) > 0;

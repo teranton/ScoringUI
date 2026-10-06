@@ -3,8 +3,10 @@ import { useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
+  laskeNaytettavatRatkoIdt,
   muodostaRatkoNakyma,
-  parseAsemaSpeksitCsv
+  parseAsemaSpeksitCsv,
+  ratkoPalkintoSijaOletus
 } from './utils/henkiloTulokset';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
@@ -15,6 +17,7 @@ import { cn } from './lib/utils';
 export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
+  const [jarjestysValinta, setJarjestysValinta] = useState('total');
   const sarjaScrollRef = useRef(null);
   const sarjaDragRef = useRef({
     isDown: false,
@@ -24,9 +27,12 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   });
 
   // 1. Parsitaan asemakohtaiset speksit KISANSPEKSIT-datasta (asema, maksimi, toiseksi paras käytössä)
-  const { asemaMaksimit, asemaToiseksiParasKaytossa } = useMemo(() => {
+  const { asemaMaksimit, asemaToiseksiParasKaytossa, ratkoPalkintoSija } = useMemo(() => {
     if (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa) {
-      return parsedSpeksit;
+      return {
+        ...parsedSpeksit,
+        ratkoPalkintoSija: parsedSpeksit.ratkoPalkintoSija || ratkoPalkintoSijaOletus
+      };
     }
     return parseAsemaSpeksitCsv(speksitCsv);
   }, [parsedSpeksit, speksitCsv]);
@@ -41,7 +47,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
   const otsikkoRivi = Array.isArray(rivit[0]) ? rivit[0] : [];
   const otsikot = otsikkoRivi.map((o) => String(o || '').toUpperCase());
-  const otsikotNormalisoitu = otsikot.map((o) => o.replace(/[^A-Z0-9]/g, ''));
+  const otsikotNormalisoitu = otsikot.map((o) => o.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, ''));
 
   const etsiSarakkeenIndeksi = (ehdot) => {
     for (const ehto of ehdot) {
@@ -85,6 +91,22 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     (h) => h.startsWith('ILTAP')
   ]);
 
+  // Päiväsarakkeet: DAY1/PÄIVÄ1... tai varalla LA/SU. AP/IP ovat saman päivän puoliskoja, eivät päiviä.
+  const numeroidutPaivaSarakkeet = otsikotNormalisoitu.reduce((sarakkeet, otsikko, indeksi) => {
+    const paivaNumero = otsikko.match(/^(?:DAY|PAIVA)(\d+)$/)?.[1];
+    if (paivaNumero) sarakkeet.push({ indeksi, numero: Number(paivaNumero) });
+    return sarakkeet;
+  }, []);
+  const onkoViikonpaivaSarake = (indeksi, lyhenne, nimi) => indeksi !== -1
+    && (otsikotNormalisoitu[indeksi] === lyhenne || otsikotNormalisoitu[indeksi].startsWith(nimi));
+  const paivaSarakkeet = (numeroidutPaivaSarakkeet.length > 0
+    ? numeroidutPaivaSarakkeet
+    : [
+      onkoViikonpaivaSarake(idxLa, 'LA', 'LAUANTAI') && { indeksi: idxLa, numero: 1 },
+      onkoViikonpaivaSarake(idxSu, 'SU', 'SUNNUNTAI') && { indeksi: idxSu, numero: 2 }
+    ].filter(Boolean)
+  ).sort((a, b) => a.numero - b.numero || a.indeksi - b.indeksi);
+
   let idxTulos = etsiSarakkeenIndeksi([(h) => h === 'TULOS', (h) => h.startsWith('TULOS')]);
   if (idxTulos === -1 && idxSeura !== -1) {
     idxTulos = idxSeura + 1;
@@ -121,6 +143,10 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         tulos: row[idxTulos] || '0',
         la: idxLa !== -1 ? row[idxLa] : null,
         su: idxSu !== -1 ? row[idxSu] : null,
+        dayScores: paivaSarakkeet.map(({ indeksi, numero }) => ({
+          numero,
+          tulos: row[indeksi] ?? ''
+        })),
         ratko: idxRatko !== -1 ? row[idxRatko] : '',
         ratko2: idxRatko !== -1 ? row[idxRatko + 1] || '' : '',
         ratkoNaytto: muodostaRatkoNakyma(row[idxRatko] || '', idxRatko !== -1 ? row[idxRatko + 1] || '' : ''),
@@ -132,16 +158,60 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     }
 
     return { ampujat: parsedAmpujat, loydetytSarjat: sarjatSet };
-  }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, rivit]);
+  }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
 
-  const naytettavatAmpujat = useMemo(() => laskeHenkilosijoitukset(ampujat, sarjaSuodatin), [ampujat, sarjaSuodatin]);
-  const openRatkoRajatulos = useMemo(() => {
-    if (sarjaSuodatin !== 'OPEN (Y)' || naytettavatAmpujat.length < 3) {
-      return null;
+  const naytettavatAmpujat = useMemo(
+    () => laskeHenkilosijoitukset(ampujat, sarjaSuodatin, ratkoPalkintoSija),
+    [ampujat, ratkoPalkintoSija, sarjaSuodatin]
+  );
+  const jarjestysVaihtoehdot = useMemo(() => {
+    const paivat = new Map();
+    const radat = new Set();
+
+    for (const ampuja of naytettavatAmpujat) {
+      for (const paiva of ampuja.dayScores || []) {
+        paivat.set(paiva.numero, `${locale === 'en' ? 'Day' : 'Päivä'} ${paiva.numero}`);
+      }
+      for (const sarja of ampuja.sarjat || []) {
+        if (sarja.numero) radat.add(sarja.numero);
+      }
     }
-    const kolmasTulos = parseInt(naytettavatAmpujat[2]?.tulos, 10);
-    return Number.isNaN(kolmasTulos) ? null : kolmasTulos;
-  }, [naytettavatAmpujat, sarjaSuodatin]);
+
+    return {
+      paivat: Array.from(paivat.entries()).sort((a, b) => a[0] - b[0]),
+      radat: Array.from(radat).sort((a, b) => Number(a) - Number(b))
+    };
+  }, [locale, naytettavatAmpujat]);
+  const jarjestetytAmpujat = useMemo(() => {
+    const haeNumero = (value) => {
+      const numero = Number.parseInt(value, 10);
+      return Number.isNaN(numero) ? Number.MIN_SAFE_INTEGER : numero;
+    };
+
+    const haeJarjestysArvo = (ampuja) => {
+      if (jarjestysValinta === 'total') return haeNumero(ampuja.tulos);
+      if (jarjestysValinta.startsWith('day-')) {
+        const paivaNumero = Number.parseInt(jarjestysValinta.slice(4), 10);
+        return haeNumero(ampuja.dayScores?.find((paiva) => paiva.numero === paivaNumero)?.tulos);
+      }
+      if (jarjestysValinta.startsWith('stage-')) {
+        const stageNumero = jarjestysValinta.slice(6);
+        return haeNumero(ampuja.sarjat?.find((sarja) => sarja.numero === stageNumero)?.tulos);
+      }
+      return haeNumero(ampuja.tulos);
+    };
+
+    return [...naytettavatAmpujat].sort((a, b) => {
+      const arvoVertailu = haeJarjestysArvo(b) - haeJarjestysArvo(a);
+      if (arvoVertailu !== 0) return arvoVertailu;
+      return Number(a.laskettuSija || 0) - Number(b.laskettuSija || 0);
+    });
+  }, [jarjestysValinta, naytettavatAmpujat]);
+  const laajennaKaikkiKortit = jarjestysValinta.startsWith('stage-');
+  const naytaRatkoIds = useMemo(
+    () => laskeNaytettavatRatkoIdt(naytettavatAmpujat, sarjaSuodatin, ratkoPalkintoSija),
+    [naytettavatAmpujat, ratkoPalkintoSija, sarjaSuodatin]
+  );
 
   const tx = locale === 'en'
     ? {
@@ -149,14 +219,22 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
       noData: 'No result data.',
       missingNameColumn: 'Error: NIMI column was not found in the table.',
       allStagesReady: 'All stage scores are complete',
-      stagesMissing: 'Some stage scores are missing'
+      stagesMissing: 'Some stage scores are missing',
+      day: 'Day',
+      sort: 'Sort cards by',
+      total: 'Total score',
+      stage: 'Stage'
     }
     : {
       noResults: 'Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.',
       noData: 'Ei tulosdataa.',
       missingNameColumn: 'Virhe: NIMI-saraketta ei löytynyt taulukosta.',
       allStagesReady: 'Kaikki alitulokset valmiit',
-      stagesMissing: 'Alituloksia puuttuu'
+      stagesMissing: 'Alituloksia puuttuu',
+      day: 'Päivä',
+      sort: 'Järjestä kortit',
+      total: 'Kokonaistulos',
+      stage: 'Asema'
     };
 
   if (onkoRawVirheellinen) {
@@ -246,15 +324,31 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
           ))}
       </div>
 
+      <div className="flex items-center justify-end gap-2">
+        <label htmlFor="henkilo-tulokset-sort" className="text-xs font-semibold text-slate-500">
+          {tx.sort}
+        </label>
+        <select
+          id="henkilo-tulokset-sort"
+          value={jarjestysValinta}
+          onChange={(event) => setJarjestysValinta(event.target.value)}
+          className="max-w-[11rem] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 shadow-sm"
+        >
+          <option value="total">{tx.total}</option>
+          {jarjestysVaihtoehdot.paivat.map(([numero, label]) => (
+            <option key={`sort-day-${numero}`} value={`day-${numero}`}>{label}</option>
+          ))}
+          {jarjestysVaihtoehdot.radat.map((numero) => (
+            <option key={`sort-stage-${numero}`} value={`stage-${numero}`}>{tx.stage} {numero}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="flex flex-col gap-2">
-        {naytettavatAmpujat.map((ampuja) => {
-          const onAuki = valittuAmpujaId === ampuja.id;
+        {jarjestetytAmpujat.map((ampuja) => {
+          const onAuki = laajennaKaikkiKortit || valittuAmpujaId === ampuja.id;
           const ratkoNakyma = muodostaRatkoNakyma(ampuja.ratko, ampuja.ratko2);
-          const ampujaTulosNum = parseInt(ampuja.tulos, 10);
-          const onkoRatkoSallittu = sarjaSuodatin !== 'OPEN (Y)'
-            || openRatkoRajatulos === null
-            || (!Number.isNaN(ampujaTulosNum) && ampujaTulosNum >= openRatkoRajatulos);
-          const naytaRatko = onkoRatkoSallittu && Boolean(ratkoNakyma.teksti);
+          const naytaRatko = naytaRatkoIds.has(ampuja.id) && Boolean(ratkoNakyma.teksti);
           const naytaRatkoStatus = ratkoNakyma.statusEtiketit.length > 0;
           const ampujaValmis = onkoAmpujaValmis(ampuja);
           const sijoitusNumero = parseInt(ampuja.laskettuSija || '0', 10);
@@ -300,8 +394,17 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                   </div>
                 </div>
 
-                <div className="flex min-w-20 flex-col items-end justify-center">
+                <div className="flex min-w-20 shrink-0 flex-col items-center justify-center text-center">
                   <div className="text-xl font-black leading-none text-slate-900">{ampuja.tulos}</div>
+                  {ampuja.dayScores?.length > 0 && (
+                    <div className="mt-1 flex max-w-[8rem] flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-[10px] font-semibold text-slate-500">
+                      {ampuja.dayScores.map((dayScore, dayIndex) => (
+                        <span key={`${ampuja.id}-day-${dayScore.numero}`}>
+                          {dayIndex > 0 && ' + '}{dayScore.tulos || '—'}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {(naytaRatkoStatus || (naytaRatko && ratkoNakyma.teksti)) && (
                     <div className="mt-1 flex items-center gap-1">
