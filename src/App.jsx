@@ -10,6 +10,7 @@ import MateriaaliNakyma from './MateriaaliNakyma';
 import { parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
+import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
@@ -405,6 +406,18 @@ function onkoPreviewOverrideAktiivinen() {
   }
 }
 
+function haeKisanVuosi(kisa) {
+  const alku = parsiPaivamaara(kisa?.alkuPvm);
+  if (alku) return alku.getFullYear();
+
+  const loppu = parsiPaivamaara(kisa?.loppuPvm);
+  if (loppu) return loppu.getFullYear();
+
+  const fallback = String(kisa?.alkuPvm || kisa?.loppuPvm || '');
+  const osuma = fallback.match(/(19|20)\d{2}/);
+  return osuma ? parseInt(osuma[0], 10) : null;
+}
+
 export default function App() {
   const theme = 'default';
   const locale = 'fi';
@@ -501,6 +514,17 @@ export default function App() {
   const hiddenCompetitionOverrideEnv = String(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS ?? '').toLowerCase();
   const onkoPiilotettujenKisojenOverride = ['1', 'true', 'yes', 'on'].includes(hiddenCompetitionOverrideEnv) || onkoPreviewOverrideAktiivinen();
   const yhteysSahkoposti = String(import.meta.env.VITE_CONTACT_EMAIL || 'tt.tulospalvelu@gmail.com').trim();
+
+  const kisaStatusById = useMemo(() => {
+    const statusMap = {};
+
+    for (const kisa of kisat) {
+      const speksitRaw = kisa?.apiUrl ? (kisaCache[kisa.apiUrl]?.speksitCsvRaw || '') : '';
+      statusMap[kisa.id] = laskeKisanEfektiivinenStatus(kisa.alkuPvm, kisa.loppuPvm, speksitRaw);
+    }
+
+    return statusMap;
+  }, [kisat, kisaCache]);
 
   const avaaKisaNakyma = (kisa) => {
     trackAnalyticsEvent('competition_open', {
@@ -703,6 +727,8 @@ export default function App() {
     const loydettyKisa = kisat.find((k) => String(k.id) === hashId);
     if (!loydettyKisa) return;
 
+    // Synkronointi ulkoisesta lähteestä (URL-hash): suora linkki ja selaimen Eteenpäin-painike.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAktiivinenSivu('tulokset');
     setValittuKisa(loydettyKisa);
 
@@ -865,18 +891,6 @@ useEffect(() => {
     return `📅 ${alku} – ${loppu}`;
   };
 
-  const haeKisanVuosi = (kisa) => {
-    const alku = parsiPaivamaara(kisa?.alkuPvm);
-    if (alku) return alku.getFullYear();
-
-    const loppu = parsiPaivamaara(kisa?.loppuPvm);
-    if (loppu) return loppu.getFullYear();
-
-    const fallback = String(kisa?.alkuPvm || kisa?.loppuPvm || '');
-    const osuma = fallback.match(/(19|20)\d{2}/);
-    return osuma ? parseInt(osuma[0], 10) : null;
-  };
-
   const kuluvaVuosi = new Date().getFullYear();
 
   const kisaRyhmat = useMemo(() => {
@@ -912,49 +926,18 @@ useEffect(() => {
     return { aktiiviset, vanhat, ilmanVuotta };
   }, [kisat, kuluvaVuosi]);
 
-  useEffect(() => {
-    setAvoinnaVanhatVuodet((prev) => {
-      const next = {};
-      for (const ryhma of kisaRyhmat.vanhat) {
-        next[ryhma.vuosi] = Boolean(prev[ryhma.vuosi]);
-      }
-      return next;
-    });
-  }, [kisaRyhmat.vanhat]);
-
   const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
   const ladataanKisaa = valittuKisa?.apiUrl ? Boolean(ladataanKisaaBySheet[valittuKisa.apiUrl]) : false;
 
-  const kisaStatusById = useMemo(() => {
-    const statusMap = {};
-
-    for (const kisa of kisat) {
-      const speksitRaw = kisa?.apiUrl ? (kisaCache[kisa.apiUrl]?.speksitCsvRaw || '') : '';
-      statusMap[kisa.id] = laskeKisanEfektiivinenStatus(kisa.alkuPvm, kisa.loppuPvm, speksitRaw);
-    }
-
-    return statusMap;
-  }, [kisat, kisaCache]);
-
-  const nykyisenKisanParsitutRivit = useMemo(() => {
-    if (!nykyisenKisanData) {
-      return {
-        henkilotRows: [],
-        joukkueRows: [],
-        speksitRows: []
-      };
-    }
-
-    return {
-      henkilotRows: parseCsvRows(nykyisenKisanData.henkilotCsvRaw || ''),
-      joukkueRows: parseCsvRows(nykyisenKisanData.joukkueetCsvRaw || ''),
-      speksitRows: parseCsvRows(nykyisenKisanData.speksitCsvRaw || '')
-    };
-  }, [
-    nykyisenKisanData?.henkilotCsvRaw,
-    nykyisenKisanData?.joukkueetCsvRaw,
-    nykyisenKisanData?.speksitCsvRaw
-  ]);
+  // Riippuvuutena raaka-CSV-merkkijonot, jotta taustapäivitys ilman muutoksia ei parsi dataa uudelleen.
+  const henkilotCsvRaw = nykyisenKisanData?.henkilotCsvRaw || '';
+  const joukkueetCsvRaw = nykyisenKisanData?.joukkueetCsvRaw || '';
+  const speksitCsvRaw = nykyisenKisanData?.speksitCsvRaw || '';
+  const nykyisenKisanParsitutRivit = useMemo(() => ({
+    henkilotRows: parseCsvRows(henkilotCsvRaw),
+    joukkueRows: parseCsvRows(joukkueetCsvRaw),
+    speksitRows: parseCsvRows(speksitCsvRaw)
+  }), [henkilotCsvRaw, joukkueetCsvRaw, speksitCsvRaw]);
 
   const nykyisenKisanSpeksit = useMemo(
     () => parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
@@ -973,8 +956,10 @@ useEffect(() => {
       : laskeOnkoIlmoittautuminenPaattynyt(valittuKisa.alkuPvm))
     : true;
 
+  const aikatauluCsvRaw = nykyisenKisanData?.aikatauluCsvRaw;
+  const aikatauluLaCsvRaw = nykyisenKisanData?.aikatauluLaCsvRaw;
+  const aikatauluSuCsvRaw = nykyisenKisanData?.aikatauluSuCsvRaw;
   const aikatauluCsvList = useMemo(() => {
-    if (!nykyisenKisanData) return [];
 
     const extractAikatauluLabel = (rawCsv, fallback) => {
       const rows = parseCsvRows(rawCsv || '');
@@ -991,9 +976,9 @@ useEffect(() => {
     };
 
     const candidates = [
-      { key: 'aikataulu-main', raw: nykyisenKisanData.aikatauluCsvRaw, fallbackLabel: 'Aikataulu' },
-      { key: 'aikataulu-la', raw: nykyisenKisanData.aikatauluLaCsvRaw, fallbackLabel: 'Aikataulu La' },
-      { key: 'aikataulu-su', raw: nykyisenKisanData.aikatauluSuCsvRaw, fallbackLabel: 'Aikataulu Su' }
+      { key: 'aikataulu-main', raw: aikatauluCsvRaw, fallbackLabel: 'Aikataulu' },
+      { key: 'aikataulu-la', raw: aikatauluLaCsvRaw, fallbackLabel: 'Aikataulu La' },
+      { key: 'aikataulu-su', raw: aikatauluSuCsvRaw, fallbackLabel: 'Aikataulu Su' }
     ];
 
     return candidates
@@ -1003,23 +988,7 @@ useEffect(() => {
         raw: item.raw,
         label: extractAikatauluLabel(item.raw, item.fallbackLabel)
       }));
-  }, [
-    nykyisenKisanData?.aikatauluCsvRaw,
-    nykyisenKisanData?.aikatauluLaCsvRaw,
-    nykyisenKisanData?.aikatauluSuCsvRaw
-  ]);
-
-  useEffect(() => {
-    if (aikatauluCsvList.length === 0) {
-      if (aktiivinenAikatauluKey !== '') setAktiivinenAikatauluKey('');
-      return;
-    }
-
-    const currentExists = aikatauluCsvList.some((item) => item.key === aktiivinenAikatauluKey);
-    if (!currentExists) {
-      setAktiivinenAikatauluKey(aikatauluCsvList[0].key);
-    }
-  }, [aikatauluCsvList, aktiivinenAikatauluKey]);
+  }, [aikatauluCsvRaw, aikatauluLaCsvRaw, aikatauluSuCsvRaw]);
 
   const valittuAikatauluCsv = useMemo(
     () => aikatauluCsvList.find((item) => item.key === aktiivinenAikatauluKey) || aikatauluCsvList[0] || null,
@@ -1073,43 +1042,9 @@ useEffect(() => {
     && onkoJoukkueTuloksetSallittu
     && nykyisenKisanParsitutRivit.joukkueRows.length >= 2;
 
-  useEffect(() => {
-    if (!valittuKisa) return;
-
-    if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'aikataulu' && aktiivinenSivu !== 'materiaalit') {
-      setAktiivinenSivu(onkoIlmoittautuneita ? 'ilmoittautuneet' : (onkoAikatauluSallittu ? 'aikataulu' : (onkoMateriaaleja ? 'materiaalit' : 'ilmoittautuneet')));
-      return;
-    }
-
-    if (!onkoIlmoittautuneita && aktiivinenSivu === 'ilmoittautuneet') {
-      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet'));
-      return;
-    }
-
-    if (!onkoAikatauluSallittu && aktiivinenSivu === 'aikataulu') {
-      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : 'ilmoittautuneet');
-      return;
-    }
-
-    if (!onkoMateriaaleja && aktiivinenSivu === 'materiaalit') {
-      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet'));
-      return;
-    }
-
-    if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && !(onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') && aktiivinenSivu !== 'joukkueet' && !(onkoMateriaaleja && aktiivinenSivu === 'materiaalit')) {
-      setAktiivinenSivu('tulokset');
-      return;
-    }
-
-    if (!onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') {
-      setAktiivinenSivu('tulokset');
-      return;
-    }
-
-    if (!onkoJoukkueKisa && aktiivinenSivu === 'joukkueet') {
-      setAktiivinenSivu(onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet'));
-    }
-  }, [
+  // Jos valittu välilehti ei ole sallittu, vaihdetaan se jo renderöinnin aikana (ei ylimääräistä effect-kierrosta).
+  const seuraavaAktiivinenSivu = laskeSeuraavaAktiivinenSivu({
+    valittuKisa,
     aktiivinenSivu,
     onkoAikatauluSallittu,
     onkoIlmoittautuneita,
@@ -1118,9 +1053,11 @@ useEffect(() => {
     onkoKisaPaattynyt,
     onkoKisaTulossa,
     onkoTaulukkoSallittu,
-    onkoTuloksetSallittu,
-    valittuKisa
-  ]);
+    onkoTuloksetSallittu
+  });
+  if (seuraavaAktiivinenSivu !== aktiivinenSivu) {
+    setAktiivinenSivu(seuraavaAktiivinenSivu);
+  }
 
   if (ladataanKisalista) {
     return <div data-theme={theme} className="px-4 py-16 text-center text-[hsl(var(--muted-foreground))]">{tx.loadingRegistry}</div>;

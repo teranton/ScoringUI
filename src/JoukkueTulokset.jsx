@@ -1,5 +1,5 @@
 // src/JoukkueTulokset.jsx
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
@@ -215,24 +215,21 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
       total: 'Yht'
     };
 
-  if (onkoDataPuuttuu) {
-    return <div className="py-6 text-sm text-slate-500">{tx.loading}</div>;
-  }
-
   const sarjaNimet = useMemo(
     () => Object.keys(sarjat).sort((a, b) => a.localeCompare(b, 'fi', { sensitivity: 'base', numeric: true })),
     [sarjat]
   );
 
-  const naytettavatSarjaNimet = sarjaSuodatin === KAIKKI_SARJAT
-    ? sarjaNimet
-    : sarjaNimet.filter((sarjaNimi) => sarjaNimi === sarjaSuodatin);
+  // Jos valittua sarjaa ei enää ole datassa, näytetään kaikki sarjat.
+  const aktiivinenSarja = sarjaNimet.includes(sarjaSuodatin) ? sarjaSuodatin : KAIKKI_SARJAT;
 
-  useEffect(() => {
-    if (sarjaSuodatin !== KAIKKI_SARJAT && !sarjaNimet.includes(sarjaSuodatin)) {
-      setSarjaSuodatin(KAIKKI_SARJAT);
-    }
-  }, [sarjaNimet, sarjaSuodatin]);
+  if (onkoDataPuuttuu) {
+    return <div className="py-6 text-sm text-slate-500">{tx.loading}</div>;
+  }
+
+  const naytettavatSarjaNimet = aktiivinenSarja === KAIKKI_SARJAT
+    ? sarjaNimet
+    : sarjaNimet.filter((sarjaNimi) => sarjaNimi === aktiivinenSarja);
 
   const naytaValmiusIndikaattori = kisaStatus === 'kaynnissa';
 
@@ -306,7 +303,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
           <Button
             type="button"
             size="sm"
-            variant={sarjaSuodatin === KAIKKI_SARJAT ? 'default' : 'outline'}
+            variant={aktiivinenSarja === KAIKKI_SARJAT ? 'default' : 'outline'}
             className="h-8 px-3 text-xs font-semibold"
             onClick={() => setSarjaSuodatin(KAIKKI_SARJAT)}
           >
@@ -317,7 +314,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
               key={`sarja-suodatin-${sarjaNimi}`}
               type="button"
               size="sm"
-              variant={sarjaSuodatin === sarjaNimi ? 'default' : 'outline'}
+              variant={aktiivinenSarja === sarjaNimi ? 'default' : 'outline'}
               className="h-8 px-3 text-xs font-semibold"
               onClick={() => setSarjaSuodatin(sarjaNimi)}
             >
@@ -329,7 +326,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
 
       {naytettavatSarjaNimet.map(sarjaNimi => (
         <section key={sarjaNimi} className="space-y-3">
-          {sarjaSuodatin === KAIKKI_SARJAT && (
+          {aktiivinenSarja === KAIKKI_SARJAT && (
             <h2 className="border-b border-slate-200 pb-2 text-xl font-semibold text-slate-900">{tx.classLabel} {sarjaNimi}</h2>
           )}
           

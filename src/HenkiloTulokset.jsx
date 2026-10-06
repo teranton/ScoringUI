@@ -271,7 +271,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     container.scrollLeft = state.scrollLeft - deltaX;
   };
 
-  const onSarjaPointerUp = (event) => {
+  const onSarjaPointerUp = () => {
     sarjaDragRef.current.isDown = false;
   };
 
