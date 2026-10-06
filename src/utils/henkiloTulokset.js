@@ -1,4 +1,4 @@
-import { parseCsvRows } from './csv';
+import { parseCsvRows } from './csv.js';
 
 export function tulkitseTotuusarvo(arvo) {
   if (arvo == null) return false;
@@ -48,7 +48,11 @@ export function parseAsemaSpeksitRows(speksiRivit) {
   const asemaToiseksiParasKaytossa = {};
 
   if (!Array.isArray(speksiRivit) || speksiRivit.length === 0) {
-    return { asemaMaksimit, asemaToiseksiParasKaytossa };
+    return {
+      asemaMaksimit,
+      asemaToiseksiParasKaytossa,
+      ratkoPalkintoSija: ratkoPalkintoSijaOletus
+    };
   }
 
   const { asemaIdx, maksimiIdx, toiseksiParasIdx, headerRowIdx } = detectSpeksiColumnIndexes(speksiRivit);
@@ -73,11 +77,19 @@ export function parseAsemaSpeksitRows(speksiRivit) {
     }
   });
 
-  return { asemaMaksimit, asemaToiseksiParasKaytossa };
+  return {
+    asemaMaksimit,
+    asemaToiseksiParasKaytossa,
+    ratkoPalkintoSija: haeRatkoPalkintoSija(speksiRivit)
+  };
 }
 
 export function parseAsemaSpeksitCsv(speksitCsv) {
-  const tyhja = { asemaMaksimit: {}, asemaToiseksiParasKaytossa: {} };
+  const tyhja = {
+    asemaMaksimit: {},
+    asemaToiseksiParasKaytossa: {},
+    ratkoPalkintoSija: ratkoPalkintoSijaOletus
+  };
 
   if (!speksitCsv || typeof speksitCsv !== 'string' || speksitCsv.trim().length < 2) {
     return tyhja;
@@ -98,6 +110,34 @@ export const ratkoStatusPainot = {
   DNQ: -3,
   DSQ: -4
 };
+
+export const ratkoPalkintoSijaOletus = 3;
+
+function haeRatkoPalkintoSija(speksiRivit) {
+  const avainSanat = new Set([
+    'RATKOPALKINTOSIJA',
+    'RATKO_PALKINTO_SIJA',
+    'TIEBREAKPRIZEPLACE',
+    'TIEBREAK_PRIZE_PLACE',
+    'PALKINTOSIJA',
+    'PALKINTO_SIJA'
+  ]);
+
+  for (const rivi of speksiRivit) {
+    if (!Array.isArray(rivi)) continue;
+
+    const solut = rivi.map((solu) => String(solu || '').trim());
+    const normalisoidut = solut.map((solu) => solu.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
+    const avainIndeksi = normalisoidut.findIndex((avain) => avainSanat.has(avain));
+    if (avainIndeksi === -1) continue;
+
+    // Arvo luetaan vain avaimen viereisestä solusta; tyhjä tai virheellinen arvo -> oletus.
+    const sija = Number.parseInt(solut[avainIndeksi + 1], 10);
+    return Number.isInteger(sija) && sija > 0 ? sija : ratkoPalkintoSijaOletus;
+  }
+
+  return ratkoPalkintoSijaOletus;
+}
 
 export function puraRatkoArvo(arvo) {
   const teksti = String(arvo || '').trim().toUpperCase();
@@ -187,7 +227,11 @@ function onkoRatkoArvoAnnettu(ampuja) {
   return Boolean(ratko1 || ratko2);
 }
 
-export function laskeHenkilosijoitukset(ampujat, sarjaSuodatin = 'OPEN (Y)') {
+export function laskeHenkilosijoitukset(
+  ampujat,
+  sarjaSuodatin = 'OPEN (Y)',
+  ratkoSija = ratkoPalkintoSijaOletus
+) {
   const onKaikkiNakyma = sarjaSuodatin === 'OPEN (Y)';
   const lajiteltuLista = onKaikkiNakyma
     ? [...ampujat]
@@ -210,8 +254,8 @@ export function laskeHenkilosijoitukset(ampujat, sarjaSuodatin = 'OPEN (Y)') {
   });
 
   let aktiivinenSija = 1;
-  const top3Rajatulos = lajiteltuLista.length >= 3
-    ? parseInt(lajiteltuLista[2].tulos, 10) || 0
+  const ratkoRajatulos = lajiteltuLista.length >= ratkoSija
+    ? parseInt(lajiteltuLista[ratkoSija - 1].tulos, 10) || 0
     : 0;
 
   return lajiteltuLista.map((ampuja, index, array) => {
@@ -227,7 +271,7 @@ export function laskeHenkilosijoitukset(ampujat, sarjaSuodatin = 'OPEN (Y)') {
       const edellinenRatko2 = puraRatkoArvo(edellinen.ratko2);
       const countbackVertailu = vertaaCountbackSarjoja(ampuja, edellinen);
 
-      const onkoMukanaRatkoissa = index < 3 || tulosNum >= top3Rajatulos;
+      const onkoMukanaRatkoissa = index < ratkoSija || tulosNum >= ratkoRajatulos;
       const onkoRatkoAnnettuVertailuparille = onkoRatkoArvoAnnettu(ampuja) || onkoRatkoArvoAnnettu(edellinen);
 
       if (edellinenTulos === tulosNum) {
@@ -247,4 +291,34 @@ export function laskeHenkilosijoitukset(ampujat, sarjaSuodatin = 'OPEN (Y)') {
 
     return { ...ampuja, laskettuSija: aktiivinenSija.toString() };
   });
+}
+
+// Palauttaa niiden ampujien id:t, joiden ratkotulos näytetään.
+// Ratko näytetään vain tasatuloksessa oleville. OPEN-näkymässä lisäksi vain
+// palkintosijojen (ratkoSija) rajatuloksen saavuttaneille.
+export function laskeNaytettavatRatkoIdt(
+  sijoitetutAmpujat,
+  sarjaSuodatin = 'OPEN (Y)',
+  ratkoSija = ratkoPalkintoSijaOletus
+) {
+  const onKaikkiNakyma = sarjaSuodatin === 'OPEN (Y)';
+  const rajatulos = onKaikkiNakyma && sijoitetutAmpujat.length >= ratkoSija
+    ? parseInt(sijoitetutAmpujat[ratkoSija - 1]?.tulos, 10)
+    : NaN;
+
+  const tulosRyhmat = new Map();
+  for (const ampuja of sijoitetutAmpujat) {
+    const tulos = parseInt(ampuja.tulos, 10) || 0;
+    const ryhma = tulosRyhmat.get(tulos) || [];
+    ryhma.push(ampuja);
+    tulosRyhmat.set(tulos, ryhma);
+  }
+
+  const ids = new Set();
+  for (const [tulos, ryhma] of tulosRyhmat) {
+    if (ryhma.length < 2) continue;
+    if (!Number.isNaN(rajatulos) && tulos < rajatulos) continue;
+    for (const ampuja of ryhma) ids.add(ampuja.id);
+  }
+  return ids;
 }
