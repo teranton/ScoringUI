@@ -330,3 +330,36 @@ export function onkoMyohempiaPaivaTuloksia(ampujat) {
     (paiva) => paiva.numero > 1 && (Number.parseInt(paiva.tulos, 10) || 0) > 0
   ));
 }
+
+// Tunnistaa päiväsarakkeet normalisoiduista otsikoista (A-Z0-9, ääkköset ilman pisteitä).
+// Ensisijaisesti DAY1/PÄIVÄ1..., muuten LA/LAUANTAI = päivä 1 ja SU/SUNNUNTAI = päivä 2.
+// AP/IP ovat saman päivän puoliskoja, eivät päiviä. Alle kaksi päiväsaraketta -> yksipäiväinen kisa.
+export function tunnistaPaivaSarakkeet(otsikotNormalisoitu) {
+  const numeroidut = [];
+  otsikotNormalisoitu.forEach((otsikko, indeksi) => {
+    const paivaNumero = otsikko.match(/^(?:DAY|PAIVA)(\d+)$/)?.[1];
+    if (paivaNumero) numeroidut.push({ indeksi, numero: Number(paivaNumero) });
+  });
+
+  const etsiViikonpaiva = (lyhenne, nimi) => {
+    const tarkka = otsikotNormalisoitu.indexOf(lyhenne);
+    return tarkka !== -1 ? tarkka : otsikotNormalisoitu.findIndex((otsikko) => otsikko.startsWith(nimi));
+  };
+  const idxLa = etsiViikonpaiva('LA', 'LAUANTAI');
+  const idxSu = etsiViikonpaiva('SU', 'SUNNUNTAI');
+
+  const sarakkeet = numeroidut.length > 0
+    ? numeroidut
+    : [
+      idxLa !== -1 && { indeksi: idxLa, numero: 1 },
+      idxSu !== -1 && { indeksi: idxSu, numero: 2 }
+    ].filter(Boolean);
+
+  if (sarakkeet.length < 2) return [];
+  return sarakkeet.sort((a, b) => a.numero - b.numero || a.indeksi - b.indeksi);
+}
+
+export function normalisoiOtsikko(otsikko) {
+  return String(otsikko || '').toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]/g, '');
+}

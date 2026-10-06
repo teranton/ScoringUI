@@ -5,7 +5,9 @@ import {
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
   onkoMyohempiaPaivaTuloksia,
+  tunnistaPaivaSarakkeet,
   muodostaRatkoNakyma,
+  normalisoiOtsikko,
   parseAsemaSpeksitCsv,
   ratkoPalkintoSijaOletus
 } from './utils/henkiloTulokset';
@@ -46,9 +48,11 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     return parseCsvRows(rawCsv || '');
   }, [rawCsv, rawRows]);
 
-  const otsikkoRivi = Array.isArray(rivit[0]) ? rivit[0] : [];
-  const otsikot = otsikkoRivi.map((o) => String(o || '').toUpperCase());
-  const otsikotNormalisoitu = otsikot.map((o) => o.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, ''));
+  const otsikot = (Array.isArray(rivit[0]) ? rivit[0] : []).map((o) => String(o || '').toUpperCase());
+  const otsikotNormalisoitu = useMemo(() => {
+    const otsikkoRivi = Array.isArray(rivit[0]) ? rivit[0] : [];
+    return otsikkoRivi.map(normalisoiOtsikko);
+  }, [rivit]);
 
   const etsiSarakkeenIndeksi = (ehdot) => {
     for (const ehto of ehdot) {
@@ -92,21 +96,10 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     (h) => h.startsWith('ILTAP')
   ]);
 
-  // Päiväsarakkeet: DAY1/PÄIVÄ1... tai varalla LA/SU. AP/IP ovat saman päivän puoliskoja, eivät päiviä.
-  const numeroidutPaivaSarakkeet = otsikotNormalisoitu.reduce((sarakkeet, otsikko, indeksi) => {
-    const paivaNumero = otsikko.match(/^(?:DAY|PAIVA)(\d+)$/)?.[1];
-    if (paivaNumero) sarakkeet.push({ indeksi, numero: Number(paivaNumero) });
-    return sarakkeet;
-  }, []);
-  const onkoViikonpaivaSarake = (indeksi, lyhenne, nimi) => indeksi !== -1
-    && (otsikotNormalisoitu[indeksi] === lyhenne || otsikotNormalisoitu[indeksi].startsWith(nimi));
-  const paivaSarakkeet = (numeroidutPaivaSarakkeet.length > 0
-    ? numeroidutPaivaSarakkeet
-    : [
-      onkoViikonpaivaSarake(idxLa, 'LA', 'LAUANTAI') && { indeksi: idxLa, numero: 1 },
-      onkoViikonpaivaSarake(idxSu, 'SU', 'SUNNUNTAI') && { indeksi: idxSu, numero: 2 }
-    ].filter(Boolean)
-  ).sort((a, b) => a.numero - b.numero || a.indeksi - b.indeksi);
+  const paivaSarakkeet = useMemo(
+    () => tunnistaPaivaSarakkeet(otsikotNormalisoitu),
+    [otsikotNormalisoitu]
+  );
 
   let idxTulos = etsiSarakkeenIndeksi([(h) => h === 'TULOS', (h) => h.startsWith('TULOS')]);
   if (idxTulos === -1 && idxSeura !== -1) {

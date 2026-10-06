@@ -5,7 +5,9 @@ import {
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
   muodostaRatkoNakyma,
+  normalisoiOtsikko,
   onkoMyohempiaPaivaTuloksia,
+  tunnistaPaivaSarakkeet,
   parseAsemaSpeksitRows
 } from './henkiloTulokset.js';
 import { ratkoTapaukset } from './ratkoTapaukset.fixture.js';
@@ -63,5 +65,79 @@ for (const tapaus of paivaTapaukset) {
   test(`Päivätulokset näkyvät: ${tapaus.nimi}`, () => {
     const ampujat = tapaus.paivat.map((dayScores) => ({ dayScores }));
     assert.equal(onkoMyohempiaPaivaTuloksia(ampujat), tapaus.odotettu);
+  });
+}
+
+// Kokonaiset otsikko- ja tulosrivit kuten sheetissä. Lisää tähän oikeiden kisojen otsikoita.
+//   odotettuPaivat: tunnistetut päivänumerot
+//   naytetaan:      näytetäänkö päiväerittely korteissa ja päivävalinnat järjestyksessä
+const paivaSarakeTapaukset = [
+  {
+    nimi: 'yksipäiväinen, ei päiväsarakkeita',
+    otsikot: ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', 'TULOS', '1', '2', '3', '4'],
+    rivit: [['', '1', 'A', 'Y', 'X', '98', '25', '24', '25', '24']],
+    odotettuPaivat: [],
+    naytetaan: false
+  },
+  {
+    nimi: 'yksipäiväinen AP/IP (aamu- ja iltapäivä)',
+    otsikot: ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', 'TULOS', 'AP', 'IP'],
+    rivit: [['', '1', 'A', 'Y', 'X', '98', '49', '49']],
+    odotettuPaivat: [],
+    naytetaan: false
+  },
+  {
+    nimi: 'yksipäiväinen sunnuntaina, vain SU-sarake',
+    otsikot: ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', 'TULOS', 'SU'],
+    rivit: [['', '1', 'A', 'Y', 'X', '98', '98']],
+    odotettuPaivat: [],
+    naytetaan: false
+  },
+  {
+    nimi: 'yksipäiväinen, vain PÄIVÄ 1 -sarake',
+    otsikot: ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', 'TULOS', 'PÄIVÄ 1'],
+    rivit: [['', '1', 'A', 'Y', 'X', '98', '98']],
+    odotettuPaivat: [],
+    naytetaan: false
+  },
+  {
+    nimi: 'kaksipäiväinen LA/SU, ensimmäinen päivä käynnissä',
+    otsikot: ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', 'TULOS', 'LA', 'SU'],
+    rivit: [['', '1', 'A', 'Y', 'X', '89', '89', ''], ['', '2', 'B', 'Y', 'X', '88', '88', '0']],
+    odotettuPaivat: [1, 2],
+    naytetaan: false
+  },
+  {
+    nimi: 'kaksipäiväinen LA/SU, toinen päivä alkanut',
+    otsikot: ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', 'TULOS', 'LA', 'SU'],
+    rivit: [['', '1', 'A', 'Y', 'X', '112', '89', '23'], ['', '2', 'B', 'Y', 'X', '88', '88', '']],
+    odotettuPaivat: [1, 2],
+    naytetaan: true
+  },
+  {
+    nimi: 'kaksipäiväinen PÄIVÄ 1 / PÄIVÄ 2 ja lisäksi AP/IP',
+    otsikot: ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', 'TULOS', 'PÄIVÄ 1', 'PÄIVÄ 2', 'AP', 'IP'],
+    rivit: [['', '1', 'A', 'Y', 'X', '178', '89', '89', '45', '44']],
+    odotettuPaivat: [1, 2],
+    naytetaan: true
+  },
+  {
+    nimi: 'kolmipäiväinen DAY 1-3',
+    otsikot: ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', 'TULOS', 'DAY 1', 'DAY 2', 'DAY 3'],
+    rivit: [['', '1', 'A', 'Y', 'X', '180', '90', '90', '']],
+    odotettuPaivat: [1, 2, 3],
+    naytetaan: true
+  }
+];
+
+for (const tapaus of paivaSarakeTapaukset) {
+  test(`Päiväsarakkeet: ${tapaus.nimi}`, () => {
+    const sarakkeet = tunnistaPaivaSarakkeet(tapaus.otsikot.map(normalisoiOtsikko));
+    assert.deepEqual(sarakkeet.map((sarake) => sarake.numero), tapaus.odotettuPaivat);
+
+    const ampujat = tapaus.rivit.map((rivi) => ({
+      dayScores: sarakkeet.map(({ indeksi, numero }) => ({ numero, tulos: rivi[indeksi] ?? '' }))
+    }));
+    assert.equal(onkoMyohempiaPaivaTuloksia(ampujat), tapaus.naytetaan);
   });
 }
