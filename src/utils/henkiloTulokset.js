@@ -322,3 +322,11 @@ export function laskeNaytettavatRatkoIdt(
   }
   return ids;
 }
+
+// Päiväkohtaiset tulokset ovat hyödyllisiä vasta, kun jollakin ampujalla on
+// tulos päivältä 2 tai myöhemmältä. Ennen sitä kokonaistulos = päivän 1 tulos.
+export function onkoMyohempiaPaivaTuloksia(ampujat) {
+  return ampujat.some((ampuja) => (ampuja.dayScores || []).some(
+    (paiva) => paiva.numero > 1 && (Number.parseInt(paiva.tulos, 10) || 0) > 0
+  ));
+}

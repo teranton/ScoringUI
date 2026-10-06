@@ -5,6 +5,7 @@ import {
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
   muodostaRatkoNakyma,
+  onkoMyohempiaPaivaTuloksia,
   parseAsemaSpeksitRows
 } from './henkiloTulokset.js';
 import { ratkoTapaukset } from './ratkoTapaukset.fixture.js';
@@ -48,5 +49,19 @@ const speksiTapaukset = [
 for (const tapaus of speksiTapaukset) {
   test(`RATKO_PALKINTO_SIJA: ${tapaus.nimi}`, () => {
     assert.equal(parseAsemaSpeksitRows(tapaus.rivit).ratkoPalkintoSija, tapaus.odotettu);
+  });
+}
+
+const paivaTapaukset = [
+  { nimi: 'vain päivän 1 tuloksia', paivat: [[{ numero: 1, tulos: '89' }, { numero: 2, tulos: '' }]], odotettu: false },
+  { nimi: 'päivän 2 sarakkeessa nollia (kaavat)', paivat: [[{ numero: 1, tulos: '89' }, { numero: 2, tulos: '0' }]], odotettu: false },
+  { nimi: 'yhdellä ampujalla päivän 2 tulos', paivat: [[{ numero: 1, tulos: '89' }, { numero: 2, tulos: '' }], [{ numero: 1, tulos: '90' }, { numero: 2, tulos: '23' }]], odotettu: true },
+  { nimi: 'ei päiväsarakkeita', paivat: [[]], odotettu: false }
+];
+
+for (const tapaus of paivaTapaukset) {
+  test(`Päivätulokset näkyvät: ${tapaus.nimi}`, () => {
+    const ampujat = tapaus.paivat.map((dayScores) => ({ dayScores }));
+    assert.equal(onkoMyohempiaPaivaTuloksia(ampujat), tapaus.odotettu);
   });
 }

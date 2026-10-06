@@ -4,6 +4,7 @@ import { parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
+  onkoMyohempiaPaivaTuloksia,
   muodostaRatkoNakyma,
   parseAsemaSpeksitCsv,
   ratkoPalkintoSijaOletus
@@ -164,12 +165,14 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     () => laskeHenkilosijoitukset(ampujat, sarjaSuodatin, ratkoPalkintoSija),
     [ampujat, ratkoPalkintoSija, sarjaSuodatin]
   );
+  // Kaikista sarjoista, jotta näkymä ei vaihdu sarjasuodattimen mukaan.
+  const naytaPaivaTulokset = useMemo(() => onkoMyohempiaPaivaTuloksia(ampujat), [ampujat]);
   const jarjestysVaihtoehdot = useMemo(() => {
     const paivat = new Map();
     const radat = new Set();
 
     for (const ampuja of naytettavatAmpujat) {
-      for (const paiva of ampuja.dayScores || []) {
+      for (const paiva of naytaPaivaTulokset ? ampuja.dayScores || [] : []) {
         paivat.set(paiva.numero, `${locale === 'en' ? 'Day' : 'Päivä'} ${paiva.numero}`);
       }
       for (const sarja of ampuja.sarjat || []) {
@@ -181,7 +184,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
       paivat: Array.from(paivat.entries()).sort((a, b) => a[0] - b[0]),
       radat: Array.from(radat).sort((a, b) => Number(a) - Number(b))
     };
-  }, [locale, naytettavatAmpujat]);
+  }, [locale, naytaPaivaTulokset, naytettavatAmpujat]);
   const jarjestetytAmpujat = useMemo(() => {
     const haeNumero = (value) => {
       const numero = Number.parseInt(value, 10);
@@ -396,7 +399,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
                 <div className="flex min-w-20 shrink-0 flex-col items-center justify-center text-center">
                   <div className="text-xl font-black leading-none text-slate-900">{ampuja.tulos}</div>
-                  {ampuja.dayScores?.length > 0 && (
+                  {naytaPaivaTulokset && ampuja.dayScores?.length > 0 && (
                     <div className="mt-1 flex max-w-[8rem] flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-[10px] font-semibold text-slate-500">
                       {ampuja.dayScores.map((dayScore, dayIndex) => (
                         <span key={`${ampuja.id}-day-${dayScore.numero}`}>
