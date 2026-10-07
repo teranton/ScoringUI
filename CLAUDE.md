@@ -15,7 +15,7 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
 ## Commands
 
 - `npm ci`, `npm run dev` (needs `vercel dev` on port 3000 for `/api`), `npm test`, `npm run build`, `npm run lint`.
-- `npm run lint` currently reports existing errors; CI runs it without blocking. Don't add new ones.
+- `npm run lint` is clean and CI fails on any lint error.
 
 ## Working rules
 

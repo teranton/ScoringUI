@@ -17,6 +17,4 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      # Existing lint errors predate CI; report them without failing the build.
       - run: npm run lint
-        continue-on-error: true
