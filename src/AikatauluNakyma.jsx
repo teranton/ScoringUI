@@ -1,55 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { parseCsvRows } from './utils/csv'; // Varmista oikea polku projektissasi
+import { parseCsvRows } from './utils/csv';
+import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 
-function isPerfLoggingEnabled() {
-  const envValue = String(import.meta.env.VITE_SCORINGUI_PERF || '').trim().toLowerCase();
-  const envEnabled = envValue === '1' || envValue === 'true' || envValue === 'yes' || envValue === 'on';
-  const envDisabled = envValue === '0' || envValue === 'false' || envValue === 'no' || envValue === 'off';
-
-  if (typeof window === 'undefined') {
-    if (envEnabled) return true;
-    if (envDisabled) return false;
-    return false;
-  }
-
-  try {
-    const params = new URLSearchParams(window.location.search || '');
-    const qp = String(params.get('perf') || '').trim().toLowerCase();
-    if (qp === '1' || qp === 'true' || qp === 'yes' || qp === 'on') return true;
-    if (qp === '0' || qp === 'false' || qp === 'no' || qp === 'off') return false;
-  } catch {
-    // Ignore URL parsing failures.
-  }
-
-  if (window.__SCORINGUI_PERF__ === true) return true;
-  if (window.__SCORINGUI_PERF__ === false) return false;
-
-  try {
-    const stored = String(window.localStorage?.getItem('scoringui:perf') || '').trim().toLowerCase();
-    if (stored === '1' || stored === 'true' || stored === 'yes' || stored === 'on') return true;
-    if (stored === '0' || stored === 'false' || stored === 'no' || stored === 'off') return false;
-  } catch {
-    // Ignore storage access errors in restricted environments.
-  }
-
-  if (envEnabled) return true;
-  if (envDisabled) return false;
-
-  return false;
-}
-
-function logPerf(scope, startTime, details = {}) {
-  if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
-  const ms = performance.now() - startTime;
-  // Keep logs compact so they are easy to compare between runs.
-  console.log(`[AikatauluPerf] ${scope}: ${ms.toFixed(1)}ms`, details);
-}
+const logPerf = createPerfLogger('AikatauluPerf');
 
 // --- APUFUNKTIOT ---
-
 function normalizeHeader(value) {
   return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
@@ -171,6 +129,17 @@ function poistaNakymaattomatNimimerkit(value) {
 
 // --- PÄÄKOMPONENTTI ---
 
+function calculatePrintScale(mode, fullWidth) {
+  if (mode !== 'lane-grid') return 1;
+  if (!Number.isFinite(fullWidth) || fullWidth <= 0) return 1;
+
+  // A4 portrait printable area at common 96dpi with 4mm margins.
+  // Keep extra safety room for browser-specific print rounding (notably Firefox/Chromium differences)
+  // so the last lane column does not clip at the right edge.
+  const printableWidthPx = 710;
+  return Math.min(1, Math.max(0.4, printableWidthPx / fullWidth));
+}
+
 export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [], showGlobalSponsorLogos = true }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
@@ -223,7 +192,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
   // DATA PARSINTA
   const parsed = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     const rows = parseCsvRows(rawCsv || '');
     if (!Array.isArray(rows) || rows.length < 2) {
       logPerf('parseCsvRows(empty)', perfStart, { rows: Array.isArray(rows) ? rows.length : 0 });
@@ -320,7 +289,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
   // HAKUTOIMINTO
   const shooterMatches = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     const query = searchQuery.trim().toLowerCase();
     if (!query || parsed.mode !== 'lane-grid') return [];
     const matches = [];
@@ -340,7 +309,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
   }, [searchQuery, parsed]);
 
   const mobileLaneTimelines = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     if (parsed.mode !== 'lane-grid') return [];
 
     const timelines = parsed.laneColumns.map((lane, laneIdx) => {
@@ -388,15 +357,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     return timelines;
   }, [parsed]);
 
-  if (parsed.mode === 'empty' || (parsed.mode === 'events' && parsed.events.length === 0) || (parsed.mode === 'lane-grid' && parsed.laneRows.length === 0)) {
-    return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.empty}</div>;
-  }
-
   const title = parsed.titleSuffix ? `${tx.title} | ${parsed.titleSuffix}` : tx.title;
 
   // LEVEYDET JA GRIDIT
   const laneNameColumnWidth = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     if (parsed.mode !== 'lane-grid') return 0;
 
     let maxShooterWidth = 0;
@@ -455,7 +420,6 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
     const media = window.matchMedia('(max-width: 767px)');
     const handleChange = (e) => setIsMobileViewport(e.matches);
-    setIsMobileViewport(media.matches);
 
     if (typeof media.addEventListener === 'function') {
       media.addEventListener('change', handleChange);
@@ -467,7 +431,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
   }, []);
 
   const laneLogoMap = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     const map = new Map();
     if (parsed.mode !== 'lane-grid' || !Array.isArray(parsed.laneColumns) || sponsorLogos.length === 0) {
       return map;
@@ -497,7 +461,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
   }, [parsed, sponsorLogos]);
 
   const globalSponsorLogos = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     if (!showGlobalSponsorLogos) return [];
     const filtered = sponsorLogos.filter((logo) => {
       const logoKey = String(logo?.alt || '').trim().toUpperCase();
@@ -523,23 +487,11 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     });
   }, [mobileViewMode, parsed, isMobileViewport]);
 
-  const calculatePrintScale = () => {
-    if (parsed.mode !== 'lane-grid') return 1;
-    const fullWidth = timeColumnWidth + lanesTotalWidth;
-    if (!Number.isFinite(fullWidth) || fullWidth <= 0) return 1;
-
-    // A4 portrait printable area at common 96dpi with 4mm margins.
-    // Keep extra safety room for browser-specific print rounding (notably Firefox/Chromium differences)
-    // so the last lane column does not clip at the right edge.
-    const printableWidthPx = 710;
-    return Math.min(1, Math.max(0.4, printableWidthPx / fullWidth));
-  };
-
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
     const handleBeforePrint = () => {
-      setPrintScale(calculatePrintScale());
+      setPrintScale(calculatePrintScale(parsed.mode, timeColumnWidth + lanesTotalWidth));
       if (isMobileViewport && parsed.mode === 'lane-grid' && mobileViewMode !== 'table') {
         setMobileViewModeBeforePrint(mobileViewMode);
         setMobileViewMode('table');
@@ -562,9 +514,14 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     };
   }, [isMobileViewport, parsed.mode, mobileViewMode, mobileViewModeBeforePrint, timeColumnWidth, lanesTotalWidth]);
 
+  // Hookit kutsuttava ennen tätä, jotta niiden järjestys pysyy samana joka renderöinnissä.
+  if (parsed.mode === 'empty' || (parsed.mode === 'events' && parsed.events.length === 0) || (parsed.mode === 'lane-grid' && parsed.laneRows.length === 0)) {
+    return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.empty}</div>;
+  }
+
   const handlePrint = async () => {
     if (typeof window === 'undefined') return;
-    setPrintScale(calculatePrintScale());
+    setPrintScale(calculatePrintScale(parsed.mode, timeColumnWidth + lanesTotalWidth));
     if (isMobileViewport && parsed.mode === 'lane-grid' && mobileViewMode !== 'table') {
       setMobileViewModeBeforePrint(mobileViewMode);
       setMobileViewMode('table');

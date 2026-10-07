@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
+import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import {
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
@@ -11,48 +12,7 @@ import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
 
-function isPerfLoggingEnabled() {
-  const envValue = String(import.meta.env.VITE_SCORINGUI_PERF || '').trim().toLowerCase();
-  const envEnabled = envValue === '1' || envValue === 'true' || envValue === 'yes' || envValue === 'on';
-  const envDisabled = envValue === '0' || envValue === 'false' || envValue === 'no' || envValue === 'off';
-
-  if (typeof window === 'undefined') {
-    if (envEnabled) return true;
-    if (envDisabled) return false;
-    return false;
-  }
-
-  try {
-    const params = new URLSearchParams(window.location.search || '');
-    const qp = String(params.get('perf') || '').trim().toLowerCase();
-    if (qp === '1' || qp === 'true' || qp === 'yes' || qp === 'on') return true;
-    if (qp === '0' || qp === 'false' || qp === 'no' || qp === 'off') return false;
-  } catch {
-    // Ignore URL parsing failures.
-  }
-
-  if (window.__SCORINGUI_PERF__ === true) return true;
-  if (window.__SCORINGUI_PERF__ === false) return false;
-
-  try {
-    const stored = String(window.localStorage?.getItem('scoringui:perf') || '').trim().toLowerCase();
-    if (stored === '1' || stored === 'true' || stored === 'yes' || stored === 'on') return true;
-    if (stored === '0' || stored === 'false' || stored === 'no' || stored === 'off') return false;
-  } catch {
-    // Ignore storage access errors.
-  }
-
-  if (envEnabled) return true;
-  if (envDisabled) return false;
-
-  return false;
-}
-
-function logPerf(scope, startTime, details = {}) {
-  if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
-  const ms = performance.now() - startTime;
-  console.log(`[HenkiloTaulukkoPerf] ${scope}: ${ms.toFixed(1)}ms`, details);
-}
+const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
 export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
@@ -64,7 +24,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
   const sarjaScrollRef = useRef(null);
   const taulukkoScrollRef = useRef(null);
-  const taulukkoReunaVarjotRef = useRef({ vasen: false, oikea: false });
   const [taulukkoReunaVarjot, setTaulukkoReunaVarjot] = useState({ vasen: false, oikea: false });
   const [taulukkoNakymaLeveys, setTaulukkoNakymaLeveys] = useState(0);
   
@@ -88,7 +47,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   // 1. PARSITAAN KISASPEKSIT
   const speksit = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     const parsed = (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa)
       ? parsedSpeksit
       : parseAsemaSpeksitCsv(data?.speksitCsvRaw);
@@ -105,7 +64,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   // 2. PARSITAAN AMPUJIEN TULOKSET
   const ampujat = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     if (!data?.henkilotCsvRaw) return [];
 
     try {
@@ -240,7 +199,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   );
   
   const sijoitetutAmpujat = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     const result = laskeHenkilosijoitukset(ampujat, sarjaSuodatin, speksit.ratkoPalkintoSija);
     logPerf('sijoitetutAmpujat', perfStart, {
       sarja: sarjaSuodatin,
@@ -251,7 +210,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   }, [ampujat, sarjaSuodatin, speksit.ratkoPalkintoSija]);
 
   const naytettavatAmpujat = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     const numOrMin = (value) => {
       const parsed = parseInt(value, 10);
       return Number.isNaN(parsed) ? Number.MIN_SAFE_INTEGER : parsed;
@@ -302,7 +261,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   }, [sijoitetutAmpujat, jarjestysSarake, jarjestysSuunta, sarjaSuodatin]);
 
   const naytaRatkoIds = useMemo(() => {
-    const perfStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const perfStart = perfNow();
     const result = laskeNaytettavatRatkoIdt(sijoitetutAmpujat, sarjaSuodatin, speksit.ratkoPalkintoSija);
     logPerf('naytaRatkoIds', perfStart, {
       sarja: sarjaSuodatin,
@@ -503,10 +462,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       analyticsDetails: 'Md / Max%'
     };
 
-  if (onkoDataPuuttuu) {
-    return <div className="py-6 text-sm text-slate-500">{tx.loading}</div>;
-  }
-
   const muotoileNimiTaulukkoon = (nimi) => {
     if (!onMobiili) return nimi;
     const osat = String(nimi || '').trim().split(/\s+/).filter(Boolean);
@@ -672,59 +627,28 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     };
   }, [onkoKokoNaytto, onMobiili]);
 
-  const paivitaTaulukkoReunaVarjot = () => {
-    const container = taulukkoScrollRef.current;
-    if (!container || !onMobiili) {
-      const seuraava = { vasen: false, oikea: false };
-      if (
-        taulukkoReunaVarjotRef.current.vasen !== seuraava.vasen
-        || taulukkoReunaVarjotRef.current.oikea !== seuraava.oikea
-      ) {
-        taulukkoReunaVarjotRef.current = seuraava;
-        setTaulukkoReunaVarjot(seuraava);
-      }
-      return;
-    }
-
-    const toleranssi = 2;
-    const maksimiVasen = container.scrollWidth - container.clientWidth;
-    const voiScrollataSivulle = maksimiVasen > toleranssi;
-
-    if (!voiScrollataSivulle) {
-      const seuraava = { vasen: false, oikea: false };
-      if (
-        taulukkoReunaVarjotRef.current.vasen !== seuraava.vasen
-        || taulukkoReunaVarjotRef.current.oikea !== seuraava.oikea
-      ) {
-        taulukkoReunaVarjotRef.current = seuraava;
-        setTaulukkoReunaVarjot(seuraava);
-      }
-      return;
-    }
-
-    const vasen = container.scrollLeft > toleranssi;
-    const oikea = container.scrollLeft < (maksimiVasen - toleranssi);
-    const seuraava = { vasen, oikea };
-    if (
-      taulukkoReunaVarjotRef.current.vasen !== seuraava.vasen
-      || taulukkoReunaVarjotRef.current.oikea !== seuraava.oikea
-    ) {
-      taulukkoReunaVarjotRef.current = seuraava;
-      setTaulukkoReunaVarjot(seuraava);
-    }
-  };
-
   useEffect(() => {
     if (!onMobiili) return;
     const container = taulukkoScrollRef.current;
     if (!container) return;
+
+    const paivitaReunaVarjot = () => {
+      const toleranssi = 2;
+      const maksimiVasen = container.scrollWidth - container.clientWidth;
+      const voiScrollataSivulle = maksimiVasen > toleranssi;
+      const vasen = voiScrollataSivulle && container.scrollLeft > toleranssi;
+      const oikea = voiScrollataSivulle && container.scrollLeft < (maksimiVasen - toleranssi);
+      setTaulukkoReunaVarjot((nykyinen) => (
+        nykyinen.vasen === vasen && nykyinen.oikea === oikea ? nykyinen : { vasen, oikea }
+      ));
+    };
 
     let frameId = null;
     const paivita = () => {
       if (frameId !== null) return;
       frameId = window.requestAnimationFrame(() => {
         frameId = null;
-        paivitaTaulukkoReunaVarjot();
+        paivitaReunaVarjot();
       });
     };
     paivita();
@@ -843,6 +767,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     if (kokoLuokka === 'mobile') return 'text-center font-mono text-xs border-r border-slate-200/40';
     return 'text-center font-mono text-sm border-r border-slate-200/40';
   };
+
+  // Hookit kutsuttava ennen tätä, jotta niiden järjestys pysyy samana joka renderöinnissä.
+  if (onkoDataPuuttuu) {
+    return <div className="py-6 text-sm text-slate-500">{tx.loading}</div>;
+  }
 
   return (
     <Card className={cn(

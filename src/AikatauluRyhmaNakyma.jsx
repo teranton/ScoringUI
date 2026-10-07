@@ -489,7 +489,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
   const [focusedOrderKey, setFocusedOrderKey] = useState('');
   const groupCardRefs = useRef(new Map());
   const orderButtonRefs = useRef(new Map());
-  const tx = locale === 'en'
+  const tx = useMemo(() => (locale === 'en'
     ? {
       title: 'Heat Schedule',
       empty: 'No group schedule rows found.',
@@ -539,7 +539,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       noOrderRows: 'Järjestysrivejä ei löytynyt.',
       openGroup: 'Avaa ryhmänäkymä',
       openOrder: 'Avaa järjestysnäkymässä'
-    };
+    }), [locale]);
 
   const muodostaOrderKey = (dayKey, time, layoutLabel, groupLabel) => {
     const day = String(dayKey || '').trim();
@@ -733,7 +733,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
       }));
 
     return { mode: 'lane-grid', titleSuffix, laneColumns, laneRows, heats, daySections };
-  }, [rawCsv, defaultGroupingMode, tx.day]);
+  }, [rawCsv, defaultGroupingMode, tx]);
 
   const laneLogoMap = useMemo(() => {
     const map = new Map();
@@ -775,11 +775,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
 
     const withoutDayOne = parsed.daySections.filter((section) => section.dayNumber !== 1);
     return withoutDayOne.length > 0 ? withoutDayOne : parsed.daySections;
-  }, [parsed.daySections, competitionStartDate]);
-
-  if (!visibleDaySections.length) {
-    return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.empty}</div>;
-  }
+  }, [parsed.daySections, parsed.mode, competitionStartDate]);
 
   const title = parsed.titleSuffix ? `${tx.title} | ${parsed.titleSuffix}` : tx.title;
   const naytaSarjaSarake = visibleDaySections.some((section) =>
@@ -942,6 +938,11 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
     };
   }, [combinedTab, focusedOrderKey, ryhmaJarjestysTaulukko]);
 
+  // Hookit kutsuttava ennen tätä, jotta niiden järjestys pysyy samana joka renderöinnissä.
+  if (!visibleDaySections.length) {
+    return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.empty}</div>;
+  }
+
   const avaaRyhmanakyma = (groupLabel) => {
     const key = `group-${groupLabel}`;
     setSearchQuery('');
@@ -1064,6 +1065,8 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                 </div>
               ) : combinedTab === 'groups' ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {/* Väärä hälytys: refejä luetaan vain onClick-käsittelijöissä (avaaJarjestysNakyma), ei renderöinnissä. */}
+              {/* eslint-disable-next-line react-hooks/refs */}
               {filteredYhdistetytRyhmaKortit.map((group) => {
                 const lauantaiRivit = (group.scheduleRows || []).filter((slot) =>
                   slot.dayNumber === 1 || /LAUANTAI|SATURDAY/i.test(String(slot.dayLabel || ''))

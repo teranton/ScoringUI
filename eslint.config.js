@@ -18,4 +18,11 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Vercel-funktiot, konfiguraatiot ja node:test-testit ajetaan Nodessa.
+    files: ['api/**/*.js', '*.config.js', '**/*.test.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])
