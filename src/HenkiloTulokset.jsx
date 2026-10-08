@@ -1,6 +1,6 @@
 // src/HenkiloTulokset.jsx
 import { useMemo, useRef, useState } from 'react';
-import { parseCsvRows } from './utils/csv';
+import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
@@ -42,7 +42,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     return parseAsemaSpeksitCsv(speksitCsv);
   }, [parsedSpeksit, speksitCsv]);
 
-  const onkoRawVirheellinen = !rawCsv || rawCsv.trim().length < 10 || rawCsv.toLowerCase().includes('html') || rawCsv.toLowerCase().includes('error');
+  const onkoRawVirheellinen = onkoCsvVirheellinen(rawCsv, 10);
   const rivit = useMemo(() => {
     if (Array.isArray(rawRows)) {
       return rawRows;

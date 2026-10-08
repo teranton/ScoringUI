@@ -1,4 +1,5 @@
 import { GoogleAuth } from 'google-auth-library';
+import { torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
 
 // Globaali välimuisti säilyy Vercelin instanssin muistissa "lämpimien" pyyntöjen ajan
 const gidMapCache = {};
@@ -24,6 +25,8 @@ export default async function handler(req, res) {
   if (!sheetId) {
     return res.status(400).json({ error: 'sheetId vaaditaan' });
   }
+
+  if (await torjuEiSallittuSheetId(sheetId, res)) return;
 
   // Asetetaan tehokkaat välimuistiotsikot Edge-verkkoon (Vercel CDN)
   // s-maxage=60: Vercel pitää listaa välimuistissa 1 minuutin
