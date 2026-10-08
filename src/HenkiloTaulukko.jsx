@@ -15,6 +15,27 @@ import { useMediaQuery } from './hooks/useMediaQuery';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
+// Taulukon luokat kokoluokittain (compact / mobile / desktop).
+const TEKSTIKOKO = { compact: 'text-[11px]', mobile: 'text-xs', desktop: 'text-sm' };
+const RATKO_TEKSTIKOKO = { compact: 'text-[10px]', mobile: 'text-xs', desktop: 'text-sm' };
+const NIMI_ASETTELU = { compact: 'truncate px-1.5', mobile: 'truncate px-2', desktop: 'px-3' };
+
+const OTSIKKO_LUOKAT = {
+  fixed: (koko) => `bg-slate-100 text-center ${TEKSTIKOKO[koko]} font-bold text-slate-700 border-b border-r border-slate-200`,
+  sum: (koko) => `bg-slate-200 text-center ${TEKSTIKOKO[koko]} font-bold text-slate-800 border-b border-r border-slate-300`,
+  ratko: (koko) => `bg-[hsl(var(--ratko-bg))] text-[hsl(var(--ratko-fg))] text-center ${RATKO_TEKSTIKOKO[koko]} font-bold border-b border-r border-[hsl(var(--ratko-fg)/0.25)]`,
+  stage: (koko) => `bg-slate-50 text-center ${TEKSTIKOKO[koko]} font-semibold text-slate-600 border-b border-r border-slate-200/60`
+};
+
+const SOLU_LUOKAT = {
+  rank: (koko) => `text-center ${TEKSTIKOKO[koko]} font-medium text-slate-500 border-r border-slate-200`,
+  name: (koko) => `${NIMI_ASETTELU[koko]} ${TEKSTIKOKO[koko]} font-semibold text-slate-900 border-r border-slate-200`,
+  series: (koko) => `text-center ${TEKSTIKOKO[koko]} text-slate-600 border-r border-slate-200/60`,
+  sum: (koko) => `text-center font-mono ${TEKSTIKOKO[koko]} font-bold text-slate-900 border-r border-slate-300 bg-slate-100/60`,
+  ratko: (koko) => `text-center ${RATKO_TEKSTIKOKO[koko]} border-r border-[hsl(var(--ratko-fg)/0.22)] bg-[hsl(var(--ratko-bg)/0.45)] text-[hsl(var(--ratko-fg))]`,
+  stage: (koko) => `text-center font-mono ${TEKSTIKOKO[koko]} border-r border-slate-200/40`
+};
+
 export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const onMobiili = useMediaQuery('(max-width: 759px)');
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
@@ -718,56 +739,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const kokoLuokka = onMobiili ? (kaytaKompaktiTilaa ? 'compact' : 'mobile') : 'desktop';
 
-  const otsikkoLuokka = (tyyppi) => {
-    if (tyyppi === 'fixed') {
-      if (kokoLuokka === 'compact') return 'bg-slate-100 text-center text-[11px] font-bold text-slate-700 border-b border-r border-slate-200';
-      if (kokoLuokka === 'mobile') return 'bg-slate-100 text-center text-xs font-bold text-slate-700 border-b border-r border-slate-200';
-      return 'bg-slate-100 text-center text-sm font-bold text-slate-700 border-b border-r border-slate-200';
-    }
-    if (tyyppi === 'sum') {
-      if (kokoLuokka === 'compact') return 'bg-slate-200 text-center text-[11px] font-bold text-slate-800 border-b border-r border-slate-300';
-      if (kokoLuokka === 'mobile') return 'bg-slate-200 text-center text-xs font-bold text-slate-800 border-b border-r border-slate-300';
-      return 'bg-slate-200 text-center text-sm font-bold text-slate-800 border-b border-r border-slate-300';
-    }
-    if (tyyppi === 'ratko') {
-      if (kokoLuokka === 'compact') return 'bg-[hsl(var(--ratko-bg))] text-[hsl(var(--ratko-fg))] text-center text-[10px] font-bold border-b border-r border-[hsl(var(--ratko-fg)/0.25)]';
-      if (kokoLuokka === 'mobile') return 'bg-[hsl(var(--ratko-bg))] text-[hsl(var(--ratko-fg))] text-center text-xs font-bold border-b border-r border-[hsl(var(--ratko-fg)/0.25)]';
-      return 'bg-[hsl(var(--ratko-bg))] text-[hsl(var(--ratko-fg))] text-center text-sm font-bold border-b border-r border-[hsl(var(--ratko-fg)/0.25)]';
-    }
-    if (kokoLuokka === 'compact') return 'bg-slate-50 text-center text-[11px] font-semibold text-slate-600 border-b border-r border-slate-200/60';
-    if (kokoLuokka === 'mobile') return 'bg-slate-50 text-center text-xs font-semibold text-slate-600 border-b border-r border-slate-200/60';
-    return 'bg-slate-50 text-center text-sm font-semibold text-slate-600 border-b border-r border-slate-200/60';
-  };
-
-  const soluLuokka = (tyyppi) => {
-    if (tyyppi === 'rank') {
-      if (kokoLuokka === 'compact') return 'text-center text-[11px] font-medium text-slate-500 border-r border-slate-200';
-      if (kokoLuokka === 'mobile') return 'text-center text-xs font-medium text-slate-500 border-r border-slate-200';
-      return 'text-center text-sm font-medium text-slate-500 border-r border-slate-200';
-    }
-    if (tyyppi === 'name') {
-      if (kokoLuokka === 'compact') return 'truncate px-1.5 text-[11px] font-semibold text-slate-900 border-r border-slate-200';
-      if (kokoLuokka === 'mobile') return 'truncate px-2 text-xs font-semibold text-slate-900 border-r border-slate-200';
-      return 'px-3 text-sm font-semibold text-slate-900 border-r border-slate-200';
-    }
-    if (tyyppi === 'series') {
-      if (kokoLuokka === 'mobile') return 'text-center text-xs text-slate-600 border-r border-slate-200/60';
-      return 'text-center text-sm text-slate-600 border-r border-slate-200/60';
-    }
-    if (tyyppi === 'sum') {
-      if (kokoLuokka === 'compact') return 'text-center font-mono text-[11px] font-bold text-slate-900 border-r border-slate-300 bg-slate-100/60';
-      if (kokoLuokka === 'mobile') return 'text-center font-mono text-xs font-bold text-slate-900 border-r border-slate-300 bg-slate-100/60';
-      return 'text-center font-mono text-sm font-bold text-slate-900 border-r border-slate-300 bg-slate-100/60';
-    }
-    if (tyyppi === 'ratko') {
-      if (kokoLuokka === 'compact') return 'text-center text-[10px] border-r border-[hsl(var(--ratko-fg)/0.22)] bg-[hsl(var(--ratko-bg)/0.45)] text-[hsl(var(--ratko-fg))]';
-      if (kokoLuokka === 'mobile') return 'text-center text-xs border-r border-[hsl(var(--ratko-fg)/0.22)] bg-[hsl(var(--ratko-bg)/0.45)] text-[hsl(var(--ratko-fg))]';
-      return 'text-center text-sm border-r border-[hsl(var(--ratko-fg)/0.22)] bg-[hsl(var(--ratko-bg)/0.45)] text-[hsl(var(--ratko-fg))]';
-    }
-    if (kokoLuokka === 'compact') return 'text-center font-mono text-[11px] border-r border-slate-200/40';
-    if (kokoLuokka === 'mobile') return 'text-center font-mono text-xs border-r border-slate-200/40';
-    return 'text-center font-mono text-sm border-r border-slate-200/40';
-  };
+  const otsikkoLuokka = (tyyppi) => (OTSIKKO_LUOKAT[tyyppi] || OTSIKKO_LUOKAT.stage)(kokoLuokka);
+  const soluLuokka = (tyyppi) => (SOLU_LUOKAT[tyyppi] || SOLU_LUOKAT.stage)(kokoLuokka);
 
   // Hookit kutsuttava ennen tätä, jotta niiden järjestys pysyy samana joka renderöinnissä.
   if (onkoDataPuuttuu) {

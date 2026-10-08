@@ -7,7 +7,7 @@ import Ilmoittautuneet from './Ilmoittautuneet';
 import AikatauluNakyma from './AikatauluNakyma';
 import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
-import { parseCsvRows } from './utils/csv';
+import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
@@ -753,137 +753,127 @@ export default function App() {
     ? laskeKisanEfektiivinenStatus(valittuKisa.alkuPvm, valittuKisa.loppuPvm, valitunKisanSpeksitRaw).status
     : 'tulossa';
 
-  // 2. REAALIAIKAINEN BATCH-DATAHAKU BACKENDISTÄ (Yksivaiheinen, ultra-optimoitu kutsu)
-// 2. REAALIAIKAINEN BATCH-DATAHAKU BACKENDISTÄ (Säästeliäs päivitys)
-useEffect(() => {
-  if (!valittuKisa || !valittuKisa.apiUrl) return;
+  // 2. REAALIAIKAINEN BATCH-DATAHAKU BACKENDISTÄ (Säästeliäs päivitys)
+  useEffect(() => {
+    if (!valittuKisa || !valittuKisa.apiUrl) return;
 
-  const sheetId = valittuKisa.apiUrl;
+    const sheetId = valittuKisa.apiUrl;
 
-  const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
-  const onkoDataValimuistissa = Boolean(kisaCacheRef.current[sheetId]);
-  const cacheData = kisaCacheRef.current[sheetId] || null;
-  const henkilotCsvVirheellinen = !cacheData?.henkilotCsvRaw
-    || String(cacheData.henkilotCsvRaw).trim().length < 10
-    || String(cacheData.henkilotCsvRaw).toLowerCase().includes('html')
-    || String(cacheData.henkilotCsvRaw).toLowerCase().includes('error');
-  const joukkueetCsvVirheellinen = !cacheData?.joukkueetCsvRaw
-    || String(cacheData.joukkueetCsvRaw).trim().length < 10
-    || String(cacheData.joukkueetCsvRaw).toLowerCase().includes('html')
-    || String(cacheData.joukkueetCsvRaw).toLowerCase().includes('error');
-  const speksitCsvVirheellinen = !cacheData?.speksitCsvRaw
-    || String(cacheData.speksitCsvRaw).trim().length < 2
-    || String(cacheData.speksitCsvRaw).toLowerCase().includes('html')
-    || String(cacheData.speksitCsvRaw).toLowerCase().includes('error');
-  const puuttuuMonipaivainenAikatauluCache = !onkoStaattinen && onkoDataValimuistissa
-    && (cacheData?.aikatauluLaCsvRaw === undefined || cacheData?.aikatauluSuCsvRaw === undefined);
-  const puuttuuPakollistaKisaDataa = !onkoDataValimuistissa
-    || henkilotCsvVirheellinen
-    || joukkueetCsvVirheellinen
-    || speksitCsvVirheellinen;
+    const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
+    const onkoDataValimuistissa = Boolean(kisaCacheRef.current[sheetId]);
+    const cacheData = kisaCacheRef.current[sheetId] || null;
+    const henkilotCsvVirheellinen = onkoCsvVirheellinen(cacheData?.henkilotCsvRaw, 10);
+    const joukkueetCsvVirheellinen = onkoCsvVirheellinen(cacheData?.joukkueetCsvRaw, 10);
+    const speksitCsvVirheellinen = onkoCsvVirheellinen(cacheData?.speksitCsvRaw, 2);
+    const puuttuuMonipaivainenAikatauluCache = !onkoStaattinen && onkoDataValimuistissa
+      && (cacheData?.aikatauluLaCsvRaw === undefined || cacheData?.aikatauluSuCsvRaw === undefined);
+    const puuttuuPakollistaKisaDataa = !onkoDataValimuistissa
+      || henkilotCsvVirheellinen
+      || joukkueetCsvVirheellinen
+      || speksitCsvVirheellinen;
 
-  async function haeYhdistettyKisaData() {
-    if (fetchInFlightRef.current[sheetId]) return;
-    fetchInFlightRef.current[sheetId] = true;
+    async function haeYhdistettyKisaData() {
+      if (fetchInFlightRef.current[sheetId]) return;
+      fetchInFlightRef.current[sheetId] = true;
 
-    try {
-      setVirhe(null);
-      if (!kisaCacheRef.current[sheetId]) {
-        setLadataanKisaaBySheet((prev) => ({ ...prev, [sheetId]: true }));
-      }
-
-      const startTime = performance.now();
-      const sivut = onkoStaattinen
-        ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
-        : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
-      
-      const params = new URLSearchParams();
-      params.append('mode', 'batchCsv');
-      params.append('sheetId', sheetId);
-      sivut.forEach(nimi => params.append('sheetNames', nimi));
-
-      const response = await fetch(`/api/kisaData?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error(`KisaDatan haku epäonnistui palvelimelta. Status: ${response.status}`);
-      }
-
-      const tulos = await response.json();
-      const csvByName = tulos.csvByName || {};
-      const vanhaData = kisaCacheRef.current[sheetId] || {};
-      const durationMs = Math.round(performance.now() - startTime);
-
-      console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}): ${durationMs.toFixed(0)}ms`);
-
-      trackAnalyticsEvent('competition_fetch', {
-        competitionId: String(valittuKisa?.id || ''),
-        mode: onkoStaattinen ? 'static' : 'live',
-        ok: 'true',
-        durationMs,
-        sheets: String(sivut.length)
-      });
-
-      setKisaCache(prevCache => ({
-        ...prevCache,
-        [sheetId]: {
-          henkilotCsvRaw: csvByName['Tulokset Y'] || vanhaData.henkilotCsvRaw || "",
-          joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
-          eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
-          ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
-          aikatauluCsvRaw: csvByName['Aikataulu'] || csvByName['Timetable'] || vanhaData.aikatauluCsvRaw || "",
-          aikatauluLaCsvRaw: onkoStaattinen
-            ? (csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "")
-            : (csvByName['Aikataulu La'] || ""),
-          aikatauluSuCsvRaw: onkoStaattinen
-            ? (csvByName['Aikataulu Su'] || vanhaData.aikatauluSuCsvRaw || "")
-            : (csvByName['Aikataulu Su'] || ""),
-          speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
-          speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0)
+      try {
+        setVirhe(null);
+        if (!kisaCacheRef.current[sheetId]) {
+          setLadataanKisaaBySheet((prev) => ({ ...prev, [sheetId]: true }));
         }
-      }));
 
-    } catch (err) {
-      console.error("Datan päivitys epäonnistui palvelimelta:", err);
-      setVirhe("Tietojen päivitys epäonnistui taustalla.");
-      trackAnalyticsEvent('competition_fetch', {
-        competitionId: String(valittuKisa?.id || ''),
-        mode: onkoStaattinen ? 'static' : 'live',
-        ok: 'false'
-      });
-    } finally {
-      fetchInFlightRef.current[sheetId] = false;
-      setLadataanKisaaBySheet((prev) => {
-        if (!prev[sheetId]) return prev;
-        return { ...prev, [sheetId]: false };
-      });
+        const startTime = performance.now();
+        const sivut = onkoStaattinen
+          ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
+          : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
+      
+        const params = new URLSearchParams();
+        params.append('mode', 'batchCsv');
+        params.append('sheetId', sheetId);
+        sivut.forEach(nimi => params.append('sheetNames', nimi));
+
+        const response = await fetch(`/api/kisaData?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error(`KisaDatan haku epäonnistui palvelimelta. Status: ${response.status}`);
+        }
+
+        const tulos = await response.json();
+        const csvByName = tulos.csvByName || {};
+        const vanhaData = kisaCacheRef.current[sheetId] || {};
+        const durationMs = Math.round(performance.now() - startTime);
+
+        console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}): ${durationMs}ms`);
+
+        trackAnalyticsEvent('competition_fetch', {
+          competitionId: String(valittuKisa?.id || ''),
+          mode: onkoStaattinen ? 'static' : 'live',
+          ok: 'true',
+          durationMs,
+          sheets: String(sivut.length)
+        });
+
+        setKisaCache(prevCache => ({
+          ...prevCache,
+          [sheetId]: {
+            henkilotCsvRaw: csvByName['Tulokset Y'] || vanhaData.henkilotCsvRaw || "",
+            joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
+            eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
+            ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
+            aikatauluCsvRaw: csvByName['Aikataulu'] || csvByName['Timetable'] || vanhaData.aikatauluCsvRaw || "",
+            aikatauluLaCsvRaw: onkoStaattinen
+              ? (csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "")
+              : (csvByName['Aikataulu La'] || ""),
+            aikatauluSuCsvRaw: onkoStaattinen
+              ? (csvByName['Aikataulu Su'] || vanhaData.aikatauluSuCsvRaw || "")
+              : (csvByName['Aikataulu Su'] || ""),
+            speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
+            speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0)
+          }
+        }));
+
+      } catch (err) {
+        console.error("Datan päivitys epäonnistui palvelimelta:", err);
+        setVirhe("Tietojen päivitys epäonnistui taustalla.");
+        trackAnalyticsEvent('competition_fetch', {
+          competitionId: String(valittuKisa?.id || ''),
+          mode: onkoStaattinen ? 'static' : 'live',
+          ok: 'false'
+        });
+      } finally {
+        fetchInFlightRef.current[sheetId] = false;
+        setLadataanKisaaBySheet((prev) => {
+          if (!prev[sheetId]) return prev;
+          return { ...prev, [sheetId]: false };
+        });
+      }
     }
-  }
 
-  // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
-  // Päättyneessä kisassa vältetään turha lisähaku, jos data on jo välimuistissa.
-  if (!onkoStaattinen || puuttuuPakollistaKisaDataa || puuttuuMonipaivainenAikatauluCache) {
-    haeYhdistettyKisaData();
-  }
+    // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
+    // Päättyneessä kisassa vältetään turha lisähaku, jos data on jo välimuistissa.
+    if (!onkoStaattinen || puuttuuPakollistaKisaDataa || puuttuuMonipaivainenAikatauluCache) {
+      haeYhdistettyKisaData();
+    }
 
-  // Jos kisa on päättynyt, ÄLÄ luo intervallia lainkaan!
-  if (onkoStaattinen) {
-    return; 
-  }
+    // Jos kisa on päättynyt, ÄLÄ luo intervallia lainkaan!
+    if (onkoStaattinen) {
+      return; 
+    }
 
-  // Live-kisoille käynnistetään taustapäivitys
-  const kasitteleNakymattomyys = () => {
-    if (!document.hidden) haeYhdistettyKisaData();
-  };
+    // Live-kisoille käynnistetään taustapäivitys
+    const kasitteleNakymattomyys = () => {
+      if (!document.hidden) haeYhdistettyKisaData();
+    };
 
-  const intervalli = setInterval(() => {
-    if (!document.hidden) haeYhdistettyKisaData();
-  }, 20000);
+    const intervalli = setInterval(() => {
+      if (!document.hidden) haeYhdistettyKisaData();
+    }, 20000);
 
-  document.addEventListener('visibilitychange', kasitteleNakymattomyys);
-  return () => {
-    clearInterval(intervalli);
-    document.removeEventListener('visibilitychange', kasitteleNakymattomyys);
-  };
-}, [valittuKisa, valitunKisanEfektiivinenStatus]);
+    document.addEventListener('visibilitychange', kasitteleNakymattomyys);
+    return () => {
+      clearInterval(intervalli);
+      document.removeEventListener('visibilitychange', kasitteleNakymattomyys);
+    };
+  }, [valittuKisa, valitunKisanEfektiivinenStatus]);
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
     if (!alku) return 'Päivämäärä ei tiedossa';
