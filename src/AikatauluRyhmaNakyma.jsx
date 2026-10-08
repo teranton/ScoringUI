@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { haeTekstit } from './i18n';
 
 function toSortValue(timeText) {
   const cleaned = String(timeText || '').trim();
@@ -489,57 +490,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
   const [focusedOrderKey, setFocusedOrderKey] = useState('');
   const groupCardRefs = useRef(new Map());
   const orderButtonRefs = useRef(new Map());
-  const tx = useMemo(() => (locale === 'en'
-    ? {
-      title: 'Heat Schedule',
-      empty: 'No group schedule rows found.',
-      heat: 'Heat',
-      day: 'Day',
-      group: 'Group',
-      time: 'Time',
-      lane: 'Lane',
-      classLabel: 'Class',
-      clubLabel: 'Club',
-      noShooter: 'No shooters in this heat.',
-      number: 'No.',
-      shooter: 'Shooter',
-      searchPlaceholder: 'Search shooter...',
-      clear: 'Clear',
-      noSearchResults: 'No matching group found.',
-      saturday: 'Saturday',
-      sunday: 'Sunday',
-      groupsTab: 'Groups',
-      orderTab: 'Order',
-      orderOnlyTitle: 'Group Order',
-      noOrderRows: 'No order rows found.',
-      openGroup: 'Open group view',
-      openOrder: 'Open in order view'
-    }
-    : {
-      title: 'Eräluettelo',
-      empty: 'Ryhmäaikataulurivejä ei löytynyt.',
-      heat: 'Erä',
-      day: 'Päivä',
-      group: 'Ryhmä',
-      time: 'Aika',
-      lane: 'Rata',
-      classLabel: 'Sarja',
-      clubLabel: 'Seura',
-      noShooter: 'Ei ampujia tässä erässä.',
-      number: 'Nro',
-      shooter: 'Ampuja',
-      searchPlaceholder: 'Hae ampujaa...',
-      clear: 'Tyhjennä',
-      noSearchResults: 'Haulla ei löytynyt ryhmää.',
-      saturday: 'Lauantai',
-      sunday: 'Sunnuntai',
-      groupsTab: 'Ryhmät',
-      orderTab: 'Järjestys',
-      orderOnlyTitle: 'Ryhmien järjestys',
-      noOrderRows: 'Järjestysrivejä ei löytynyt.',
-      openGroup: 'Avaa ryhmänäkymä',
-      openOrder: 'Avaa järjestysnäkymässä'
-    }), [locale]);
+  const tx = haeTekstit('aikatauluRyhma', locale);
 
   const muodostaOrderKey = (dayKey, time, layoutLabel, groupLabel) => {
     const day = String(dayKey || '').trim();

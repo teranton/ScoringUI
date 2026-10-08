@@ -7,6 +7,7 @@ import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './components/ui/table';
 import { cn } from './lib/utils';
+import { haeTekstit } from './i18n';
 
 const KAIKKI_SARJAT = '__ALL_CLASSES__';
 
@@ -187,33 +188,7 @@ export default function JoukkueTulokset({ data, parsedRows, kisaStatus, locale =
     return { sarjat: ryhmitellytSarjat };
   }, [data, parsedRows, speksit.ratojenMaara, onkoDataPuuttuu]);
 
-  const tx = locale === 'en'
-    ? {
-      loading: 'Loading result data...',
-      allClasses: 'All classes',
-      lane: 'Lane',
-      totalShort: 'Tot',
-      pointsShort: 'Pts',
-      classLabel: 'Class',
-      allStagesReady: 'All stage scores are complete',
-      stagesMissing: 'Some stage scores are missing',
-      teamStageTotals: 'Team stage totals',
-      shooterBreakdown: 'Shooter breakdown',
-      total: 'Total'
-    }
-    : {
-      loading: 'Ladataan tulosdataa...',
-      allClasses: 'Kaikki sarjat',
-      lane: 'Rata',
-      totalShort: 'Yht',
-      pointsShort: 'Pst',
-      classLabel: 'Sarja',
-      allStagesReady: 'Kaikki alitulokset valmiit',
-      stagesMissing: 'Alituloksia puuttuu',
-      teamStageTotals: 'Joukkueen yhteispisteet',
-      shooterBreakdown: 'Ampujakohtaiset tulokset',
-      total: 'Yht'
-    };
+  const tx = haeTekstit('joukkueTulokset', locale);
 
   const sarjaNimet = useMemo(
     () => Object.keys(sarjat).sort((a, b) => a.localeCompare(b, 'fi', { sensitivity: 'base', numeric: true })),

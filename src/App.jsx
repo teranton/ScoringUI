@@ -15,6 +15,7 @@ import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText } from 'lucide-react';
+import { haeTekstit } from './i18n';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
@@ -372,17 +373,8 @@ function statusToBadgeVariant(status) {
 }
 
 function labelForStatus(status, locale) {
-  if (locale === 'en') {
-    if (status === 'kaynnissa') return 'Ongoing';
-    if (status === 'tauolla') return 'Paused';
-    if (status === 'paattynyt') return 'Ended';
-    return 'Upcoming';
-  }
-
-  if (status === 'kaynnissa') return 'Käynnissä';
-  if (status === 'tauolla') return 'Tauolla';
-  if (status === 'paattynyt') return 'Päättynyt';
-  return 'Tulossa';
+  const tekstit = haeTekstit('kisaStatus', locale);
+  return Object.hasOwn(tekstit, status) ? tekstit[status] : tekstit.tulossa;
 }
 
 function trackAnalyticsEvent(eventName, properties = {}) {
@@ -456,47 +448,7 @@ export default function App() {
     kisaCacheRef.current = kisaCache;
   }, [kisaCache]);
 
-  const tx = useMemo(() => {
-    if (locale === 'en') {
-      return {
-        appTitle: '🎯 T&T Competition Results',
-        appSubtitle: 'Live and archived competition results',
-        contactLabel: 'Contact',
-        loadingRegistry: 'Loading competition registry...',
-        backHome: 'Homepage',
-        results: 'Results',
-        table: 'Table',
-        registrations: 'Registrations',
-        timetable: 'Timetable',
-        materials: 'Materials',
-        teamResults: 'Team Results',
-        themeLabel: 'Theme',
-        themeDefault: 'Default',
-        themeOcean: 'Ocean',
-        themeForest: 'Forest',
-        fetchingCompetitionData: 'Fetching competition data...'
-      };
-    }
-
-    return {
-      appTitle: '🎯 T&T Tulospalvelu',
-      appSubtitle: 'Tämänkin voi tehdä helpommin',
-      contactLabel: 'Yhteys',
-      loadingRegistry: 'Ladataan kilpailurekisteriä...',
-      backHome: 'Etusivu',
-      results: 'Tulokset',
-      table: 'Taulukko',
-      registrations: 'Ilmoittautuneet',
-      timetable: 'Aikataulu',
-      materials: 'Materiaalit',
-      teamResults: 'Joukkuetulokset',
-      themeLabel: 'Teema',
-      themeDefault: 'Oletus',
-      themeOcean: 'Meri',
-      themeForest: 'Metsa',
-      fetchingCompetitionData: 'Haetaan kilpailun tietoja...'
-    };
-  }, [locale]);
+  const tx = haeTekstit('app', locale);
 
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'

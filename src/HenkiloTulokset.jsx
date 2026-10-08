@@ -16,6 +16,7 @@ import { Button } from './components/ui/button';
 import { Card, CardContent } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { cn } from './lib/utils';
+import { haeTekstit } from './i18n';
 
 export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
@@ -166,7 +167,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
     for (const ampuja of naytettavatAmpujat) {
       for (const paiva of naytaPaivaTulokset ? ampuja.dayScores || [] : []) {
-        paivat.set(paiva.numero, `${locale === 'en' ? 'Day' : 'Päivä'} ${paiva.numero}`);
+        paivat.set(paiva.numero, `${haeTekstit('henkiloTulokset', locale).day} ${paiva.numero}`);
       }
       for (const sarja of ampuja.sarjat || []) {
         if (sarja.numero) radat.add(sarja.numero);
@@ -209,29 +210,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     [naytettavatAmpujat, ratkoPalkintoSija, sarjaSuodatin]
   );
 
-  const tx = locale === 'en'
-    ? {
-      noResults: 'No individual results available or sheet not found.',
-      noData: 'No result data.',
-      missingNameColumn: 'Error: NIMI column was not found in the table.',
-      allStagesReady: 'All stage scores are complete',
-      stagesMissing: 'Some stage scores are missing',
-      day: 'Day',
-      sort: 'Sort by',
-      total: 'Total score',
-      stage: 'Stage'
-    }
-    : {
-      noResults: 'Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.',
-      noData: 'Ei tulosdataa.',
-      missingNameColumn: 'Virhe: NIMI-saraketta ei löytynyt taulukosta.',
-      allStagesReady: 'Kaikki alitulokset valmiit',
-      stagesMissing: 'Alituloksia puuttuu',
-      day: 'Päivä',
-      sort: 'Järjestä',
-      total: 'Kokonaistulos',
-      stage: 'Asema'
-    };
+  const tx = haeTekstit('henkiloTulokset', locale);
 
   if (onkoRawVirheellinen) {
     return <div className="py-6 text-center text-sm text-slate-500">{tx.noResults}</div>;
