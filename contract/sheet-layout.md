@@ -25,7 +25,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx` |
 | `Kierrokset` | Sheet formulas | `api/laukaukset.js` (gviz query on column B = shooter) |
-| Competition registry sheet (`api/rekisteri.js`, fixed id) | Tero | `App.jsx` |
+| Competition registry sheet (`api/rekisteri.js`, fixed id) | Tero | `App.jsx`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here) |
 
 Tab names are matched exactly (case-insensitive in `api/kisaData.js`). `Timetable` is accepted as a fallback for `Aikataulu`.
 

@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { GoogleAuth } from 'google-auth-library';
+import { torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
 
 // TÄMÄ ON VÄLIMUISTI: Se säilyy Vercelin palvelimen muistissa pyyntöjen välillä
 const gidCache = {};
@@ -64,6 +65,8 @@ async function getAuthClientWithLogs(options = {}) {
 
 export default async function handler(req, res) {
   const { sheetId, sheetName, mode, sheetNames, status } = req.query;
+
+  if (await torjuEiSallittuSheetId(sheetId, res)) return;
 
   // BATCH MODE: Haetaan useat CSV-tiedostot yhdessä pyynnössä
   if (mode === 'batchCsv' && sheetNames) {

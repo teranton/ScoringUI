@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 import { GoogleAuth } from 'google-auth-library';
+import { torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
 
 export default async function handler(req, res) {
   // Sallitaan vain GET-pyynnöt (datan haku)
@@ -14,6 +15,8 @@ export default async function handler(req, res) {
   if (!ampuja || !sheetId) {
     return res.status(400).json({ error: 'Puuttuvia parametreja (ampuja tai sheetId)' });
   }
+
+  if (await torjuEiSallittuSheetId(sheetId, res)) return;
 
   try {
     // 1. Kirjaudutaan sisään Googleen Vercelin salaisilla avaimilla
