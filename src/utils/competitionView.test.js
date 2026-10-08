@@ -43,13 +43,13 @@ test('siirtyy tuloksiin kun taulukko ei ole sallittu', () => {
   assert.equal(seuraava, 'tulokset');
 });
 
-test('priorisoi materiaalit tulossa-kisassa ilman ilmoittautuneita', () => {
+test('ohjaa materiaaleihin tulossa-kisassa ilman ilmoittautuneita ja aikataulua', () => {
   const seuraava = laskeSeuraavaAktiivinenSivu({
     ...perus,
     aktiivinenSivu: 'tulokset',
     onkoKisaTulossa: true,
     onkoIlmoittautuneita: false,
-    onkoAikatauluSallittu: true,
+    onkoAikatauluSallittu: false,
     onkoMateriaaleja: true
   });
   assert.equal(seuraava, 'materiaalit');
