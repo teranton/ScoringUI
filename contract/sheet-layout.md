@@ -56,9 +56,9 @@ so column order can change but header names must not.
 
 ## `KISANSPEKSIT` settings
 
-Keys are found anywhere on the tab; the value must be in one of the two cells right of the key.
-Keys and values are matched case-insensitively with Ä/Ö/Å read as A/O/A and spaces ignored, so
-`Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS` and `Erät` matches `ERAT`.
+Keys are found anywhere on the tab; the value is the next non-empty cell to the right.
+Keys and values are matched case-insensitively with Ä/Ö/Å read as A/O/A and spaces and underscores
+ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS` and `Erät` matches `ERAT`.
 Each setting accepts several spellings (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`):
 
 | Setting | Accepted keys | Values |

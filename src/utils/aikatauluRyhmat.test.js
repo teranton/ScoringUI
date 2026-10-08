@@ -174,3 +174,20 @@ test('muodostaYhdistetytRyhmaKortit järjestää vuorot päivän numeron, ei nim
   const [kortti] = muodostaYhdistetytRyhmaKortit(mode, daySections);
   assert.deepEqual(kortti.scheduleRows.map((r) => [r.dayNumber, r.dayLabel]), [[2, 'Sunnuntai'], [3, '3']]);
 });
+
+test('muodostaYhdistetytRyhmaKortit: perjantai ennen lauantaita, vaikka molemmat ovat päivä 1', () => {
+  const { daySections, mode } = parseAikatauluRyhmat(csv([
+    ['Eräluettelo'],
+    ['Perjantai'],
+    ['START', 'Rata 1'],
+    ['18:00', '1'],
+    ['Lauantai'],
+    ['START', 'Rata 1'],
+    ['9:00', '1'],
+    ['RYHMÄ', 'Nro', 'Nimi', 'Sarja', 'Seura'],
+    ['1', '11', 'Matti', 'Y', 'Seura A']
+  ]), 'group5', TX);
+
+  const [kortti] = muodostaYhdistetytRyhmaKortit(mode, daySections);
+  assert.deepEqual(kortti.scheduleRows.map((r) => [r.sessionLabel, r.time]), [['Perjantai', '18:00'], ['Lauantai', '9:00']]);
+});

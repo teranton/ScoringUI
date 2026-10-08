@@ -1,9 +1,12 @@
 import { parseCsvRows } from './csv.js';
 
+// Arkin kyllä-merkinnät (pienillä kirjaimilla), joita kaikki totuusarvoasetukset hyväksyvät.
+export const TOSI_ARVOT = ['1', 'true', 'yes', 'on', 'x'];
+
 export function tulkitseTotuusarvo(arvo) {
   if (arvo == null) return false;
   const normalisoitu = String(arvo).trim().toLowerCase();
-  return ['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu);
+  return TOSI_ARVOT.includes(normalisoitu);
 }
 
 function normalizeSpeksiHeader(value) {

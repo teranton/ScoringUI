@@ -1,6 +1,7 @@
 // src/utils/kisaStatus.js
 // Kilpailun tilan (tulossa/käynnissä/tauolla/päättynyt) laskenta päivämääristä ja KISANSPEKSIT-ohituksesta.
-import { haeAsetusSpekseista, normalisoiAsetus } from './kisaAsetukset.js';
+import { TOSI_ARVOT } from './henkiloTulokset.js';
+import { asetusJoukko, asetusTulkitsija, haeAsetusSpekseista } from './kisaAsetukset.js';
 
 // Hyväksyy muodot p.k.vvvv ja vvvv-kk-pp. Palauttaa paikallisen keskiyön tai null.
 export function parsiPaivamaara(pvmStr) {
@@ -71,18 +72,14 @@ export function laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt = new Date()) {
   return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
 }
 
-function normalisoiStatusArvo(arvo) {
-  const norm = normalisoiAsetus(arvo);
-  if (!norm) return null;
+const normalisoiStatusArvo = asetusTulkitsija([
+  ['paattynyt', ['PAATTYNYT', 'FINISHED', 'CLOSED', 'LOPPUNUT']],
+  ['kaynnissa', ['KAYNNISSA', 'ONGOING', 'RUNNING', 'LIVE']],
+  ['tauolla', ['TAUOLLA', 'TAUKO', 'PAUSED', 'PAUSE', 'BREAK', 'INTERMISSION']],
+  ['tulossa', ['TULOSSA', 'UPCOMING', 'PENDING']]
+]);
 
-  if (['PAATTYNYT', 'FINISHED', 'CLOSED', 'LOPPUNUT'].includes(norm)) return 'paattynyt';
-  if (['KAYNNISSA', 'ONGOING', 'RUNNING', 'LIVE'].includes(norm)) return 'kaynnissa';
-  if (['TAUOLLA', 'TAUKO', 'PAUSED', 'PAUSE', 'BREAK', 'INTERMISSION'].includes(norm)) return 'tauolla';
-  if (['TULOSSA', 'UPCOMING', 'PENDING'].includes(norm)) return 'tulossa';
-  return null;
-}
-
-const STATUS_AVAIMET = new Set([
+const STATUS_AVAIMET = asetusJoukko([
   'STATUS', 'KISASTATUS', 'KISA_STATUS', 'KILPAILUNSTATUS', 'KILPAILU_STATUS',
   'COMPETITIONSTATUS', 'KISAPAATTYNYT', 'KISA_PAATTYNYT', 'KILPAILUPAATTYNYT', 'KILPAILU_PAATTYNYT'
 ]);
@@ -92,7 +89,7 @@ function tulkitseStatusArvo(arvo, avain) {
   if (status) return status;
 
   const boolNorm = String(arvo).trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on', 'x'].includes(boolNorm) && avain.includes('PAATTYNYT')) {
+  if (TOSI_ARVOT.includes(boolNorm) && avain.includes('PAATTYNYT')) {
     return 'paattynyt';
   }
   return null;

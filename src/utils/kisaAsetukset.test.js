@@ -18,8 +18,8 @@ test('haeAikatauluNakyvyysSpekseista tunnistaa arvot always, after-start ja off'
 });
 
 test('haeSponsoriLogoNakyvyysSpekseista tunnistaa on ja off', () => {
-  assert.equal(haeSponsoriLogoNakyvyysSpekseista([['LOGOT_NAKYVYYS', 'näytä', 'show']]), 'on');
-  assert.equal(haeSponsoriLogoNakyvyysSpekseista([['AIKATAULU_LOGOT', 'piilota', 'hidden']]), 'off');
+  assert.equal(haeSponsoriLogoNakyvyysSpekseista([['LOGOT_NAKYVYYS', 'show']]), 'on');
+  assert.equal(haeSponsoriLogoNakyvyysSpekseista([['AIKATAULU_LOGOT', 'hidden']]), 'off');
   assert.equal(haeSponsoriLogoNakyvyysSpekseista([['Asema', 'Max']]), null);
 });
 
@@ -42,13 +42,24 @@ test('asetusavaimet ja -arvot tunnistetaan myös ääkkösin', () => {
   assert.equal(haeAikatauluRyhmittelySpekseista([['AIKATAULU_RYHMÄKOKO', 'Ryhmä 6']]), 'group6');
   assert.equal(haeAikatauluMalliSpekseista([['AIKATAULU_NÄKYMÄ', 'Erät']]), 'groups');
   assert.equal(haeAikatauluMalliSpekseista([['AIKATAULU_MALLI', 'Eräluettelo']]), 'groups');
-  assert.equal(haeSponsoriLogoNakyvyysSpekseista([['LOGOT_NÄKYVYYS', 'Näkyvissä', 'on']]), 'on');
+  assert.equal(haeSponsoriLogoNakyvyysSpekseista([['LOGOT_NÄKYVYYS', 'Ei']]), 'off');
 });
 
-test('asetuksen arvo luetaan vain avainta seuraavista kahdesta solusta', () => {
+test('asetuksen arvo on avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu', () => {
   const rivit = [['AIKATAULUNAKYVYYS', 'tuntematon', '', 'LOGOT_NAKYVYYS', 'ON']];
   assert.equal(haeAikatauluNakyvyysSpekseista(rivit), null);
   assert.equal(haeSponsoriLogoNakyvyysSpekseista(rivit), 'on');
   assert.equal(haeAikatauluRyhmittelySpekseista([['GROUPING_MODE', '', '6']]), 'group6');
   assert.equal(haeAikatauluRyhmittelySpekseista([['6', 'GROUPING_MODE']]), null);
+  assert.equal(haeAikatauluRyhmittelySpekseista([['GROUPING_MODE', '', '', '', 'Ryhmä 5']]), 'group5');
+
+  const vierekkain = [['AIKATAULU_MALLI', 'GROUPING_MODE', 'INLINE']];
+  assert.equal(haeAikatauluMalliSpekseista(vierekkain), null);
+  assert.equal(haeAikatauluRyhmittelySpekseista(vierekkain), 'inline');
+});
+
+test('välilyönnit ja alaviivat ovat avaimissa ja arvoissa samanarvoisia', () => {
+  assert.equal(haeAikatauluMalliSpekseista([['Aikataulu malli', 'Inline näkymä']]), 'inline');
+  assert.equal(haeAikatauluNakyvyysSpekseista([['Timetable visibility', 'after start']]), 'after-start');
+  assert.equal(haeAikatauluRyhmittelySpekseista([['Timetable group size', 'Group 6']]), 'group6');
 });

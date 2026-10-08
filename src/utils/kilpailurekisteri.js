@@ -1,5 +1,6 @@
 // src/utils/kilpailurekisteri.js
 // Kilpailurekisterin rivien tulkinta ja kisojen ryhmittely etusivulle.
+import { TOSI_ARVOT } from './henkiloTulokset.js';
 import { parsiPaivamaara } from './kisaStatus.js';
 
 function muunnaPaivamaaraJarjestysavaimeksi(pvmStr) {
@@ -35,7 +36,7 @@ function tulkitseRekisterinTotuusarvo(arvo) {
   const normalisoitu = String(arvo).trim().toLowerCase();
   if (!normalisoitu) return null;
 
-  if (['1', 'true', 'yes', 'on', 'x'].includes(normalisoitu)) return true;
+  if (TOSI_ARVOT.includes(normalisoitu)) return true;
   if (['0', 'false', 'no', 'off'].includes(normalisoitu)) return false;
   return null;
 }

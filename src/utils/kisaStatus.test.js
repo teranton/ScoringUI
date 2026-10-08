@@ -54,6 +54,9 @@ test('haeStatusOverrideSpekseista lukee status-avaimen riveiltä tai CSV-tekstis
   assert.equal(haeStatusOverrideSpekseista([]), null);
   assert.equal(haeStatusOverrideSpekseista([['Kisa päättynyt', 'x']]), 'paattynyt');
   assert.equal(haeStatusOverrideSpekseista([['Kilpailu_päättynyt', '', 'TRUE']]), 'paattynyt');
+  assert.equal(haeStatusOverrideSpekseista([['Kisa päättynyt', '', '', 'x']]), 'paattynyt');
+  assert.equal(haeStatusOverrideSpekseista([['Kilpailu status', 'Päättynyt']]), 'paattynyt');
+  assert.equal(haeStatusOverrideSpekseista([['STATUS', 'On going']]), 'kaynnissa');
   assert.equal(haeStatusOverrideSpekseista(null), null);
 });
 
