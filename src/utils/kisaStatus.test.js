@@ -11,11 +11,16 @@ import {
 
 const hetki = (paiva, kuukausi, vuosi, tunti = 12, minuutti = 0) => new Date(vuosi, kuukausi - 1, paiva, tunti, minuutti);
 
-test('parsiPaivamaara hyväksyy vain olemassa olevat päivät muodossa p.k.vvvv', () => {
+test('parsiPaivamaara hyväksyy olemassa olevat päivät muodoissa p.k.vvvv ja vvvv-kk-pp', () => {
   assert.deepEqual(parsiPaivamaara('7.6.2026'), new Date(2026, 5, 7));
+  assert.deepEqual(parsiPaivamaara(' 07.06.2026 '), new Date(2026, 5, 7));
+  assert.deepEqual(parsiPaivamaara('2026-06-07'), new Date(2026, 5, 7));
+  assert.deepEqual(parsiPaivamaara('2026-6-7'), new Date(2026, 5, 7));
   assert.equal(parsiPaivamaara('31.2.2026'), null);
-  assert.equal(parsiPaivamaara('2026-06-07'), null);
+  assert.equal(parsiPaivamaara('2026-02-31'), null);
+  assert.equal(parsiPaivamaara('kesäkuu'), null);
   assert.equal(parsiPaivamaara(''), null);
+  assert.equal(parsiPaivamaara(null), null);
 });
 
 test('laskeKisanStatusJaTyyli päättelee tilan päivämääristä', () => {
@@ -47,6 +52,8 @@ test('haeStatusOverrideSpekseista lukee status-avaimen riveiltä tai CSV-tekstis
   assert.equal(haeStatusOverrideSpekseista('STATUS,FINISHED\n'), 'paattynyt');
   assert.equal(haeStatusOverrideSpekseista([['STATUS', '']]), null);
   assert.equal(haeStatusOverrideSpekseista([]), null);
+  assert.equal(haeStatusOverrideSpekseista([['Kisa päättynyt', 'x']]), 'paattynyt');
+  assert.equal(haeStatusOverrideSpekseista([['Kilpailu_päättynyt', '', 'TRUE']]), 'paattynyt');
   assert.equal(haeStatusOverrideSpekseista(null), null);
 });
 
@@ -66,4 +73,9 @@ test('laskeKisanEfektiivinenStatus: päättynyt-merkintä voittaa päivämäär�
   assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['STATUS', 'Päättynyt']], ennenKisaa).status, 'paattynyt');
   assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['STATUS', 'Käynnissä']], ennenKisaa).status, 'tulossa');
   assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [], hetki(9, 6, 2026)).status, 'paattynyt');
+});
+
+test('haeStatusOverrideSpekseista ei lue arvoa rivin muista soluista', () => {
+  assert.equal(haeStatusOverrideSpekseista([['STATUS', 'tuntematon', '', 'Muu asetus', 'LIVE']]), null);
+  assert.equal(haeStatusOverrideSpekseista([['Tauolla', 'STATUS', '']]), null);
 });

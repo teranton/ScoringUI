@@ -6,7 +6,6 @@ import {
   muodostaYhdistetytRyhmaKortit,
   onkoEnsimmainenPaivaOhitettu,
   parseAikatauluRyhmat,
-  parseCompetitionDate,
   suodataNakyvatPaivaosiot,
   toSortValue
 } from './aikatauluRyhmat.js';
@@ -44,16 +43,10 @@ test('toSortValue muuntaa kellonajan minuuteiksi', () => {
   assert.equal(toSortValue(''), Number.MAX_SAFE_INTEGER);
 });
 
-test('parseCompetitionDate hyväksyy p.k.vvvv- ja ISO-muodot', () => {
-  assert.deepEqual(parseCompetitionDate('6.6.2026'), new Date(2026, 5, 6));
-  assert.deepEqual(parseCompetitionDate('2026-06-06'), new Date(2026, 5, 6));
-  assert.equal(parseCompetitionDate('31.6.2026'), null);
-  assert.equal(parseCompetitionDate('kesäkuu'), null);
-});
-
 test('onkoEnsimmainenPaivaOhitettu on tosi vasta ensimmäisen päivän jälkeen', () => {
   assert.equal(onkoEnsimmainenPaivaOhitettu('6.6.2026', new Date(2026, 5, 6, 23, 59)), false);
   assert.equal(onkoEnsimmainenPaivaOhitettu('6.6.2026', new Date(2026, 5, 7, 0, 0)), true);
+  assert.equal(onkoEnsimmainenPaivaOhitettu('2026-06-06', new Date(2026, 5, 7, 0, 0)), true);
   assert.equal(onkoEnsimmainenPaivaOhitettu('', new Date(2026, 5, 7)), false);
 });
 
@@ -163,4 +156,21 @@ test('muodostaRyhmaJarjestysTaulukko tekee päiväkohtaisen aika × rata -tauluk
     { time: '10:00', layouts: [{ layoutLabel: 'Rata 1', groups: [2] }, { layoutLabel: 'Rata 2', groups: [1] }] }
   ]);
   assert.deepEqual(muodostaRyhmaJarjestysTaulukko('lane-grid', daySections), { dayTables: [] });
+});
+
+test('muodostaYhdistetytRyhmaKortit järjestää vuorot päivän numeron, ei nimen mukaan', () => {
+  const { daySections, mode } = parseAikatauluRyhmat(csv([
+    ['Eräluettelo'],
+    ['Sunnuntai'],
+    ['START', 'Rata 1'],
+    ['9:00', '1'],
+    ['Iltaerä'],
+    ['START', 'Rata 1'],
+    ['9:00', '1'],
+    ['RYHMÄ', 'Nro', 'Nimi', 'Sarja', 'Seura'],
+    ['1', '11', 'Matti', 'Y', 'Seura A']
+  ]), 'group5', TX);
+
+  const [kortti] = muodostaYhdistetytRyhmaKortit(mode, daySections);
+  assert.deepEqual(kortti.scheduleRows.map((r) => [r.dayNumber, r.dayLabel]), [[2, 'Sunnuntai'], [3, '3']]);
 });

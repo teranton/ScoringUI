@@ -77,3 +77,17 @@ test('arvioiJoukkuekisaNimesta pitää SM-kisoja joukkuekisoina', () => {
   assert.equal(arvioiJoukkuekisaNimesta('Kevätkisa'), false);
   assert.equal(arvioiJoukkuekisaNimesta(null), false);
 });
+
+test('parsiKilpailurekisteri: x piilottaa kisan ja merkitsee joukkuekisan', () => {
+  const [kisa] = parsiKilpailurekisteri([['k1', 'Kisa', '2026-06-06', '', 'sheet', 'x', 'X']]);
+  assert.equal(kisa.piilotettu, true);
+  assert.equal(kisa.joukkueKisaAsetus, true);
+});
+
+test('parsiKilpailurekisteri: virheellinen päivämäärä järjestyy kuin päivätön kisa', () => {
+  const kisat = parsiKilpailurekisteri([
+    ['a', 'Aamukisa', '31.2.2026', '', '', '', ''],
+    ['b', 'Bonuskisa', '1.1.2020', '', '', '', '']
+  ]);
+  assert.deepEqual(kisat.map((k) => k.id), ['b', 'a']);
+});

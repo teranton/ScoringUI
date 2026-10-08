@@ -2,8 +2,44 @@
 // KISANSPEKSIT-välilehden näkymäasetukset (aikataulun näkyvyys, logot, ryhmittely, malli).
 import { parseCsvRows } from './csv.js';
 
+// Isot kirjaimet, ääkköset ilman pisteitä (Ä→A, Ö→O, Å→A) ja vain A-Z, 0-9 ja _.
+export function normalisoiAsetus(arvo) {
+  return String(arvo || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Z0-9_]/g, '');
+}
+
+// Etsii riviltä asetusavaimen ja tulkitsee sen arvon avainta seuraavista kahdesta solusta.
+// tulkitse(arvo, avain) palauttaa tulkinnan tai null.
+export function haeAsetusSpekseista(speksitData, avainSanat, tulkitse) {
+  const rivit = Array.isArray(speksitData)
+    ? speksitData
+    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
+
+  if (!Array.isArray(rivit) || rivit.length === 0) return null;
+
+  for (const rivi of rivit) {
+    if (!Array.isArray(rivi) || rivi.length === 0) continue;
+
+    const solut = rivi.map((s) => String(s || '').trim());
+
+    for (let i = 0; i < solut.length; i++) {
+      const avain = normalisoiAsetus(solut[i]);
+      if (!avainSanat.has(avain)) continue;
+
+      const ehdokasArvot = [solut[i + 1], solut[i + 2]].filter(Boolean);
+      for (const ehdokas of ehdokasArvot) {
+        const tulkinta = tulkitse(ehdokas, avain);
+        if (tulkinta) return tulkinta;
+      }
+    }
+  }
+
+  return null;
+}
+
 function normalisoiAikatauluNakyvyysArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  const norm = normalisoiAsetus(arvo);
   if (!norm) return null;
 
   if (['ALWAYS', 'AINA', 'ON', 'TRUE', 'YES', '1', 'PUBLIC', 'ENABLED'].includes(norm)) return 'always';
@@ -12,41 +48,17 @@ function normalisoiAikatauluNakyvyysArvo(arvo) {
   return null;
 }
 
+const AIKATAULU_NAKYVYYS_AVAIMET = new Set([
+  'AIKATAULUNAKYVYYS', 'AIKATAULU_NAKYVYYS', 'AIKATAULUJULKINEN', 'AIKATAULU_JULKINEN',
+  'TIMETABLEVISIBILITY', 'TIMETABLE_VISIBILITY', 'TIMETABLEPUBLIC', 'TIMETABLE_PUBLIC'
+]);
+
 export function haeAikatauluNakyvyysSpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'AIKATAULUNAKYVYYS', 'AIKATAULU_NAKYVYYS', 'AIKATAULUJULKINEN', 'AIKATAULU_JULKINEN',
-    'TIMETABLEVISIBILITY', 'TIMETABLE_VISIBILITY', 'TIMETABLEPUBLIC', 'TIMETABLE_PUBLIC'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
-      for (const ehdokas of ehdokasArvot) {
-        const tulkinta = normalisoiAikatauluNakyvyysArvo(ehdokas);
-        if (tulkinta) return tulkinta;
-      }
-    }
-  }
-
-  return null;
+  return haeAsetusSpekseista(speksitData, AIKATAULU_NAKYVYYS_AVAIMET, normalisoiAikatauluNakyvyysArvo);
 }
 
 function normalisoiSponsoriLogoNakyvyysArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  const norm = normalisoiAsetus(arvo);
   if (!norm) return null;
 
   if (['ON', 'TRUE', 'YES', '1', 'SHOW', 'VISIBLE', 'ENABLED', 'AINA', 'ALWAYS'].includes(norm)) return 'on';
@@ -54,41 +66,17 @@ function normalisoiSponsoriLogoNakyvyysArvo(arvo) {
   return null;
 }
 
+const SPONSORI_LOGO_NAKYVYYS_AVAIMET = new Set([
+  'LOGOTNAKYVYYS', 'LOGOT_NAKYVYYS', 'SPONSORLOGOSVISIBILITY', 'SPONSOR_LOGOS_VISIBILITY',
+  'SPONSORLOGONAKYVYYS', 'SPONSOR_LOGO_NAKYVYYS', 'AIKATAULULOGOT', 'AIKATAULU_LOGOT'
+]);
+
 export function haeSponsoriLogoNakyvyysSpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'LOGOTNAKYVYYS', 'LOGOT_NAKYVYYS', 'SPONSORLOGOSVISIBILITY', 'SPONSOR_LOGOS_VISIBILITY',
-    'SPONSORLOGONAKYVYYS', 'SPONSOR_LOGO_NAKYVYYS', 'AIKATAULULOGOT', 'AIKATAULU_LOGOT'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
-      for (const ehdokas of ehdokasArvot) {
-        const tulkinta = normalisoiSponsoriLogoNakyvyysArvo(ehdokas);
-        if (tulkinta) return tulkinta;
-      }
-    }
-  }
-
-  return null;
+  return haeAsetusSpekseista(speksitData, SPONSORI_LOGO_NAKYVYYS_AVAIMET, normalisoiSponsoriLogoNakyvyysArvo);
 }
 
 function normalisoiAikatauluRyhmittelyArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const norm = normalisoiAsetus(arvo).replace(/_/g, '');
   if (!norm) return null;
 
   if (['INLINE', 'INLINEAMMUNTA', 'INLINEORDER', 'LANE', 'LANES', 'RADAT', 'RATA'].includes(norm)) return 'inline';
@@ -97,42 +85,18 @@ function normalisoiAikatauluRyhmittelyArvo(arvo) {
   return null;
 }
 
+const AIKATAULU_RYHMITTELY_AVAIMET = new Set([
+  'AIKATAULURYHMITTELY', 'AIKATAULU_RYHMITTELY', 'AIKATAULUGROUPING', 'AIKATAULU_GROUPING',
+  'TIMETABLEGROUPING', 'TIMETABLE_GROUPING', 'AIKATAULURYHMAKOKO', 'AIKATAULU_RYHMAKOKO',
+  'TIMETABLEGROUPSIZE', 'TIMETABLE_GROUP_SIZE', 'GROUPINGMODE', 'GROUPING_MODE'
+]);
+
 export function haeAikatauluRyhmittelySpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'AIKATAULURYHMITTELY', 'AIKATAULU_RYHMITTELY', 'AIKATAULUGROUPING', 'AIKATAULU_GROUPING',
-    'TIMETABLEGROUPING', 'TIMETABLE_GROUPING', 'AIKATAULURYHMAKOKO', 'AIKATAULU_RYHMAKOKO',
-    'TIMETABLEGROUPSIZE', 'TIMETABLE_GROUP_SIZE', 'GROUPINGMODE', 'GROUPING_MODE'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
-      for (const ehdokas of ehdokasArvot) {
-        const tulkinta = normalisoiAikatauluRyhmittelyArvo(ehdokas);
-        if (tulkinta) return tulkinta;
-      }
-    }
-  }
-
-  return null;
+  return haeAsetusSpekseista(speksitData, AIKATAULU_RYHMITTELY_AVAIMET, normalisoiAikatauluRyhmittelyArvo);
 }
 
 function normalisoiAikatauluMalliArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  const norm = normalisoiAsetus(arvo);
   if (!norm) return null;
 
   if (['INLINE', 'INLINEVIEW', 'INLINE_LAYOUT', 'INLINE_MALLI', 'INLINE_NAKYMA'].includes(norm)) return 'inline';
@@ -140,36 +104,12 @@ function normalisoiAikatauluMalliArvo(arvo) {
   return null;
 }
 
+const AIKATAULU_MALLI_AVAIMET = new Set([
+  'AIKATAULUMALLI', 'AIKATAULU_MALLI', 'AIKATAULUNAKYMA', 'AIKATAULU_NAKYMA',
+  'TIMETABLEMODEL', 'TIMETABLE_MODEL', 'TIMETABLEVIEW', 'TIMETABLE_VIEW',
+  'SCHEDULEMODEL', 'SCHEDULE_MODEL'
+]);
+
 export function haeAikatauluMalliSpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'AIKATAULUMALLI', 'AIKATAULU_MALLI', 'AIKATAULUNAKYMA', 'AIKATAULU_NAKYMA',
-    'TIMETABLEMODEL', 'TIMETABLE_MODEL', 'TIMETABLEVIEW', 'TIMETABLE_VIEW',
-    'SCHEDULEMODEL', 'SCHEDULE_MODEL'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
-      for (const ehdokas of ehdokasArvot) {
-        const tulkinta = normalisoiAikatauluMalliArvo(ehdokas);
-        if (tulkinta) return tulkinta;
-      }
-    }
-  }
-
-  return null;
+  return haeAsetusSpekseista(speksitData, AIKATAULU_MALLI_AVAIMET, normalisoiAikatauluMalliArvo);
 }

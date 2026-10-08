@@ -35,3 +35,20 @@ test('haeAikatauluMalliSpekseista tunnistaa inline- ja ryhmämallin', () => {
   assert.equal(haeAikatauluMalliSpekseista([['Muuta', ''], ['AIKATAULUMALLI', 'erat']]), 'groups');
   assert.equal(haeAikatauluMalliSpekseista([['AIKATAULUMALLI', 'tuntematon']]), null);
 });
+
+test('asetusavaimet ja -arvot tunnistetaan myös ääkkösin', () => {
+  assert.equal(haeAikatauluNakyvyysSpekseista([['Aikataulu näkyvyys', 'Käynnissä']]), 'after-start');
+  assert.equal(haeAikatauluNakyvyysSpekseista([['AIKATAULU_NÄKYVYYS', 'ei']]), 'off');
+  assert.equal(haeAikatauluRyhmittelySpekseista([['AIKATAULU_RYHMÄKOKO', 'Ryhmä 6']]), 'group6');
+  assert.equal(haeAikatauluMalliSpekseista([['AIKATAULU_NÄKYMÄ', 'Erät']]), 'groups');
+  assert.equal(haeAikatauluMalliSpekseista([['AIKATAULU_MALLI', 'Eräluettelo']]), 'groups');
+  assert.equal(haeSponsoriLogoNakyvyysSpekseista([['LOGOT_NÄKYVYYS', 'Näkyvissä', 'on']]), 'on');
+});
+
+test('asetuksen arvo luetaan vain avainta seuraavista kahdesta solusta', () => {
+  const rivit = [['AIKATAULUNAKYVYYS', 'tuntematon', '', 'LOGOT_NAKYVYYS', 'ON']];
+  assert.equal(haeAikatauluNakyvyysSpekseista(rivit), null);
+  assert.equal(haeSponsoriLogoNakyvyysSpekseista(rivit), 'on');
+  assert.equal(haeAikatauluRyhmittelySpekseista([['GROUPING_MODE', '', '6']]), 'group6');
+  assert.equal(haeAikatauluRyhmittelySpekseista([['6', 'GROUPING_MODE']]), null);
+});
