@@ -429,6 +429,8 @@ export default function App() {
   const [kisaCache, setKisaCache] = useState({});
   const [ladataanKisaaBySheet, setLadataanKisaaBySheet] = useState({});
   const [virhe, setVirhe] = useState(null);
+  // Kisadatan virhe tallennetaan kisakohtaisesti, jotta vanhan kisan haku ei näytä tai tyhjennä virhettä toisessa kisassa.
+  const [kisaVirheBySheet, setKisaVirheBySheet] = useState({});
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
   const kisaCacheRef = useRef(kisaCache);
@@ -765,8 +767,6 @@ export default function App() {
     const henkilotCsvVirheellinen = onkoCsvVirheellinen(cacheData?.henkilotCsvRaw, 10);
     const joukkueetCsvVirheellinen = onkoCsvVirheellinen(cacheData?.joukkueetCsvRaw, 10);
     const speksitCsvVirheellinen = onkoCsvVirheellinen(cacheData?.speksitCsvRaw, 2);
-    const puuttuuMonipaivainenAikatauluCache = !onkoStaattinen && onkoDataValimuistissa
-      && (cacheData?.aikatauluLaCsvRaw === undefined || cacheData?.aikatauluSuCsvRaw === undefined);
     const puuttuuPakollistaKisaDataa = !onkoDataValimuistissa
       || henkilotCsvVirheellinen
       || joukkueetCsvVirheellinen
@@ -777,7 +777,7 @@ export default function App() {
       fetchInFlightRef.current[sheetId] = true;
 
       try {
-        setVirhe(null);
+        setKisaVirheBySheet((prev) => (prev[sheetId] ? { ...prev, [sheetId]: null } : prev));
         if (!kisaCacheRef.current[sheetId]) {
           setLadataanKisaaBySheet((prev) => ({ ...prev, [sheetId]: true }));
         }
@@ -833,7 +833,7 @@ export default function App() {
 
       } catch (err) {
         console.error("Datan päivitys epäonnistui palvelimelta:", err);
-        setVirhe("Tietojen päivitys epäonnistui taustalla.");
+        setKisaVirheBySheet((prev) => ({ ...prev, [sheetId]: "Tietojen päivitys epäonnistui taustalla." }));
         trackAnalyticsEvent('competition_fetch', {
           competitionId: String(valittuKisa?.id || ''),
           mode: onkoStaattinen ? 'static' : 'live',
@@ -850,7 +850,7 @@ export default function App() {
 
     // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
     // Päättyneessä kisassa vältetään turha lisähaku, jos data on jo välimuistissa.
-    if (!onkoStaattinen || puuttuuPakollistaKisaDataa || puuttuuMonipaivainenAikatauluCache) {
+    if (!onkoStaattinen || puuttuuPakollistaKisaDataa) {
       haeYhdistettyKisaData();
     }
 
@@ -918,6 +918,7 @@ export default function App() {
 
   const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
   const ladataanKisaa = valittuKisa?.apiUrl ? Boolean(ladataanKisaaBySheet[valittuKisa.apiUrl]) : false;
+  const valitunKisanVirhe = virhe || (valittuKisa?.apiUrl ? kisaVirheBySheet[valittuKisa.apiUrl] : null);
 
   // Riippuvuutena raaka-CSV-merkkijonot, jotta taustapäivitys ilman muutoksia ei parsi dataa uudelleen.
   const henkilotCsvRaw = nykyisenKisanData?.henkilotCsvRaw || '';
@@ -1204,7 +1205,7 @@ export default function App() {
             </div>
             <Badge variant={statusToBadgeVariant(kisanStatusInfo.status)}>{labelForStatus(kisanStatusInfo.status, locale)}</Badge>
           </div>
-          {virhe && <div className="text-sm font-medium text-rose-600">{virhe}</div>}
+          {valitunKisanVirhe && <div className="text-sm font-medium text-rose-600">{valitunKisanVirhe}</div>}
         </CardHeader>
       </Card>
 

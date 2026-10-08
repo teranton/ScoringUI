@@ -64,10 +64,10 @@ export function hasCsvDataRows(csvText, minRows = 2) {
   return parseCsvRows(csvText).length >= minRows;
 }
 
-// CSV on virheellinen, jos se puuttuu, on liian lyhyt tai näyttää virhesivulta.
+// CSV on virheellinen, jos se puuttuu, on liian lyhyt tai on HTML-sivu (esim. Googlen kirjautumissivu).
+// Sisältöä ei etsitä sanoilla "error" tai "html", koska kelvollisessa datassa voi olla #ERROR!-soluja tai linkkejä.
 export function onkoCsvVirheellinen(raw, minPituus) {
   if (!raw) return true;
-  const teksti = String(raw);
-  const pienella = teksti.toLowerCase();
-  return teksti.trim().length < minPituus || pienella.includes('html') || pienella.includes('error');
+  const teksti = String(raw).trim();
+  return teksti.length < minPituus || teksti.startsWith('<');
 }
