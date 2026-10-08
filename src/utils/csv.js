@@ -63,3 +63,11 @@ export function parseCsvRows(csvText) {
 export function hasCsvDataRows(csvText, minRows = 2) {
   return parseCsvRows(csvText).length >= minRows;
 }
+
+// CSV on virheellinen, jos se puuttuu, on liian lyhyt tai näyttää virhesivulta.
+export function onkoCsvVirheellinen(raw, minPituus) {
+  if (!raw) return true;
+  const teksti = String(raw);
+  const pienella = teksti.toLowerCase();
+  return teksti.trim().length < minPituus || pienella.includes('html') || pienella.includes('error');
+}

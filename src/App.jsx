@@ -7,7 +7,7 @@ import Ilmoittautuneet from './Ilmoittautuneet';
 import AikatauluNakyma from './AikatauluNakyma';
 import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
-import { parseCsvRows } from './utils/csv';
+import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
@@ -418,14 +418,6 @@ function haeKisanVuosi(kisa) {
   return osuma ? parseInt(osuma[0], 10) : null;
 }
 
-// Välimuistin CSV on virheellinen, jos se puuttuu, on liian lyhyt tai näyttää virhesivulta.
-function onkoCsvVirheellinen(raw, minPituus) {
-  if (!raw) return true;
-  const teksti = String(raw);
-  const pienella = teksti.toLowerCase();
-  return teksti.trim().length < minPituus || pienella.includes('html') || pienella.includes('error');
-}
-
 export default function App() {
   const theme = 'default';
   const locale = 'fi';
@@ -810,7 +802,7 @@ export default function App() {
         const vanhaData = kisaCacheRef.current[sheetId] || {};
         const durationMs = Math.round(performance.now() - startTime);
 
-        console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}): ${durationMs.toFixed(0)}ms`);
+        console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}): ${durationMs}ms`);
 
         trackAnalyticsEvent('competition_fetch', {
           competitionId: String(valittuKisa?.id || ''),

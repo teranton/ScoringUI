@@ -17,7 +17,6 @@ const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 // Taulukon luokat kokoluokittain (compact / mobile / desktop).
 const TEKSTIKOKO = { compact: 'text-[11px]', mobile: 'text-xs', desktop: 'text-sm' };
 const RATKO_TEKSTIKOKO = { compact: 'text-[10px]', mobile: 'text-xs', desktop: 'text-sm' };
-const SARJA_TEKSTIKOKO = { compact: 'text-sm', mobile: 'text-xs', desktop: 'text-sm' };
 const NIMI_ASETTELU = { compact: 'truncate px-1.5', mobile: 'truncate px-2', desktop: 'px-3' };
 
 const OTSIKKO_LUOKAT = {
@@ -30,7 +29,7 @@ const OTSIKKO_LUOKAT = {
 const SOLU_LUOKAT = {
   rank: (koko) => `text-center ${TEKSTIKOKO[koko]} font-medium text-slate-500 border-r border-slate-200`,
   name: (koko) => `${NIMI_ASETTELU[koko]} ${TEKSTIKOKO[koko]} font-semibold text-slate-900 border-r border-slate-200`,
-  series: (koko) => `text-center ${SARJA_TEKSTIKOKO[koko]} text-slate-600 border-r border-slate-200/60`,
+  series: (koko) => `text-center ${TEKSTIKOKO[koko]} text-slate-600 border-r border-slate-200/60`,
   sum: (koko) => `text-center font-mono ${TEKSTIKOKO[koko]} font-bold text-slate-900 border-r border-slate-300 bg-slate-100/60`,
   ratko: (koko) => `text-center ${RATKO_TEKSTIKOKO[koko]} border-r border-[hsl(var(--ratko-fg)/0.22)] bg-[hsl(var(--ratko-bg)/0.45)] text-[hsl(var(--ratko-fg))]`,
   stage: (koko) => `text-center font-mono ${TEKSTIKOKO[koko]} border-r border-slate-200/40`
