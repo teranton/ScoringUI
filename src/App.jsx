@@ -11,6 +11,22 @@ import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
+import {
+  laskeKisanEfektiivinenStatus,
+  laskeKisanStatusJaTyyli,
+  laskeOnkoIlmoittautuminenPaattynyt
+} from './utils/kisaStatus';
+import {
+  haeAikatauluMalliSpekseista,
+  haeAikatauluNakyvyysSpekseista,
+  haeAikatauluRyhmittelySpekseista,
+  haeSponsoriLogoNakyvyysSpekseista
+} from './utils/kisaAsetukset';
+import {
+  arvioiJoukkuekisaNimesta,
+  parsiKilpailurekisteri,
+  ryhmitteleKisatVuosittain
+} from './utils/kilpailurekisteri';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
@@ -19,350 +35,6 @@ import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, Chevr
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
 let analyticsTrack = null;
-
-function muunnaPaivamaaraJarjestysavaimeksi(pvmStr) {
-  if (!pvmStr) return null;
-
-  const teksti = String(pvmStr).trim();
-  if (!teksti) return null;
-
-  if (teksti.includes('.')) {
-    const osat = teksti.split('.');
-    if (osat.length !== 3) return null;
-    const paiva = osat[0]?.trim();
-    const kuukausi = osat[1]?.trim();
-    const vuosi = osat[2]?.trim();
-    if (!paiva || !kuukausi || !vuosi) return null;
-    if (!/^\d+$/.test(paiva) || !/^\d+$/.test(kuukausi) || !/^\d{4}$/.test(vuosi)) return null;
-    return `${vuosi}-${kuukausi.padStart(2, '0')}-${paiva.padStart(2, '0')}`;
-  }
-
-  if (teksti.includes('-')) {
-    const osat = teksti.split('-');
-    if (osat.length !== 3) return null;
-    const vuosi = osat[0]?.trim();
-    const kuukausi = osat[1]?.trim();
-    const paiva = osat[2]?.trim();
-    if (!paiva || !kuukausi || !vuosi) return null;
-    if (!/^\d{4}$/.test(vuosi) || !/^\d+$/.test(kuukausi) || !/^\d+$/.test(paiva)) return null;
-    return `${vuosi}-${kuukausi.padStart(2, '0')}-${paiva.padStart(2, '0')}`;
-  }
-
-  return null;
-}
-
-function parsiPaivamaara(pvmStr) {
-  if (!pvmStr) return null;
-  const osat = pvmStr.split('.');
-  if (osat.length !== 3) return null;
-
-  const paiva = parseInt(osat[0], 10);
-  const kuukausi = parseInt(osat[1], 10);
-  const vuosi = parseInt(osat[2], 10);
-
-  if (
-    !Number.isInteger(paiva) ||
-    !Number.isInteger(kuukausi) ||
-    !Number.isInteger(vuosi) ||
-    kuukausi < 1 ||
-    kuukausi > 12 ||
-    paiva < 1 ||
-    paiva > 31
-  ) {
-    return null;
-  }
-
-  const date = new Date(vuosi, kuukausi - 1, paiva);
-  if (
-    date.getFullYear() !== vuosi ||
-    date.getMonth() !== kuukausi - 1 ||
-    date.getDate() !== paiva
-  ) {
-    return null;
-  }
-
-  return date;
-}
-
-function laskeOnkoIlmoittautuminenPaattynyt(alkuStr) {
-  if (!alkuStr) return true;
-  const aloitusPaiva = parsiPaivamaara(alkuStr);
-  if (!aloitusPaiva) return true;
-
-  const takaraja = new Date(aloitusPaiva.getTime());
-  takaraja.setHours(10, 0, 0, 0);
-
-  const nykyhetki = new Date();
-  return nykyhetki >= takaraja;
-}
-
-function laskeKisanStatusJaTyyli(alkuStr, loppuStr) {
-  if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-
-  const nollatunnit = (d) => {
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
-
-  const tanaandDate = nollatunnit(new Date());
-  const alkuDate = parsiPaivamaara(alkuStr);
-  const loppuDate = loppuStr ? parsiPaivamaara(loppuStr) : alkuDate;
-
-  if (!alkuDate || !loppuDate) {
-    return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-  }
-
-  if (tanaandDate < alkuDate) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-  if (tanaandDate > loppuDate) return { teksti: "Päättynyt", tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
-  return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
-}
-
-function normalisoiStatusArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase();
-  if (!norm) return null;
-
-  if (['PÄÄTTYNYT', 'PAATTYNYT', 'FINISHED', 'CLOSED', 'LOPPUNUT'].includes(norm)) return 'paattynyt';
-  if (['KÄYNNISSÄ', 'KAYNNISSA', 'ONGOING', 'RUNNING', 'LIVE'].includes(norm)) return 'kaynnissa';
-  if (['TAUOLLA', 'TAUKO', 'PAUSED', 'PAUSE', 'BREAK', 'INTERMISSION'].includes(norm)) return 'tauolla';
-  if (['TULOSSA', 'UPCOMING', 'PENDING'].includes(norm)) return 'tulossa';
-  return null;
-}
-
-function haeStatusOverrideSpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'STATUS', 'KISASTATUS', 'KISA_STATUS', 'KILPAILUNSTATUS', 'KILPAILU_STATUS',
-    'COMPETITIONSTATUS', 'KISAPAATTYNYT', 'KISA_PAATTYNYT', 'KILPAILUPAATTYNYT', 'KILPAILU_PAATTYNYT'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [
-        solut[i + 1], solut[i + 2], solut[i], ...solut
-      ].filter(Boolean);
-
-      for (const ehdokas of ehdokasArvot) {
-        const status = normalisoiStatusArvo(ehdokas);
-        if (status) return status;
-
-        const boolNorm = String(ehdokas).trim().toLowerCase();
-        if (['1', 'true', 'yes', 'on', 'x'].includes(boolNorm) && avain.includes('PAATTYNYT')) {
-          return 'paattynyt';
-        }
-      }
-    }
-  }
-
-  return null;
-}
-
-function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData) {
-  const oletus = laskeKisanStatusJaTyyli(alkuStr, loppuStr);
-
-  // Date-active competitions are controlled by sheet status flag.
-  const override = haeStatusOverrideSpekseista(speksitData);
-  if (override === 'paattynyt') {
-    return { teksti: 'Päättynyt', tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
-  }
-
-  if (oletus.status !== 'kaynnissa') return oletus;
-
-  if (!override) {
-    return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-  }
-  if (override === 'kaynnissa') {
-    return { teksti: 'Käynnissä', tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
-  }
-  if (override === 'tauolla') {
-    return { teksti: 'Tauolla', tyyli: { background: '#fff4e5', color: '#8a4b00' }, status: 'tauolla' };
-  }
-  return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-}
-
-function normalisoiAikatauluNakyvyysArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
-  if (!norm) return null;
-
-  if (['ALWAYS', 'AINA', 'ON', 'TRUE', 'YES', '1', 'PUBLIC', 'ENABLED'].includes(norm)) return 'always';
-  if (['AFTERSTART', 'AFTER_START', 'START', 'KAYNNISSA', 'LIVE', 'RESULTS'].includes(norm)) return 'after-start';
-  if (['OFF', 'FALSE', 'NO', '0', 'HIDDEN', 'DISABLED', 'NONE', 'EI'].includes(norm)) return 'off';
-  return null;
-}
-
-function haeAikatauluNakyvyysSpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'AIKATAULUNAKYVYYS', 'AIKATAULU_NAKYVYYS', 'AIKATAULUJULKINEN', 'AIKATAULU_JULKINEN',
-    'TIMETABLEVISIBILITY', 'TIMETABLE_VISIBILITY', 'TIMETABLEPUBLIC', 'TIMETABLE_PUBLIC'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
-      for (const ehdokas of ehdokasArvot) {
-        const tulkinta = normalisoiAikatauluNakyvyysArvo(ehdokas);
-        if (tulkinta) return tulkinta;
-      }
-    }
-  }
-
-  return null;
-}
-
-function normalisoiSponsoriLogoNakyvyysArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
-  if (!norm) return null;
-
-  if (['ON', 'TRUE', 'YES', '1', 'SHOW', 'VISIBLE', 'ENABLED', 'AINA', 'ALWAYS'].includes(norm)) return 'on';
-  if (['OFF', 'FALSE', 'NO', '0', 'HIDE', 'HIDDEN', 'DISABLED', 'EI', 'NONE'].includes(norm)) return 'off';
-  return null;
-}
-
-function haeSponsoriLogoNakyvyysSpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'LOGOTNAKYVYYS', 'LOGOT_NAKYVYYS', 'SPONSORLOGOSVISIBILITY', 'SPONSOR_LOGOS_VISIBILITY',
-    'SPONSORLOGONAKYVYYS', 'SPONSOR_LOGO_NAKYVYYS', 'AIKATAULULOGOT', 'AIKATAULU_LOGOT'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
-      for (const ehdokas of ehdokasArvot) {
-        const tulkinta = normalisoiSponsoriLogoNakyvyysArvo(ehdokas);
-        if (tulkinta) return tulkinta;
-      }
-    }
-  }
-
-  return null;
-}
-
-function normalisoiAikatauluRyhmittelyArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (!norm) return null;
-
-  if (['INLINE', 'INLINEAMMUNTA', 'INLINEORDER', 'LANE', 'LANES', 'RADAT', 'RATA'].includes(norm)) return 'inline';
-  if (['5', 'GROUP5', 'RYHMA5', 'GROUPSIZE5', 'SIZE5'].includes(norm)) return 'group5';
-  if (['6', 'GROUP6', 'RYHMA6', 'GROUPSIZE6', 'SIZE6'].includes(norm)) return 'group6';
-  return null;
-}
-
-function haeAikatauluRyhmittelySpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'AIKATAULURYHMITTELY', 'AIKATAULU_RYHMITTELY', 'AIKATAULUGROUPING', 'AIKATAULU_GROUPING',
-    'TIMETABLEGROUPING', 'TIMETABLE_GROUPING', 'AIKATAULURYHMAKOKO', 'AIKATAULU_RYHMAKOKO',
-    'TIMETABLEGROUPSIZE', 'TIMETABLE_GROUP_SIZE', 'GROUPINGMODE', 'GROUPING_MODE'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
-      for (const ehdokas of ehdokasArvot) {
-        const tulkinta = normalisoiAikatauluRyhmittelyArvo(ehdokas);
-        if (tulkinta) return tulkinta;
-      }
-    }
-  }
-
-  return null;
-}
-
-function normalisoiAikatauluMalliArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
-  if (!norm) return null;
-
-  if (['INLINE', 'INLINEVIEW', 'INLINE_LAYOUT', 'INLINE_MALLI', 'INLINE_NAKYMA'].includes(norm)) return 'inline';
-  if (['GROUPS', 'GROUP', 'HEATS', 'ERAT', 'ERALUETTELO', 'RYHMAT', 'RYHMA'].includes(norm)) return 'groups';
-  return null;
-}
-
-function haeAikatauluMalliSpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'AIKATAULUMALLI', 'AIKATAULU_MALLI', 'AIKATAULUNAKYMA', 'AIKATAULU_NAKYMA',
-    'TIMETABLEMODEL', 'TIMETABLE_MODEL', 'TIMETABLEVIEW', 'TIMETABLE_VIEW',
-    'SCHEDULEMODEL', 'SCHEDULE_MODEL'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [solut[i + 1], solut[i + 2], ...solut].filter(Boolean);
-      for (const ehdokas of ehdokasArvot) {
-        const tulkinta = normalisoiAikatauluMalliArvo(ehdokas);
-        if (tulkinta) return tulkinta;
-      }
-    }
-  }
-
-  return null;
-}
 
 function statusToBadgeVariant(status) {
   if (status === 'kaynnissa') return 'ongoing';
@@ -404,18 +76,6 @@ function onkoPreviewOverrideAktiivinen() {
   } catch {
     return false;
   }
-}
-
-function haeKisanVuosi(kisa) {
-  const alku = parsiPaivamaara(kisa?.alkuPvm);
-  if (alku) return alku.getFullYear();
-
-  const loppu = parsiPaivamaara(kisa?.loppuPvm);
-  if (loppu) return loppu.getFullYear();
-
-  const fallback = String(kisa?.alkuPvm || kisa?.loppuPvm || '');
-  const osuma = fallback.match(/(19|20)\d{2}/);
-  return osuma ? parseInt(osuma[0], 10) : null;
 }
 
 export default function App() {
@@ -558,25 +218,6 @@ export default function App() {
     window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
   };
 
-  const muotoileIsoPaivamaaraSuomeksi = (pvmStr) => {
-    if (!pvmStr || !pvmStr.includes('-')) return pvmStr;
-    const osat = pvmStr.split('-');
-    if (osat.length !== 3) return pvmStr;
-    return `${parseInt(osat[2], 10)}.${parseInt(osat[1], 10)}.${osat[0]}`;
-  };
-
-  const tulkitseTotuusarvo = (arvo) => {
-    if (arvo == null) return null;
-    const normalisoitu = String(arvo).trim().toLowerCase();
-    if (!normalisoitu) return null;
-
-    if (['1', 'true', 'yes', 'on'].includes(normalisoitu)) return true;
-    if (['0', 'false', 'no', 'off'].includes(normalisoitu)) return false;
-    return null;
-  };
-
-  const arvioiJoukkuekisaNimesta = (kisaNimi) => String(kisaNimi || '').includes('SM');
-
   // 1. HAETAAN KILPAILUREKISTERI
   useEffect(() => {
     async function haeKisalistaCsv() {
@@ -591,38 +232,7 @@ export default function App() {
         }
         const csvText = await response.text();
         const raakaRivit = parseCsvRows(csvText);
-        const parsitutKisat = [];
-
-        for (let i = 0; i < raakaRivit.length; i++) {
-          const row = raakaRivit[i];
-
-          if (i === 0 && (row[1]?.toLowerCase().includes('nimi') || row[0]?.toLowerCase().includes('id'))) {
-            continue;
-          }
-
-          if (row[1] || row[0]) {
-            const joukkueKisaAsetus = tulkitseTotuusarvo(row[5]);
-            parsitutKisat.push({
-              id: row[0] || i.toString(),
-              nimi: row[1] || "Nimetön kisa",
-              alkuPvm: muotoileIsoPaivamaaraSuomeksi(row[2]),
-              loppuPvm: muotoileIsoPaivamaaraSuomeksi(row[3]),
-              apiUrl: row[4] || "",
-              joukkueKisaAsetus,
-              piilotettu: tulkitseTotuusarvo(row[6]) === true
-            });
-          }
-        }
-
-        parsitutKisat.sort((a, b) => {
-          const aKey = muunnaPaivamaaraJarjestysavaimeksi(a.alkuPvm);
-          const bKey = muunnaPaivamaaraJarjestysavaimeksi(b.alkuPvm);
-
-          if (aKey && bKey) return bKey.localeCompare(aKey);
-          if (aKey) return -1;
-          if (bKey) return 1;
-          return String(b.nimi || '').localeCompare(String(a.nimi || ''), 'fi');
-        });
+        const parsitutKisat = parsiKilpailurekisteri(raakaRivit);
 
         const naytettavatKisat = onkoPiilotettujenKisojenOverride
           ? parsitutKisat
@@ -891,38 +501,7 @@ export default function App() {
 
   const kuluvaVuosi = new Date().getFullYear();
 
-  const kisaRyhmat = useMemo(() => {
-    const vuosiMap = new Map();
-    const ilmanVuotta = [];
-
-    for (const kisa of kisat) {
-      const vuosi = haeKisanVuosi(kisa);
-      if (!Number.isInteger(vuosi)) {
-        ilmanVuotta.push(kisa);
-        continue;
-      }
-
-      if (!vuosiMap.has(vuosi)) {
-        vuosiMap.set(vuosi, []);
-      }
-      vuosiMap.get(vuosi).push(kisa);
-    }
-
-    const vuodet = Array.from(vuosiMap.keys()).sort((a, b) => b - a);
-    const aktiiviset = [];
-    const vanhat = [];
-
-    for (const vuosi of vuodet) {
-      const ryhma = { vuosi, kisat: vuosiMap.get(vuosi) || [] };
-      if (vuosi >= kuluvaVuosi) {
-        aktiiviset.push(ryhma);
-      } else {
-        vanhat.push(ryhma);
-      }
-    }
-
-    return { aktiiviset, vanhat, ilmanVuotta };
-  }, [kisat, kuluvaVuosi]);
+  const kisaRyhmat = useMemo(() => ryhmitteleKisatVuosittain(kisat, kuluvaVuosi), [kisat, kuluvaVuosi]);
 
   const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
   const ladataanKisaa = valittuKisa?.apiUrl ? Boolean(ladataanKisaaBySheet[valittuKisa.apiUrl]) : false;
