@@ -18,3 +18,7 @@ test('onkoCsvVirheellinen hyväksyy datan, jossa on #ERROR!-solu tai html-linkki
   assert.equal(onkoCsvVirheellinen('Nimi,Tulos\nMatti,#ERROR!\n', 10), false);
   assert.equal(onkoCsvVirheellinen('Avain,Arvo\nKutsu,https://example.com/kutsu.html\n', 10), false);
 });
+
+test('onkoCsvVirheellinen hyväksyy CSV:n, jonka ensimmäinen solu alkaa merkillä <', () => {
+  assert.equal(onkoCsvVirheellinen('<tyhjä>,Tulos\nMatti,95\n', 10), false);
+});

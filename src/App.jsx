@@ -772,12 +772,16 @@ export default function App() {
       || joukkueetCsvVirheellinen
       || speksitCsvVirheellinen;
 
+    // Virhe tyhjennetään vasta onnistuneen haun jälkeen, ettei se välky jokaisella epäonnistuvalla päivityksellä.
+    const tyhjennaKisaVirhe = () => {
+      setKisaVirheBySheet((prev) => (prev[sheetId] ? { ...prev, [sheetId]: null } : prev));
+    };
+
     async function haeYhdistettyKisaData() {
       if (fetchInFlightRef.current[sheetId]) return;
       fetchInFlightRef.current[sheetId] = true;
 
       try {
-        setKisaVirheBySheet((prev) => (prev[sheetId] ? { ...prev, [sheetId]: null } : prev));
         if (!kisaCacheRef.current[sheetId]) {
           setLadataanKisaaBySheet((prev) => ({ ...prev, [sheetId]: true }));
         }
@@ -830,6 +834,7 @@ export default function App() {
             speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0)
           }
         }));
+        tyhjennaKisaVirhe();
 
       } catch (err) {
         console.error("Datan päivitys epäonnistui palvelimelta:", err);
@@ -852,6 +857,9 @@ export default function App() {
     // Päättyneessä kisassa vältetään turha lisähaku, jos data on jo välimuistissa.
     if (!onkoStaattinen || puuttuuPakollistaKisaDataa) {
       haeYhdistettyKisaData();
+    } else {
+      // Päättynyt kisa, jonka data on kunnossa välimuistissa: vanha live-päivityksen virhe ei enää koske sitä.
+      tyhjennaKisaVirhe();
     }
 
     // Jos kisa on päättynyt, ÄLÄ luo intervallia lainkaan!
@@ -918,7 +926,7 @@ export default function App() {
 
   const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
   const ladataanKisaa = valittuKisa?.apiUrl ? Boolean(ladataanKisaaBySheet[valittuKisa.apiUrl]) : false;
-  const valitunKisanVirhe = virhe || (valittuKisa?.apiUrl ? kisaVirheBySheet[valittuKisa.apiUrl] : null);
+  const valitunKisanVirhe = valittuKisa?.apiUrl ? kisaVirheBySheet[valittuKisa.apiUrl] : null;
 
   // Riippuvuutena raaka-CSV-merkkijonot, jotta taustapäivitys ilman muutoksia ei parsi dataa uudelleen.
   const henkilotCsvRaw = nykyisenKisanData?.henkilotCsvRaw || '';

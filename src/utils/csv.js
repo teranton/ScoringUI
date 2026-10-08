@@ -69,5 +69,5 @@ export function hasCsvDataRows(csvText, minRows = 2) {
 export function onkoCsvVirheellinen(raw, minPituus) {
   if (!raw) return true;
   const teksti = String(raw).trim();
-  return teksti.length < minPituus || teksti.startsWith('<');
+  return teksti.length < minPituus || /^<(!doctype|html|head|body)[\s>]/i.test(teksti);
 }
