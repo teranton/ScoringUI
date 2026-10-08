@@ -45,40 +45,43 @@ test('laskeOnkoIlmoittautuminenPaattynyt sulkee ilmoittautumisen kisapäivänä 
   assert.equal(laskeOnkoIlmoittautuminenPaattynyt('', hetki(6, 6, 2026)), true);
 });
 
-test('haeStatusOverrideSpekseista lukee status-avaimen riveiltä tai CSV-tekstistä', () => {
-  assert.equal(haeStatusOverrideSpekseista([['Asema', 'Max'], ['STATUS', 'Käynnissä']]), 'kaynnissa');
-  assert.equal(haeStatusOverrideSpekseista([['Kisa status', 'tauolla']]), 'tauolla');
-  assert.equal(haeStatusOverrideSpekseista([['KISA_PAATTYNYT', 'x']]), 'paattynyt');
-  assert.equal(haeStatusOverrideSpekseista('STATUS,FINISHED\n'), 'paattynyt');
-  assert.equal(haeStatusOverrideSpekseista([['STATUS', '']]), null);
+test('haeStatusOverrideSpekseista lukee KILPAILUNSTATUS-avaimen riveiltä tai CSV-tekstistä', () => {
+  assert.equal(haeStatusOverrideSpekseista([['Asema', 'Max'], ['KILPAILUNSTATUS', 'RUNNING']]), 'kaynnissa');
+  assert.equal(haeStatusOverrideSpekseista([['Kilpailun status', 'paused']]), 'tauolla');
+  assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', 'UPCOMING']]), 'tulossa');
+  assert.equal(haeStatusOverrideSpekseista('KILPAILUNSTATUS,FINISHED\n'), 'paattynyt');
+  assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', '', 'FINISHED']]), 'paattynyt');
+  assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', '']]), null);
   assert.equal(haeStatusOverrideSpekseista([]), null);
-  assert.equal(haeStatusOverrideSpekseista([['Kisa päättynyt', 'x']]), 'paattynyt');
-  assert.equal(haeStatusOverrideSpekseista([['Kilpailu_päättynyt', '', 'TRUE']]), 'paattynyt');
-  assert.equal(haeStatusOverrideSpekseista([['Kisa päättynyt', '', '', 'x']]), 'paattynyt');
-  assert.equal(haeStatusOverrideSpekseista([['Kilpailu status', 'Päättynyt']]), 'paattynyt');
-  assert.equal(haeStatusOverrideSpekseista([['STATUS', 'On going']]), 'kaynnissa');
   assert.equal(haeStatusOverrideSpekseista(null), null);
+});
+
+test('haeStatusOverrideSpekseista ei tulkitse muita avaimia tai arvoja', () => {
+  assert.equal(haeStatusOverrideSpekseista([['STATUS', 'FINISHED']]), null);
+  assert.equal(haeStatusOverrideSpekseista([['KISA_PAATTYNYT', 'x']]), null);
+  assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', 'Päättynyt']]), null);
+  assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', 'LIVE']]), null);
 });
 
 test('laskeKisanEfektiivinenStatus vaatii käynnissä olevalle kisalle status-merkinnän', () => {
   const kisapaiva = hetki(6, 6, 2026);
 
   assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [], kisapaiva).status, 'tulossa');
-  assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['STATUS', 'LIVE']], kisapaiva).status, 'kaynnissa');
+  assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['KILPAILUNSTATUS', 'RUNNING']], kisapaiva).status, 'kaynnissa');
 
-  const tauolla = laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['STATUS', 'Tauko']], kisapaiva);
+  const tauolla = laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['KILPAILUNSTATUS', 'PAUSED']], kisapaiva);
   assert.equal(tauolla.status, 'tauolla');
   assert.equal(tauolla.teksti, 'Tauolla');
 });
 
 test('laskeKisanEfektiivinenStatus: päättynyt-merkintä voittaa päivämäärät', () => {
   const ennenKisaa = hetki(1, 6, 2026);
-  assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['STATUS', 'Päättynyt']], ennenKisaa).status, 'paattynyt');
-  assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['STATUS', 'Käynnissä']], ennenKisaa).status, 'tulossa');
+  assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['KILPAILUNSTATUS', 'FINISHED']], ennenKisaa).status, 'paattynyt');
+  assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [['KILPAILUNSTATUS', 'RUNNING']], ennenKisaa).status, 'tulossa');
   assert.equal(laskeKisanEfektiivinenStatus('6.6.2026', '7.6.2026', [], hetki(9, 6, 2026)).status, 'paattynyt');
 });
 
 test('haeStatusOverrideSpekseista ei lue arvoa rivin muista soluista', () => {
-  assert.equal(haeStatusOverrideSpekseista([['STATUS', 'tuntematon', '', 'Muu asetus', 'LIVE']]), null);
-  assert.equal(haeStatusOverrideSpekseista([['Tauolla', 'STATUS', '']]), null);
+  assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', 'tuntematon', '', 'Muu asetus', 'RUNNING']]), null);
+  assert.equal(haeStatusOverrideSpekseista([['PAUSED', 'KILPAILUNSTATUS', '']]), null);
 });

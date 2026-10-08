@@ -117,14 +117,7 @@ export const ratkoStatusPainot = {
 export const ratkoPalkintoSijaOletus = 3;
 
 function haeRatkoPalkintoSija(speksiRivit) {
-  const avainSanat = new Set([
-    'RATKOPALKINTOSIJA',
-    'RATKO_PALKINTO_SIJA',
-    'TIEBREAKPRIZEPLACE',
-    'TIEBREAK_PRIZE_PLACE',
-    'PALKINTOSIJA',
-    'PALKINTO_SIJA'
-  ]);
+  const avainSanat = new Set(['RATKOPALKINTOSIJA', 'RATKO_PALKINTO_SIJA']);
 
   for (const rivi of speksiRivit) {
     if (!Array.isArray(rivi)) continue;
