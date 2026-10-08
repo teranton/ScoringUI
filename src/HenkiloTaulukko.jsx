@@ -11,6 +11,7 @@ import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/status
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
+import { useMediaQuery } from './hooks/useMediaQuery';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
@@ -36,7 +37,7 @@ const SOLU_LUOKAT = {
 };
 
 export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
-  const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
+  const onMobiili = useMediaQuery('(max-width: 759px)');
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [onkoKokoNaytto, setOnkoKokoNaytto] = useState(false);
   const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);

@@ -1,3 +1,6 @@
+import net from 'node:net';
+import { EstettyHakuError, onEstettyIp, puhdasHost, turvallinenHaku } from './_lib/safeFetch.js';
+
 const logoCache = new Map();
 
 const MEMORY_TTL_MS = Number.isFinite(Number(process.env.LOGO_PROXY_MEMORY_TTL_MS))
@@ -13,7 +16,9 @@ const HOST_POLICY = String(process.env.LOGO_PROXY_HOST_POLICY || 'public').trim(
 const DEFAULT_ALLOWED_HOSTS = [
   'drive.google.com',
   'lh3.googleusercontent.com',
-  'googleusercontent.com'
+  'googleusercontent.com',
+  // Drive-linkit (drive.google.com/uc?id=...) ohjautuvat tänne
+  'usercontent.google.com'
 ];
 
 function getAllowedHosts() {
@@ -31,44 +36,12 @@ function hostAllowed(hostname, allowedHosts) {
   return allowedHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
 }
 
-function isIpv4Literal(host) {
-  if (!/^\d+\.\d+\.\d+\.\d+$/.test(host)) return false;
-  const parts = host.split('.').map((part) => Number(part));
-  if (parts.length !== 4) return false;
-  return parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 255);
-}
-
-function isPrivateIpv4(host) {
-  if (!isIpv4Literal(host)) return false;
-  const [a, b] = host.split('.').map(Number);
-
-  if (a === 10) return true;
-  if (a === 127) return true;
-  if (a === 0) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-
-  return false;
-}
-
-function isIpv6Literal(host) {
-  return host.includes(':');
-}
-
-function isPrivateOrLocalIpv6(host) {
-  if (!isIpv6Literal(host)) return false;
-  const value = host.toLowerCase();
-  return value === '::1' || value.startsWith('fc') || value.startsWith('fd') || value.startsWith('fe8') || value.startsWith('fe9') || value.startsWith('fea') || value.startsWith('feb');
-}
-
 function isDisallowedPublicModeHost(hostname) {
-  const host = String(hostname || '').toLowerCase();
+  const host = puhdasHost(hostname);
   if (!host) return true;
-  if (host === 'localhost') return true;
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
   if (host.endsWith('.local') || host.endsWith('.internal')) return true;
-  if (isPrivateIpv4(host)) return true;
-  if (isPrivateOrLocalIpv6(host)) return true;
+  if (net.isIP(host) && onEstettyIp(host)) return true;
   return false;
 }
 
@@ -77,6 +50,12 @@ function hostAllowedByPolicy(hostname) {
     return hostAllowed(hostname, getAllowedHosts());
   }
   return !isDisallowedPublicModeHost(hostname);
+}
+
+// Kuva tarjoillaan sovelluksen omasta originista. Jos SVG avataan suoraan, sen skriptit eivät saa ajautua.
+function setImageSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
 }
 
 function isSafeImageContentType(value) {
@@ -117,38 +96,36 @@ export default async function handler(req, res) {
   const cached = logoCache.get(cacheKey);
   if (cached && (now - cached.cachedAt) < MEMORY_TTL_MS) {
     res.setHeader('Content-Type', cached.contentType);
+    setImageSecurityHeaders(res);
     res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
     res.setHeader('X-ScoringUI-Logo-Cache', 'memory-hit');
     return res.status(200).send(cached.buffer);
   }
 
   try {
-    const upstream = await fetch(parsedUrl.toString(), {
-      redirect: 'follow'
+    // Uudelleenohjaukset seurataan itse, jotta jokainen hyppy ja sen IP-osoite tarkistetaan.
+    const upstream = await turvallinenHaku(parsedUrl.toString(), {
+      hostSallittu: hostAllowedByPolicy,
+      maxBytes: MAX_IMAGE_BYTES
     });
 
-    if (!upstream.ok) {
+    if (upstream.status < 200 || upstream.status >= 300) {
       return res.status(502).json({
         error: 'Upstream logo fetch failed',
         status: upstream.status
       });
     }
 
-    const contentType = upstream.headers.get('content-type') || '';
+    const contentType = String(upstream.headers['content-type'] || '');
     if (!isSafeImageContentType(contentType)) {
       return res.status(415).json({ error: 'Upstream content is not an image' });
     }
 
-    const contentLength = Number(upstream.headers.get('content-length') || 0);
-    if (contentLength > MAX_IMAGE_BYTES) {
+    if (upstream.liianSuuri) {
       return res.status(413).json({ error: 'Image exceeds size limit' });
     }
 
-    const arrayBuffer = await upstream.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.byteLength > MAX_IMAGE_BYTES) {
-      return res.status(413).json({ error: 'Image exceeds size limit' });
-    }
+    const buffer = upstream.body;
 
     logoCache.set(cacheKey, {
       cachedAt: now,
@@ -157,10 +134,14 @@ export default async function handler(req, res) {
     });
 
     res.setHeader('Content-Type', contentType);
+    setImageSecurityHeaders(res);
     res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
     res.setHeader('X-ScoringUI-Logo-Cache', 'origin');
     return res.status(200).send(buffer);
   } catch (error) {
+    if (error instanceof EstettyHakuError) {
+      return res.status(403).json({ error: 'Host is not allowed', message: error.message });
+    }
     return res.status(502).json({
       error: 'Logo proxy fetch failed',
       message: error?.message || 'Unknown error'
