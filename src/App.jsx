@@ -374,7 +374,7 @@ function statusToBadgeVariant(status) {
 
 function labelForStatus(status, locale) {
   const tekstit = haeTekstit('kisaStatus', locale);
-  return Object.hasOwn(tekstit, status) ? tekstit[status] : tekstit.tulossa;
+  return Object.prototype.hasOwnProperty.call(tekstit, status) ? tekstit[status] : tekstit.tulossa;
 }
 
 function trackAnalyticsEvent(eventName, properties = {}) {

@@ -1,6 +1,14 @@
+// Jäädyttää tekstit, koska samaa oliota jaetaan kaikille komponenteille.
+function jaadyta(olio) {
+  Object.values(olio).forEach((arvo) => {
+    if (arvo && typeof arvo === 'object') jaadyta(arvo);
+  });
+  return Object.freeze(olio);
+}
+
 // Käyttöliittymän suomen- ja englanninkieliset tekstit näkymittäin.
 // Tekstit ovat vakioita, joten niitä ei rakenneta uudelleen jokaisella renderöinnillä.
-const TEKSTIT = {
+const TEKSTIT = jaadyta({
   fi: {
     app: {
       appTitle: '🎯 T&T Tulospalvelu',
@@ -285,10 +293,12 @@ const TEKSTIT = {
       heat: 'Heat'
     }
   }
-};
+});
 
 // Palauttaa näkymän tekstit. Muu kuin 'en' tarkoittaa suomea, kuten ennenkin.
 export function haeTekstit(nakyma, locale) {
   const kieli = locale === 'en' ? 'en' : 'fi';
-  return TEKSTIT[kieli][nakyma];
+  const tekstit = TEKSTIT[kieli][nakyma];
+  if (!tekstit) throw new Error(`Tuntematon tekstiosio: ${nakyma}`);
+  return tekstit;
 }

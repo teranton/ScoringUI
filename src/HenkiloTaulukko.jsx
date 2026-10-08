@@ -16,6 +16,7 @@ import { haeTekstit } from './i18n';
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
 export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
+  const tx = haeTekstit('henkiloTaulukko', locale);
   const onMobiili = typeof window !== 'undefined' && window.innerWidth < 760;
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [onkoKokoNaytto, setOnkoKokoNaytto] = useState(false);
@@ -281,8 +282,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   });
 
   const paivaSarakeNimet = useMemo(() => {
-    const { laLabel, suLabel } = haeTekstit('henkiloTaulukko', locale);
-    const fallback = { laLabel, suLabel };
+    const fallback = { laLabel: tx.laLabel, suLabel: tx.suLabel };
 
     if (!data?.henkilotCsvRaw) return fallback;
 
@@ -329,7 +329,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     } catch {
       return fallback;
     }
-  }, [data, parsedRows, locale]);
+  }, [data, parsedRows, tx]);
 
   const naytaLaSarake = !kaytaKompaktiTilaa && ampujat.some((a) => a.la !== null);
   const naytaSuSarake = !kaytaKompaktiTilaa && ampujat.some((a) => a.su !== null);
@@ -415,7 +415,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     };
   }, [onkoKokoNaytto]);
 
-  const tx = haeTekstit('henkiloTaulukko', locale);
 
   const muotoileNimiTaulukkoon = (nimi) => {
     if (!onMobiili) return nimi;
