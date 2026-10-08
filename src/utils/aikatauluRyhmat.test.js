@@ -52,9 +52,9 @@ test('parseCompetitionDate hyväksyy p.k.vvvv- ja ISO-muodot', () => {
 });
 
 test('onkoEnsimmainenPaivaOhitettu on tosi vasta ensimmäisen päivän jälkeen', () => {
-  assert.equal(onkoEnsimmainenPaivaOhitettu('6.6.2026', new Date(2026, 5, 6, 23, 59).getTime()), false);
-  assert.equal(onkoEnsimmainenPaivaOhitettu('6.6.2026', new Date(2026, 5, 7, 0, 0).getTime()), true);
-  assert.equal(onkoEnsimmainenPaivaOhitettu('', new Date(2026, 5, 7).getTime()), false);
+  assert.equal(onkoEnsimmainenPaivaOhitettu('6.6.2026', new Date(2026, 5, 6, 23, 59)), false);
+  assert.equal(onkoEnsimmainenPaivaOhitettu('6.6.2026', new Date(2026, 5, 7, 0, 0)), true);
+  assert.equal(onkoEnsimmainenPaivaOhitettu('', new Date(2026, 5, 7)), false);
 });
 
 test('parseAikatauluRyhmat: ratanäkymä jakaa ampujat numeron mukaan ryhmiin päivittäin', () => {
@@ -127,8 +127,8 @@ test('parseAikatauluRyhmat palauttaa tyhjän ratanäkymän tunnistamattomalle da
 
 test('suodataNakyvatPaivaosiot piilottaa ensimmäisen päivän sen päätyttyä', () => {
   const { daySections, mode } = parseAikatauluRyhmat(YHDISTETTY, 'group5', TX);
-  const kisapaiva = new Date(2026, 5, 6, 12).getTime();
-  const seuraavaPaiva = new Date(2026, 5, 7, 8).getTime();
+  const kisapaiva = new Date(2026, 5, 6, 12);
+  const seuraavaPaiva = new Date(2026, 5, 7, 8);
 
   assert.equal(suodataNakyvatPaivaosiot(daySections, mode, '6.6.2026', kisapaiva).length, 2);
   assert.deepEqual(suodataNakyvatPaivaosiot(daySections, mode, '6.6.2026', seuraavaPaiva).map((s) => s.key), ['day-2']);

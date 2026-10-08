@@ -96,13 +96,13 @@ export function parseCompetitionDate(value) {
   return null;
 }
 
-export function onkoEnsimmainenPaivaOhitettu(competitionStartDate, nyt = Date.now()) {
+export function onkoEnsimmainenPaivaOhitettu(competitionStartDate, nyt = new Date()) {
   const start = parseCompetitionDate(competitionStartDate);
   if (!start) return false;
 
   const paivanLoppu = new Date(start.getTime());
   paivanLoppu.setHours(23, 59, 59, 999);
-  return nyt > paivanLoppu.getTime();
+  return nyt.getTime() > paivanLoppu.getTime();
 }
 
 function parseDayMarker(row) {
@@ -597,7 +597,7 @@ export function parseAikatauluRyhmat(rawCsv, defaultGroupingMode, tx) {
   return { mode: 'lane-grid', titleSuffix, laneColumns, laneRows, heats, daySections };
 }
 
-export function suodataNakyvatPaivaosiot(daySections, mode, competitionStartDate, nyt = Date.now()) {
+export function suodataNakyvatPaivaosiot(daySections, mode, competitionStartDate, nyt = new Date()) {
   if (!Array.isArray(daySections) || daySections.length === 0) return [];
   if (mode === 'group-sheet') return daySections;
   if (daySections.length < 2) return daySections;

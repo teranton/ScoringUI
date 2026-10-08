@@ -69,14 +69,19 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   }, [data, parsedSpeksit]);
 
   // 2. PARSITAAN AMPUJIEN TULOKSET
+  const henkiloRivit = useMemo(() => {
+    if (!data?.henkilotCsvRaw) return null;
+    return Array.isArray(parsedRows?.henkilotRows)
+      ? parsedRows.henkilotRows
+      : parseCsvRows(data.henkilotCsvRaw);
+  }, [data, parsedRows]);
+
   const ampujat = useMemo(() => {
     const perfStart = perfNow();
-    if (!data?.henkilotCsvRaw) return [];
+    if (!henkiloRivit) return [];
 
     try {
-      const raakaRivit = Array.isArray(parsedRows?.henkilotRows)
-        ? parsedRows.henkilotRows
-        : parseCsvRows(data.henkilotCsvRaw);
+      const raakaRivit = henkiloRivit;
       if (!Array.isArray(raakaRivit) || raakaRivit.length < 2) return [];
 
       const lista = parsiTaulukkoAmpujat(raakaRivit, speksit.ratojenMaara);
@@ -90,7 +95,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       console.error("Virhe taulukko-ampujien parsinnoissa:", e);
       return [];
     }
-  }, [data, parsedRows, speksit.ratojenMaara]);
+  }, [henkiloRivit, speksit.ratojenMaara]);
 
   const onkoDataPuuttuu = !data || !data.henkilotCsvRaw;
   const radatList = useMemo(() => Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1), [speksit.ratojenMaara]);
@@ -144,12 +149,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return onStatus || (onkoRatkoSallittuAmpujalle(a) && onTeksti);
   });
 
-  const paivaSarakeNimet = useMemo(() => {
-    const raakaRivit = !data?.henkilotCsvRaw
-      ? null
-      : (Array.isArray(parsedRows?.henkilotRows) ? parsedRows.henkilotRows : parseCsvRows(data.henkilotCsvRaw));
-    return tunnistaPaivaSarakeNimet(raakaRivit, locale);
-  }, [data, parsedRows, locale]);
+  const paivaSarakeNimet = useMemo(
+    () => tunnistaPaivaSarakeNimet(henkiloRivit, locale),
+    [henkiloRivit, locale]
+  );
 
   const naytaLaSarake = !kaytaKompaktiTilaa && ampujat.some((a) => a.la !== null);
   const naytaSuSarake = !kaytaKompaktiTilaa && ampujat.some((a) => a.su !== null);
