@@ -16,7 +16,9 @@ const HOST_POLICY = String(process.env.LOGO_PROXY_HOST_POLICY || 'public').trim(
 const DEFAULT_ALLOWED_HOSTS = [
   'drive.google.com',
   'lh3.googleusercontent.com',
-  'googleusercontent.com'
+  'googleusercontent.com',
+  // Drive-linkit (drive.google.com/uc?id=...) ohjautuvat tänne
+  'usercontent.google.com'
 ];
 
 function getAllowedHosts() {
@@ -48,6 +50,12 @@ function hostAllowedByPolicy(hostname) {
     return hostAllowed(hostname, getAllowedHosts());
   }
   return !isDisallowedPublicModeHost(hostname);
+}
+
+// Kuva tarjoillaan sovelluksen omasta originista. Jos SVG avataan suoraan, sen skriptit eivät saa ajautua.
+function setImageSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
 }
 
 function isSafeImageContentType(value) {
@@ -88,6 +96,7 @@ export default async function handler(req, res) {
   const cached = logoCache.get(cacheKey);
   if (cached && (now - cached.cachedAt) < MEMORY_TTL_MS) {
     res.setHeader('Content-Type', cached.contentType);
+    setImageSecurityHeaders(res);
     res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
     res.setHeader('X-ScoringUI-Logo-Cache', 'memory-hit');
     return res.status(200).send(cached.buffer);
@@ -125,6 +134,7 @@ export default async function handler(req, res) {
     });
 
     res.setHeader('Content-Type', contentType);
+    setImageSecurityHeaders(res);
     res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
     res.setHeader('X-ScoringUI-Logo-Cache', 'origin');
     return res.status(200).send(buffer);

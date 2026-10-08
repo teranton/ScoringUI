@@ -9,13 +9,11 @@ const REKISTERI_TTL_MS = 5 * 60 * 1000;
 // Tuntematon id saa hakea rekisterin uudelleen korkeintaan näin usein (uudet kisat näkyvät nopeasti).
 const UUDELLEENHAKU_VALI_MS = 30 * 1000;
 
-// Hyväksyy pelkän id:n tai docs.google.com-osoitteen ja palauttaa id:n, muuten tyhjän.
+// Palauttaa id:n, jos arvo näyttää Google Sheets -id:ltä, muuten tyhjän.
+// Sarakkeessa E pitää olla pelkkä id: frontend lähettää arvon sellaisenaan API:lle.
 export function normalisoiSheetId(arvo) {
   const teksti = String(arvo || '').trim();
-  if (!teksti) return '';
-  const urlista = teksti.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
-  const id = urlista ? urlista[1] : teksti;
-  return /^[A-Za-z0-9_-]{20,}$/.test(id) ? id : '';
+  return /^[A-Za-z0-9_-]{20,}$/.test(teksti) ? teksti : '';
 }
 
 export function parseRekisterinSheetIdt(csvText) {
@@ -40,13 +38,18 @@ export function luoSheetAllowlist({ haeRekisteriCsv, now = () => Date.now() }) {
   let haettu = 0;
   let kesken = null;
 
-  async function paivita() {
+  // Hakee rekisterin. Jos haku epäonnistuu ja vanha lista on muistissa, vanha lista jää voimaan
+  // ja uusi yritys tehdään aikaisintaan UUDELLEENHAKU_VALI_MS:n päästä.
+  function paivita() {
     if (!kesken) {
       kesken = (async () => {
         try {
-          const ids = parseRekisterinSheetIdt(await haeRekisteriCsv());
-          sallitut = ids;
+          sallitut = parseRekisterinSheetIdt(await haeRekisteriCsv());
           haettu = now();
+        } catch (error) {
+          if (!sallitut) throw error;
+          console.error('[ALLOWLIST] Rekisterin päivitys epäonnistui, käytetään edellistä listaa:', error?.message);
+          haettu = now() - REKISTERI_TTL_MS + UUDELLEENHAKU_VALI_MS;
         } finally {
           kesken = null;
         }
@@ -55,17 +58,24 @@ export function luoSheetAllowlist({ haeRekisteriCsv, now = () => Date.now() }) {
     return kesken;
   }
 
-  // Palauttaa true vain, jos id löytyy rekisteristä. Rekisterin hakuvirhe heitetään eteenpäin (fail closed).
+  // Palauttaa true vain, jos id löytyy rekisteristä. Jos rekisteriä ei ole koskaan saatu haettua,
+  // virhe heitetään eteenpäin (fail closed).
   return async function onSallittu(sheetId) {
     const id = normalisoiSheetId(sheetId);
-    if (!id || id !== String(sheetId).trim()) return false;
+    if (!id || id !== sheetId) return false;
     if (lisaSallitut().includes(id)) return true;
 
-    const vanhentunut = !sallitut || (now() - haettu) >= REKISTERI_TTL_MS;
-    if (vanhentunut) {
+    if (!sallitut) {
       await paivita();
-    } else if (!sallitut.has(id) && (now() - haettu) >= UUDELLEENHAKU_VALI_MS) {
+      return sallitut.has(id);
+    }
+
+    const ika = now() - haettu;
+    if (!sallitut.has(id) && ika >= UUDELLEENHAKU_VALI_MS) {
       await paivita();
+    } else if (ika >= REKISTERI_TTL_MS) {
+      // Vanhentunut lista päivitetään taustalla, jotta pyyntö ei jää odottamaan.
+      paivita();
     }
     return sallitut.has(id);
   };
@@ -73,14 +83,17 @@ export function luoSheetAllowlist({ haeRekisteriCsv, now = () => Date.now() }) {
 
 let rekisteriAuthClient = null;
 
-async function haeRekisteriCsvPalvelutilillä() {
+export async function haeRekisteriCsv() {
   if (!rekisteriAuthClient) {
     const auth = new GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
         private_key: String(process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
       },
-      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+      scopes: [
+        'https://www.googleapis.com/auth/spreadsheets.readonly',
+        'https://www.googleapis.com/auth/drive.readonly'
+      ],
     });
     rekisteriAuthClient = await auth.getClient();
   }
@@ -91,7 +104,7 @@ async function haeRekisteriCsvPalvelutilillä() {
   return res.data;
 }
 
-export const onSallittuSheetId = luoSheetAllowlist({ haeRekisteriCsv: haeRekisteriCsvPalvelutilillä });
+export const onSallittuSheetId = luoSheetAllowlist({ haeRekisteriCsv });
 
 // Yhteinen tarkistus API-funktioille. Palauttaa true, jos vastaus on jo lähetetty (pyyntö torjuttu).
 export async function torjuEiSallittuSheetId(sheetId, res) {

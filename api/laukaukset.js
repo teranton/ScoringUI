@@ -16,6 +16,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Puuttuvia parametreja (ampuja tai sheetId)' });
   }
 
+  // ampuja menee gviz-kyselyn merkkijonoon, joten lainausmerkit estetään (kyselyn injektointi).
+  if (typeof ampuja !== 'string' || /['"\\]/.test(ampuja)) {
+    return res.status(400).json({ error: 'Virheellinen ampuja' });
+  }
+
   if (await torjuEiSallittuSheetId(sheetId, res)) return;
 
   try {

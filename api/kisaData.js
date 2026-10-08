@@ -66,6 +66,11 @@ async function getAuthClientWithLogs(options = {}) {
 export default async function handler(req, res) {
   const { sheetId, sheetName, mode, sheetNames, status } = req.query;
 
+  if (!sheetId) {
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(400).json({ error: 'sheetId vaaditaan' });
+  }
+
   if (await torjuEiSallittuSheetId(sheetId, res)) return;
 
   // BATCH MODE: Haetaan useat CSV-tiedostot yhdessä pyynnössä

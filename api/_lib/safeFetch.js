@@ -56,7 +56,12 @@ function onEstettyIpv6(ip) {
     const v4 = `${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`;
     return onEstettyIpv4(v4);
   }
-  if (g[0] === 0x64 && g[1] === 0xff9b) return onEstettyIpv4(`${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`); // NAT64
+  if (g[0] === 0x64 && g[1] === 0xff9b) {
+    if (g[2] === 1) return true; // paikallinen NAT64 64:ff9b:1::/48
+    return onEstettyIpv4(`${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`); // NAT64
+  }
+  if (g[0] === 0x2002) return onEstettyIpv4(`${g[1] >> 8}.${g[1] & 0xff}.${g[2] >> 8}.${g[2] & 0xff}`); // 6to4
+  if (g[0] === 0x2001 && g[1] === 0) return true; // Teredo
   if ((g[0] & 0xfe00) === 0xfc00) return true; // unique local fc00::/7
   if ((g[0] & 0xffc0) === 0xfe80) return true; // link-local fe80::/10
   if ((g[0] & 0xffc0) === 0xfec0) return true; // site-local (vanhentunut)
@@ -94,10 +99,10 @@ const luoTurvallinenLookup = (onEstetty) => (hostname, options, callback) => {
 
 export class EstettyHakuError extends Error {}
 
-function pyynto(url, { maxBytes, lookup }) {
+function pyynto(url, { maxBytes, lookup, timeoutMs }) {
   return new Promise((resolve, reject) => {
     const moduuli = url.protocol === 'https:' ? https : http;
-    const req = moduuli.get(url, { lookup, timeout: TIMEOUT_MS }, (res) => {
+    const req = moduuli.get(url, { lookup, timeout: timeoutMs }, (res) => {
       const status = res.statusCode || 0;
       const headers = res.headers;
 
@@ -131,6 +136,9 @@ function pyynto(url, { maxBytes, lookup }) {
       res.on('error', reject);
     });
     req.on('timeout', () => req.destroy(new Error('Aikakatkaisu')));
+    // timeout-asetus laukeaa vain hiljaisesta yhteydestä; tämä rajaa koko haun keston.
+    const takaraja = setTimeout(() => req.destroy(new Error('Aikakatkaisu')), timeoutMs);
+    req.on('close', () => clearTimeout(takaraja));
     req.on('error', (err) => {
       if (err.code === 'ESTETTY_OSOITE') reject(new EstettyHakuError(err.message));
       else reject(err);
@@ -140,7 +148,7 @@ function pyynto(url, { maxBytes, lookup }) {
 
 // Hakee URL:n ja seuraa uudelleenohjauksia itse. hostSallittu(hostname) ja IP-tarkistus tehdään jokaisella hypyllä.
 // onEstetty vaihdetaan vain testeissä.
-export async function turvallinenHaku(alkuUrl, { hostSallittu, maxBytes, onEstetty = onEstettyIp }) {
+export async function turvallinenHaku(alkuUrl, { hostSallittu, maxBytes, onEstetty = onEstettyIp, timeoutMs = TIMEOUT_MS }) {
   let url = new URL(alkuUrl);
   const lookup = luoTurvallinenLookup(onEstetty);
 
@@ -156,7 +164,7 @@ export async function turvallinenHaku(alkuUrl, { hostSallittu, maxBytes, onEstet
       throw new EstettyHakuError(`Host ${host} ei ole sallittu`);
     }
 
-    const vastaus = await pyynto(url, { maxBytes, lookup });
+    const vastaus = await pyynto(url, { maxBytes, lookup, timeoutMs });
     if (!vastaus.redirect) return { ...vastaus, url };
     url = new URL(vastaus.redirect, url);
   }

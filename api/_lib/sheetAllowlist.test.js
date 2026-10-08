@@ -11,15 +11,15 @@ const rekisteri = (...ids) => [
   ...ids.map((id, i) => `${i + 1},Kisa ${i + 1},2026-01-01,2026-01-02,${id},,`)
 ].join('\n');
 
-test('normalisoiSheetId hyväksyy id:n ja Google Sheets -osoitteen', () => {
+test('normalisoiSheetId hyväksyy vain pelkän id:n', () => {
   assert.equal(normalisoiSheetId(ID_A), ID_A);
-  assert.equal(normalisoiSheetId(`https://docs.google.com/spreadsheets/d/${ID_A}/edit#gid=0`), ID_A);
+  assert.equal(normalisoiSheetId(`https://docs.google.com/spreadsheets/d/${ID_A}/edit#gid=0`), '');
   assert.equal(normalisoiSheetId('../etc'), '');
   assert.equal(normalisoiSheetId(''), '');
 });
 
 test('parseRekisterinSheetIdt lukee sarakkeen E ja ohittaa otsikkorivin', () => {
-  const ids = parseRekisterinSheetIdt(rekisteri(ID_A, `https://docs.google.com/spreadsheets/d/${ID_B}/edit`));
+  const ids = parseRekisterinSheetIdt(rekisteri(ID_A, ID_B, ''));
   assert.deepEqual([...ids].sort(), [ID_A, ID_B]);
 });
 
@@ -53,4 +53,21 @@ test('uusi kisa näkyy rekisterin uudelleenhaun jälkeen, mutta hakuja rajoiteta
   aika = 31 * 1000;
   assert.equal(await onSallittu(ID_B), true);
   assert.equal(haut, 2);
+});
+
+test('epäonnistunut päivitys pitää edellisen listan voimassa', async () => {
+  let aika = 0;
+  let rikki = false;
+  const onSallittu = luoSheetAllowlist({
+    haeRekisteriCsv: async () => { if (rikki) throw new Error('503'); return rekisteri(ID_A); },
+    now: () => aika
+  });
+
+  assert.equal(await onSallittu(ID_A), true);
+  rikki = true;
+  aika = 6 * 60 * 1000; // lista vanhentunut, päivitys taustalla epäonnistuu
+  assert.equal(await onSallittu(ID_A), true);
+  assert.equal(await onSallittu(ID_C), false);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(await onSallittu(ID_A), true);
 });

@@ -7,14 +7,14 @@ test('onEstettyIp estää yksityiset ja paikalliset osoitteet', () => {
   for (const ip of [
     '127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.1.1', '169.254.169.254', '0.0.0.0', '100.64.0.1',
     '::1', '::', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:7f00:1', '::ffff:169.254.169.254',
-    '64:ff9b::a9fe:a9fe', 'ff02::1', 'ei-ip'
+    '64:ff9b::a9fe:a9fe', '64:ff9b:1::808:808', '2002:a9fe:a9fe::', '2001:0:4136:e378::1', 'ff02::1', 'ei-ip'
   ]) {
     assert.equal(onEstettyIp(ip), true, ip);
   }
 });
 
 test('onEstettyIp päästää julkiset osoitteet', () => {
-  for (const ip of ['8.8.8.8', '142.250.74.1', '2a00:1450:4001:80b::200e', '::ffff:8.8.8.8']) {
+  for (const ip of ['8.8.8.8', '142.250.74.1', '2a00:1450:4001:80b::200e', '::ffff:8.8.8.8', '2002:808:808::']) {
     assert.equal(onEstettyIp(ip), false, ip);
   }
 });
@@ -89,6 +89,25 @@ test('turvallinenHaku seuraa sallitun uudelleenohjauksen ja rajaa koon', async (
     const iso = await turvallinenHaku(`http://127.0.0.1:${port}/iso`, asetukset);
     assert.equal(iso.liianSuuri, true);
   } finally {
+    palvelin.close();
+  }
+});
+
+test('turvallinenHaku katkaisee hitaasti tippuvan vastauksen kokonaisajan jälkeen', async () => {
+  const { palvelin, port } = await kaynnistaPalvelin((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'image/png' });
+    const ajastin = setInterval(() => res.write('x'), 20);
+    res.on('close', () => clearInterval(ajastin));
+  });
+  try {
+    const alku = Date.now();
+    await assert.rejects(
+      turvallinenHaku(`http://127.0.0.1:${port}/`, { hostSallittu: () => true, maxBytes: 1000, onEstetty: estaVainMetadata, timeoutMs: 200 }),
+      /Aikakatkaisu|aborted/
+    );
+    assert.ok(Date.now() - alku < 2000);
+  } finally {
+    palvelin.closeAllConnections();
     palvelin.close();
   }
 });

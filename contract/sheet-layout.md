@@ -25,7 +25,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx` |
 | `Kierrokset` | Sheet formulas | `api/laukaukset.js` (gviz query on column B = shooter) |
-| Competition registry sheet (`api/rekisteri.js`, fixed id) | Tero | `App.jsx`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here) |
+| Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js` and `App.jsx`) | Tero | `App.jsx`, `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here) |
 
 Tab names are matched exactly (case-insensitive in `api/kisaData.js`). `Timetable` is accepted as a fallback for `Aikataulu`.
 
@@ -50,7 +50,7 @@ so column order can change but header names must not.
   F6 group count, F7 daily count, F13 Kiti daily-only, B18 red bar, B19 second-best toggle, B20 referee categories,
   H3:H10 track names, J3:M28 station table (id, max, second best, interval). The UI's station-table fallback
   (J, K, L) relies on the same columns.
-- Competition registry: A id, B name, C start date, D end date, E sheet id / URL, F team competition flag,
+- Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag. Row 1 is a header if B contains "nimi" or A contains "id".
 - `Kierrokset`: column B is the shooter id (`api/laukaukset.js`).
 
