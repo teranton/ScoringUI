@@ -51,13 +51,15 @@ so column order can change but header names must not.
   H3:H10 track names, J3:M28 station table (id, max, second best, interval). The UI's station-table fallback
   (J, K, L) relies on the same columns.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
-  G hidden flag. Row 1 is a header if B contains "nimi" or A contains "id".
+  G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no). Row 1 is a header if B contains "nimi" or A contains "id".
 - `Kierrokset`: column B is the shooter id (`api/laukaukset.js`).
 
 ## `KISANSPEKSIT` settings
 
 Keys are found anywhere on the tab; the value is the next non-empty cell to the right.
-Each setting accepts several spellings (see `App.jsx`):
+Keys and values are matched case-insensitively with Ä/Ö/Å read as A/O/A and spaces and underscores
+ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS` and `Erät` matches `ERAT`.
+Each setting accepts several spellings (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`):
 
 | Setting | Accepted keys | Values |
 |---|---|---|

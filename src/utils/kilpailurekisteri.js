@@ -1,36 +1,14 @@
 // src/utils/kilpailurekisteri.js
 // Kilpailurekisterin rivien tulkinta ja kisojen ryhmittely etusivulle.
+import { TOSI_ARVOT } from './henkiloTulokset.js';
 import { parsiPaivamaara } from './kisaStatus.js';
 
 function muunnaPaivamaaraJarjestysavaimeksi(pvmStr) {
-  if (!pvmStr) return null;
-
-  const teksti = String(pvmStr).trim();
-  if (!teksti) return null;
-
-  if (teksti.includes('.')) {
-    const osat = teksti.split('.');
-    if (osat.length !== 3) return null;
-    const paiva = osat[0]?.trim();
-    const kuukausi = osat[1]?.trim();
-    const vuosi = osat[2]?.trim();
-    if (!paiva || !kuukausi || !vuosi) return null;
-    if (!/^\d+$/.test(paiva) || !/^\d+$/.test(kuukausi) || !/^\d{4}$/.test(vuosi)) return null;
-    return `${vuosi}-${kuukausi.padStart(2, '0')}-${paiva.padStart(2, '0')}`;
-  }
-
-  if (teksti.includes('-')) {
-    const osat = teksti.split('-');
-    if (osat.length !== 3) return null;
-    const vuosi = osat[0]?.trim();
-    const kuukausi = osat[1]?.trim();
-    const paiva = osat[2]?.trim();
-    if (!paiva || !kuukausi || !vuosi) return null;
-    if (!/^\d{4}$/.test(vuosi) || !/^\d+$/.test(kuukausi) || !/^\d+$/.test(paiva)) return null;
-    return `${vuosi}-${kuukausi.padStart(2, '0')}-${paiva.padStart(2, '0')}`;
-  }
-
-  return null;
+  const pvm = parsiPaivamaara(pvmStr);
+  if (!pvm) return null;
+  const kuukausi = String(pvm.getMonth() + 1).padStart(2, '0');
+  const paiva = String(pvm.getDate()).padStart(2, '0');
+  return `${pvm.getFullYear()}-${kuukausi}-${paiva}`;
 }
 
 export function haeKisanVuosi(kisa) {
@@ -52,12 +30,13 @@ function muotoileIsoPaivamaaraSuomeksi(pvmStr) {
   return `${parseInt(osat[2], 10)}.${parseInt(osat[1], 10)}.${osat[0]}`;
 }
 
-function tulkitseTotuusarvo(arvo) {
+// Rekisterin F- ja G-sarake: tosi, epätosi tai null (ei asetettu).
+function tulkitseRekisterinTotuusarvo(arvo) {
   if (arvo == null) return null;
   const normalisoitu = String(arvo).trim().toLowerCase();
   if (!normalisoitu) return null;
 
-  if (['1', 'true', 'yes', 'on'].includes(normalisoitu)) return true;
+  if (TOSI_ARVOT.includes(normalisoitu)) return true;
   if (['0', 'false', 'no', 'off'].includes(normalisoitu)) return false;
   return null;
 }
@@ -77,7 +56,7 @@ export function parsiKilpailurekisteri(raakaRivit) {
     }
 
     if (row[1] || row[0]) {
-      const joukkueKisaAsetus = tulkitseTotuusarvo(row[5]);
+      const joukkueKisaAsetus = tulkitseRekisterinTotuusarvo(row[5]);
       parsitutKisat.push({
         id: row[0] || i.toString(),
         nimi: row[1] || "Nimetön kisa",
@@ -85,7 +64,7 @@ export function parsiKilpailurekisteri(raakaRivit) {
         loppuPvm: muotoileIsoPaivamaaraSuomeksi(row[3]),
         apiUrl: row[4] || "",
         joukkueKisaAsetus,
-        piilotettu: tulkitseTotuusarvo(row[6]) === true
+        piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true
       });
     }
   }

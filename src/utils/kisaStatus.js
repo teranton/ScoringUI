@@ -1,10 +1,15 @@
 // src/utils/kisaStatus.js
 // Kilpailun tilan (tulossa/käynnissä/tauolla/päättynyt) laskenta päivämääristä ja KISANSPEKSIT-ohituksesta.
-import { parseCsvRows } from './csv.js';
+import { TOSI_ARVOT } from './henkiloTulokset.js';
+import { asetusJoukko, asetusTulkitsija, haeAsetusSpekseista } from './kisaAsetukset.js';
 
+// Hyväksyy muodot p.k.vvvv ja vvvv-kk-pp. Palauttaa paikallisen keskiyön tai null.
 export function parsiPaivamaara(pvmStr) {
-  if (!pvmStr) return null;
-  const osat = pvmStr.split('.');
+  const teksti = String(pvmStr || '').trim();
+  if (!teksti) return null;
+
+  const iso = teksti.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const osat = iso ? [iso[3], iso[2], iso[1]] : teksti.split('.');
   if (osat.length !== 3) return null;
 
   const paiva = parseInt(osat[0], 10);
@@ -67,56 +72,31 @@ export function laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt = new Date()) {
   return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
 }
 
-function normalisoiStatusArvo(arvo) {
-  const norm = String(arvo || '').trim().toUpperCase();
-  if (!norm) return null;
+const normalisoiStatusArvo = asetusTulkitsija([
+  ['paattynyt', ['PAATTYNYT', 'FINISHED', 'CLOSED', 'LOPPUNUT']],
+  ['kaynnissa', ['KAYNNISSA', 'ONGOING', 'RUNNING', 'LIVE']],
+  ['tauolla', ['TAUOLLA', 'TAUKO', 'PAUSED', 'PAUSE', 'BREAK', 'INTERMISSION']],
+  ['tulossa', ['TULOSSA', 'UPCOMING', 'PENDING']]
+]);
 
-  if (['PÄÄTTYNYT', 'PAATTYNYT', 'FINISHED', 'CLOSED', 'LOPPUNUT'].includes(norm)) return 'paattynyt';
-  if (['KÄYNNISSÄ', 'KAYNNISSA', 'ONGOING', 'RUNNING', 'LIVE'].includes(norm)) return 'kaynnissa';
-  if (['TAUOLLA', 'TAUKO', 'PAUSED', 'PAUSE', 'BREAK', 'INTERMISSION'].includes(norm)) return 'tauolla';
-  if (['TULOSSA', 'UPCOMING', 'PENDING'].includes(norm)) return 'tulossa';
+const STATUS_AVAIMET = asetusJoukko([
+  'STATUS', 'KISASTATUS', 'KISA_STATUS', 'KILPAILUNSTATUS', 'KILPAILU_STATUS',
+  'COMPETITIONSTATUS', 'KISAPAATTYNYT', 'KISA_PAATTYNYT', 'KILPAILUPAATTYNYT', 'KILPAILU_PAATTYNYT'
+]);
+
+function tulkitseStatusArvo(arvo, avain) {
+  const status = normalisoiStatusArvo(arvo);
+  if (status) return status;
+
+  const boolNorm = String(arvo).trim().toLowerCase();
+  if (TOSI_ARVOT.includes(boolNorm) && avain.includes('PAATTYNYT')) {
+    return 'paattynyt';
+  }
   return null;
 }
 
 export function haeStatusOverrideSpekseista(speksitData) {
-  const rivit = Array.isArray(speksitData)
-    ? speksitData
-    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
-
-  if (!Array.isArray(rivit) || rivit.length === 0) return null;
-
-  const avainSanat = new Set([
-    'STATUS', 'KISASTATUS', 'KISA_STATUS', 'KILPAILUNSTATUS', 'KILPAILU_STATUS',
-    'COMPETITIONSTATUS', 'KISAPAATTYNYT', 'KISA_PAATTYNYT', 'KILPAILUPAATTYNYT', 'KILPAILU_PAATTYNYT'
-  ]);
-
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-    const normalisoidut = solut.map((s) => s.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-
-    for (let i = 0; i < normalisoidut.length; i++) {
-      const avain = normalisoidut[i];
-      if (!avainSanat.has(avain)) continue;
-
-      const ehdokasArvot = [
-        solut[i + 1], solut[i + 2], solut[i], ...solut
-      ].filter(Boolean);
-
-      for (const ehdokas of ehdokasArvot) {
-        const status = normalisoiStatusArvo(ehdokas);
-        if (status) return status;
-
-        const boolNorm = String(ehdokas).trim().toLowerCase();
-        if (['1', 'true', 'yes', 'on', 'x'].includes(boolNorm) && avain.includes('PAATTYNYT')) {
-          return 'paattynyt';
-        }
-      }
-    }
-  }
-
-  return null;
+  return haeAsetusSpekseista(speksitData, STATUS_AVAIMET, tulkitseStatusArvo);
 }
 
 export function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData, nyt = new Date()) {

@@ -1,5 +1,6 @@
 // src/utils/aikatauluRyhmat.js
 import { parseCsvRows } from './csv.js';
+import { parsiPaivamaara } from './kisaStatus.js';
 
 export function toSortValue(timeText) {
   const cleaned = String(timeText || '').trim();
@@ -66,38 +67,8 @@ function sanitizeName(value) {
   return String(value || '').replace(/\u200B/g, '').trim();
 }
 
-export function parseCompetitionDate(value) {
-  const text = String(value || '').trim();
-  if (!text) return null;
-
-  const dot = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (dot) {
-    const d = parseInt(dot[1], 10);
-    const m = parseInt(dot[2], 10);
-    const y = parseInt(dot[3], 10);
-    const parsed = new Date(y, m - 1, d);
-    if (parsed.getFullYear() === y && parsed.getMonth() === m - 1 && parsed.getDate() === d) {
-      return parsed;
-    }
-    return null;
-  }
-
-  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (iso) {
-    const y = parseInt(iso[1], 10);
-    const m = parseInt(iso[2], 10);
-    const d = parseInt(iso[3], 10);
-    const parsed = new Date(y, m - 1, d);
-    if (parsed.getFullYear() === y && parsed.getMonth() === m - 1 && parsed.getDate() === d) {
-      return parsed;
-    }
-  }
-
-  return null;
-}
-
 export function onkoEnsimmainenPaivaOhitettu(competitionStartDate, nyt = new Date()) {
-  const start = parseCompetitionDate(competitionStartDate);
+  const start = parsiPaivamaara(competitionStartDate);
   if (!start) return false;
 
   const paivanLoppu = new Date(start.getTime());
@@ -611,8 +582,12 @@ export function muodostaYhdistetytRyhmaKortit(mode, visibleDaySections) {
   if (mode !== 'combined-schedule') return [];
 
   const byGroup = new Map();
+  // Vuorot järjestetään taulukon järjestyksessä: päivän nimi ei kerro järjestystä, ja
+  // perjantai, lauantai ja maanantai saavat kaikki päivänumeron 1.
+  let sessionOrder = 0;
   for (const section of visibleDaySections) {
     for (const session of section.sessionSections || []) {
+      sessionOrder += 1;
       for (const heat of session.heats || []) {
         const groupKey = String(heat.groupLabel ?? heat.groupIndex ?? '');
         if (!groupKey) continue;
@@ -634,7 +609,8 @@ export function muodostaYhdistetytRyhmaKortit(mode, visibleDaySections) {
           dayLabel: section.label,
           sessionLabel: session.shortLabel || session.label || '',
           time: heat.time || '',
-          layoutLabel: heat.layoutLabel || ''
+          layoutLabel: heat.layoutLabel || '',
+          sessionOrder
         });
       }
     }
@@ -644,8 +620,7 @@ export function muodostaYhdistetytRyhmaKortit(mode, visibleDaySections) {
     .map((group) => ({
       ...group,
       scheduleRows: group.scheduleRows.sort((a, b) => {
-        const dayCmp = String(a.dayLabel).localeCompare(String(b.dayLabel), 'fi');
-        if (dayCmp !== 0) return dayCmp;
+        if (a.sessionOrder !== b.sessionOrder) return a.sessionOrder - b.sessionOrder;
         const timeCmp = toSortValue(a.time) - toSortValue(b.time);
         if (timeCmp !== 0) return timeCmp;
         return String(a.layoutLabel).localeCompare(String(b.layoutLabel), 'fi');
