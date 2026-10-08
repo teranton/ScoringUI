@@ -1,6 +1,7 @@
 // src/utils/henkiloTaulukko.js
 // HenkiloTaulukko-näkymän puhdas parsinta- ja laskentalogiikka.
 import { muodostaRatkoNakyma } from './henkiloTulokset.js';
+import { haeTekstit } from '../i18n.js';
 
 export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
   if (!Array.isArray(raakaRivit) || raakaRivit.length < 2) return [];
@@ -114,10 +115,8 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
 }
 
 export function tunnistaPaivaSarakeNimet(raakaRivit, locale) {
-  const fallback = {
-    laLabel: locale === 'en' ? 'Sat' : 'La',
-    suLabel: locale === 'en' ? 'Sun' : 'Su'
-  };
+  const { laLabel, suLabel } = haeTekstit('henkiloTaulukko', locale);
+  const fallback = { laLabel, suLabel };
 
   try {
     if (!Array.isArray(raakaRivit) || raakaRivit.length < 1) return fallback;

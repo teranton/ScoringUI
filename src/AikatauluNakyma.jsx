@@ -4,6 +4,7 @@ import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
+import { haeTekstit } from './i18n';
 
 const logPerf = createPerfLogger('AikatauluPerf');
 
@@ -160,35 +161,13 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
   });
   
 
-  const tx = locale === 'en'
-    ? {
-      title: 'Timetable', empty: 'No timetable rows found.', lane: 'Lane', time: 'Time',
-      group: 'Group', end: 'End', event: 'Event', location: 'Location', notes: 'Notes'
-    }
-    : {
-      title: 'Aikataulu', empty: 'Aikataulurivejä ei löytynyt.', lane: 'Rata', time: 'Aika',
-      group: 'Ryhmä', end: 'Loppu', event: 'Tapahtuma', location: 'Paikka', notes: 'Lisätieto'
-    };
+  const tx = haeTekstit('aikataulu', locale);
 
-  const txSearch = locale === 'en'
-    ? { placeholder: 'Search shooter...', results: 'Shooter schedules', noResults: 'No matches found' }
-    : { placeholder: 'Hae ampujaa...', results: 'Ampujan aikataulu', noResults: 'Ei osumia' };
+  const txSearch = haeTekstit('aikatauluHaku', locale);
 
-  const txMobile = locale === 'en'
-    ? {
-      lanes: 'Lanes',
-      largeTable: 'Large table',
-      hiddenMarkerTitle: 'Name contains hidden backend marker (U+200B).'
-    }
-    : {
-      lanes: 'Radat',
-      largeTable: 'Taulukkonäkymä',
-      hiddenMarkerTitle: 'Aloitustuomarointi.'
-    };
+  const txMobile = haeTekstit('aikatauluMobiili', locale);
 
-  const txPrint = locale === 'en'
-    ? { button: 'Print / PDF' }
-    : { button: 'Tulosta / PDF' };
+  const txPrint = haeTekstit('aikatauluTulostus', locale);
 
   // DATA PARSINTA
   const parsed = useMemo(() => {
@@ -671,12 +650,12 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
                             )}
                             <span className="truncate text-sm font-bold tracking-wide text-[hsl(var(--foreground))]">{lane.laneLabel}</span>
                           </div>
-                          <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))]">{lane.visibleCount} {locale === 'en' ? 'shooters' : 'ampujaa'}</span>
+                          <span className="shrink-0 text-[11px] text-[hsl(var(--muted-foreground))]">{lane.visibleCount} {tx.shooters}</span>
                         </div>
 
                         <div className="max-h-[62vh] overflow-y-auto divide-y divide-[hsl(var(--border))]/60">
                           {lane.entries.length === 0 ? (
-                            <div className="px-3 py-3 text-xs italic text-[hsl(var(--muted-foreground))]">{locale === 'en' ? 'No shooters on this lane.' : 'Ei ampujia tällä radalla.'}</div>
+                            <div className="px-3 py-3 text-xs italic text-[hsl(var(--muted-foreground))]">{tx.noShootersOnLane}</div>
                           ) : lane.entries.map((entry) => (
                             <div key={entry.id} className="flex items-start gap-2 px-3 py-2.5" style={entry.style}>
                               <span className="mt-0.5 inline-flex min-w-[52px] justify-center rounded bg-[hsl(var(--muted))]/85 px-1.5 py-0.5 font-mono text-xs font-bold text-[hsl(var(--foreground))]">

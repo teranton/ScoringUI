@@ -17,6 +17,7 @@ import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/status
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
+import { haeTekstit } from './i18n';
 import { useMediaQuery } from './hooks/useMediaQuery';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
@@ -43,6 +44,7 @@ const SOLU_LUOKAT = {
 };
 
 export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
+  const tx = haeTekstit('henkiloTaulukko', locale);
   const onMobiili = useMediaQuery('(max-width: 759px)');
   const [onkoKompaktiTila, setOnkoKompaktiTila] = useState(true);
   const [onkoKokoNaytto, setOnkoKokoNaytto] = useState(false);
@@ -217,51 +219,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     };
   }, [onkoKokoNaytto]);
 
-  const tx = locale === 'en'
-    ? {
-      loading: 'Loading table data...',
-      title: 'All Results (Table)',
-      normal: 'Normal',
-      compact: 'Compact',
-      fullscreen: 'Fullscreen Sheet',
-      exitFullscreen: 'Exit Fullscreen',
-      rank: 'Rank',
-      name: 'Name',
-      classLabel: 'Class',
-      clubLabel: 'Club',
-      laLabel: 'Sat',
-      suLabel: 'Sun',
-      total: 'Total',
-      allStagesReady: 'All stage scores are complete',
-      stagesMissing: 'Some stage scores are missing',
-      zoomReset: 'Reset Zoom',
-      showStageAnalytics: 'Stage Analytics',
-      hideStageAnalytics: 'Hide Analytics',
-      analyticsAvg: 'Avg (n)',
-      analyticsDetails: 'Md / Max%'
-    }
-    : {
-      loading: 'Ladataan taulukkodataa...',
-      title: 'Kaikki tulokset taulukkona',
-      normal: 'Normaali',
-      compact: 'Kompakti',
-      fullscreen: 'Koko näyttö',
-      exitFullscreen: 'Poistu koko näytöstä',
-      rank: 'Sija',
-      name: 'Nimi',
-      classLabel: 'Sarja',
-      clubLabel: 'Seura',
-      laLabel: 'La',
-      suLabel: 'Su',
-      total: 'Yht',
-      allStagesReady: 'Kaikki alitulokset valmiit',
-      stagesMissing: 'Alituloksia puuttuu',
-      zoomReset: 'Nollaa zoom',
-      showStageAnalytics: 'Rata-analyysi',
-      hideStageAnalytics: 'Piilota analyysi',
-      analyticsAvg: 'KA (n)',
-      analyticsDetails: 'Md / Max%'
-    };
 
   const muotoileNimiTaulukkoon = (nimi) => {
     if (!onMobiili) return nimi;

@@ -3,23 +3,12 @@ import { useState } from 'react';
 import { ReactSortable } from 'react-sortablejs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Badge } from './components/ui/badge';
+import { haeTekstit } from './i18n';
 
 export default function RyhmaJako({ data, locale = 'fi' }) {
   const [erat, setErat] = useState(() => data?.erät || data?.ryhmat || []);
 
-  const tx = locale === 'en'
-    ? {
-      loading: 'Loading heat data...',
-      title: 'Heat Assignment',
-      description: 'You can rearrange shooters between heats by dragging.',
-      heat: 'Heat'
-    }
-    : {
-      loading: 'Ladataan erätietoja...',
-      title: 'Eräjako',
-      description: 'Voit järjestellä ampujia erien välillä raahaamalla.',
-      heat: 'Erä'
-    };
+  const tx = haeTekstit('ryhmaJako', locale);
 
   if (!data) return <div className="py-6 text-sm text-slate-500">{tx.loading}</div>;
 

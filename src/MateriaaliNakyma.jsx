@@ -3,6 +3,7 @@ import { parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows } from './utils/materials';
 import EsikatseltavaMateriaali from './components/EsikatseltavaMateriaali';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { haeTekstit } from './i18n';
 
 function onkoPdfLinkki(urlArvo) {
   const teksti = String(urlArvo || '').trim();
@@ -34,21 +35,7 @@ function onkoPdfLinkki(urlArvo) {
 }
 
 export default function MateriaaliNakyma({ specsCsv, locale = 'fi' }) {
-  const tx = locale === 'en'
-    ? {
-      title: 'Official Notices & Instructions',
-      empty: 'No additional instructions available.',
-      pdf: 'PDF document',
-      link: 'Website / Link',
-      previewHint: 'Click to open the link'
-    }
-    : {
-      title: 'Viralliset materiaalit ja ohjeet',
-      empty: 'Ei lisäohjeita saatavilla.',
-      pdf: 'PDF-dokumentti',
-      link: 'Verkkosivu / Linkki',
-      previewHint: 'Klikkaa avataksesi linkin'
-    };
+  const tx = haeTekstit('materiaalit', locale);
 
   const guides = useMemo(() => {
     if (!specsCsv) return [];

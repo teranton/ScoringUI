@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Badge } from './components/ui/badge';
+import { haeTekstit } from './i18n';
 
 export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetitionNumbers = false }) {
   const onkoRawTyhja = !rawCsv || rawCsv.trim().length < 10;
@@ -11,19 +12,7 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
     return /^\d+$/.test(String(value || '').trim());
   }
 
-  const tx = locale === 'en'
-    ? {
-      title: 'Registered participants',
-      description: 'This list will be hidden automatically once the competition starts.',
-      classLabel: 'Class',
-      shooters: 'shooters'
-    }
-    : {
-      title: 'Ilmoittautuneet osallistujat',
-      description: 'Tämä lista poistuu näkyvistä automaattisesti, kun kilpailu alkaa.',
-      classLabel: 'Sarja',
-      shooters: 'ampujaa'
-    };
+  const tx = haeTekstit('ilmoittautuneet', locale);
 
   const { ryhmitellytSarjat, kokonaismaara } = useMemo(() => {
     const raakaRivit = parseCsvRows(rawCsv || '');
