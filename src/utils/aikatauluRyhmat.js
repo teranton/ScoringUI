@@ -175,36 +175,56 @@ function extractSessionLabel(titleRow, startCol, endCol, fallback) {
   return fallback;
 }
 
+// getDay: 0 = sunnuntai … 6 = lauantai; txKey = i18n-avain päivän otsikolle
 const VIIKONPAIVAT = [
-  { keys: ['MAANANTAI', 'MONDAY'], label: 'Maanantai' },
-  { keys: ['TIISTAI', 'TUESDAY'], label: 'Tiistai' },
-  { keys: ['KESKIVIIKKO', 'WEDNESDAY'], label: 'Keskiviikko' },
-  { keys: ['TORSTAI', 'THURSDAY'], label: 'Torstai' },
-  { keys: ['PERJANTAI', 'FRIDAY'], label: 'Perjantai' },
-  { keys: ['LAUANTAI', 'SATURDAY'], label: 'Lauantai' },
-  { keys: ['SUNNUNTAI', 'SUNDAY'], label: 'Sunnuntai' }
+  { keys: ['MAANANTAI', 'MONDAY'], label: 'Maanantai', getDay: 1, txKey: 'monday' },
+  { keys: ['TIISTAI', 'TUESDAY'], label: 'Tiistai', getDay: 2, txKey: 'tuesday' },
+  { keys: ['KESKIVIIKKO', 'WEDNESDAY'], label: 'Keskiviikko', getDay: 3, txKey: 'wednesday' },
+  { keys: ['TORSTAI', 'THURSDAY'], label: 'Torstai', getDay: 4, txKey: 'thursday' },
+  { keys: ['PERJANTAI', 'FRIDAY'], label: 'Perjantai', getDay: 5, txKey: 'friday' },
+  { keys: ['LAUANTAI', 'SATURDAY'], label: 'Lauantai', getDay: 6, txKey: 'saturday' },
+  { keys: ['SUNNUNTAI', 'SUNDAY'], label: 'Sunnuntai', getDay: 0, txKey: 'sunday' }
 ];
+
+// Ensimmäinen tekstissä mainittu viikonpäivä ("Sunnuntai (varapäivä maanantai)" = sunnuntai)
+function etsiViikonpaiva(text) {
+  const upper = String(text || '').toUpperCase();
+  let paras = null;
+  for (const day of VIIKONPAIVAT) {
+    for (const key of day.keys) {
+      const kohta = upper.indexOf(key);
+      if (kohta >= 0 && (!paras || kohta < paras.kohta)) paras = { day, key, kohta };
+    }
+  }
+  return paras;
+}
+
+/** Päivän otsikko käyttöliittymän kielellä: viikonpäivä käännettynä, numeroitu päivä "Päivä N". */
+export function paivanOtsikko(dayLabel, tx) {
+  const osuma = etsiViikonpaiva(dayLabel);
+  if (osuma && tx?.[osuma.day.txKey]) return tx[osuma.day.txKey];
+  if (/^\d+$/.test(String(dayLabel || '').trim()) && tx?.day) return `${tx.day} ${dayLabel}`;
+  return dayLabel;
+}
 
 // Päivän numero tulee viikonpäivien järjestyksestä aikataulussa (pe-la = 1-2, la-su = 1-2),
 // ei viikonpäivän nimestä: kilpailu voi alkaa minä päivänä tahansa.
 function buildDayMetaFromSessionLabel(label, fallbackDayNumber, weekdayNumbers = new Map()) {
   const text = String(label || '').replace(/\s+/g, ' ').trim();
-  const upper = text.toUpperCase();
+  const osuma = etsiViikonpaiva(text);
 
-  for (const day of VIIKONPAIVAT) {
-    const key = day.keys.find((k) => upper.includes(k));
-    if (key) {
-      if (!weekdayNumbers.has(day.label)) weekdayNumbers.set(day.label, fallbackDayNumber);
-      const dayNumber = weekdayNumbers.get(day.label);
-      const shortLabel = text.replace(new RegExp(key, 'i'), '').trim() || text;
-      return {
-        dayKey: `day-${dayNumber}`,
-        dayLabel: day.label,
-        dayNumber,
-        sessionLabel: text,
-        shortSessionLabel: shortLabel
-      };
-    }
+  if (osuma) {
+    const { day, key } = osuma;
+    if (!weekdayNumbers.has(day.label)) weekdayNumbers.set(day.label, fallbackDayNumber);
+    const dayNumber = weekdayNumbers.get(day.label);
+    const shortLabel = text.replace(new RegExp(key, 'i'), '').trim() || text;
+    return {
+      dayKey: `day-${dayNumber}`,
+      dayLabel: day.label,
+      dayNumber,
+      sessionLabel: text,
+      shortSessionLabel: shortLabel
+    };
   }
 
   return {
@@ -578,22 +598,42 @@ export function parseAikatauluRyhmat(rawCsv, defaultGroupingMode, tx) {
   return { mode: 'lane-grid', titleSuffix, laneColumns, laneRows, heats, daySections };
 }
 
+// Päivän kalenteripäivä: viikonpäivän nimestä lähin sama viikonpäivä alkupäivän ympäriltä
+// (perjantain esikierros ennen lauantain alkua = alkupäivä - 1), muuten alkupäivä + (numero - 1).
+function paivaosionPvm(section, alku) {
+  const pvm = new Date(alku.getTime());
+  const osuma = etsiViikonpaiva(section.label);
+  if (osuma) {
+    let ero = (osuma.day.getDay - alku.getDay() + 7) % 7;
+    if (ero > 3) ero -= 7;
+    pvm.setDate(pvm.getDate() + ero);
+  } else {
+    pvm.setDate(pvm.getDate() + Math.max(0, (section.dayNumber || 1) - 1));
+  }
+  return pvm;
+}
+
 export function suodataNakyvatPaivaosiot(daySections, mode, competitionStartDate, nyt = new Date()) {
   if (!Array.isArray(daySections) || daySections.length === 0) return [];
   if (mode === 'group-sheet') return daySections;
   if (daySections.length < 2) return daySections;
-  if (!onkoEnsimmainenPaivaOhitettu(competitionStartDate, nyt)) return daySections;
+  const alku = parsiPaivamaara(competitionStartDate);
+  if (!alku) return daySections;
 
-  const withoutDayOne = daySections.filter((section) => section.dayNumber !== 1);
-  return withoutDayOne.length > 0 ? withoutDayOne : daySections;
+  // Piilotetaan päättyneet päivät; kun kaikki ovat päättyneet, näytetään viimeinen
+  const tulevat = daySections.filter((section) => {
+    const loppu = paivaosionPvm(section, alku);
+    loppu.setHours(23, 59, 59, 999);
+    return nyt.getTime() <= loppu.getTime();
+  });
+  return tulevat.length > 0 ? tulevat : daySections.slice(-1);
 }
 
 export function muodostaYhdistetytRyhmaKortit(mode, visibleDaySections) {
   if (mode !== 'combined-schedule') return [];
 
   const byGroup = new Map();
-  // Vuorot järjestetään taulukon järjestyksessä: päivän nimi ei kerro järjestystä, ja
-  // perjantai, lauantai ja maanantai saavat kaikki päivänumeron 1.
+  // Vuorot järjestetään taulukon järjestyksessä (päivänumerot kulkevat samassa järjestyksessä).
   let sessionOrder = 0;
   for (const section of visibleDaySections) {
     for (const session of section.sessionSections || []) {

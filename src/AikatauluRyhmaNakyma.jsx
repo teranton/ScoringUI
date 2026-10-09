@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   muodostaRyhmaJarjestysTaulukko,
   muodostaYhdistetytRyhmaKortit,
+  paivanOtsikko,
   parseAikatauluRyhmat,
   ryhmaKortinPaivaRivit,
   ryhmaKorttienPaivat,
@@ -45,7 +46,8 @@ function getOrderDayClasses(dayNumber) {
   };
 }
 
-// Ryhmäkortin päiväsarakkeet: 1. päivä sininen, 2. päivä vihreä (kuten ennen la/su)
+// Ryhmäkortin päiväsarakkeet päivän numeron mukaan: parittomat sinisiä, parilliset vihreitä
+// (samat värit kuin järjestysnäkymässä, myös kun 1. päivä on piilotettu)
 const PAIVA_SARAKE_LUOKAT = [
   {
     head: 'bg-[hsl(var(--badge-upcoming-bg))] text-[hsl(var(--badge-upcoming-fg))]',
@@ -58,16 +60,6 @@ const PAIVA_SARAKE_LUOKAT = [
     empty: 'bg-[hsl(var(--badge-ongoing-bg))]/35 text-[hsl(var(--badge-ongoing-fg))]'
   }
 ];
-
-const VIIKONPAIVA_KAANNOS = {
-  Maanantai: 'monday', Tiistai: 'tuesday', Keskiviikko: 'wednesday', Torstai: 'thursday',
-  Perjantai: 'friday', Lauantai: 'saturday', Sunnuntai: 'sunday'
-};
-
-function paivanNimi(dayLabel, tx) {
-  const avain = VIIKONPAIVA_KAANNOS[dayLabel];
-  return (avain && tx[avain]) || dayLabel;
-}
 
 function getLayoutColumnClasses(layoutLabel, index) {
   const upper = String(layoutLabel || '').toUpperCase();
@@ -170,6 +162,10 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
     return muodostaYhdistetytRyhmaKortit(parsed.mode, visibleDaySections);
   }, [parsed.mode, visibleDaySections]);
   const korttiPaivat = useMemo(() => ryhmaKorttienPaivat(yhdistetytRyhmaKortit), [yhdistetytRyhmaKortit]);
+  const korttienPaivaRivit = useMemo(
+    () => new Map(yhdistetytRyhmaKortit.map((kortti) => [kortti.key, ryhmaKortinPaivaRivit(kortti.scheduleRows, korttiPaivat)])),
+    [yhdistetytRyhmaKortit, korttiPaivat]
+  );
   const filteredYhdistetytRyhmaKortit = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return yhdistetytRyhmaKortit;
@@ -349,7 +345,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
               ) : combinedTab === 'groups' ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredYhdistetytRyhmaKortit.map((group) => {
-                const paivaRivit = ryhmaKortinPaivaRivit(group.scheduleRows, korttiPaivat);
+                const paivaRivit = korttienPaivaRivit.get(group.key) || [];
 
                 return (
                 <article
@@ -373,9 +369,9 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                       <table className="w-full table-fixed border-collapse text-[11px] md:text-xs">
                         <thead>
                           <tr>
-                            {korttiPaivat.map((paiva, d) => (
-                              <th key={paiva.dayNumber} className={`${PAIVA_SARAKE_LUOKAT[d % 2].head} px-1.5 py-1 text-left font-semibold md:px-2`}>
-                                {paivanNimi(paiva.dayLabel, tx)}
+                            {korttiPaivat.map((paiva) => (
+                              <th key={paiva.dayNumber} className={`${PAIVA_SARAKE_LUOKAT[(paiva.dayNumber + 1) % 2].head} px-1.5 py-1 text-left font-semibold md:px-2`}>
+                                {paivanOtsikko(paiva.dayLabel, tx)}
                               </th>
                             ))}
                           </tr>
@@ -383,15 +379,15 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                         <tbody>
                           {paivaRivit.length === 0 ? (
                             <tr className="border-t border-[hsl(var(--border))]/45">
-                              {korttiPaivat.map((paiva, d) => (
-                                <td key={paiva.dayNumber} className={`${PAIVA_SARAKE_LUOKAT[d % 2].empty} px-1.5 py-1.5 md:px-2`}>-</td>
+                              {korttiPaivat.map((paiva) => (
+                                <td key={paiva.dayNumber} className={`${PAIVA_SARAKE_LUOKAT[(paiva.dayNumber + 1) % 2].empty} px-1.5 py-1.5 md:px-2`}>-</td>
                               ))}
                             </tr>
                           ) : (
                             paivaRivit.map((rivi, idx) => (
                               <tr key={`${group.key}-day-${idx}`} className="border-t border-[hsl(var(--border))]/45">
                                 {rivi.map((slot, d) => (
-                                  <td key={korttiPaivat[d].dayNumber} className={`${PAIVA_SARAKE_LUOKAT[d % 2].cell} px-1.5 py-1.5 align-top md:px-2`}>
+                                  <td key={korttiPaivat[d].dayNumber} className={`${PAIVA_SARAKE_LUOKAT[(korttiPaivat[d].dayNumber + 1) % 2].cell} px-1.5 py-1.5 align-top md:px-2`}>
                                     {slot ? (
                                       <button
                                         type="button"

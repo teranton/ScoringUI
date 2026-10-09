@@ -5,6 +5,7 @@ import {
   muodostaRyhmaJarjestysTaulukko,
   muodostaYhdistetytRyhmaKortit,
   onkoEnsimmainenPaivaOhitettu,
+  paivanOtsikko,
   parseAikatauluRyhmat,
   ryhmaKortinPaivaRivit,
   ryhmaKorttienPaivat,
@@ -221,4 +222,33 @@ test('perjantai-lauantai-kilpailu: kaksi erillistä päivää aikataulun järjes
     ['9.00 Layout 1', '9.00 Layout 3'],
     ['13.15 Layout 2', '13.15 Layout 4']
   ]);
+});
+
+test('suodataNakyvatPaivaosiot piilottaa päättyneet päivät viikonpäivän mukaan', () => {
+  const osiot = (nimet) => nimet.map((label, i) => ({ key: `day-${i + 1}`, label, dayNumber: i + 1 }));
+  // pe-la-kisa, alku perjantaina 9.10.2026
+  const peLa = osiot(['Perjantai', 'Lauantai']);
+  assert.deepEqual(suodataNakyvatPaivaosiot(peLa, 'combined-schedule', '2026-10-09', new Date(2026, 9, 9, 12)).map((s) => s.label), ['Perjantai', 'Lauantai']);
+  assert.deepEqual(suodataNakyvatPaivaosiot(peLa, 'combined-schedule', '2026-10-09', new Date(2026, 9, 10, 8)).map((s) => s.label), ['Lauantai']);
+  // perjantain esikierros ennen la-su-kisaa (alku lauantaina): sunnuntaina näkyy vain sunnuntai
+  const esikierros = osiot(['Perjantai', 'Lauantai', 'Sunnuntai']);
+  assert.deepEqual(suodataNakyvatPaivaosiot(esikierros, 'combined-schedule', '2026-10-10', new Date(2026, 9, 10, 12)).map((s) => s.label), ['Lauantai', 'Sunnuntai']);
+  assert.deepEqual(suodataNakyvatPaivaosiot(esikierros, 'combined-schedule', '2026-10-10', new Date(2026, 9, 11, 8)).map((s) => s.label), ['Sunnuntai']);
+  // kisan jälkeen näkyy viimeinen päivä
+  assert.deepEqual(suodataNakyvatPaivaosiot(peLa, 'combined-schedule', '2026-10-09', new Date(2026, 9, 12)).map((s) => s.label), ['Lauantai']);
+});
+
+test('päivän otsikko ja ensimmäinen mainittu viikonpäivä', () => {
+  assert.equal(paivanOtsikko('Perjantai', TX), TX.friday ?? 'Perjantai');
+  assert.equal(paivanOtsikko('2', { day: 'Päivä' }), 'Päivä 2');
+  assert.equal(paivanOtsikko('Eräluettelo', {}), 'Eräluettelo');
+  const { daySections } = parseAikatauluRyhmat(csv([
+    ['Eräluettelo'],
+    ['Sunnuntai (varapäivä maanantai)'],
+    ['START', 'Rata 1'],
+    ['9:00', '1'],
+    ['RYHMÄ', 'Nro', 'Nimi', 'Sarja', 'Seura'],
+    ['1', '11', 'Matti', 'Y', 'Seura A']
+  ]), 'group5', TX);
+  assert.deepEqual(daySections.map((s) => s.label), ['Sunnuntai']);
 });
