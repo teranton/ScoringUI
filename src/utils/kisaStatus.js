@@ -1,6 +1,5 @@
 // src/utils/kisaStatus.js
 // Kilpailun tilan (tulossa/käynnissä/tauolla/päättynyt) laskenta päivämääristä ja KISANSPEKSIT-ohituksesta.
-import { TOSI_ARVOT } from './henkiloTulokset.js';
 import { asetusJoukko, asetusTulkitsija, haeAsetusSpekseista } from './kisaAsetukset.js';
 
 // Hyväksyy muodot p.k.vvvv ja vvvv-kk-pp. Palauttaa paikallisen keskiyön tai null.
@@ -72,28 +71,15 @@ export function laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt = new Date()) {
   return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
 }
 
-const normalisoiStatusArvo = asetusTulkitsija([
-  ['paattynyt', ['PAATTYNYT', 'FINISHED', 'CLOSED', 'LOPPUNUT']],
-  ['kaynnissa', ['KAYNNISSA', 'ONGOING', 'RUNNING', 'LIVE']],
-  ['tauolla', ['TAUOLLA', 'TAUKO', 'PAUSED', 'PAUSE', 'BREAK', 'INTERMISSION']],
-  ['tulossa', ['TULOSSA', 'UPCOMING', 'PENDING']]
+// Hyväksytyt avaimet ja arvot ovat ne, joita kilpailutiedostot käyttävät.
+const tulkitseStatusArvo = asetusTulkitsija([
+  ['paattynyt', ['FINISHED']],
+  ['kaynnissa', ['RUNNING']],
+  ['tauolla', ['PAUSED']],
+  ['tulossa', ['UPCOMING']]
 ]);
 
-const STATUS_AVAIMET = asetusJoukko([
-  'STATUS', 'KISASTATUS', 'KISA_STATUS', 'KILPAILUNSTATUS', 'KILPAILU_STATUS',
-  'COMPETITIONSTATUS', 'KISAPAATTYNYT', 'KISA_PAATTYNYT', 'KILPAILUPAATTYNYT', 'KILPAILU_PAATTYNYT'
-]);
-
-function tulkitseStatusArvo(arvo, avain) {
-  const status = normalisoiStatusArvo(arvo);
-  if (status) return status;
-
-  const boolNorm = String(arvo).trim().toLowerCase();
-  if (TOSI_ARVOT.includes(boolNorm) && avain.includes('PAATTYNYT')) {
-    return 'paattynyt';
-  }
-  return null;
-}
+const STATUS_AVAIMET = asetusJoukko(['KILPAILUNSTATUS']);
 
 export function haeStatusOverrideSpekseista(speksitData) {
   return haeAsetusSpekseista(speksitData, STATUS_AVAIMET, tulkitseStatusArvo);

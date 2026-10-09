@@ -116,26 +116,17 @@ export const ratkoStatusPainot = {
 
 export const ratkoPalkintoSijaOletus = 3;
 
+// Sama tulkinta kuin muissa KISANSPEKSIT-asetuksissa (ks. kisaAsetukset.js): avain normalisoidaan ja arvo on
+// avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu. Tyhjä tai virheellinen arvo -> oletus.
 function haeRatkoPalkintoSija(speksiRivit) {
-  const avainSanat = new Set([
-    'RATKOPALKINTOSIJA',
-    'RATKO_PALKINTO_SIJA',
-    'TIEBREAKPRIZEPLACE',
-    'TIEBREAK_PRIZE_PLACE',
-    'PALKINTOSIJA',
-    'PALKINTO_SIJA'
-  ]);
-
   for (const rivi of speksiRivit) {
     if (!Array.isArray(rivi)) continue;
 
     const solut = rivi.map((solu) => String(solu || '').trim());
-    const normalisoidut = solut.map((solu) => solu.toUpperCase().replace(/[^A-Z0-9_]/g, ''));
-    const avainIndeksi = normalisoidut.findIndex((avain) => avainSanat.has(avain));
+    const avainIndeksi = solut.findIndex((solu) => normalisoiOtsikko(solu) === 'RATKOPALKINTOSIJA');
     if (avainIndeksi === -1) continue;
 
-    // Arvo luetaan vain avaimen viereisestä solusta; tyhjä tai virheellinen arvo -> oletus.
-    const sija = Number.parseInt(solut[avainIndeksi + 1], 10);
+    const sija = Number.parseInt(solut.slice(avainIndeksi + 1).find(Boolean), 10);
     return Number.isInteger(sija) && sija > 0 ? sija : ratkoPalkintoSijaOletus;
   }
 

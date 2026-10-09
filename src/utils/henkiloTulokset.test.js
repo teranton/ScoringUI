@@ -43,6 +43,7 @@ for (const tapaus of ratkoTapaukset) {
 const speksiTapaukset = [
   { nimi: 'avain ja arvo', rivit: [['RATKO_PALKINTO_SIJA', '5']], odotettu: 5 },
   { nimi: 'tyhjä arvo käyttää oletusta 3', rivit: [['LAYOUT/KISA', '24', 'RATKO_PALKINTO_SIJA', '']], odotettu: 3 },
+  { nimi: 'arvo on ensimmäinen ei-tyhjä solu avaimen oikealla puolella', rivit: [['Ratko palkinto sija', '', '4']], odotettu: 4 },
   { nimi: 'virheellinen arvo käyttää oletusta 3', rivit: [['RATKO_PALKINTO_SIJA', 'kaikki']], odotettu: 3 },
   { nimi: 'puuttuva avain käyttää oletusta 3', rivit: [['ASEMA', 'MAKSIMI'], ['1', '25']], odotettu: 3 },
   { nimi: 'tyhjät speksit käyttävät oletusta 3', rivit: [], odotettu: 3 }

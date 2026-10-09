@@ -58,17 +58,18 @@ so column order can change but header names must not.
 
 Keys are found anywhere on the tab; the value is the next non-empty cell to the right.
 Keys and values are matched case-insensitively with Ä/Ö/Å read as A/O/A and spaces and underscores
-ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS` and `Erät` matches `ERAT`.
-Each setting accepts several spellings (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`):
+ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS`. Each setting has one key and a fixed set
+of values, the forms the competition sheets use (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`).
+Any other key or value is ignored and the default applies.
 
-| Setting | Accepted keys | Values |
-|---|---|---|
-| Competition status | `STATUS`, `KISA_STATUS`, `KILPAILU_STATUS`, `KISA_PAATTYNYT`, … | e.g. `KAYNNISSA`, `TAUOLLA`, `PAATTYNYT`, `TULOSSA` |
-| Timetable visibility | `AIKATAULU_NAKYVYYS`, `AIKATAULU_JULKINEN`, `TIMETABLE_VISIBILITY`, `TIMETABLE_PUBLIC` | `ALWAYS`, `AFTER_START`, `OFF` (and synonyms) |
-| Timetable model | `AIKATAULU_MALLI`, `AIKATAULU_NAKYMA`, `TIMETABLE_MODEL`, `TIMETABLE_VIEW`, `SCHEDULE_MODEL` | `GROUPS`, `INLINE` |
-| Timetable grouping | `AIKATAULU_RYHMITTELY`, `AIKATAULU_RYHMAKOKO`, `TIMETABLE_GROUPING`, `TIMETABLE_GROUP_SIZE`, `GROUPING_MODE` | `5`, `6`, `INLINE` |
-| Sponsor logos | `LOGOT_NAKYVYYS`, `SPONSOR_LOGOS_VISIBILITY`, `SPONSOR_LOGO_NAKYVYYS`, `AIKATAULU_LOGOT` | on / `OFF` |
-| Tie-break prize places | `RATKO_PALKINTO_SIJA`, `TIEBREAK_PRIZE_PLACE` | number, default 3 |
+| Setting | Key | Values | Default |
+|---|---|---|---|
+| Competition status | `KILPAILUNSTATUS` | `FINISHED`, `RUNNING`, `PAUSED`, `UPCOMING` | from the dates in the registry |
+| Timetable visibility | `AIKATAULU_NAKYVYYS` | `TRUE` (shown until the competition ends), `AFTER_START` (shown once results are), `FALSE` (hidden) | as `TRUE` |
+| Timetable model | `AIKATAULU_MALLI` | `GROUPS`, `INLINE` | `INLINE` (but a group size forces `GROUPS`) |
+| Timetable grouping | `AIKATAULU_RYHMAKOKO` | `5`, `6`, `INLINE` | `INLINE` |
+| Sponsor logos | `LOGOT_NAKYVYYS` | `TRUE`, `FALSE` | shown |
+| Tie-break prize places | `RATKO_PALKINTO_SIJA` | number | 3 |
 
 ## To do
 
