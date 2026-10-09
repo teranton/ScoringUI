@@ -6,6 +6,8 @@ import {
   muodostaYhdistetytRyhmaKortit,
   onkoEnsimmainenPaivaOhitettu,
   parseAikatauluRyhmat,
+  ryhmaKortinPaivaRivit,
+  ryhmaKorttienPaivat,
   suodataNakyvatPaivaosiot,
   toSortValue
 } from './aikatauluRyhmat.js';
@@ -172,10 +174,10 @@ test('muodostaYhdistetytRyhmaKortit järjestää vuorot päivän numeron, ei nim
   ]), 'group5', TX);
 
   const [kortti] = muodostaYhdistetytRyhmaKortit(mode, daySections);
-  assert.deepEqual(kortti.scheduleRows.map((r) => [r.dayNumber, r.dayLabel]), [[2, 'Sunnuntai'], [3, '3']]);
+  assert.deepEqual(kortti.scheduleRows.map((r) => [r.dayNumber, r.dayLabel]), [[1, 'Sunnuntai'], [2, '2']]);
 });
 
-test('muodostaYhdistetytRyhmaKortit: perjantai ennen lauantaita, vaikka molemmat ovat päivä 1', () => {
+test('muodostaYhdistetytRyhmaKortit: perjantai ennen lauantaita', () => {
   const { daySections, mode } = parseAikatauluRyhmat(csv([
     ['Eräluettelo'],
     ['Perjantai'],
@@ -190,4 +192,33 @@ test('muodostaYhdistetytRyhmaKortit: perjantai ennen lauantaita, vaikka molemmat
 
   const [kortti] = muodostaYhdistetytRyhmaKortit(mode, daySections);
   assert.deepEqual(kortti.scheduleRows.map((r) => [r.sessionLabel, r.time]), [['Perjantai', '18:00'], ['Lauantai', '9:00']]);
+});
+
+test('perjantai-lauantai-kilpailu: kaksi erillistä päivää aikataulun järjestyksessä', () => {
+  // Kuten master-pohjasta luotu TERON 2027 SPORTING SM (pe 9.10.-la 10.10.)
+  const { daySections, mode } = parseAikatauluRyhmat(csv([
+    [],
+    ['', '', 'Perjantai aamupäivä', '', '', '', 'Perjantai iltapäivä'],
+    ['', 'Start', 'Layout 1', 'Layout 2', '', 'Start', 'Layout 1', 'Layout 2'],
+    ['', '9.00', 'Ryhmä 1', 'Ryhmä 2', '', '13.15', 'Ryhmä 2', 'Ryhmä 1'],
+    ['', '', 'Lauantai aamupäivä', '', '', '', 'Lauantai iltapäivä'],
+    ['', 'Start', 'Layout 3', 'Layout 4', '', 'Start', 'Layout 3', 'Layout 4'],
+    ['', '9.00', 'Ryhmä 1', 'Ryhmä 2', '', '13.15', 'Ryhmä 2', 'Ryhmä 1'],
+    ['RYHMÄ', 'Nro', 'Nimi', 'Sarja', 'Seura'],
+    ['1', '11', 'Matti', 'Y', 'Seura A'],
+    ['2', '12', 'Pekka', 'Y', 'Seura B']
+  ]), 'group6', TX);
+
+  assert.deepEqual(daySections.map((s) => [s.key, s.label, s.dayNumber, s.sessionSections.length]), [
+    ['day-1', 'Perjantai', 1, 2],
+    ['day-2', 'Lauantai', 2, 2]
+  ]);
+  const kortit = muodostaYhdistetytRyhmaKortit(mode, daySections);
+  const paivat = ryhmaKorttienPaivat(kortit);
+  assert.deepEqual(paivat, [{ dayNumber: 1, dayLabel: 'Perjantai' }, { dayNumber: 2, dayLabel: 'Lauantai' }]);
+  const rivit = ryhmaKortinPaivaRivit(kortit[0].scheduleRows, paivat);
+  assert.deepEqual(rivit.map((r) => r.map((slot) => slot && `${slot.time} ${slot.layoutLabel}`)), [
+    ['9.00 Layout 1', '9.00 Layout 3'],
+    ['13.15 Layout 2', '13.15 Layout 4']
+  ]);
 });

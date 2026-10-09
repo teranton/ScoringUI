@@ -3,6 +3,8 @@ import {
   muodostaRyhmaJarjestysTaulukko,
   muodostaYhdistetytRyhmaKortit,
   parseAikatauluRyhmat,
+  ryhmaKortinPaivaRivit,
+  ryhmaKorttienPaivat,
   suodataNakyvatPaivaosiot
 } from './utils/aikatauluRyhmat';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
@@ -18,12 +20,9 @@ function getGroupBadgeClass(groupIndex) {
   return classes[groupIndex % classes.length];
 }
 
-function getOrderDayClasses(dayNumber, dayLabel) {
-  const label = String(dayLabel || '').toUpperCase();
-  const isSaturday = dayNumber === 1 || /LAUANTAI|SATURDAY/.test(label);
-  const isSunday = dayNumber === 2 || /SUNNUNTAI|SUNDAY/.test(label);
-
-  if (isSaturday) {
+// Värit päivän järjestysnumeron mukaan (1. ja 2. kilpailupäivä), viikonpäivästä riippumatta
+function getOrderDayClasses(dayNumber) {
+  if (dayNumber === 1) {
     return {
       title: 'text-[hsl(var(--primary))]',
       container: 'border-[hsl(var(--primary))]/30 bg-[hsl(var(--primary))]/[0.03]',
@@ -31,7 +30,7 @@ function getOrderDayClasses(dayNumber, dayLabel) {
     };
   }
 
-  if (isSunday) {
+  if (dayNumber === 2) {
     return {
       title: 'text-[hsl(var(--score-second-fg))]',
       container: 'border-[hsl(var(--score-second-fg))]/30 bg-[hsl(var(--score-second-fg))]/[0.03]',
@@ -44,6 +43,30 @@ function getOrderDayClasses(dayNumber, dayLabel) {
     container: 'border-[hsl(var(--border))]/60 bg-transparent',
     header: 'bg-[hsl(var(--muted))]/15 text-[hsl(var(--muted-foreground))]'
   };
+}
+
+// Ryhmäkortin päiväsarakkeet: 1. päivä sininen, 2. päivä vihreä (kuten ennen la/su)
+const PAIVA_SARAKE_LUOKAT = [
+  {
+    head: 'bg-[hsl(var(--badge-upcoming-bg))] text-[hsl(var(--badge-upcoming-fg))]',
+    cell: 'bg-[hsl(var(--badge-upcoming-bg))]/35',
+    empty: 'bg-[hsl(var(--badge-upcoming-bg))]/35 text-[hsl(var(--badge-upcoming-fg))]'
+  },
+  {
+    head: 'bg-[hsl(var(--badge-ongoing-bg))] text-[hsl(var(--badge-ongoing-fg))]',
+    cell: 'bg-[hsl(var(--badge-ongoing-bg))]/35',
+    empty: 'bg-[hsl(var(--badge-ongoing-bg))]/35 text-[hsl(var(--badge-ongoing-fg))]'
+  }
+];
+
+const VIIKONPAIVA_KAANNOS = {
+  Maanantai: 'monday', Tiistai: 'tuesday', Keskiviikko: 'wednesday', Torstai: 'thursday',
+  Perjantai: 'friday', Lauantai: 'saturday', Sunnuntai: 'sunday'
+};
+
+function paivanNimi(dayLabel, tx) {
+  const avain = VIIKONPAIVA_KAANNOS[dayLabel];
+  return (avain && tx[avain]) || dayLabel;
 }
 
 function getLayoutColumnClasses(layoutLabel, index) {
@@ -146,6 +169,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
   const yhdistetytRyhmaKortit = useMemo(() => {
     return muodostaYhdistetytRyhmaKortit(parsed.mode, visibleDaySections);
   }, [parsed.mode, visibleDaySections]);
+  const korttiPaivat = useMemo(() => ryhmaKorttienPaivat(yhdistetytRyhmaKortit), [yhdistetytRyhmaKortit]);
   const filteredYhdistetytRyhmaKortit = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return yhdistetytRyhmaKortit;
@@ -324,20 +348,8 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                 </div>
               ) : combinedTab === 'groups' ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {/* Väärä hälytys: refejä luetaan vain onClick-käsittelijöissä (avaaJarjestysNakyma), ei renderöinnissä. */}
-              {/* eslint-disable-next-line react-hooks/refs */}
               {filteredYhdistetytRyhmaKortit.map((group) => {
-                const lauantaiRivit = (group.scheduleRows || []).filter((slot) =>
-                  slot.dayNumber === 1 || /LAUANTAI|SATURDAY/i.test(String(slot.dayLabel || ''))
-                );
-                const sunnuntaiRivit = (group.scheduleRows || []).filter((slot) =>
-                  slot.dayNumber === 2 || /SUNNUNTAI|SUNDAY/i.test(String(slot.dayLabel || ''))
-                );
-                const rivit = Math.max(lauantaiRivit.length, sunnuntaiRivit.length);
-                const viikonloppuRivit = Array.from({ length: rivit }, (_, idx) => ({
-                  lauantai: lauantaiRivit[idx] || null,
-                  sunnuntai: sunnuntaiRivit[idx] || null
-                }));
+                const paivaRivit = ryhmaKortinPaivaRivit(group.scheduleRows, korttiPaivat);
 
                 return (
                 <article
@@ -361,49 +373,40 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                       <table className="w-full table-fixed border-collapse text-[11px] md:text-xs">
                         <thead>
                           <tr>
-                            <th className="w-1/2 bg-[hsl(var(--badge-upcoming-bg))] px-1.5 py-1 text-left font-semibold text-[hsl(var(--badge-upcoming-fg))] md:px-2">{tx.saturday}</th>
-                            <th className="w-1/2 bg-[hsl(var(--badge-ongoing-bg))] px-1.5 py-1 text-left font-semibold text-[hsl(var(--badge-ongoing-fg))] md:px-2">{tx.sunday}</th>
+                            {korttiPaivat.map((paiva, d) => (
+                              <th key={paiva.dayNumber} className={`${PAIVA_SARAKE_LUOKAT[d % 2].head} px-1.5 py-1 text-left font-semibold md:px-2`}>
+                                {paivanNimi(paiva.dayLabel, tx)}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {viikonloppuRivit.length === 0 ? (
+                          {paivaRivit.length === 0 ? (
                             <tr className="border-t border-[hsl(var(--border))]/45">
-                              <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-1.5 py-1.5 text-[hsl(var(--badge-upcoming-fg))] md:px-2">-</td>
-                              <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-1.5 py-1.5 text-[hsl(var(--badge-ongoing-fg))] md:px-2">-</td>
+                              {korttiPaivat.map((paiva, d) => (
+                                <td key={paiva.dayNumber} className={`${PAIVA_SARAKE_LUOKAT[d % 2].empty} px-1.5 py-1.5 md:px-2`}>-</td>
+                              ))}
                             </tr>
                           ) : (
-                            viikonloppuRivit.map((row, idx) => (
-                              <tr key={`${group.key}-weekend-${idx}`} className="border-t border-[hsl(var(--border))]/45">
-                                <td className="bg-[hsl(var(--badge-upcoming-bg))]/35 px-1.5 py-1.5 align-top md:px-2">
-                                  {row.lauantai ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => avaaJarjestysNakyma(row.lauantai, group.groupLabel)}
-                                      className="w-full truncate text-left text-[10px] leading-tight text-[hsl(var(--foreground))] hover:underline md:text-[11px]"
-                                      title={tx.openOrder}
-                                    >
-                                      <span className="font-semibold">{row.lauantai.time || '—'}</span>
-                                      <span className="text-[hsl(var(--muted-foreground))]">{` · ${row.lauantai.layoutLabel || '—'}`}</span>
-                                    </button>
-                                  ) : (
-                                    <span className="text-[hsl(var(--muted-foreground))]">-</span>
-                                  )}
-                                </td>
-                                <td className="bg-[hsl(var(--badge-ongoing-bg))]/35 px-1.5 py-1.5 align-top md:px-2">
-                                  {row.sunnuntai ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => avaaJarjestysNakyma(row.sunnuntai, group.groupLabel)}
-                                      className="w-full truncate text-left text-[10px] leading-tight text-[hsl(var(--foreground))] hover:underline md:text-[11px]"
-                                      title={tx.openOrder}
-                                    >
-                                      <span className="font-semibold">{row.sunnuntai.time || '—'}</span>
-                                      <span className="text-[hsl(var(--muted-foreground))]">{` · ${row.sunnuntai.layoutLabel || '—'}`}</span>
-                                    </button>
-                                  ) : (
-                                    <span className="text-[hsl(var(--muted-foreground))]">-</span>
-                                  )}
-                                </td>
+                            paivaRivit.map((rivi, idx) => (
+                              <tr key={`${group.key}-day-${idx}`} className="border-t border-[hsl(var(--border))]/45">
+                                {rivi.map((slot, d) => (
+                                  <td key={korttiPaivat[d].dayNumber} className={`${PAIVA_SARAKE_LUOKAT[d % 2].cell} px-1.5 py-1.5 align-top md:px-2`}>
+                                    {slot ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => avaaJarjestysNakyma(slot, group.groupLabel)}
+                                        className="w-full truncate text-left text-[10px] leading-tight text-[hsl(var(--foreground))] hover:underline md:text-[11px]"
+                                        title={tx.openOrder}
+                                      >
+                                        <span className="font-semibold">{slot.time || '—'}</span>
+                                        <span className="text-[hsl(var(--muted-foreground))]">{` · ${slot.layoutLabel || '—'}`}</span>
+                                      </button>
+                                    ) : (
+                                      <span className="text-[hsl(var(--muted-foreground))]">-</span>
+                                    )}
+                                  </td>
+                                ))}
                               </tr>
                             ))
                           )}
@@ -452,7 +455,7 @@ export default function AikatauluRyhmaNakyma({ rawCsv, locale = 'fi', sponsorLog
                   ) : (
                     <div className="space-y-4 p-3">
                       {ryhmaJarjestysTaulukko.dayTables.map((dayTable) => {
-                        const dayClasses = getOrderDayClasses(dayTable.dayNumber, dayTable.dayLabel);
+                        const dayClasses = getOrderDayClasses(dayTable.dayNumber);
                         return (
                         <section key={dayTable.key} className="space-y-2">
                           <h4 className={`text-sm font-semibold ${dayClasses.title}`}>{dayTable.dayLabel}</h4>

@@ -175,23 +175,32 @@ function extractSessionLabel(titleRow, startCol, endCol, fallback) {
   return fallback;
 }
 
-function buildDayMetaFromSessionLabel(label, fallbackDayNumber) {
+const VIIKONPAIVAT = [
+  { keys: ['MAANANTAI', 'MONDAY'], label: 'Maanantai' },
+  { keys: ['TIISTAI', 'TUESDAY'], label: 'Tiistai' },
+  { keys: ['KESKIVIIKKO', 'WEDNESDAY'], label: 'Keskiviikko' },
+  { keys: ['TORSTAI', 'THURSDAY'], label: 'Torstai' },
+  { keys: ['PERJANTAI', 'FRIDAY'], label: 'Perjantai' },
+  { keys: ['LAUANTAI', 'SATURDAY'], label: 'Lauantai' },
+  { keys: ['SUNNUNTAI', 'SUNDAY'], label: 'Sunnuntai' }
+];
+
+// Päivän numero tulee viikonpäivien järjestyksestä aikataulussa (pe-la = 1-2, la-su = 1-2),
+// ei viikonpäivän nimestä: kilpailu voi alkaa minä päivänä tahansa.
+function buildDayMetaFromSessionLabel(label, fallbackDayNumber, weekdayNumbers = new Map()) {
   const text = String(label || '').replace(/\s+/g, ' ').trim();
   const upper = text.toUpperCase();
-  const knownDays = [
-    { keys: ['LAUANTAI', 'SATURDAY'], label: 'Lauantai', dayNumber: 1 },
-    { keys: ['SUNNUNTAI', 'SUNDAY'], label: 'Sunnuntai', dayNumber: 2 },
-    { keys: ['PERJANTAI', 'FRIDAY'], label: 'Perjantai', dayNumber: 1 },
-    { keys: ['MAANANTAI', 'MONDAY'], label: 'Maanantai', dayNumber: 1 }
-  ];
 
-  for (const day of knownDays) {
-    if (day.keys.some((key) => upper.includes(key))) {
-      const shortLabel = text.replace(new RegExp(day.keys[0], 'i'), '').trim() || text;
+  for (const day of VIIKONPAIVAT) {
+    const key = day.keys.find((k) => upper.includes(k));
+    if (key) {
+      if (!weekdayNumbers.has(day.label)) weekdayNumbers.set(day.label, fallbackDayNumber);
+      const dayNumber = weekdayNumbers.get(day.label);
+      const shortLabel = text.replace(new RegExp(key, 'i'), '').trim() || text;
       return {
-        dayKey: `day-${day.dayNumber}`,
+        dayKey: `day-${dayNumber}`,
         dayLabel: day.label,
-        dayNumber: day.dayNumber,
+        dayNumber,
         sessionLabel: text,
         shortSessionLabel: shortLabel
       };
@@ -216,6 +225,7 @@ function parseCombinedScheduleRows(rows, tx) {
   const dayOrder = [];
   const dayMetaByKey = new Map();
   let fallbackDayNumber = 1;
+  const weekdayNumbers = new Map();
 
   const registerDay = (meta) => {
     if (!dayMetaByKey.has(meta.dayKey)) {
@@ -254,7 +264,7 @@ function parseCombinedScheduleRows(rows, tx) {
       if (layoutColumns.length === 0) continue;
 
       const label = extractSessionLabel(titleRow, startCol, endCol, `${tx.day} ${fallbackDayNumber}`);
-      const dayMeta = buildDayMetaFromSessionLabel(label, fallbackDayNumber);
+      const dayMeta = buildDayMetaFromSessionLabel(label, fallbackDayNumber, weekdayNumbers);
       registerDay(dayMeta);
       fallbackDayNumber = Math.max(fallbackDayNumber, dayMeta.dayNumber + 1);
 
@@ -688,4 +698,24 @@ export function muodostaRyhmaJarjestysTaulukko(mode, visibleDaySections) {
       };
     })
   };
+}
+
+/**
+ * Ryhmäkorttien päiväsarakkeet: kilpailupäivät numerojärjestyksessä (pe-la, la-su, …)
+ * ja kortin vuorot riveittäin niin, että rivin i solu d on päivän d i:s vuoro.
+ */
+export function ryhmaKorttienPaivat(kortit) {
+  const paivat = new Map();
+  for (const kortti of kortit || []) {
+    for (const slot of kortti.scheduleRows || []) {
+      if (!paivat.has(slot.dayNumber)) paivat.set(slot.dayNumber, { dayNumber: slot.dayNumber, dayLabel: slot.dayLabel });
+    }
+  }
+  return Array.from(paivat.values()).sort((a, b) => a.dayNumber - b.dayNumber);
+}
+
+export function ryhmaKortinPaivaRivit(scheduleRows, paivat) {
+  const sarakkeet = paivat.map((paiva) => (scheduleRows || []).filter((slot) => slot.dayNumber === paiva.dayNumber));
+  const rivit = Math.max(0, ...sarakkeet.map((s) => s.length));
+  return Array.from({ length: rivit }, (_, i) => sarakkeet.map((s) => s[i] || null));
 }
