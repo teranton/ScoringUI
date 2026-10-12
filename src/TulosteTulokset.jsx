@@ -30,6 +30,21 @@ export default function TulosteTulokset({
     [rawRows, ratojenMaara, parsedSpeksit?.ratkoPalkintoSija]
   );
   const { laLabel, suLabel } = useMemo(() => tunnistaPaivaSarakeNimet(rawRows, locale), [rawRows, locale]);
+  // Samat sarakkeet ja leveydet kaikissa sarjoissa, jotta nimet ja tulokset ovat samoissa kohdissa.
+  const naytaRatko = sarjat.some((s) => s.naytaRatko);
+  const numeroSarakkeita = eraNumerot.length + (naytaPaivat ? 2 : 0) + 1 + (naytaRatko ? 1 : 0);
+  const sarakkeet = (
+    <colgroup>
+      <col className="tuloste-col-sija" />
+      <col />
+      <col className="tuloste-col-seura" />
+      {eraNumerot.map((n) => <col key={n} className="tuloste-col-era" />)}
+      {naytaPaivat && <col className="tuloste-col-paiva" />}
+      {naytaPaivat && <col className="tuloste-col-paiva" />}
+      <col className="tuloste-col-yht" />
+      {naytaRatko && <col className="tuloste-col-ratko" />}
+    </colgroup>
+  );
 
   return (
     <div className="tuloste-root" lang={locale}>
@@ -46,7 +61,7 @@ export default function TulosteTulokset({
 
       {sarjat.length === 0 && <p>{tx.empty}</p>}
 
-      {sarjat.map(({ sarja, rivit, eiTulosta, naytaRatko }) => (
+      {sarjat.map(({ sarja, rivit, eiTulosta }) => (
         <section key={sarja || '-'} className="tuloste-sarja">
           <h2>
             {sarja || tx.noClass}{' '}
@@ -55,6 +70,7 @@ export default function TulosteTulokset({
             </span>
           </h2>
           <table>
+            {sarakkeet}
             <thead>
               <tr>
                 <th className="tuloste-num">{tx.rank}</th>
@@ -85,11 +101,7 @@ export default function TulosteTulokset({
                   <td />
                   <td className="tuloste-nimi">{ampuja.nimi}</td>
                   <td>{ampuja.seura}</td>
-                  {eraNumerot.map((n) => <td key={n} />)}
-                  {naytaPaivat && <td className="tuloste-paiva" />}
-                  {naytaPaivat && <td />}
-                  <td className="tuloste-num">{tx.noResult}</td>
-                  {naytaRatko && <td />}
+                  <td colSpan={numeroSarakkeita} className="tuloste-num">{tx.noResult}</td>
                 </tr>
               ))}
             </tbody>
