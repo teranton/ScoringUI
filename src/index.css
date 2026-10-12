@@ -306,14 +306,8 @@ body {
     display: none !important;
   }
 
-  @page tuloste {
-    size: A4 portrait;
-    margin: 12mm 10mm;
-  }
-
   .app-tulostetaan-tulokset > .tuloste-root {
     display: block;
-    page: tuloste;
     font: 9pt/1.25 "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: #000;
     background: #fff;

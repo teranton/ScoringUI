@@ -49,6 +49,9 @@ export default function TulosteTulokset({
 
   return (
     <div className="tuloste-root" lang={locale}>
+      {/* Sivun reunukset koko tulosteelle. Nimetty @page vaihtui osassa selaimia kesken tulosteen, jolloin
+          sivujen tasaus erosi; komponentti on sivulla vain tulostettaessa, joten oletus-@page voidaan ohittaa. */}
+      <style>{'@media print { @page { size: A4 portrait; margin: 12mm 10mm; } }'}</style>
       <header className="tuloste-otsikko">
         <div>
           <h1 translate="no">{kisaNimi}</h1>
