@@ -4,6 +4,7 @@ import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import {
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
+  laskeRatojenMaara,
   onkoMyohempiaPaivaTuloksia,
   tunnistaPaivaSarakkeet,
   muodostaRatkoNakyma,
@@ -78,9 +79,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   const aloitusIndeksi = idxRata1 !== -1 ? idxRata1 : 4;
 
   // 3. LASKETAAN RATKO-SARAKKEEN PAIKKA DYNAAMISESTI ALOITUSPISTEESTÄ
-  const kisanRatojenMaara = Object.keys(asemaMaksimit).length > 0
-    ? Object.keys(asemaMaksimit).length
-    : 8;
+  const kisanRatojenMaara = laskeRatojenMaara(asemaMaksimit);
 
   // Ensisijaisesti etsitään RATKO otsikosta, koska rata-/speksimäärä voi vaihdella eri kisoissa.
   const idxRatkoOtsikko = etsiSarakkeenIndeksi([(h) => h === 'RATKO', (h) => h.startsWith('RATKO')]);

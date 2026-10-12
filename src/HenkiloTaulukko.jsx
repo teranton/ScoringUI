@@ -4,12 +4,15 @@ import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import {
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
+  laskeRatojenMaara,
   parseAsemaSpeksitCsv
 } from './utils/henkiloTulokset';
 import {
   jarjestaAmpujat,
   laskeRataTilastot,
+  listaaSarjat,
   onkoAliTulosPuuttuu,
+  onkoRatkoNakyvissa,
   parsiTaulukkoAmpujat,
   tunnistaPaivaSarakeNimet
 } from './utils/henkiloTaulukko';
@@ -83,7 +86,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       : parseAsemaSpeksitCsv(data?.speksitCsvRaw);
     const result = {
       ...parsed,
-      ratojenMaara: Object.keys(parsed.asemaMaksimit).length > 0 ? Object.keys(parsed.asemaMaksimit).length : 8
+      ratojenMaara: laskeRatojenMaara(parsed.asemaMaksimit)
     };
     logPerf('speksit', perfStart, {
       ratojenMaara: result.ratojenMaara,
@@ -125,7 +128,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const radatList = useMemo(() => Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1), [speksit.ratojenMaara]);
   
   const loydetytSarjat = useMemo(
-    () => Array.from(new Set(ampujat.map((a) => String(a.sarja || '').trim()).filter(Boolean))).sort(),
+    () => listaaSarjat(ampujat),
     [ampujat]
   );
   
@@ -167,11 +170,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const onkoRatkoSallittuAmpujalle = (ampuja) => naytaRatkoIds.has(ampuja?.id);
 
-  const naytaRatkoSarake = naytettavatAmpujat.some((a) => {
-    const onStatus = (a.ratkoNaytto?.statusEtiketit?.length || 0) > 0;
-    const onTeksti = Boolean(a.ratkoNaytto?.teksti);
-    return onStatus || (onkoRatkoSallittuAmpujalle(a) && onTeksti);
-  });
+  const naytaRatkoSarake = naytettavatAmpujat.some((a) => onkoRatkoNakyvissa(a, naytaRatkoIds));
 
   const paivaSarakeNimet = useMemo(
     () => tunnistaPaivaSarakeNimet(henkiloRivit, locale),

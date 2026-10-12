@@ -295,3 +295,137 @@ body {
     page-break-inside: auto;
   }
 }
+
+/* Tulostettava tulosluettelo (TulosteTulokset.jsx): piilossa näytöllä, tulostuksessa ainoa sisältö. */
+.tuloste-root {
+  display: none;
+}
+
+@media print {
+  .app-tulostetaan-tulokset > :not(.tuloste-root) {
+    display: none !important;
+  }
+
+  .app-tulostetaan-tulokset > .tuloste-root {
+    display: block;
+    font: 9pt/1.25 "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #000;
+    background: #fff;
+  }
+
+  .tuloste-root .tuloste-otsikko {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12pt;
+    border-bottom: 1.5pt solid #000;
+    padding-bottom: 4pt;
+    margin-bottom: 8pt;
+  }
+
+  .tuloste-root h1 {
+    font-size: 15pt;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .tuloste-root .tuloste-meta {
+    text-align: right;
+    font-size: 8pt;
+    white-space: nowrap;
+  }
+
+  .tuloste-root .tuloste-epavirallinen {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .tuloste-root .tuloste-sarja {
+    margin-bottom: 10pt;
+  }
+
+  .tuloste-root h2 {
+    font-size: 11pt;
+    font-weight: 700;
+    margin: 0 0 3pt;
+    break-after: avoid;
+  }
+
+  .tuloste-root h2 span {
+    font-size: 8pt;
+    font-weight: 400;
+    color: #444;
+  }
+
+  .tuloste-root table {
+    width: 100%;
+    table-layout: fixed;
+    /* Erilliset reunat: yhdistetyssä mallissa viiva jaetaan solujen kesken ja puolikas voi pyöristyä pois. */
+    border-collapse: separate;
+    border-spacing: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Otsikkorivi toistuu, kun sarja jatkuu seuraavalle sivulle. */
+  .tuloste-root thead {
+    display: table-header-group;
+  }
+
+  .tuloste-root tr {
+    break-inside: avoid;
+  }
+
+  .tuloste-root th {
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-align: left;
+    text-transform: uppercase;
+    border-bottom: 1pt solid #000;
+    padding: 2pt 3pt;
+  }
+
+  .tuloste-root td {
+    padding: 1.6pt 3pt;
+    border-bottom: 0.4pt solid #bbb;
+  }
+
+  .tuloste-root tbody tr:nth-child(even) td {
+    background: #f2f2f2;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .tuloste-root .tuloste-col-sija { width: 3.4em; }
+  .tuloste-root .tuloste-col-sarja { width: 3.6em; }
+  .tuloste-root .tuloste-col-seura { width: 7em; }
+  .tuloste-root .tuloste-col-era { width: 2.4em; }
+  .tuloste-root .tuloste-col-paiva { width: 2.8em; }
+  .tuloste-root .tuloste-col-yht { width: 3.2em; }
+  .tuloste-root .tuloste-col-ratko { width: 4.5em; }
+
+  .tuloste-root td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tuloste-root .tuloste-num {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* Vähintään 1pt: ohuempi viiva katoaa osalta riveistä esikatselun ja tulostuksen pyöristyksessä. */
+  .tuloste-root .tuloste-paiva {
+    border-left: 1pt solid #555;
+  }
+
+  .tuloste-root .tuloste-yht {
+    font-weight: 700;
+  }
+
+  .tuloste-root .tuloste-ei-tulosta td {
+    color: #555;
+    font-style: italic;
+  }
+}

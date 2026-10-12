@@ -160,6 +160,23 @@ export function tunnistaPaivaSarakeNimet(raakaRivit, locale) {
   }
 }
 
+// Sarjat aakkosjärjestyksessä. Välilyönnit poistetaan ja kirjainkoko ei erota sarjoja
+// (sama vertailu kuin laskeHenkilosijoitukset-suodatuksessa); ensimmäinen kirjoitusasu jää näkyviin.
+export function listaaSarjat(ampujat) {
+  const sarjat = new Map();
+  for (const ampuja of ampujat) {
+    const sarja = String(ampuja.sarja || '').trim();
+    if (sarja && !sarjat.has(sarja.toUpperCase())) sarjat.set(sarja.toUpperCase(), sarja);
+  }
+  return Array.from(sarjat.values()).sort();
+}
+
+// Ratko näytetään statusmerkinnälle aina, pisteille vain tasatuloksen ampujille (ratkoIdt).
+export function onkoRatkoNakyvissa(ampuja, ratkoIdt) {
+  const onStatus = (ampuja.ratkoNaytto?.statusEtiketit?.length || 0) > 0;
+  return onStatus || (ratkoIdt.has(ampuja.id) && Boolean(ampuja.ratkoNaytto?.teksti));
+}
+
 export function jarjestaAmpujat(ampujat, sarake, suunta) {
   const numOrMin = (value) => {
     const parsed = parseInt(value, 10);
