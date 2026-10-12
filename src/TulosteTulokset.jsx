@@ -37,6 +37,7 @@ export default function TulosteTulokset({
     <colgroup>
       <col className="tuloste-col-sija" />
       <col />
+      <col className="tuloste-col-sarja" />
       <col className="tuloste-col-seura" />
       {eraNumerot.map((n) => <col key={n} className="tuloste-col-era" />)}
       {naytaPaivat && <col className="tuloste-col-paiva" />}
@@ -62,9 +63,9 @@ export default function TulosteTulokset({
       {sarjat.length === 0 && <p>{tx.empty}</p>}
 
       {sarjat.map(({ sarja, rivit, eiTulosta }) => (
-        <section key={sarja || '-'} className="tuloste-sarja">
+        <section key={sarja} className="tuloste-sarja">
           <h2>
-            {sarja || tx.noClass}{' '}
+            {sarja}{' '}
             <span>
               {rivit.length} {tx.shooters}{eiTulosta.length > 0 ? `, ${eiTulosta.length} ${tx.noResult.toLowerCase()}` : ''}
             </span>
@@ -75,6 +76,7 @@ export default function TulosteTulokset({
               <tr>
                 <th className="tuloste-num">{tx.rank}</th>
                 <th>{tx.name}</th>
+                <th>{tx.classLabel}</th>
                 <th>{tx.club}</th>
                 {eraNumerot.map((n) => <th key={n} className="tuloste-num">{n}</th>)}
                 {naytaPaivat && <th className="tuloste-num tuloste-paiva">{laLabel}</th>}
@@ -88,6 +90,7 @@ export default function TulosteTulokset({
                 <tr key={rivi.id}>
                   <td className="tuloste-num">{rivi.sija}.</td>
                   <td className="tuloste-nimi">{rivi.nimi}</td>
+                  <td>{rivi.sarja}</td>
                   <td>{rivi.seura}</td>
                   {rivi.erat.map((arvo, i) => <td key={eraNumerot[i]} className="tuloste-num">{arvo}</td>)}
                   {naytaPaivat && <td className="tuloste-num tuloste-paiva">{rivi.la}</td>}
@@ -100,6 +103,7 @@ export default function TulosteTulokset({
                 <tr key={ampuja.id} className="tuloste-ei-tulosta">
                   <td />
                   <td className="tuloste-nimi">{ampuja.nimi}</td>
+                  <td>{ampuja.sarja}</td>
                   <td>{ampuja.seura}</td>
                   {eraNumerot.length > 0 && <td colSpan={eraNumerot.length} />}
                   <td

@@ -5,6 +5,9 @@ import { listaaSarjat, onkoRatkoNakyvissa, parsiTaulukkoAmpujat } from './henkil
 // Kierrokset/asemat tulostetaan vain, jos niitä on alle tämän verran. Muuten päivät ja yhteistulos riittävät.
 export const TULOSTE_ERIEN_MAKSIMI = 10;
 
+// Kaikkien ampujien osio, sama tunniste kuin näytön OPEN (Y) -valinnassa. Sarjaa Y ei tulosteta erikseen.
+export const KAIKKI_SARJAT = 'OPEN (Y)';
+
 const onkoTulosta = (ampuja) => (parseInt(ampuja.tulos, 10) || 0) > 0;
 
 function tulosteRivi(ampuja, eraNumerot, ratkoIdt) {
@@ -15,6 +18,7 @@ function tulosteRivi(ampuja, eraNumerot, ratkoIdt) {
     id: ampuja.id,
     sija: ampuja.laskettuSija,
     nimi: ampuja.nimi,
+    sarja: ampuja.sarja,
     seura: ampuja.seura,
     la: ampuja.la ?? '',
     su: ampuja.su ?? '',
@@ -25,8 +29,8 @@ function tulosteRivi(ampuja, eraNumerot, ratkoIdt) {
 }
 
 // Palauttaa { sarjat: [{ sarja, rivit, eiTulosta, naytaRatko }], eraNumerot, naytaPaivat }.
+// Ensin OPEN (Y) kaikkine ampujineen, sitten muut sarjat kuten näytöllä.
 // eiTulosta-ampujan status on '', jos taulukossa ei ole statuskoodia.
-// Sarja '' kokoaa ampujat, joilta sarja puuttuu.
 export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija = ratkoPalkintoSijaOletus } = {}) {
   // Sarjan välilyönnit pois, jotta laskeHenkilosijoitukset löytää ampujan sarjan nimellä.
   const ampujat = parsiTaulukkoAmpujat(raakaRivit, ratojenMaara)
@@ -41,8 +45,9 @@ export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija 
   const naytaPaivat = ampujat.some((a) => a.la !== null)
     && ampujat.some((a) => (parseInt(a.su, 10) || 0) > 0);
 
-  const sarjaNimet = listaaSarjat(ampujat);
-  if (ampujat.some((a) => !a.sarja)) sarjaNimet.push('');
+  const sarjaNimet = ampujat.length > 0
+    ? [KAIKKI_SARJAT, ...listaaSarjat(ampujat).filter((sarja) => sarja.toUpperCase() !== 'Y')]
+    : [];
 
   const sarjat = sarjaNimet.map((sarja) => {
     const sijoitetut = laskeHenkilosijoitukset(ampujat, sarja, ratkoSija);
@@ -52,6 +57,7 @@ export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija 
     const eiTulosta = sijoitetut.filter((a) => !onkoTulosta(a)).map((a) => ({
       id: a.id,
       nimi: a.nimi,
+      sarja: a.sarja,
       seura: a.seura,
       status: (a.ratkoNaytto?.statusEtiketit || []).join('/')
     }));

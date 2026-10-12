@@ -14,22 +14,25 @@ const RIVIT = [
   ['', 'Ampuja F', 'N', 'NU', '88', '46', '42', '23', '23', '21', '21', '21']
 ];
 
-test('kaikki sarjat peräkkäin, sijoitus sarjan sisällä ja ilman tulosta olevat viimeisinä', () => {
+test('ensin OPEN (Y) kaikkine ampujineen, sitten muut sarjat ilman erillistä Y-sarjaa', () => {
   const { sarjat, eraNumerot, naytaPaivat } = muodostaTulosteSarjat(RIVIT, { ratojenMaara: 4, ratkoSija: 3 });
 
-  assert.deepEqual(sarjat.map((s) => s.sarja), ['N', 'Y']);
+  assert.deepEqual(sarjat.map((s) => s.sarja), ['OPEN (Y)', 'N']);
   assert.deepEqual(eraNumerot, [1, 2, 3, 4]);
   assert.equal(naytaPaivat, true);
 
-  const y = sarjat[1];
-  assert.deepEqual(y.rivit.map((r) => [r.sija, r.nimi, r.tulos]), [['1', 'Ampuja C', '95'], ['2', 'Ampuja A', '90']]);
-  assert.deepEqual(y.eiTulosta.map((a) => a.nimi), ['Ampuja D']);
-  assert.equal(y.naytaRatko, false);
+  const open = sarjat[0];
+  assert.deepEqual(open.rivit.slice(0, 2).map((r) => [r.sija, r.nimi, r.sarja, r.tulos]), [
+    ['1', 'Ampuja C', 'Y', '95'],
+    ['2', 'Ampuja A', 'Y', '90']
+  ]);
+  assert.deepEqual(open.rivit.map((r) => r.nimi).slice(2).sort(), ['Ampuja B', 'Ampuja E', 'Ampuja F']);
+  assert.deepEqual(open.eiTulosta.map((a) => [a.nimi, a.sarja]), [['Ampuja D', 'Y']]);
 });
 
 test('tasatulos ratkaistaan ratkolla ja ratko näytetään vain tasatuloksen ampujille', () => {
   const { sarjat } = muodostaTulosteSarjat(RIVIT, { ratojenMaara: 4, ratkoSija: 3 });
-  const n = sarjat[0];
+  const n = sarjat.find((s) => s.sarja === 'N');
   assert.deepEqual(n.rivit.map((r) => [r.sija, r.nimi, r.ratko]), [
     ['1', 'Ampuja E', '24'],
     ['2', 'Ampuja F', '21'],
@@ -47,7 +50,7 @@ test('vähintään 10 kierrosta: kierroksia ei tulosteta', () => {
   assert.deepEqual(sarjat[0].rivit[0].erat, []);
 });
 
-test('sarjan välilyönnit ja kirjainkoko eivät jaa sarjaa, sarjattomat omana ryhmänään', () => {
+test('Y-sarja ja sarjattomat vain OPEN (Y) -osiossa kirjainkoosta ja välilyönneistä riippumatta', () => {
   const rivit = [
     ['Nimi', 'Sarja', 'Seura', 'Tulos'],
     ['A', 'Y ', 'S1', '90'],
@@ -56,8 +59,7 @@ test('sarjan välilyönnit ja kirjainkoko eivät jaa sarjaa, sarjattomat omana r
   ];
   const { sarjat } = muodostaTulosteSarjat(rivit, { ratojenMaara: 0 });
   assert.deepEqual(sarjat.map((s) => [s.sarja, s.rivit.map((r) => r.nimi)]), [
-    ['Y', ['B', 'A']],
-    ['', ['C']]
+    ['OPEN (Y)', ['B', 'A', 'C']]
   ]);
 });
 
