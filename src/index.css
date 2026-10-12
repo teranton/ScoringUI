@@ -418,8 +418,9 @@ body {
     white-space: nowrap;
   }
 
+  /* Vähintään 1pt: ohuempi viiva katoaa osalta riveistä esikatselun ja tulostuksen pyöristyksessä. */
   .tuloste-root .tuloste-paiva {
-    border-left: 0.6pt solid #888;
+    border-left: 1pt solid #555;
   }
 
   .tuloste-root .tuloste-yht {

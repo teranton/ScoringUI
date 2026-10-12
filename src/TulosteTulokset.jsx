@@ -101,7 +101,13 @@ export default function TulosteTulokset({
                   <td />
                   <td className="tuloste-nimi">{ampuja.nimi}</td>
                   <td>{ampuja.seura}</td>
-                  <td colSpan={numeroSarakkeita} className="tuloste-num">{tx.noResult}</td>
+                  {eraNumerot.length > 0 && <td colSpan={eraNumerot.length} />}
+                  <td
+                    colSpan={numeroSarakkeita - eraNumerot.length}
+                    className={naytaPaivat ? 'tuloste-num tuloste-paiva' : 'tuloste-num'}
+                  >
+                    {tx.noResult}
+                  </td>
                 </tr>
               ))}
             </tbody>
