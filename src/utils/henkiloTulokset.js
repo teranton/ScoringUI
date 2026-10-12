@@ -116,6 +116,12 @@ export const ratkoStatusPainot = {
 
 export const ratkoPalkintoSijaOletus = 3;
 
+// Asemien/ratojen määrä KISANSPEKSIT-asemataulukosta; oletus 8, jos taulukkoa ei löydy.
+export function laskeRatojenMaara(asemaMaksimit) {
+  const maara = Object.keys(asemaMaksimit || {}).length;
+  return maara > 0 ? maara : 8;
+}
+
 // Sama tulkinta kuin muissa KISANSPEKSIT-asetuksissa (ks. kisaAsetukset.js): avain normalisoidaan ja arvo on
 // avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu. Tyhjä tai virheellinen arvo -> oletus.
 function haeRatkoPalkintoSija(speksiRivit) {

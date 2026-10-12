@@ -46,3 +46,17 @@ test('vähintään 10 kierrosta: kierroksia ei tulosteta', () => {
   assert.equal(naytaPaivat, false);
   assert.deepEqual(sarjat[0].rivit[0].erat, []);
 });
+
+test('sarjan välilyönnit ja kirjainkoko eivät jaa sarjaa, sarjattomat omana ryhmänään', () => {
+  const rivit = [
+    ['Nimi', 'Sarja', 'Seura', 'Tulos'],
+    ['A', 'Y ', 'S1', '90'],
+    ['B', 'y', 'S2', '95'],
+    ['C', '', 'S3', '80']
+  ];
+  const { sarjat } = muodostaTulosteSarjat(rivit, { ratojenMaara: 0 });
+  assert.deepEqual(sarjat.map((s) => [s.sarja, s.rivit.map((r) => r.nimi)]), [
+    ['Y', ['B', 'A']],
+    ['', ['C']]
+  ]);
+});

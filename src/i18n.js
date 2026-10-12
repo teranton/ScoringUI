@@ -102,6 +102,7 @@ const TEKSTIT = jaadyta({
       tieBreak: 'Ratko',
       shooters: 'ampujaa',
       noResult: 'Ei tulosta',
+      noClass: 'Ei sarjaa',
       empty: 'Ei tuloksia tulostettavaksi.'
     },
     henkiloTaulukko: {
@@ -263,6 +264,7 @@ const TEKSTIT = jaadyta({
       tieBreak: 'Tie-break',
       shooters: 'shooters',
       noResult: 'No result',
+      noClass: 'No class',
       empty: 'No results to print.'
     },
     henkiloTaulukko: {

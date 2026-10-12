@@ -122,11 +122,18 @@ export default function App() {
   useEffect(() => {
     if (!tulosteenAika || typeof window === 'undefined') return undefined;
     const lopeta = () => setTulosteenAika(null);
+    // Kaikki selaimet eivät lähetä afterprint-tapahtumaa; print-mediakyselyn päättyminen lopettaa myös.
+    const printMedia = window.matchMedia?.('print');
+    const kunMediaMuuttuu = (event) => {
+      if (!event.matches) lopeta();
+    };
     window.addEventListener('afterprint', lopeta);
+    printMedia?.addEventListener?.('change', kunMediaMuuttuu);
     const ajastin = window.setTimeout(() => window.print(), 0);
     return () => {
       window.clearTimeout(ajastin);
       window.removeEventListener('afterprint', lopeta);
+      printMedia?.removeEventListener?.('change', kunMediaMuuttuu);
     };
   }, [tulosteenAika]);
 

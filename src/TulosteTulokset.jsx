@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { muodostaTulosteSarjat } from './utils/tulosteTulokset';
 import { tunnistaPaivaSarakeNimet } from './utils/henkiloTaulukko';
+import { laskeRatojenMaara } from './utils/henkiloTulokset';
 import { haeTekstit } from './i18n';
 
 function muotoileTulostusaika(pvm, locale) {
@@ -19,14 +20,14 @@ export default function TulosteTulokset({
   locale = 'fi'
 }) {
   const tx = haeTekstit('tulosteTulokset', locale);
-  const asemaMaara = Object.keys(parsedSpeksit?.asemaMaksimit || {}).length;
+  const ratojenMaara = laskeRatojenMaara(parsedSpeksit?.asemaMaksimit);
 
   const { sarjat, eraNumerot, naytaPaivat } = useMemo(
     () => muodostaTulosteSarjat(rawRows, {
-      ratojenMaara: asemaMaara > 0 ? asemaMaara : 8,
+      ratojenMaara,
       ratkoSija: parsedSpeksit?.ratkoPalkintoSija
     }),
-    [rawRows, asemaMaara, parsedSpeksit?.ratkoPalkintoSija]
+    [rawRows, ratojenMaara, parsedSpeksit?.ratkoPalkintoSija]
   );
   const { laLabel, suLabel } = useMemo(() => tunnistaPaivaSarakeNimet(rawRows, locale), [rawRows, locale]);
 
@@ -46,9 +47,9 @@ export default function TulosteTulokset({
       {sarjat.length === 0 && <p>{tx.empty}</p>}
 
       {sarjat.map(({ sarja, rivit, eiTulosta, naytaRatko }) => (
-        <section key={sarja} className="tuloste-sarja">
+        <section key={sarja || '-'} className="tuloste-sarja">
           <h2>
-            {sarja}{' '}
+            {sarja || tx.noClass}{' '}
             <span>
               {rivit.length} {tx.shooters}{eiTulosta.length > 0 ? `, ${eiTulosta.length} ${tx.noResult.toLowerCase()}` : ''}
             </span>
