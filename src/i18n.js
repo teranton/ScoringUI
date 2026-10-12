@@ -90,6 +90,20 @@ const TEKSTIT = jaadyta({
       openGroup: 'Avaa ryhmänäkymä',
       openOrder: 'Avaa järjestysnäkymässä'
     },
+    tulosteTulokset: {
+      button: 'Tulosta tulokset',
+      title: 'Tulokset sarjoittain',
+      unofficial: 'Epäviralliset tulokset',
+      printed: 'Tulostettu',
+      rank: 'Sija',
+      name: 'Nimi',
+      club: 'Seura',
+      total: 'Yht.',
+      tieBreak: 'Ratko',
+      shooters: 'ampujaa',
+      noResult: 'Ei tulosta',
+      empty: 'Ei tuloksia tulostettavaksi.'
+    },
     henkiloTaulukko: {
       loading: 'Ladataan taulukkodataa...',
       title: 'Kaikki tulokset taulukkona',
@@ -236,6 +250,20 @@ const TEKSTIT = jaadyta({
       noOrderRows: 'No order rows found.',
       openGroup: 'Open group view',
       openOrder: 'Open in order view'
+    },
+    tulosteTulokset: {
+      button: 'Print results',
+      title: 'Results by class',
+      unofficial: 'Unofficial results',
+      printed: 'Printed',
+      rank: 'Rank',
+      name: 'Name',
+      club: 'Club',
+      total: 'Total',
+      tieBreak: 'Tie-break',
+      shooters: 'shooters',
+      noResult: 'No result',
+      empty: 'No results to print.'
     },
     henkiloTaulukko: {
       loading: 'Loading table data...',

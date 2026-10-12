@@ -7,10 +7,12 @@ import Ilmoittautuneet from './Ilmoittautuneet';
 import AikatauluNakyma from './AikatauluNakyma';
 import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
+import TulosteTulokset from './TulosteTulokset';
 import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
+import { onkoDevTila } from './utils/devTila';
 import {
   laskeKisanEfektiivinenStatus,
   laskeKisanStatusJaTyyli,
@@ -30,7 +32,7 @@ import {
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText } from 'lucide-react';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer } from 'lucide-react';
 import { haeTekstit } from './i18n';
 
 const REKISTERI_SHEET_ID = "1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA";
@@ -85,6 +87,9 @@ export default function App() {
   const [kisaVirheBySheet, setKisaVirheBySheet] = useState({});
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
+  // Tulostuksen aloitusaika; null kun tulosluettelon tulostus ei ole käynnissä.
+  const [tulosteenAika, setTulosteenAika] = useState(null);
+  const [devTila] = useState(() => onkoDevTila());
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
 
@@ -111,6 +116,19 @@ export default function App() {
   }, [kisaCache]);
 
   const tx = haeTekstit('app', locale);
+  const txTuloste = haeTekstit('tulosteTulokset', locale);
+
+  // Tulosluettelo renderöidään ensin, sitten avataan selaimen tulostusikkuna.
+  useEffect(() => {
+    if (!tulosteenAika || typeof window === 'undefined') return undefined;
+    const lopeta = () => setTulosteenAika(null);
+    window.addEventListener('afterprint', lopeta);
+    const ajastin = window.setTimeout(() => window.print(), 0);
+    return () => {
+      window.clearTimeout(ajastin);
+      window.removeEventListener('afterprint', lopeta);
+    };
+  }, [tulosteenAika]);
 
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
@@ -713,7 +731,7 @@ export default function App() {
   const kilpailuNakymaMaxWidth = 'min(96vw, 1320px)';
 
   return (
-    <div data-theme={theme} className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root" style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tulosteenAika ? ' app-tulostetaan-tulokset' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
       <Card className="app-print-hide-header">
         <CardHeader className="gap-1.5 border-b border-[hsl(var(--border))] pb-3.5">
           <div className="flex items-center justify-between gap-2">
@@ -783,6 +801,12 @@ export default function App() {
           <Button onClick={() => setAktiivinenSivu('materiaalit')} variant={aktiivinenSivu === 'materiaalit' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <FileText className="h-4 w-4" aria-hidden="true" />
             {tx.materials}
+          </Button>
+        )}
+        {devTila && onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
+          <Button onClick={() => setTulosteenAika(new Date())} variant="outline" size="sm" className="ml-auto gap-1.5">
+            <Printer className="h-4 w-4" aria-hidden="true" />
+            {txTuloste.button}
           </Button>
         )}
       </nav>
@@ -874,6 +898,18 @@ export default function App() {
           {yhteysSahkoposti}
         </a>
       </footer>
+
+      {tulosteenAika && nykyisenKisanData?.henkilotCsvRaw && (
+        <TulosteTulokset
+          rawRows={nykyisenKisanParsitutRivit.henkilotRows}
+          parsedSpeksit={nykyisenKisanSpeksit}
+          kisaNimi={valittuKisa.nimi}
+          kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
+          kisaStatus={kisanStatusInfo.status}
+          tulostusaika={tulosteenAika}
+          locale={locale}
+        />
+      )}
     </div>
   );
 }

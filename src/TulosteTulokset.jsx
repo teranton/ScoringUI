@@ -1,0 +1,100 @@
+// Tulostettava tulosluettelo: kaikki sarjat peräkkäin A4-sivuille. Näkyy vain tulostettaessa (index.css).
+import { useMemo } from 'react';
+import { muodostaTulosteSarjat } from './utils/tulosteTulokset';
+import { tunnistaPaivaSarakeNimet } from './utils/henkiloTaulukko';
+import { haeTekstit } from './i18n';
+
+function muotoileTulostusaika(pvm, locale) {
+  const kieli = locale === 'en' ? 'en-GB' : 'fi-FI';
+  return `${pvm.toLocaleDateString(kieli)} ${pvm.toLocaleTimeString(kieli, { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+export default function TulosteTulokset({
+  rawRows,
+  parsedSpeksit,
+  kisaNimi,
+  kisaPaivat,
+  kisaStatus,
+  tulostusaika,
+  locale = 'fi'
+}) {
+  const tx = haeTekstit('tulosteTulokset', locale);
+  const asemaMaara = Object.keys(parsedSpeksit?.asemaMaksimit || {}).length;
+
+  const { sarjat, eraNumerot, naytaPaivat } = useMemo(
+    () => muodostaTulosteSarjat(rawRows, {
+      ratojenMaara: asemaMaara > 0 ? asemaMaara : 8,
+      ratkoSija: parsedSpeksit?.ratkoPalkintoSija
+    }),
+    [rawRows, asemaMaara, parsedSpeksit?.ratkoPalkintoSija]
+  );
+  const { laLabel, suLabel } = useMemo(() => tunnistaPaivaSarakeNimet(rawRows, locale), [rawRows, locale]);
+
+  return (
+    <div className="tuloste-root" lang={locale}>
+      <header className="tuloste-otsikko">
+        <div>
+          <h1 translate="no">{kisaNimi}</h1>
+          <div>{[kisaPaivat, tx.title].filter(Boolean).join(' · ')}</div>
+        </div>
+        <div className="tuloste-meta">
+          {kisaStatus !== 'paattynyt' && <div className="tuloste-epavirallinen">{tx.unofficial}</div>}
+          <div>{tx.printed} {muotoileTulostusaika(tulostusaika, locale)}</div>
+        </div>
+      </header>
+
+      {sarjat.length === 0 && <p>{tx.empty}</p>}
+
+      {sarjat.map(({ sarja, rivit, eiTulosta, naytaRatko }) => (
+        <section key={sarja} className="tuloste-sarja">
+          <h2>
+            {sarja}{' '}
+            <span>
+              {rivit.length} {tx.shooters}{eiTulosta.length > 0 ? `, ${eiTulosta.length} ${tx.noResult.toLowerCase()}` : ''}
+            </span>
+          </h2>
+          <table>
+            <thead>
+              <tr>
+                <th className="tuloste-num">{tx.rank}</th>
+                <th>{tx.name}</th>
+                <th>{tx.club}</th>
+                {eraNumerot.map((n) => <th key={n} className="tuloste-num">{n}</th>)}
+                {naytaPaivat && <th className="tuloste-num tuloste-paiva">{laLabel}</th>}
+                {naytaPaivat && <th className="tuloste-num">{suLabel}</th>}
+                <th className="tuloste-num tuloste-yht">{tx.total}</th>
+                {naytaRatko && <th className="tuloste-num">{tx.tieBreak}</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {rivit.map((rivi) => (
+                <tr key={rivi.id}>
+                  <td className="tuloste-num">{rivi.sija}.</td>
+                  <td className="tuloste-nimi">{rivi.nimi}</td>
+                  <td>{rivi.seura}</td>
+                  {rivi.erat.map((arvo, i) => <td key={eraNumerot[i]} className="tuloste-num">{arvo}</td>)}
+                  {naytaPaivat && <td className="tuloste-num tuloste-paiva">{rivi.la}</td>}
+                  {naytaPaivat && <td className="tuloste-num">{rivi.su}</td>}
+                  <td className="tuloste-num tuloste-yht">{rivi.tulos}</td>
+                  {naytaRatko && <td className="tuloste-num">{rivi.ratko}</td>}
+                </tr>
+              ))}
+              {eiTulosta.map((ampuja) => (
+                <tr key={ampuja.id} className="tuloste-ei-tulosta">
+                  <td />
+                  <td className="tuloste-nimi">{ampuja.nimi}</td>
+                  <td>{ampuja.seura}</td>
+                  {eraNumerot.map((n) => <td key={n} />)}
+                  {naytaPaivat && <td className="tuloste-paiva" />}
+                  {naytaPaivat && <td />}
+                  <td className="tuloste-num">{tx.noResult}</td>
+                  {naytaRatko && <td />}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ))}
+    </div>
+  );
+}
