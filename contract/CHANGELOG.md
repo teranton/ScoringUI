@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- ScoringLib reads `KISANSPEKSIT` by key instead of fixed cells (ScoringLib PR #11). No sheet change;
+  the keys it reads are listed under "Keys ScoringLib reads", with the old cells as fallback.
 - `KISANSPEKSIT` settings: each setting now accepts one key and only the values the competition sheets
   use: `KILPAILUNSTATUS` (`FINISHED`, `RUNNING`, `PAUSED`, `UPCOMING`), `AIKATAULU_NAKYVYYS` (`TRUE`,
   `AFTER_START`, `FALSE`), `LOGOT_NAKYVYYS` (`TRUE`, `FALSE`), `AIKATAULU_RYHMAKOKO` (`5`, `6`, `INLINE`),
