@@ -367,7 +367,9 @@ body {
   .tuloste-root table {
     width: 100%;
     table-layout: fixed;
-    border-collapse: collapse;
+    /* Erilliset reunat: yhdistetyssä mallissa viiva jaetaan solujen kesken ja puolikas voi pyöristyä pois. */
+    border-collapse: separate;
+    border-spacing: 0;
     font-variant-numeric: tabular-nums;
   }
 
