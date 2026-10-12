@@ -25,6 +25,7 @@ function tulosteRivi(ampuja, eraNumerot, ratkoIdt) {
 }
 
 // Palauttaa { sarjat: [{ sarja, rivit, eiTulosta, naytaRatko }], eraNumerot, naytaPaivat }.
+// eiTulosta-ampujan status on '', jos taulukossa ei ole statuskoodia.
 // Sarja '' kokoaa ampujat, joilta sarja puuttuu.
 export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija = ratkoPalkintoSijaOletus } = {}) {
   // Sarjan välilyönnit pois, jotta laskeHenkilosijoitukset löytää ampujan sarjan nimellä.
@@ -47,7 +48,13 @@ export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija 
     const sijoitetut = laskeHenkilosijoitukset(ampujat, sarja, ratkoSija);
     const ratkoIdt = laskeNaytettavatRatkoIdt(sijoitetut, sarja, ratkoSija);
     const rivit = sijoitetut.filter(onkoTulosta).map((a) => tulosteRivi(a, eraNumerot, ratkoIdt));
-    const eiTulosta = sijoitetut.filter((a) => !onkoTulosta(a)).map((a) => ({ id: a.id, nimi: a.nimi, seura: a.seura }));
+    // Ilman tulosta olevalle näytetään ratko-sarakkeen statuskoodi (DNS, DNF, DSQ, ...) kuten näytöllä.
+    const eiTulosta = sijoitetut.filter((a) => !onkoTulosta(a)).map((a) => ({
+      id: a.id,
+      nimi: a.nimi,
+      seura: a.seura,
+      status: (a.ratkoNaytto?.statusEtiketit || []).join('/')
+    }));
     return { sarja, rivit, eiTulosta, naytaRatko: rivit.some((r) => r.ratko) };
   });
 

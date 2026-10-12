@@ -106,7 +106,7 @@ export default function TulosteTulokset({
                     colSpan={numeroSarakkeita - eraNumerot.length}
                     className={naytaPaivat ? 'tuloste-num tuloste-paiva' : 'tuloste-num'}
                   >
-                    {tx.noResult}
+                    {ampuja.status || tx.noResult}
                   </td>
                 </tr>
               ))}

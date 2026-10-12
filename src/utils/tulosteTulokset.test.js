@@ -60,3 +60,14 @@ test('sarjan välilyönnit ja kirjainkoko eivät jaa sarjaa, sarjattomat omana r
     ['', ['C']]
   ]);
 });
+
+test('ilman tulosta olevalle tulostetaan statuskoodi ratko-sarakkeesta', () => {
+  const rivit = [
+    ['Nimi', 'Sarja', 'Seura', 'Tulos', 'Ratko'],
+    ['A', 'Y', 'S1', '90', ''],
+    ['B', 'Y', 'S2', '0', 'DNS'],
+    ['C', 'Y', 'S3', '0', '']
+  ];
+  const { sarjat } = muodostaTulosteSarjat(rivit, { ratojenMaara: 0 });
+  assert.deepEqual(sarjat[0].eiTulosta.map((a) => [a.nimi, a.status]), [['B', 'DNS'], ['C', '']]);
+});
