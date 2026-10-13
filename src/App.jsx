@@ -125,6 +125,8 @@ export default function App() {
   const fetchInFlightRef = useRef({});
   // Etusivun vierityskohta talteen, kun kisa avataan; palautetaan, kun palataan listalle.
   const etusivunVieritysRef = useRef(0);
+  // Kohta, johon vieritetään seuraavan näkymänvaihdon jälkeen (null: ei vieritetä, esim. suora linkki tai sivun lataus).
+  const vieritysKohdeRef = useRef(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -204,6 +206,7 @@ export default function App() {
       status: String(kisaStatusById[kisa?.id]?.status || '')
     });
     etusivunVieritysRef.current = window.scrollY;
+    vieritysKohdeRef.current = 0;
     setAktiivinenSivu('tulokset');
     setValittuKisa(kisa);
     window.history.pushState(
@@ -223,6 +226,7 @@ export default function App() {
       return;
     }
 
+    vieritysKohdeRef.current = 0;
     setValittuKisa(null);
     setAktiivinenSivu('tulokset');
     window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
@@ -321,19 +325,19 @@ export default function App() {
   // (mobiilissa vanha kisa aukesi keskeltä tuloslistaa). Kisa avautuu aina ylhäältä.
   const valitunKisanId = valittuKisa?.id ?? null;
   useLayoutEffect(() => {
-    window.scrollTo(0, valitunKisanId === null ? etusivunVieritysRef.current : 0);
+    if (vieritysKohdeRef.current === null) return;
+    window.scrollTo(0, vieritysKohdeRef.current);
+    vieritysKohdeRef.current = null;
   }, [valitunKisanId]);
 
   useEffect(() => {
-    // Vieritys hoidetaan itse: selaimen oma palautus osuisi väärään näkymään.
-    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
-
     if (!window.history.state?.view) {
       const hash = window.location.hash || '';
       window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}${hash}`);
     }
 
     const kasitteleSelaimenTakaisin = () => {
+      vieritysKohdeRef.current = etusivunVieritysRef.current;
       setValittuKisa(null);
       setAktiivinenSivu('tulokset');
     };
