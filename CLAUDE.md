@@ -11,6 +11,10 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   `contract/sheet-layout.md`. That file is the contract with ScoringLib (`teranton/ScoringLib`) and the
   sheet template.
 - Result tabs are filled by sheet formulas, not by ScoringLib code.
+- `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
+  time follows the registry dates (finished 1 h + long stale-while-revalidate, running 15 s, upcoming 60 s).
+  With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.
+  The browser keeps the registry and the last 20 opened competitions in `localStorage`.
 
 ## Commands
 

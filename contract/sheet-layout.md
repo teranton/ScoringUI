@@ -1,7 +1,7 @@
 # Sheet layout contract
 
 ScoringUI does not call ScoringLib. Vercel functions in `api/` read the competition spreadsheets
-directly, and the frontend parses the tabs as CSV. This file lists every tab, column and setting
+directly with the service account (Sheets API `values:batchGet`), and the frontend parses the tabs as CSV. This file lists every tab, column and setting
 the UI depends on, so a change in the sheet template or in ScoringLib can be checked against it.
 
 Layout version: 1 (first pass, written from the UI code on 2026-10-07).
@@ -25,9 +25,9 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx` |
 | `Kierrokset` | Sheet formulas | `api/laukaukset.js` (gviz query on column B = shooter) |
-| Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js` and `App.jsx`) | Tero | `App.jsx`, `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here) |
+| Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
 
-Tab names are matched exactly (case-insensitive in `api/kisaData.js`). `Timetable` is accepted as a fallback for `Aikataulu`.
+Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is accepted as a fallback for `Aikataulu`.
 
 ## Columns
 

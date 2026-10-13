@@ -71,3 +71,13 @@ test('epäonnistunut päivitys pitää edellisen listan voimassa', async () => {
   await new Promise((r) => setImmediate(r));
   assert.equal(await onSallittu(ID_A), true);
 });
+
+test('rekisterin kisarivi ja latauksen tila ovat luettavissa', async () => {
+  const onSallittu = luoSheetAllowlist({ haeRekisteriCsv: async () => rekisteri(ID_A) });
+  assert.equal(onSallittu.onLadattu(), false);
+  assert.equal(onSallittu.kisa(ID_A), null);
+  await onSallittu(ID_A);
+  assert.equal(onSallittu.onLadattu(), true);
+  assert.deepEqual(onSallittu.kisa(ID_A), { alkuPvm: '2026-01-01', loppuPvm: '2026-01-02' });
+  assert.equal(onSallittu.kisa(ID_C), null);
+});
