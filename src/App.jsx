@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
@@ -123,6 +123,10 @@ export default function App() {
   const [devTila] = useState(() => onkoDevTila());
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
+  // Etusivun vierityskohta talteen, kun kisa avataan; palautetaan, kun palataan listalle.
+  const etusivunVieritysRef = useRef(0);
+  // Kohta, johon vieritetään seuraavan näkymänvaihdon jälkeen (null: ei vieritetä, esim. suora linkki tai sivun lataus).
+  const vieritysKohdeRef = useRef(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -201,6 +205,8 @@ export default function App() {
       competitionName: String(kisa?.nimi || ''),
       status: String(kisaStatusById[kisa?.id]?.status || '')
     });
+    etusivunVieritysRef.current = window.scrollY;
+    vieritysKohdeRef.current = 0;
     setAktiivinenSivu('tulokset');
     setValittuKisa(kisa);
     window.history.pushState(
@@ -220,6 +226,7 @@ export default function App() {
       return;
     }
 
+    vieritysKohdeRef.current = 0;
     setValittuKisa(null);
     setAktiivinenSivu('tulokset');
     window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
@@ -314,6 +321,15 @@ export default function App() {
     return () => clearInterval(virkistysIntervalli);
   }, [kisat, valittuKisa]);
 
+  // Sivu vierii koko ikkunana, joten listan vierityskohta jäisi muuten voimaan avatussa kisassa
+  // (mobiilissa vanha kisa aukesi keskeltä tuloslistaa). Kisa avautuu aina ylhäältä.
+  const valitunKisanId = valittuKisa?.id ?? null;
+  useLayoutEffect(() => {
+    if (vieritysKohdeRef.current === null) return;
+    window.scrollTo(0, vieritysKohdeRef.current);
+    vieritysKohdeRef.current = null;
+  }, [valitunKisanId]);
+
   useEffect(() => {
     if (!window.history.state?.view) {
       const hash = window.location.hash || '';
@@ -321,6 +337,7 @@ export default function App() {
     }
 
     const kasitteleSelaimenTakaisin = () => {
+      vieritysKohdeRef.current = etusivunVieritysRef.current;
       setValittuKisa(null);
       setAktiivinenSivu('tulokset');
     };
