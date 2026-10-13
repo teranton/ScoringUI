@@ -18,7 +18,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 
 | Tab | Written by | Read by (UI) |
 |---|---|---|
-| `KISANSPEKSIT` | Organiser, ScoringLib (`ConfigManager.js`, `TimetableTauko.js`, `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js` |
+| `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js` |
 | `Tulokset Y` | Sheet formulas from the main entry tab | `HenkiloTaulukko.jsx`, `HenkiloTulokset.jsx`, `utils/henkiloTulokset.js` |
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
@@ -46,10 +46,10 @@ so column order can change but header names must not.
   detected from header labels.
 
 **Read by position** (fragile, keep stable):
-- `KISANSPEKSIT` in ScoringLib (`ConfigManager.js`, range `A1:M28`): F3 layout, F4 start time, F5 interval,
-  F6 group count, F7 daily count, F13 Kiti daily-only, B18 red bar, B19 second-best toggle, B20 referee categories,
-  H3:H10 track names, J3:M28 station table (id, max, second best, interval). The UI's station-table fallback
-  (J, K, L) relies on the same columns.
+- The UI's `KISANSPEKSIT` station-table fallback (columns J, K, L) when no header is found. The master
+  template's header is `Layout` / `Max`, which the UI does not match, so in practice the UI reads J, K, L:
+  keep the station table there.
+- ScoringLib's `KISANSPEKSIT` fallback cells (see "Keys ScoringLib reads"), used when a key's text is missing.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no). Row 1 is a header if B contains "nimi" or A contains "id".
 - `Kierrokset`: column B is the shooter id (`api/laukaukset.js`).
@@ -70,6 +70,36 @@ Any other key or value is ignored and the default applies.
 | Timetable grouping | `AIKATAULU_RYHMAKOKO` | `5`, `6`, `INLINE` | `INLINE` |
 | Sponsor logos | `LOGOT_NAKYVYYS` | `TRUE`, `FALSE` | shown |
 | Tie-break prize places | `RATKO_PALKINTO_SIJA` | number | 3 |
+
+### Keys ScoringLib reads
+
+ScoringLib (`Speksit.js`) finds these keys anywhere on the tab. Matching differs from the UI's in three ways:
+only Ä/Å/Ö are folded (to A/A/O) and every other non-letter, non-digit is dropped; the first copy of a key wins;
+and the value is only the cell right of the key, never a cell further right. When a key is missing, the library
+uses the fallback cell. Renaming a key therefore makes the library read the fallback cell, except:
+- a missing `RATAn_NIMI` continues the column of the nearest `RATAn_NIMI` key found (H3:H10 only if there are none);
+- the timetable writes the resolved addresses of `Korostukset päällä`, `Ei tuomaroivat:`, `Isäntäseura` and
+  `Järjestävät seurat:` into `INDIRECT` formulas when it is built, so moving those keys needs the timetable rebuilt.
+
+| Key | Used for | Fallback |
+|---|---|---|
+| `OSALLISTUJAT` | participant count estimate | B2 |
+| `LAYOUT/KISA` | result columns (stations / layouts) | F3 |
+| `ALOITUS_AIKA` | timetable start time | F4 |
+| `AMPUJAN_AIKA` | timetable interval | F5 |
+| `LAYOUT/PÄIVÄ` | layouts per day | F6 |
+| `Päivätuloksia kpl` | daily result columns | F7 |
+| `Vain päivätulokset` | Kiti daily-only | F13 |
+| `Bib tuomaroivat` | bib red bar | B18 |
+| `Korostukset päällä` | highlights toggle | B19 |
+| `Ei tuomaroivat:` | referee categories | B20 |
+| `Isäntäseura` | host club toggle | B23 |
+| `Järjestävät seurat:` | host clubs | B24 |
+| `RATA1_NIMI`..`RATA8_NIMI` | layout names | H3:H10 |
+| Station table headers: an id header exactly `LAYOUT` / `ASEMA` / `RATA` / `LANE` / `STATION` with a max header exactly `MAX` / `MAKS` / `MAARA` / `COUNT` right next to it (the UI matches differently, see above) | station table below: id, max, second best, interval | J3:M28 |
+
+Keys ScoringLib reads with no fallback cell (the feature that needs them is skipped or stops with an error
+when they are missing): `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `Asemien määrä`, `Tyhjän ruudun symboli`.
 
 ## To do
 
