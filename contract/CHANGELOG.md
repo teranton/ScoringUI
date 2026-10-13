@@ -4,6 +4,12 @@
 
 - ScoringLib reads `KISANSPEKSIT` by key instead of fixed cells (ScoringLib PR #11). No sheet change;
   the keys it reads are listed under "Keys ScoringLib reads", with the old cells as fallback.
+- Reading: `api/kisa.js` replaces `kisaData` and `gidLista`. Tabs are read with the service account through the
+  Sheets API (`values:batchGet`, formatted values), not the anonymous CSV export, and the browser gets the
+  registry from `api/rekisteri.js` instead of docs.google.com. Competition sheets and the registry no longer
+  need "anyone with the link" sharing; they must stay shared with the service account. No layout change.
+- Caching follows the registry dates (C/D): finished competitions 1 h at the CDN (served stale while refreshing
+  for up to 1 day during the 14 days after the end date, 30 days after that), running ones 15 s, upcoming ones 60 s.
 - `KISANSPEKSIT` settings: each setting now accepts one key and only the values the competition sheets
   use: `KILPAILUNSTATUS` (`FINISHED`, `RUNNING`, `PAUSED`, `UPCOMING`), `AIKATAULU_NAKYVYYS` (`TRUE`,
   `AFTER_START`, `FALSE`), `LOGOT_NAKYVYYS` (`TRUE`, `FALSE`), `AIKATAULU_RYHMAKOKO` (`5`, `6`, `INLINE`),
