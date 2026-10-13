@@ -5,6 +5,7 @@
 const ETULIITE = 'scoringui:v1:';
 const REKISTERI_AVAIN = `${ETULIITE}rekisteri`;
 const KISA_ETULIITE = `${ETULIITE}kisa:`;
+const INDEKSI_AVAIN = `${ETULIITE}kisaindeksi`;
 export const MAKS_KISOJA = 20;
 
 function oletusTallennus() {
@@ -67,31 +68,46 @@ export function lueKisat(tallennus = oletusTallennus()) {
   return kisat;
 }
 
-// Poistaa vanhimmat, kunnes kisoja on korkeintaan maks.
-function karsiVanhimmat(tallennus, maks) {
-  const avaimet = kisaAvaimet(tallennus)
-    .map((avain) => ({ avain, tallennettu: Number(lue(tallennus, avain)?.tallennettu) || 0 }))
-    .sort((a, b) => a.tallennettu - b.tallennettu);
-  while (avaimet.length > maks) {
-    try {
-      tallennus.removeItem(avaimet.shift().avain);
-    } catch {
-      return;
-    }
+// Tallennusajat erillisessä indeksissä, jotta karsinta ei jäsennä jokaisen kisan dataa.
+function lueIndeksi(tallennus) {
+  const indeksi = lue(tallennus, INDEKSI_AVAIN);
+  const tulos = indeksi && typeof indeksi === 'object' ? { ...indeksi } : {};
+  // Indeksistä puuttuvat (esim. rikkinäinen indeksi) karsitaan ensimmäisinä.
+  for (const avain of kisaAvaimet(tallennus)) {
+    const sheetId = avain.slice(KISA_ETULIITE.length);
+    if (!(sheetId in tulos)) tulos[sheetId] = 0;
   }
+  return tulos;
+}
+
+// Poistaa vanhimmat, kunnes kisoja on korkeintaan maks. Palauttaa päivitetyn indeksin.
+function karsiVanhimmat(tallennus, indeksi, maks) {
+  const jarjestys = Object.keys(indeksi).sort((a, b) => (Number(indeksi[a]) || 0) - (Number(indeksi[b]) || 0));
+  while (jarjestys.length > maks) {
+    const sheetId = jarjestys.shift();
+    try {
+      tallennus.removeItem(`${KISA_ETULIITE}${sheetId}`);
+    } catch {
+      break;
+    }
+    delete indeksi[sheetId];
+  }
+  return indeksi;
 }
 
 export function tallennaKisa(sheetId, data, tallennus = oletusTallennus(), nyt = Date.now()) {
   if (!tallennus || !sheetId) return;
   const avain = `${KISA_ETULIITE}${sheetId}`;
   const arvo = { data, tallennettu: nyt };
-  if (kirjoita(tallennus, avain, arvo)) {
-    karsiVanhimmat(tallennus, MAKS_KISOJA);
-    return;
-  }
+  let indeksi = lueIndeksi(tallennus);
+  let tallennettu = kirjoita(tallennus, avain, arvo);
   // Kiintiö täynnä: poistetaan vanhimpia kisoja yksi kerrallaan, kunnes tallennus onnistuu.
-  for (let jaljella = kisaAvaimet(tallennus).length - 1; jaljella >= 0; jaljella--) {
-    karsiVanhimmat(tallennus, jaljella);
-    if (kirjoita(tallennus, avain, arvo)) return;
+  for (let jaljella = Object.keys(indeksi).length - 1; !tallennettu && jaljella >= 0; jaljella--) {
+    delete indeksi[sheetId];
+    indeksi = karsiVanhimmat(tallennus, indeksi, jaljella);
+    tallennettu = kirjoita(tallennus, avain, arvo);
   }
+  if (!tallennettu) return;
+  indeksi[sheetId] = nyt;
+  kirjoita(tallennus, INDEKSI_AVAIN, karsiVanhimmat(tallennus, indeksi, MAKS_KISOJA));
 }

@@ -2,6 +2,9 @@
 // CSV pidetään frontendin muotona, jotta kaikki nykyiset jäsentimet toimivat sellaisinaan.
 
 const VALILEHTI_TTL_MS = 10 * 60 * 1000;
+// Pienet joukot (päättyneen kisan 3 välilehteä, pelkkä KISANSPEKSIT) löytyvät lähes aina, joten ne pyydetään
+// suoraan. Live-joukossa on aikataulujen vaihtoehtoisia nimiä, joista osa puuttuu aina: se odottaa välilehtilistaa.
+const SUORA_HAKU_MAKS = 4;
 const valilehtiCache = new Map();
 
 const normalisoi = (nimi) => String(nimi || '').trim().toLowerCase();
@@ -69,8 +72,8 @@ async function batchGet(request, sheetId, kohteet) {
 
 const onAlueVirhe = (error) => Number(error?.response?.status || error?.status || error?.code) === 400;
 
-// Hakee pyydetyt välilehdet yhdellä batchGet-kutsulla. Jos välilehtilistaa ei ole muistissa,
-// pyydetään kaikkia nimiä suoraan ja haetaan lista rinnalla; puuttuva välilehti (400) haetaan uudelleen listan avulla.
+// Hakee pyydetyt välilehdet yhdellä batchGet-kutsulla. Jos välilehtilistaa ei ole muistissa, se haetaan;
+// pienet joukot pyydetään samalla suoraan, ja puuttuva välilehti (400) haetaan uudelleen listan avulla.
 export async function haeValilehdetCsv({ request, sheetId, nimet, nyt = Date.now() }) {
   const muistissa = valilehtiCache.get(sheetId);
   const tuoreLista = muistissa && (nyt - muistissa.haettu) < VALILEHTI_TTL_MS ? muistissa.nimet : null;
@@ -88,7 +91,7 @@ export async function haeValilehdetCsv({ request, sheetId, nimet, nyt = Date.now
   const listaLupaus = tuoreLista ? null : haeValilehtienNimet(request, sheetId);
   listaLupaus?.catch(() => {});
 
-  if (listaLupaus) {
+  if (listaLupaus && nimet.length <= SUORA_HAKU_MAKS) {
     try {
       const suoraan = nimet.map((nimi) => ({ pyydetty: nimi, todellinen: nimi }));
       return { csvByName: await batchGet(request, sheetId, suoraan), notFound: [] };

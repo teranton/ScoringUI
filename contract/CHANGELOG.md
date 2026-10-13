@@ -6,8 +6,8 @@
   Sheets API (`values:batchGet`, formatted values), not the anonymous CSV export, and the browser gets the
   registry from `api/rekisteri.js` instead of docs.google.com. Competition sheets and the registry no longer
   need "anyone with the link" sharing; they must stay shared with the service account. No layout change.
-- Caching follows the registry dates (C/D): finished competitions 1 h at the CDN (served stale up to 30 days
-  while refreshing), running ones 15 s, upcoming ones 60 s.
+- Caching follows the registry dates (C/D): finished competitions 1 h at the CDN (served stale while refreshing
+  for up to 1 day during the 14 days after the end date, 30 days after that), running ones 15 s, upcoming ones 60 s.
 
 - `KISANSPEKSIT` settings: each setting now accepts one key and only the values the competition sheets
   use: `KILPAILUNSTATUS` (`FINISHED`, `RUNNING`, `PAUSED`, `UPCOMING`), `AIKATAULU_NAKYVYYS` (`TRUE`,

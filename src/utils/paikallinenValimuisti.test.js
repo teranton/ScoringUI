@@ -55,3 +55,19 @@ test('rikkinäinen tai puuttuva tallennus ei kaada', () => {
   assert.deepEqual(lueKisat(heittava), {});
   tallennaKisa('id', {}, heittava);
 });
+
+test('karsinta käyttää indeksiä eikä jäsennä kisojen dataa', () => {
+  const t = luoTallennus();
+  for (let i = 0; i < MAKS_KISOJA; i++) tallennaKisa(`id${i}`, { i }, t, i);
+  const alkuperainen = JSON.parse;
+  let jasennykset = 0;
+  JSON.parse = (...args) => { jasennykset++; return alkuperainen(...args); };
+  try {
+    tallennaKisa('uusi', { i: 99 }, t, 100);
+  } finally {
+    JSON.parse = alkuperainen;
+  }
+  assert.equal(jasennykset, 1);
+  assert.equal(Object.keys(lueKisat(t)).length, MAKS_KISOJA);
+  assert.equal(lueKisat(t).id0, undefined);
+});

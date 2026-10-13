@@ -424,9 +424,8 @@ export default function App() {
 
     } catch (err) {
       console.error("Datan päivitys epäonnistui palvelimelta:", err);
-      if (!esihaku) {
-        setKisaVirheBySheet((prev) => ({ ...prev, [sheetId]: "Tietojen päivitys epäonnistui taustalla." }));
-      }
+      // Myös esihaun virhe näytetään: jos kisa avataan esihaun aikana, avaus odottaa juuri tätä hakua.
+      setKisaVirheBySheet((prev) => ({ ...prev, [sheetId]: "Tietojen päivitys epäonnistui taustalla." }));
       trackAnalyticsEvent('competition_fetch', {
         competitionId: String(kisaId || ''),
         mode: onkoStaattinen ? 'static' : 'live',
@@ -486,7 +485,8 @@ export default function App() {
     };
   }, [valittuKisa, valitunKisanEfektiivinenStatus, haeKisaData]);
 
-  // Esihaku etusivulla, kun osoitin tai sormi osuu kisakorttiin: data on usein valmis klikkauksen hetkellä.
+  // Esihaku etusivulla, kun hiiri tai näppäimistön fokus osuu kisakorttiin: data on usein valmis klikkauksen hetkellä.
+  // Kosketusta ei käytetä, koska vierityskin alkaa kosketuksella.
   const esihaeKisa = useCallback((kisa) => {
     if (!kisa?.apiUrl) return;
     const data = kisaCacheRef.current[kisa.apiUrl];
@@ -658,8 +658,7 @@ export default function App() {
           if (!onValittavissa) return;
           avaaKisaNakyma(kisa);
         }}
-        onPointerEnter={() => { if (onValittavissa) esihaeKisa(kisa); }}
-        onTouchStart={() => { if (onValittavissa) esihaeKisa(kisa); }}
+        onPointerEnter={(event) => { if (onValittavissa && event.pointerType === 'mouse') esihaeKisa(kisa); }}
         onFocus={() => { if (onValittavissa) esihaeKisa(kisa); }}
         className="w-full text-left"
         aria-disabled={!onValittavissa}

@@ -10,7 +10,7 @@ test('välimuistiaika tulee rekisterin päivistä', () => {
   assert.equal(kisanPaivaTila({ alkuPvm: '2026-10-12', loppuPvm: '2026-10-13' }, nyt), 'kaynnissa');
   assert.equal(kisanPaivaTila({ alkuPvm: '2026-11-01', loppuPvm: '' }, nyt), 'tulossa');
   assert.equal(kisanPaivaTila(null, nyt), 'tulossa');
-  assert.equal(cdnOtsikko('paattynyt'), CDN_OTSIKOT.paattynyt);
+  assert.equal(cdnOtsikko('paattynyt'), CDN_OTSIKOT.paattynytKorjausaika);
   assert.equal(cdnOtsikko('tuntematon'), CDN_OTSIKOT.tulossa);
 });
 
@@ -25,4 +25,9 @@ test('tallennettu kuva: tunti korjausaikana, vuorokausi sen jälkeen', () => {
 
   assert.equal(onkoKuvaTuore({ ...vanha, paivaTila: 'kaynnissa', tallennettu: nyt.getTime() }, nyt.getTime()), false);
   assert.equal(onkoKuvaTuore(null, nyt.getTime()), false);
+});
+
+test('korjausaikana vanhaa vastausta tarjotaan korkeintaan vuorokauden', () => {
+  assert.equal(cdnOtsikko('paattynyt', { alkuPvm: '2026-10-10', loppuPvm: '2026-10-11' }, nyt.getTime()), CDN_OTSIKOT.paattynytKorjausaika);
+  assert.equal(cdnOtsikko('paattynyt', { alkuPvm: '2025-07-05', loppuPvm: '2025-07-06' }, nyt.getTime()), CDN_OTSIKOT.paattynyt);
 });

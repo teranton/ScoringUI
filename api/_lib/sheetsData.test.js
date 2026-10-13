@@ -91,3 +91,12 @@ test('muu kuin aluevirhe heitetään eteenpäin', async () => {
   const request = async () => { const e = new Error('kielletty'); e.response = { status: 403 }; throw e; };
   await assert.rejects(haeValilehdetCsv({ request, sheetId: SHEET, nimet: ['Tulokset Y'] }), /kielletty/);
 });
+
+test('iso joukko ilman listaa: ensin lista, sitten yksi batchGet', async () => {
+  tyhjennaValilehtiCache();
+  const { request, kutsut } = luoGoogle(['Tulokset Y', 'Aikataulu La'], { 'Tulokset Y': [['A']], 'Aikataulu La': [['L']] });
+  const nimet = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'Aikataulu La'];
+  const tulos = await haeValilehdetCsv({ request, sheetId: SHEET, nimet });
+  assert.deepEqual(tulos.notFound, ['NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet']);
+  assert.equal(kutsut.length, 2);
+});
