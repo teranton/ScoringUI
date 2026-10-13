@@ -14,6 +14,9 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
   time follows the registry dates (finished 1 h, served stale up to 1 day in the 14-day correction window and 30 days after it; running 15 s; upcoming 60 s).
   With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.
+  The API also keeps responses, the registry and tab lists in memory and in files under the OS temp dir
+  (`api/_lib/valimuisti.js`), so `vercel dev`, where every request runs in a new process, doesn't hit Google
+  on every request. Google 429s are retried once, then old data is served if there is any.
   The browser keeps the registry and the last 20 opened competitions in `localStorage`.
 
 ## Commands

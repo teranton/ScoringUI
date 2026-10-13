@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CDN_OTSIKOT, cdnOtsikko, kisanPaivaTila, onkoKuvaTuore } from './kisaValimuisti.js';
+import { CDN_OTSIKOT, cdnOtsikko, kisanPaivaTila, onkoKuvaTuore, vastausTuoreMs } from './kisaValimuisti.js';
 
 const nyt = new Date(2026, 9, 13, 12, 0, 0);
 const TUNTI = 60 * 60 * 1000;
@@ -30,4 +30,11 @@ test('tallennettu kuva: tunti korjausaikana, vuorokausi sen jälkeen', () => {
 test('korjausaikana vanhaa vastausta tarjotaan korkeintaan vuorokauden', () => {
   assert.equal(cdnOtsikko('paattynyt', { alkuPvm: '2026-10-10', loppuPvm: '2026-10-11' }, nyt.getTime()), CDN_OTSIKOT.paattynytKorjausaika);
   assert.equal(cdnOtsikko('paattynyt', { alkuPvm: '2025-07-05', loppuPvm: '2025-07-06' }, nyt.getTime()), CDN_OTSIKOT.paattynyt);
+});
+
+test('palvelimen välimuistista CDN saa vain jäljellä olevan tuoreusajan', () => {
+  const live = { alkuPvm: '2026-10-12', loppuPvm: '2026-10-13' };
+  assert.equal(vastausTuoreMs('kaynnissa', live, nyt.getTime()), 15000);
+  assert.equal(cdnOtsikko('kaynnissa', live, nyt.getTime(), 10000), 'public, s-maxage=5, stale-while-revalidate=15');
+  assert.equal(cdnOtsikko('kaynnissa', live, nyt.getTime(), 60000), 'public, s-maxage=1, stale-while-revalidate=15');
 });

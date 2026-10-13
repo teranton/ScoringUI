@@ -1,7 +1,8 @@
 // Sallittujen sheetId:iden lista: vain kilpailurekisterissä (sarake E) olevat taulukot.
 // Estää sen, että API:lla luettaisiin mitä tahansa palvelutilille jaettua taulukkoa.
 import { parseCsvRows } from '../../src/utils/csv.js';
-import { haeGoogleAsiakas } from './googleAuth.js';
+import { haeGoogleAsiakas, pyyntoUudelleenyrittaen } from './googleAuth.js';
+import { luoValimuisti, luoYhdistaja } from './valimuisti.js';
 
 export const REKISTERI_SHEET_ID = '1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA';
 
@@ -92,13 +93,37 @@ export function luoSheetAllowlist({ haeRekisteriCsv, now = () => Date.now() }) {
   return onSallittu;
 }
 
-export async function haeRekisteriCsv() {
+// Rekisterin CSV välimuistista, jos se on alle REKISTERI_VALIMUISTI_MS vanha (myös `vercel dev` -ajossa,
+// jossa muisti ei säily pyyntöjen välillä). Jos haku epäonnistuu, käytetään vanhaa kopiota.
+const REKISTERI_VALIMUISTI_MS = UUDELLEENHAKU_VALI_MS;
+const rekisteriValimuisti = luoValimuisti('rekisteri');
+const yhdistaRekisteri = luoYhdistaja();
+
+async function haeRekisteriGooglesta() {
   const asiakas = await haeGoogleAsiakas();
-  const res = await asiakas.request({
+  const res = await pyyntoUudelleenyrittaen((opts) => asiakas.request(opts), {
     url: `https://docs.google.com/spreadsheets/d/${REKISTERI_SHEET_ID}/export?format=csv`,
     responseType: 'text'
   });
   return res.data;
+}
+
+export async function haeRekisteriCsv({ nyt = Date.now } = {}) {
+  const tallessa = await rekisteriValimuisti.hae('csv');
+  if (tallessa && (nyt() - tallessa.tallennettu) < REKISTERI_VALIMUISTI_MS) return tallessa.arvo;
+  return yhdistaRekisteri('csv', async () => {
+    try {
+      const csv = await haeRekisteriGooglesta();
+      await rekisteriValimuisti.aseta('csv', csv, nyt());
+      return csv;
+    } catch (error) {
+      if (tallessa) {
+        console.error('[REKISTERI] Haku epäonnistui, käytetään tallessa olevaa:', error?.message);
+        return tallessa.arvo;
+      }
+      throw error;
+    }
+  });
 }
 
 export const onSallittuSheetId = luoSheetAllowlist({ haeRekisteriCsv });

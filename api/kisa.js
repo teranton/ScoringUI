@@ -1,16 +1,23 @@
 // api/kisa.js
 // Kisan välilehdet yhdellä pyynnöllä: { csvByName, notFound, timing }.
-// Lähteet järjestyksessä: Vercelin CDN (otsikot kisan päivistä), päättyneen kisan tallennettu kuva, Sheets API.
+// Lähteet järjestyksessä: Vercelin CDN (otsikot kisan päivistä), palvelimen oma vastausvälimuisti,
+// päättyneen kisan tallennettu kuva, Sheets API. Google-kiintiön (429) ylittyessä palautetaan vanha data, jos sellaista on.
 import dotenv from 'dotenv';
 dotenv.config();
 
 import { normalisoiSheetId, onSallittuSheetId } from './_lib/sheetAllowlist.js';
-import { haeGoogleAsiakas } from './_lib/googleAuth.js';
+import { haeGoogleAsiakas, onKiintioVirhe, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
 import { haeValilehdetCsv } from './_lib/sheetsData.js';
-import { cdnOtsikko, kisanPaivaTila, onkoKuvaTuore } from './_lib/kisaValimuisti.js';
+import { VARALLA_OTSIKKO, cdnOtsikko, kisanPaivaTila, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
 import { datanVersio, kuvanPolku, lueKuva, onkoKuvatKaytossa, tallennaKuva } from './_lib/kisaKuva.js';
+import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
 
 const MAKS_VALILEHDET = 12;
+// Näin vanhaa vastausta käytetään vielä, jos Google ei vastaa (esim. kiintiö täynnä).
+const VARALLA_MAKS_IKA_MS = 24 * 60 * 60 * 1000;
+
+const vastausValimuisti = luoValimuisti('vastaukset');
+const yhdistaHaku = luoYhdistaja();
 
 function decodeQueryValue(value) {
   if (typeof value !== 'string') return '';
@@ -27,11 +34,11 @@ function lahetaVirhe(res, status, body) {
   return res.status(status).json(body);
 }
 
-function lahetaData(req, res, { csvByName, notFound, paivaTila, kisa, timing }) {
+function lahetaData(req, res, { csvByName, notFound, cacheControl, timing }) {
   const versio = datanVersio(csvByName);
   const etag = `W/"${versio}"`;
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Cache-Control', cdnOtsikko(paivaTila, kisa));
+  res.setHeader('Cache-Control', cacheControl);
   res.setHeader('ETag', etag);
   res.setHeader('X-ScoringUI-Lahde', timing.source);
   if (req.headers?.['if-none-match'] === etag) return res.status(304).end();
@@ -43,7 +50,7 @@ async function haeGooglesta(sheetId, nimet) {
   try {
     const asiakas = await haeGoogleAsiakas();
     const tulos = await haeValilehdetCsv({
-      request: (opts) => asiakas.request(opts),
+      request: (opts) => pyyntoUudelleenyrittaen((o) => asiakas.request(o), opts),
       sheetId,
       nimet
     });
@@ -67,14 +74,21 @@ export default async function handler(req, res) {
     return lahetaVirhe(res, 400, { error: `sheetNames: 1–${MAKS_VALILEHDET} välilehteä` });
   }
 
+  const polku = kuvanPolku(sheetId, nimet);
+  const tallessa = await vastausValimuisti.hae(polku);
+  const tallessaIka = tallessa ? Date.now() - tallessa.tallennettu : Infinity;
+  const tallessaTuore = Boolean(tallessa) && tallessaIka < vastausTuoreMs(tallessa.arvo.paivaTila, tallessa.arvo.kisa);
+
   // Kylmässä instanssissa rekisteri ei ole vielä muistissa: Google-haku aloitetaan heti sen rinnalla,
   // ja tulos heitetään pois, jos id ei ole rekisterissä. Lämpimässä instanssissa tarkistus on välitön.
+  // Samanaikaiset samat haut yhdistetään yhdeksi Google-hauksi.
+  const haeYhdistetysti = () => yhdistaHaku(polku, () => haeGooglesta(sheetId, nimet));
   const rekisteriValmis = onSallittuSheetId.onLadattu();
   const rekisteriRivi = rekisteriValmis ? onSallittuSheetId.kisa(sheetId) : null;
-  const polku = kuvanPolku(sheetId, nimet);
-  const lueTallennettu = onkoKuvatKaytossa() && (!rekisteriValmis || kisanPaivaTila(rekisteriRivi) === 'paattynyt');
+  const lueTallennettu = !tallessaTuore && onkoKuvatKaytossa()
+    && (!rekisteriValmis || kisanPaivaTila(rekisteriRivi) === 'paattynyt');
 
-  const googleLupaus = rekisteriValmis ? null : haeGooglesta(sheetId, nimet);
+  const googleLupaus = rekisteriValmis || tallessaTuore ? null : haeYhdistetysti();
 
   let sallittu;
   let kuva;
@@ -92,31 +106,56 @@ export default async function handler(req, res) {
   const kisa = onSallittuSheetId.kisa(sheetId);
   const paivaTila = kisanPaivaTila(kisa);
 
+  if (tallessaTuore) {
+    return lahetaData(req, res, {
+      csvByName: tallessa.arvo.csvByName,
+      notFound: tallessa.arvo.notFound || [],
+      cacheControl: cdnOtsikko(tallessa.arvo.paivaTila, tallessa.arvo.kisa, Date.now(), tallessaIka),
+      timing: { total_ms: Date.now() - alku, source: 'server-cache', cache_age_ms: tallessaIka, generated_at_ms: tallessa.tallennettu }
+    });
+  }
+
   if (onkoKuvaTuore(kuva) && paivaTila === 'paattynyt') {
     return lahetaData(req, res, {
       csvByName: kuva.csvByName,
       notFound: kuva.notFound || [],
-      paivaTila,
-      kisa,
+      cacheControl: cdnOtsikko(paivaTila, kisa),
       timing: { total_ms: Date.now() - alku, source: 'snapshot', generated_at_ms: kuva.tallennettu }
     });
   }
 
-  const google = await (googleLupaus || haeGooglesta(sheetId, nimet));
+  const google = await (googleLupaus || haeYhdistetysti());
 
   if (!google.ok) {
-    console.error('[KISA] Google-haku epäonnistui:', google.error?.message);
-    if (kuva?.csvByName) {
-      // Google ei vastannut: vanhakin tallennettu kuva on parempi kuin virhe.
+    const kiintio = onKiintioVirhe(google.error);
+    console.error(`[KISA] Google-haku epäonnistui${kiintio ? ' (kiintiö täynnä)' : ''}:`, google.error?.message);
+    // Google ei vastannut: vanhakin data on parempi kuin virhe.
+    const varalla = kuva?.csvByName
+      ? { csvByName: kuva.csvByName, notFound: kuva.notFound, tallennettu: kuva.tallennettu, source: 'snapshot-fallback' }
+      : (tallessa && tallessaIka < VARALLA_MAKS_IKA_MS
+        ? { ...tallessa.arvo, tallennettu: tallessa.tallennettu, source: 'server-cache-fallback' }
+        : null);
+    if (varalla) {
       return lahetaData(req, res, {
-        csvByName: kuva.csvByName,
-        notFound: kuva.notFound || [],
-        paivaTila: 'tulossa',
-        timing: { total_ms: Date.now() - alku, source: 'snapshot-fallback', generated_at_ms: kuva.tallennettu }
+        csvByName: varalla.csvByName,
+        notFound: varalla.notFound || [],
+        cacheControl: VARALLA_OTSIKKO,
+        timing: { total_ms: Date.now() - alku, source: varalla.source, generated_at_ms: varalla.tallennettu }
       });
+    }
+    if (kiintio) {
+      res.setHeader('Retry-After', '15');
+      return lahetaVirhe(res, 503, { error: 'Googlen lukukiintiö on hetkellisesti täynnä, yritä hetken päästä uudelleen' });
     }
     return lahetaVirhe(res, 502, { error: 'Kisan datan haku epäonnistui', message: google.error?.message });
   }
+
+  await vastausValimuisti.aseta(polku, {
+    csvByName: google.csvByName,
+    notFound: google.notFound,
+    paivaTila,
+    kisa
+  });
 
   if (paivaTila === 'paattynyt' && onkoKuvatKaytossa()) {
     await tallennaKuva(polku, {
@@ -135,8 +174,7 @@ export default async function handler(req, res) {
   return lahetaData(req, res, {
     csvByName: google.csvByName,
     notFound: google.notFound,
-    paivaTila,
-    kisa,
+    cacheControl: cdnOtsikko(paivaTila, kisa),
     timing: { total_ms: total, google_ms: google.google_ms, source: 'google', generated_at_ms: Date.now() }
   });
 }

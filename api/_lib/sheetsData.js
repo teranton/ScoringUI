@@ -1,11 +1,13 @@
 // Välilehtien haku Sheets API:n values:batchGet-kutsulla ja muunto CSV:ksi.
 // CSV pidetään frontendin muotona, jotta kaikki nykyiset jäsentimet toimivat sellaisinaan.
 
+import { luoValimuisti } from './valimuisti.js';
+
 const VALILEHTI_TTL_MS = 10 * 60 * 1000;
 // Pienet joukot (päättyneen kisan 3 välilehteä, pelkkä KISANSPEKSIT) löytyvät lähes aina, joten ne pyydetään
 // suoraan. Live-joukossa on aikataulujen vaihtoehtoisia nimiä, joista osa puuttuu aina: se odottaa välilehtilistaa.
 const SUORA_HAKU_MAKS = 4;
-const valilehtiCache = new Map();
+const valilehtiCache = luoValimuisti('valilehdet');
 
 const normalisoi = (nimi) => String(nimi || '').trim().toLowerCase();
 
@@ -49,7 +51,7 @@ async function haeValilehtienNimet(request, sheetId) {
     url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties(title))`
   });
   const nimet = (res.data.sheets || []).map((s) => s.properties?.title).filter(Boolean);
-  valilehtiCache.set(sheetId, { nimet, haettu: Date.now() });
+  await valilehtiCache.aseta(sheetId, nimet);
   return nimet;
 }
 
@@ -75,8 +77,8 @@ const onAlueVirhe = (error) => Number(error?.response?.status || error?.status |
 // Hakee pyydetyt välilehdet yhdellä batchGet-kutsulla. Jos välilehtilistaa ei ole muistissa, se haetaan;
 // pienet joukot pyydetään samalla suoraan, ja puuttuva välilehti (400) haetaan uudelleen listan avulla.
 export async function haeValilehdetCsv({ request, sheetId, nimet, nyt = Date.now() }) {
-  const muistissa = valilehtiCache.get(sheetId);
-  const tuoreLista = muistissa && (nyt - muistissa.haettu) < VALILEHTI_TTL_MS ? muistissa.nimet : null;
+  const muistissa = await valilehtiCache.hae(sheetId);
+  const tuoreLista = muistissa && (nyt - muistissa.tallennettu) < VALILEHTI_TTL_MS ? muistissa.arvo : null;
 
   if (tuoreLista) {
     const { loydetyt, puuttuvat } = kohdistaValilehdet(nimet, tuoreLista);
@@ -106,5 +108,5 @@ export async function haeValilehdetCsv({ request, sheetId, nimet, nyt = Date.now
 }
 
 export function tyhjennaValilehtiCache() {
-  valilehtiCache.clear();
+  return valilehtiCache.tyhjenna();
 }
