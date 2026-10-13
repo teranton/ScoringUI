@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
@@ -123,6 +123,8 @@ export default function App() {
   const [devTila] = useState(() => onkoDevTila());
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
+  // Etusivun vierityskohta talteen, kun kisa avataan; palautetaan, kun palataan listalle.
+  const etusivunVieritysRef = useRef(0);
 
   useEffect(() => {
     let isCancelled = false;
@@ -201,6 +203,7 @@ export default function App() {
       competitionName: String(kisa?.nimi || ''),
       status: String(kisaStatusById[kisa?.id]?.status || '')
     });
+    etusivunVieritysRef.current = window.scrollY;
     setAktiivinenSivu('tulokset');
     setValittuKisa(kisa);
     window.history.pushState(
@@ -314,7 +317,17 @@ export default function App() {
     return () => clearInterval(virkistysIntervalli);
   }, [kisat, valittuKisa]);
 
+  // Sivu vierii koko ikkunana, joten listan vierityskohta jäisi muuten voimaan avatussa kisassa
+  // (mobiilissa vanha kisa aukesi keskeltä tuloslistaa). Kisa avautuu aina ylhäältä.
+  const valitunKisanId = valittuKisa?.id ?? null;
+  useLayoutEffect(() => {
+    window.scrollTo(0, valitunKisanId === null ? etusivunVieritysRef.current : 0);
+  }, [valitunKisanId]);
+
   useEffect(() => {
+    // Vieritys hoidetaan itse: selaimen oma palautus osuisi väärään näkymään.
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+
     if (!window.history.state?.view) {
       const hash = window.location.hash || '';
       window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}${hash}`);
