@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Master template: `KISANSPEKSIT` is rebuilt in sections (columns Selite / Avain / Arvo / Ohje; value right of
+  the key) with the station table under `Asema` / `Maks` in F2. Same keys and values as before; the old tab
+  is kept hidden as `KISANSPEKSIT vanha`. Existing competition sheets are unchanged. No UI change: keys are
+  read by name and the new station headers match the UI's header detection.
 - ScoringLib reads `KISANSPEKSIT` by key instead of fixed cells (ScoringLib PR #11). No sheet change;
   the keys it reads are listed under "Keys ScoringLib reads", with the old cells as fallback.
 - Reading: `api/kisa.js` replaces `kisaData` and `gidLista`. Tabs are read with the service account through the

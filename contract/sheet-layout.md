@@ -46,9 +46,10 @@ so column order can change but header names must not.
   detected from header labels.
 
 **Read by position** (fragile, keep stable):
-- The UI's `KISANSPEKSIT` station-table fallback (columns J, K, L) when no header is found. The master
-  template's header is `Layout` / `Max`, which the UI does not match, so in practice the UI reads J, K, L:
-  keep the station table there.
+- The UI's `KISANSPEKSIT` station-table fallback (columns J, K, L) when no header is found. Sheets made
+  before 2026-10-13 have the header `Layout` / `Max`, which the UI does not match, so for them the UI reads
+  J, K, L: keep their station table there. The master template now has `Asema` / `Maks` / `Toiseksi paras`
+  in F2:H2 (data F3:I28), which both the UI and ScoringLib match, so new sheets don't depend on the fallback.
 - ScoringLib's `KISANSPEKSIT` fallback cells (see "Keys ScoringLib reads"), used when a key's text is missing.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no). Row 1 is a header if B contains "nimi" or A contains "id".
