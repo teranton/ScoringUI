@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { parseCsvRows } from '../../src/utils/csv.js';
-import {
+
+// Testit käyttävät omaa välimuistihakemistoaan, eivät `vercel dev` -ajon hakemistoa.
+process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = await mkdtemp(path.join(tmpdir(), 'scoringui-testi-'));
+const {
   haeValilehdetCsv,
   kohdistaValilehdet,
   rivitCsvksi,
   tyhjennaValilehtiCache,
   valilehtiAlue
-} from './sheetsData.js';
+} = await import('./sheetsData.js');
 
 const SHEET = '1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -62,41 +68,41 @@ function luoGoogle(valilehdet, data) {
 }
 
 test('kaikki välilehdet löytyvät: yksi batchGet ja lista rinnalla', async () => {
-  tyhjennaValilehtiCache();
+  await tyhjennaValilehtiCache();
   const { request, kutsut } = luoGoogle(['Tulokset Y', 'KISANSPEKSIT'], { 'Tulokset Y': [['A', 'B']], KISANSPEKSIT: [['x']] });
-  const tulos = await haeValilehdetCsv({ request, sheetId: SHEET, nimet: ['Tulokset Y', 'KISANSPEKSIT'] });
+  const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}4`, nimet: ['Tulokset Y', 'KISANSPEKSIT'] });
   assert.deepEqual(tulos, { csvByName: { 'Tulokset Y': 'A,B', KISANSPEKSIT: 'x' }, notFound: [] });
   assert.equal(kutsut.filter((u) => u.includes('batchGet')).length, 1);
 });
 
 test('puuttuva välilehti: haetaan uudelleen löytyneillä nimillä', async () => {
-  tyhjennaValilehtiCache();
+  await tyhjennaValilehtiCache();
   const { request } = luoGoogle(['Tulokset Y ', 'Aikataulu La'], { 'Tulokset Y ': [['A']], 'Aikataulu La': [['L']] });
-  const tulos = await haeValilehdetCsv({ request, sheetId: SHEET, nimet: ['Tulokset Y', 'Aikataulu', 'Aikataulu La'] });
+  const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}5`, nimet: ['Tulokset Y', 'Aikataulu', 'Aikataulu La'] });
   assert.deepEqual(tulos, { csvByName: { 'Tulokset Y': 'A', 'Aikataulu La': 'L' }, notFound: ['Aikataulu'] });
 });
 
 test('välilehtilista muistissa: ei listahakua, vain yksi batchGet', async () => {
-  tyhjennaValilehtiCache();
+  await tyhjennaValilehtiCache();
   const { request, kutsut } = luoGoogle(['Tulokset Y'], { 'Tulokset Y': [['A']] });
-  await haeValilehdetCsv({ request, sheetId: SHEET, nimet: ['Tulokset Y', 'Aikataulu'] });
+  await haeValilehdetCsv({ request, sheetId: `${SHEET}6`, nimet: ['Tulokset Y', 'Aikataulu'] });
   kutsut.length = 0;
-  const tulos = await haeValilehdetCsv({ request, sheetId: SHEET, nimet: ['Tulokset Y', 'Aikataulu'] });
+  const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}6`, nimet: ['Tulokset Y', 'Aikataulu'] });
   assert.deepEqual(tulos.notFound, ['Aikataulu']);
   assert.equal(kutsut.length, 1);
 });
 
 test('muu kuin aluevirhe heitetään eteenpäin', async () => {
-  tyhjennaValilehtiCache();
+  await tyhjennaValilehtiCache();
   const request = async () => { const e = new Error('kielletty'); e.response = { status: 403 }; throw e; };
-  await assert.rejects(haeValilehdetCsv({ request, sheetId: SHEET, nimet: ['Tulokset Y'] }), /kielletty/);
+  await assert.rejects(haeValilehdetCsv({ request, sheetId: `${SHEET}7`, nimet: ['Tulokset Y'] }), /kielletty/);
 });
 
 test('iso joukko ilman listaa: ensin lista, sitten yksi batchGet', async () => {
-  tyhjennaValilehtiCache();
+  await tyhjennaValilehtiCache();
   const { request, kutsut } = luoGoogle(['Tulokset Y', 'Aikataulu La'], { 'Tulokset Y': [['A']], 'Aikataulu La': [['L']] });
   const nimet = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'Aikataulu La'];
-  const tulos = await haeValilehdetCsv({ request, sheetId: SHEET, nimet });
+  const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}8`, nimet });
   assert.deepEqual(tulos.notFound, ['NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet']);
   assert.equal(kutsut.length, 2);
 });

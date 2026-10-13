@@ -6,13 +6,20 @@ const PAIVA_MS = 24 * TUNTI_MS;
 // Näin kauan kisan päättymisen jälkeen tuloksia voidaan vielä korjata; sen jälkeen tallennettu kuva päivitetään kerran päivässä.
 export const KORJAUSAIKA_MS = 14 * PAIVA_MS;
 
-export const CDN_OTSIKOT = {
-  // Korjausaikana vanhaa vastausta tarjotaan korkeintaan vuorokauden, sen jälkeen 30 vrk.
-  paattynytKorjausaika: 'public, s-maxage=3600, stale-while-revalidate=86400',
-  paattynyt: 'public, s-maxage=3600, stale-while-revalidate=2592000',
-  kaynnissa: 'public, s-maxage=15, stale-while-revalidate=15',
-  tulossa: 'public, s-maxage=60, stale-while-revalidate=300'
+// CDN-säännöt sekunteina: s-maxage (tuore) ja stale-while-revalidate (vanhaa tarjotaan, kun uusi haetaan taustalla).
+// Korjausaikana päättyneen kisan vanhaa vastausta tarjotaan korkeintaan vuorokauden, sen jälkeen 30 vrk.
+const SAANNOT = {
+  paattynytKorjausaika: { tuore: 3600, vanha: 86400 },
+  paattynyt: { tuore: 3600, vanha: 2592000 },
+  kaynnissa: { tuore: 15, vanha: 15 },
+  tulossa: { tuore: 60, vanha: 300 }
 };
+
+const otsikko = ({ tuore, vanha }) => `public, s-maxage=${tuore}, stale-while-revalidate=${vanha}`;
+
+export const CDN_OTSIKOT = Object.fromEntries(Object.entries(SAANNOT).map(([avain, saanto]) => [avain, otsikko(saanto)]));
+// Varalla olevan (Google ei vastannut) datan saa pitää CDN:ssä vain hetken.
+export const VARALLA_OTSIKKO = 'public, s-maxage=10';
 
 // Tila rekisterin päivistä. KISANSPEKSIT-ohitus ei vaikuta välimuistiin: kisapäivinä data pidetään aina tuoreena.
 export function kisanPaivaTila(kisa, nyt = new Date()) {
@@ -25,9 +32,20 @@ export function onkoKorjausaikaOhi(kisa, nyt = Date.now()) {
   return loppu ? (nyt - loppu.getTime()) > KORJAUSAIKA_MS + PAIVA_MS : false;
 }
 
-export function cdnOtsikko(paivaTila, kisa = null, nyt = Date.now()) {
-  if (paivaTila === 'paattynyt' && !onkoKorjausaikaOhi(kisa, nyt)) return CDN_OTSIKOT.paattynytKorjausaika;
-  return CDN_OTSIKOT[paivaTila] || CDN_OTSIKOT.tulossa;
+function saanto(paivaTila, kisa, nyt) {
+  if (paivaTila === 'paattynyt' && !onkoKorjausaikaOhi(kisa, nyt)) return SAANNOT.paattynytKorjausaika;
+  return SAANNOT[paivaTila] || SAANNOT.tulossa;
+}
+
+// Palvelimen oma vastausvälimuisti pitää vastauksen yhtä kauan kuin CDN pitää sen tuoreena.
+export function vastausTuoreMs(paivaTila, kisa = null, nyt = Date.now()) {
+  return saanto(paivaTila, kisa, nyt).tuore * 1000;
+}
+
+// ikaMs: vastauksen ikä palvelimen välimuistissa. CDN saa jäljellä olevan ajan, jotta välimuistit eivät kasaudu.
+export function cdnOtsikko(paivaTila, kisa = null, nyt = Date.now(), ikaMs = 0) {
+  const { tuore, vanha } = saanto(paivaTila, kisa, nyt);
+  return otsikko({ tuore: Math.max(1, tuore - Math.floor(ikaMs / 1000)), vanha });
 }
 
 // Päättyneen kisan tallennettu kuva kelpaa tunnin korjausaikana ja vuorokauden sen jälkeen.

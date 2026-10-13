@@ -41,6 +41,8 @@ const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
 const PAATTYNEEN_TUOREUS_MS = 60 * 60 * 1000;
 // Käynnissä olevan kisan esihakua ei tehdä, jos data on tätä tuoreempi.
 const LIVE_ESIHAKU_VALI_MS = 15 * 1000;
+// Esihaku alkaa vasta, kun osoitin on pysynyt kortilla näin kauan: listan yli pyyhkäisy ei hae jokaista kisaa.
+const ESIHAKU_VIIVE_MS = 150;
 let analyticsTrack = null;
 
 function statusToBadgeVariant(status) {
@@ -123,6 +125,8 @@ export default function App() {
   const [devTila] = useState(() => onkoDevTila());
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
+  const esihakuAjastinRef = useRef(null);
+  const esihakuKaynnissaRef = useRef(false);
   // Etusivun vierityskohta talteen, kun kisa avataan; palautetaan, kun palataan listalle.
   const etusivunVieritysRef = useRef(0);
   // Kohta, johon vieritetään seuraavan näkymänvaihdon jälkeen (null: ei vieritetä, esim. suora linkki tai sivun lataus).
@@ -502,17 +506,38 @@ export default function App() {
     };
   }, [valittuKisa, valitunKisanEfektiivinenStatus, haeKisaData]);
 
-  // Esihaku etusivulla, kun hiiri tai näppäimistön fokus osuu kisakorttiin: data on usein valmis klikkauksen hetkellä.
-  // Kosketusta ei käytetä, koska vierityskin alkaa kosketuksella.
-  const esihaeKisa = useCallback((kisa) => {
-    if (!kisa?.apiUrl) return;
+  // Esihaku etusivulla, kun hiiri tai näppäimistön fokus pysähtyy kisakortille: data on usein valmis klikkauksen hetkellä.
+  // Kosketusta ei käytetä, koska vierityskin alkaa kosketuksella. Esihakuja on käynnissä korkeintaan yksi kerrallaan,
+  // jotta Googlen lukukiintiö ei täyty.
+  const esihaeKisa = useCallback(async (kisa) => {
+    if (!kisa?.apiUrl || esihakuKaynnissaRef.current) return;
     const data = kisaCacheRef.current[kisa.apiUrl];
     const onkoStaattinen = kisaStatusById[kisa.id]?.status === 'paattynyt';
     const ika = Date.now() - Number(data?.haettu || 0);
     const onkoKunnossa = data && !onkoCsvVirheellinen(data.henkilotCsvRaw, 10);
     if (onkoKunnossa && ika < (onkoStaattinen ? PAATTYNEEN_TUOREUS_MS : LIVE_ESIHAKU_VALI_MS)) return;
-    haeKisaData(kisa.apiUrl, onkoStaattinen, kisa.id, true);
+    esihakuKaynnissaRef.current = true;
+    try {
+      await haeKisaData(kisa.apiUrl, onkoStaattinen, kisa.id, true);
+    } finally {
+      esihakuKaynnissaRef.current = false;
+    }
   }, [kisaStatusById, haeKisaData]);
+
+  const peruEsihaku = useCallback(() => {
+    clearTimeout(esihakuAjastinRef.current);
+    esihakuAjastinRef.current = null;
+  }, []);
+
+  const ajastaEsihaku = useCallback((kisa) => {
+    peruEsihaku();
+    esihakuAjastinRef.current = setTimeout(() => {
+      esihakuAjastinRef.current = null;
+      esihaeKisa(kisa);
+    }, ESIHAKU_VIIVE_MS);
+  }, [esihaeKisa, peruEsihaku]);
+
+  useEffect(() => peruEsihaku, [peruEsihaku]);
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
     if (!alku) return 'Päivämäärä ei tiedossa';
@@ -675,8 +700,10 @@ export default function App() {
           if (!onValittavissa) return;
           avaaKisaNakyma(kisa);
         }}
-        onPointerEnter={(event) => { if (onValittavissa && event.pointerType === 'mouse') esihaeKisa(kisa); }}
-        onFocus={() => { if (onValittavissa) esihaeKisa(kisa); }}
+        onPointerEnter={(event) => { if (onValittavissa && event.pointerType === 'mouse') ajastaEsihaku(kisa); }}
+        onPointerLeave={peruEsihaku}
+        onFocus={() => { if (onValittavissa) ajastaEsihaku(kisa); }}
+        onBlur={peruEsihaku}
         className="w-full text-left"
         aria-disabled={!onValittavissa}
       >

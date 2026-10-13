@@ -22,3 +22,20 @@ export function haeGoogleAsiakas() {
   }
   return asiakasLupaus;
 }
+
+export function onKiintioVirhe(error) {
+  return Number(error?.response?.status || error?.status || error?.code) === 429;
+}
+
+const odota = (ms) => new Promise((ratkaise) => setTimeout(ratkaise, ms));
+
+// Google-pyyntö, joka yrittää kerran uudelleen, jos kiintiö on hetkellisesti täynnä (429).
+export async function pyyntoUudelleenyrittaen(request, opts, { viive = 800 } = {}) {
+  try {
+    return await request(opts);
+  } catch (error) {
+    if (!onKiintioVirhe(error)) throw error;
+    await odota(viive + Math.floor(Math.random() * viive));
+    return request(opts);
+  }
+}
