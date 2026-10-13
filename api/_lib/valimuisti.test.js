@@ -42,3 +42,13 @@ test('429 yritetään kerran uudelleen, muut virheet heitetään heti', async ()
   await assert.rejects(pyyntoUudelleenyrittaen(kielletty, {}, { viive: 1 }), /no/);
   assert.equal(muut, 1);
 });
+
+test('tiedostosta luetut merkinnät eivät kasvata muistia rajan yli', async () => {
+  const hakemisto = await mkdtemp(path.join(tmpdir(), 'scoringui-testi-'));
+  const kirjoittaja = luoValimuisti('y', { hakemisto });
+  for (let i = 0; i < 205; i++) await kirjoittaja.aseta(`k${i}`, i);
+  const lukija = luoValimuisti('y', { hakemisto });
+  for (let i = 0; i < 205; i++) assert.equal((await lukija.hae(`k${i}`)).arvo, i);
+  // Ensimmäinen luettu on poistunut muistista, mutta löytyy yhä tiedostosta.
+  assert.equal((await lukija.hae('k0')).arvo, 0);
+});

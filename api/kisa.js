@@ -106,7 +106,8 @@ export default async function handler(req, res) {
   const kisa = onSallittuSheetId.kisa(sheetId);
   const paivaTila = kisanPaivaTila(kisa);
 
-  if (tallessaTuore) {
+  // Rekisterin päivät ovat voineet muuttua tallennuksen jälkeen: lyhyempi tuoreusaika ratkaisee.
+  if (tallessaTuore && tallessaIka < vastausTuoreMs(paivaTila, kisa)) {
     return lahetaData(req, res, {
       csvByName: tallessa.arvo.csvByName,
       notFound: tallessa.arvo.notFound || [],
@@ -130,11 +131,12 @@ export default async function handler(req, res) {
     const kiintio = onKiintioVirhe(google.error);
     console.error(`[KISA] Google-haku epäonnistui${kiintio ? ' (kiintiö täynnä)' : ''}:`, google.error?.message);
     // Google ei vastannut: vanhakin data on parempi kuin virhe.
-    const varalla = kuva?.csvByName
-      ? { csvByName: kuva.csvByName, notFound: kuva.notFound, tallennettu: kuva.tallennettu, source: 'snapshot-fallback' }
-      : (tallessa && tallessaIka < VARALLA_MAKS_IKA_MS
-        ? { ...tallessa.arvo, tallennettu: tallessa.tallennettu, source: 'server-cache-fallback' }
-        : null);
+    // Varalle valitaan uudempi: tallennettu kuva tai palvelimen välimuistissa oleva vastaus.
+    const vaihtoehdot = [
+      kuva?.csvByName && { csvByName: kuva.csvByName, notFound: kuva.notFound, tallennettu: kuva.tallennettu, source: 'snapshot-fallback' },
+      tallessa && tallessaIka < VARALLA_MAKS_IKA_MS && { ...tallessa.arvo, tallennettu: tallessa.tallennettu, source: 'server-cache-fallback' }
+    ].filter(Boolean);
+    const varalla = vaihtoehdot.sort((a, b) => (b.tallennettu || 0) - (a.tallennettu || 0))[0] || null;
     if (varalla) {
       return lahetaData(req, res, {
         csvByName: varalla.csvByName,

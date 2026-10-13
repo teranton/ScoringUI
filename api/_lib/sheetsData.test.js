@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { parseCsvRows } from '../../src/utils/csv.js';
-import {
+
+// Testit käyttävät omaa välimuistihakemistoaan, eivät `vercel dev` -ajon hakemistoa.
+process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = await mkdtemp(path.join(tmpdir(), 'scoringui-testi-'));
+const {
   haeValilehdetCsv,
   kohdistaValilehdet,
   rivitCsvksi,
   tyhjennaValilehtiCache,
   valilehtiAlue
-} from './sheetsData.js';
+} = await import('./sheetsData.js');
 
 const SHEET = '1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 

@@ -96,6 +96,8 @@ export function luoSheetAllowlist({ haeRekisteriCsv, now = () => Date.now() }) {
 // Rekisterin CSV välimuistista, jos se on alle REKISTERI_VALIMUISTI_MS vanha (myös `vercel dev` -ajossa,
 // jossa muisti ei säily pyyntöjen välillä). Jos haku epäonnistuu, käytetään vanhaa kopiota.
 const REKISTERI_VALIMUISTI_MS = UUDELLEENHAKU_VALI_MS;
+// Hakuvirheen sattuessa vanhaa kopiota käytetään korkeintaan näin kauan; sitä vanhempi ei kelpaa.
+const REKISTERI_VARALLA_MAKS_MS = 24 * 60 * 60 * 1000;
 const rekisteriValimuisti = luoValimuisti('rekisteri');
 const yhdistaRekisteri = luoYhdistaja();
 
@@ -117,7 +119,7 @@ export async function haeRekisteriCsv({ nyt = Date.now } = {}) {
       await rekisteriValimuisti.aseta('csv', csv, nyt());
       return csv;
     } catch (error) {
-      if (tallessa) {
+      if (tallessa && (nyt() - tallessa.tallennettu) < REKISTERI_VARALLA_MAKS_MS) {
         console.error('[REKISTERI] Haku epäonnistui, käytetään tallessa olevaa:', error?.message);
         return tallessa.arvo;
       }

@@ -8,8 +8,18 @@ import path from 'node:path';
 
 const MAKS_MUISTISSA = 200;
 
-export function luoValimuisti(nimi, { hakemisto = path.join(tmpdir(), 'scoringui-valimuisti', nimi) } = {}) {
+// SCORINGUI_VALIMUISTI_HAKEMISTO vaihtaa juurihakemiston (testit käyttävät omaansa).
+function oletusHakemisto(nimi) {
+  return path.join(process.env.SCORINGUI_VALIMUISTI_HAKEMISTO || path.join(tmpdir(), 'scoringui-valimuisti'), nimi);
+}
+
+export function luoValimuisti(nimi, { hakemisto = oletusHakemisto(nimi) } = {}) {
   const muisti = new Map();
+  const muistiin = (avain, tulos) => {
+    muisti.delete(avain);
+    muisti.set(avain, tulos);
+    if (muisti.size > MAKS_MUISTISSA) muisti.delete(muisti.keys().next().value);
+  };
   const tiedosto = (avain) => path.join(hakemisto, `${createHash('sha1').update(String(avain)).digest('hex')}.json`);
 
   // Palauttaa { arvo, tallennettu } tai null.
@@ -19,7 +29,7 @@ export function luoValimuisti(nimi, { hakemisto = path.join(tmpdir(), 'scoringui
       const merkinta = JSON.parse(await readFile(tiedosto(avain), 'utf8'));
       if (!merkinta || merkinta.avain !== avain || !Number.isFinite(merkinta.tallennettu)) return null;
       const tulos = { arvo: merkinta.arvo, tallennettu: merkinta.tallennettu };
-      muisti.set(avain, tulos);
+      muistiin(avain, tulos);
       return tulos;
     } catch {
       return null;
@@ -28,9 +38,7 @@ export function luoValimuisti(nimi, { hakemisto = path.join(tmpdir(), 'scoringui
 
   async function aseta(avain, arvo, tallennettu = Date.now()) {
     const tulos = { arvo, tallennettu };
-    muisti.delete(avain);
-    muisti.set(avain, tulos);
-    if (muisti.size > MAKS_MUISTISSA) muisti.delete(muisti.keys().next().value);
+    muistiin(avain, tulos);
     try {
       await mkdir(hakemisto, { recursive: true });
       // Kirjoitus väliaikaiseen tiedostoon ja nimeäminen, jotta rinnakkainen luku ei näe puolikasta tiedostoa.
