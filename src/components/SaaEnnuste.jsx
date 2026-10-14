@@ -74,7 +74,7 @@ export default function SaaEnnuste({ kisa, status, locale, className = '' }) {
         const Ikoni = IKONIT[tyyppi];
         const kuvaus = tx[tyyppi];
         return (
-          <span key={p.pvm} className="inline-flex items-center gap-1 whitespace-nowrap" title={kuvaus}>
+          <span key={p.pvm} className="inline-flex items-center gap-1 whitespace-nowrap" title={`${kuvaus} · ${tx.source}`}>
             <span>{muotoilePaiva(p.pvm, locale)}</span>
             <Ikoni className="h-4 w-4 text-[hsl(var(--foreground))]" aria-label={kuvaus} />
             <span className="font-medium text-[hsl(var(--foreground))]">
@@ -85,7 +85,6 @@ export default function SaaEnnuste({ kisa, status, locale, className = '' }) {
           </span>
         );
       })}
-      <span className="text-[10px] opacity-70">{tx.source}</span>
     </div>
   );
 }
