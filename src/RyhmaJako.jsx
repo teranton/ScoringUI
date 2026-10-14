@@ -68,9 +68,15 @@ async function haeOsallistujatJaOikeus(sheetId) {
   return { tuore, voi };
 }
 
-export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, locale = 'fi' }) {
+export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, eiTuomaroivat, locale = 'fi' }) {
   const tx = haeTekstit('ryhmaJako', locale);
   const txAikataulu = haeTekstit('aikatauluRyhma', locale);
+  // KISANSPEKSIT "Ei tuomaroivat:" -sarjat korostetaan, jotta niitä ei kerry liikaa samaan ryhmään.
+  const eiTuomaroivatSarjat = useMemo(
+    () => new Set((eiTuomaroivat || []).map((s) => String(s).trim().toUpperCase())),
+    [eiTuomaroivat]
+  );
+  const eiTuomaroi = (paikka) => paikka.tyyppi === 'ampuja' && eiTuomaroivatSarjat.has(String(paikka.sarja).trim().toUpperCase());
   const lahtoajat = useMemo(() => lueLahtoajat(aikataulut, ryhmittely, txAikataulu), [aikataulut, ryhmittely, txAikataulu]);
   const kaytossa = Boolean(googleClientId());
 
@@ -381,6 +387,12 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
               {teksti}
             </span>
           ))}
+          {eiTuomaroivatSarjat.size > 0 && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-violet-500" aria-hidden="true" />
+              {tx.legendNonReferee} ({eiTuomaroivat.join(', ')})
+            </span>
+          )}
         </div>
       )}
 
@@ -389,11 +401,17 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
           {ryhmat.map((ryhma) => {
             const varit = TAYTTOASTE_VARIT[ryhmanTayttoaste(ryhma)];
             const ajat = ryhmanLahtoajat(lahtoajat, ryhma);
+            const eiTuomaroivia = ryhma.paikat.filter(eiTuomaroi).length;
             return (
               <Card key={ryhma.numero} className={`overflow-hidden border-2 ${varit.kortti}`}>
                 <CardHeader className={`space-y-1 border-b border-[hsl(var(--border))] px-3 py-2 ${varit.otsikko}`}>
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-base">{tx.squad} {ryhma.numero}</CardTitle>
+                    {eiTuomaroivia > 0 && (
+                      <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+                        {tayta(tx.nonRefereeCount, { n: eiTuomaroivia })}
+                      </span>
+                    )}
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${varit.merkki}`}
                       title={tayta(tx.fillLabel, { n: ryhma.ampujia, koko: ryhma.koko })}
@@ -420,13 +438,15 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
                     const siirrettava = voiSiirtaa(paikka);
                     const lukossa = paikka.onTuloksia || paikka.tyyppi === 'lukittu';
                     const lukonSyy = paikka.onTuloksia ? tx.locked : tx.formulaName;
+                    const eiTuomaroiva = eiTuomaroi(paikka);
                     const onLahde = raahaus?.lahde.rivi === paikka.rivi;
                     const onKohde = raahaus && kohdeRivi === paikka.rivi && !onLahde;
                     const onValittu = valittuRivi === paikka.rivi;
                     const kehys = onKohde
                       ? (lukossa ? 'border-rose-400 bg-rose-50' : 'border-[hsl(var(--primary))] bg-[hsl(var(--muted))] ring-2 ring-[hsl(var(--primary))]')
                       : onValittu ? 'border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary))]'
-                        : onAmpuja ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
+                        : eiTuomaroiva ? 'border-violet-300 bg-violet-50'
+                          : onAmpuja ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
                           : `border-dashed border-[hsl(var(--border))]${valittu ? ' bg-[hsl(var(--muted))]' : ''}`;
                     return (
                       <div
@@ -464,7 +484,12 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-medium" translate="no">{paikka.nimi}</span>
                               <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]" translate="no">
-                                {[paikka.sarja, paikka.seura].filter(Boolean).join(' · ')}
+                                {eiTuomaroiva ? (
+                                  <>
+                                    <span className="rounded bg-violet-600 px-1 font-semibold text-white" title={tx.nonReferee}>{paikka.sarja}</span>
+                                    {paikka.seura && ` · ${paikka.seura}`}
+                                  </>
+                                ) : [paikka.sarja, paikka.seura].filter(Boolean).join(' · ')}
                               </span>
                             </span>
                           ) : (

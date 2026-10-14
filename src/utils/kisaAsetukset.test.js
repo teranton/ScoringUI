@@ -5,6 +5,7 @@ import {
   haeAikatauluMalliSpekseista,
   haeAikatauluNakyvyysSpekseista,
   haeAikatauluRyhmittelySpekseista,
+  haeEiTuomaroivatSarjatSpekseista,
   haeSponsoriLogoNakyvyysSpekseista
 } from './kisaAsetukset.js';
 
@@ -61,4 +62,11 @@ test('asetuksen arvo on avaimen oikealla puolella oleva ensimmäinen ei-tyhjä s
   const vierekkain = [['AIKATAULU_MALLI', 'AIKATAULURYHMAKOKO', 'INLINE']];
   assert.equal(haeAikatauluMalliSpekseista(vierekkain), null);
   assert.equal(haeAikatauluRyhmittelySpekseista(vierekkain), 'inline');
+});
+
+test('Ei tuomaroivat -sarjat luetaan pilkuilla erotettuna listana avaimen oikealta puolelta', () => {
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([['Korostukset päällä', 'TRUE'], ['Ei tuomaroivat:', 'N, Y70 ,J', 'ohje']]), ['N', 'Y70', 'J']);
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista('Ei tuomaroivat:,"N,J"\n'), ['N', 'J']);
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([['Ei tuomaroivat:']]), []);
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([]), []);
 });

@@ -95,3 +95,14 @@ const AIKATAULU_MALLI_AVAIMET = asetusJoukko(['AIKATAULU_MALLI']);
 export function haeAikatauluMalliSpekseista(speksitData) {
   return haeAsetusSpekseista(speksitData, AIKATAULU_MALLI_AVAIMET, tulkitseAikatauluMalli);
 }
+
+// "Ei tuomaroivat:" – sarjat, joiden ampujat eivät tuomaroi (pilkuilla eroteltu lista, kuten ScoringLibin
+// ConfigManager.parseCsv). Arvona on avaimen oikealla puolella oleva solu. Palauttaa sarjat sellaisinaan.
+const EI_TUOMAROIVAT_AVAIMET = asetusJoukko(['Ei tuomaroivat:']);
+
+export function haeEiTuomaroivatSarjatSpekseista(speksitData) {
+  return haeAsetusSpekseista(speksitData, EI_TUOMAROIVAT_AVAIMET, (arvo) => {
+    const sarjat = String(arvo).split(',').map((s) => s.trim()).filter(Boolean);
+    return sarjat.length ? sarjat : null;
+  }) || [];
+}

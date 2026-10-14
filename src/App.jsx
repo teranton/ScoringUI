@@ -27,6 +27,7 @@ import {
   haeAikatauluMalliSpekseista,
   haeAikatauluNakyvyysSpekseista,
   haeAikatauluRyhmittelySpekseista,
+  haeEiTuomaroivatSarjatSpekseista,
   haeSponsoriLogoNakyvyysSpekseista
 } from './utils/kisaAsetukset';
 import {
@@ -647,6 +648,10 @@ export default function App() {
     () => haeAikatauluRyhmittelySpekseista(nykyisenKisanParsitutRivit.speksitRows || []) || 'inline',
     [nykyisenKisanParsitutRivit.speksitRows]
   );
+  const eiTuomaroivatSarjat = useMemo(
+    () => haeEiTuomaroivatSarjatSpekseista(nykyisenKisanParsitutRivit.speksitRows || []),
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
   const aikatauluMalliAsetus = useMemo(
     () => haeAikatauluMalliSpekseista(nykyisenKisanParsitutRivit.speksitRows || []) || 'inline',
     [nykyisenKisanParsitutRivit.speksitRows]
@@ -985,6 +990,7 @@ export default function App() {
               ryhmaKoko={ryhmaKokoAsetuksesta(aikatauluRyhmittelyAsetus)}
               ryhmittely={aikatauluRyhmittelyAsetus}
               aikataulut={aikatauluCsvList}
+              eiTuomaroivat={eiTuomaroivatSarjat}
               locale={locale}
             />
           )}
