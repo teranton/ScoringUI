@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { muodostaTulosteAikataulu, tunnistaRataSarakkeet } from './aikatauluRadat.js';
 
-const ZWSP = '​';
+const ZWSP = '\u200B';
 
 // ScoringLibin Compak-aikataulun muoto (Compak SM 2026, Aikataulu Su, lyhennetty).
 const RIVIT = [
@@ -69,4 +69,16 @@ test('yli neljä rataa jaetaan sivuille tasan', () => {
 test('ei rata-ruudukkoa: null', () => {
   assert.equal(muodostaTulosteAikataulu([['Aika', 'Tapahtuma'], ['9:00', 'Avajaiset']]), null);
   assert.equal(muodostaTulosteAikataulu([]), null);
+});
+
+test('rivit ajan mukaan kuten näytöllä, nimetön paikka säilyttää numeron', () => {
+  const rivit = [
+    ['AIKATAULU | 1.8.2026'],
+    ['', 'RATA 1', '', '', 'RATA 2'],
+    ['09:05', '2', 'B', '09:05', '6', ''],
+    ['08:30', '1', 'A', '08:30', '5', 'E']
+  ];
+  const [osa] = muodostaTulosteAikataulu(rivit).osat;
+  assert.deepEqual(osa.rivit.map((r) => r.aika), ['08:30', '09:05']);
+  assert.deepEqual(osa.rivit[1].ruudut[1], { aika: '09:05', nro: '6', nimi: '', tuomari: false, tauko: false });
 });

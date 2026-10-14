@@ -9,6 +9,15 @@ export const TULOSTE_RATOJA_SIVULLA = 4;
 const TUOMARIMERKIT = /\u200B/g;
 const ON_TUOMARIMERKKI = /\u200B/;
 
+export function toSortValue(timeText) {
+  const cleaned = String(timeText || '').trim();
+  const m = cleaned.match(/(\d{1,2})[:.](\d{2})/);
+  if (!m) return Number.MAX_SAFE_INTEGER;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  return h * 60 + min;
+}
+
 export function isTimeLike(value) {
   return /(\d{1,2})[:.](\d{2})/.test(String(value || '').trim());
 }
@@ -77,7 +86,7 @@ function tulosteRuutu(slot) {
   const raaka = String(slot.shooter || '');
   const nimi = raaka.replace(TUOMARIMERKIT, '').trim();
   const nro = String(slot.number || '').trim();
-  if (!nimi) return { aika: '', nro: '', nimi: '', tuomari: false, tauko: false };
+  if (!nimi && !nro) return { aika: '', nro: '', nimi: '', tuomari: false, tauko: false };
   return {
     aika: slot.time,
     nro,
@@ -105,7 +114,8 @@ export function muodostaTulosteAikataulu(rows) {
   const laneColumns = tunnistaRataSarakkeet(rows);
   if (laneColumns.length < 2) return null;
 
-  const laneRows = muodostaRataRivit(rows, laneColumns);
+  // Sama järjestys kuin näytöllä (AikatauluNakyma): rivit ajan mukaan, tasatilanteessa välilehden järjestys.
+  const laneRows = muodostaRataRivit(rows, laneColumns).sort((a, b) => toSortValue(a.time) - toSortValue(b.time));
   if (laneRows.length === 0) return null;
 
   const indeksit = laneColumns.map((_, i) => i);

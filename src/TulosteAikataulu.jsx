@@ -1,7 +1,7 @@
 // Tulostettava Compak-aikataulu: radat rinnakkain A4-sivuille. Näkyy vain tulostettaessa (index.css).
-import { useMemo } from 'react';
-import { parseCsvRows } from './utils/csv';
-import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
+// App pitää tämän sivulla koko aikataulunäkymän ajan, joten myös selaimen oma tulostus (Ctrl+P) käyttää sitä.
+import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { haeTekstit } from './i18n';
 
 function muotoileTulostusaika(pvm, locale) {
@@ -28,9 +28,18 @@ function Ruutu({ ruutu, naytaAika, tx }) {
   );
 }
 
-export default function TulosteAikataulu({ rawCsv, otsikko, kisaNimi, kisaPaivat, tulostusaika, locale = 'fi' }) {
+// aikataulu: utils/aikatauluRadat.js muodostaTulosteAikataulu.
+export default function TulosteAikataulu({ aikataulu, otsikko, kisaNimi, kisaPaivat, locale = 'fi' }) {
   const tx = haeTekstit('tulosteAikataulu', locale);
-  const aikataulu = useMemo(() => muodostaTulosteAikataulu(parseCsvRows(rawCsv || '')), [rawCsv]);
+  const [tulostusaika, setTulostusaika] = useState(() => new Date());
+
+  // Tulostusaika päivitetään juuri ennen tulostusta; flushSync, jotta uusi aika ehtii tulosteeseen.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const ennenTulostusta = () => flushSync(() => setTulostusaika(new Date()));
+    window.addEventListener('beforeprint', ennenTulostusta);
+    return () => window.removeEventListener('beforeprint', ennenTulostusta);
+  }, []);
   const osat = aikataulu?.osat || [];
   // Vaaka-A4, kun rinnakkain on yli kaksi rataa; kahdelle radalle pysty riittää.
   const vaaka = osat.some((osa) => osa.radat.length > 2);
@@ -44,7 +53,7 @@ export default function TulosteAikataulu({ rawCsv, otsikko, kisaNimi, kisaPaivat
       {osat.length === 0 && <p>{tx.empty}</p>}
 
       {osat.map((osa, osaIndeksi) => (
-        <section key={osa.radat.join('|')} className="tuloste-aikataulu-osa">
+        <section key={osaIndeksi} className="tuloste-aikataulu-osa">
           <header className="tuloste-otsikko">
             <div>
               <h1 translate="no">{kisaNimi}</h1>
@@ -58,20 +67,20 @@ export default function TulosteAikataulu({ rawCsv, otsikko, kisaNimi, kisaPaivat
           <table>
             <colgroup>
               {osa.yhteinenAika && <col className="tuloste-col-aika" />}
-              {osa.radat.map((rata) => (
-                <ColGroup key={rata} naytaAika={!osa.yhteinenAika} />
+              {osa.radat.map((rata, i) => (
+                <ColGroup key={i} naytaAika={!osa.yhteinenAika} />
               ))}
             </colgroup>
             <thead>
               <tr className="tuloste-ratarivi">
                 {osa.yhteinenAika && <th rowSpan={2} className="tuloste-num">{tx.time}</th>}
-                {osa.radat.map((rata) => (
-                  <th key={rata} colSpan={osa.yhteinenAika ? 2 : 3} className="tuloste-raja" translate="no">{tx.lane} {rata}</th>
+                {osa.radat.map((rata, i) => (
+                  <th key={i} colSpan={osa.yhteinenAika ? 2 : 3} className="tuloste-raja" translate="no">{tx.lane} {rata}</th>
                 ))}
               </tr>
               <tr>
-                {osa.radat.map((rata) => (
-                  <RataOtsikot key={rata} naytaAika={!osa.yhteinenAika} tx={tx} />
+                {osa.radat.map((rata, i) => (
+                  <RataOtsikot key={i} naytaAika={!osa.yhteinenAika} tx={tx} />
                 ))}
               </tr>
             </thead>
@@ -80,7 +89,7 @@ export default function TulosteAikataulu({ rawCsv, otsikko, kisaNimi, kisaPaivat
                 <tr key={rivi.id}>
                   {osa.yhteinenAika && <td className="tuloste-num tuloste-aika">{rivi.aika}</td>}
                   {rivi.ruudut.map((ruutu, i) => (
-                    <Ruutu key={osa.radat[i]} ruutu={ruutu} naytaAika={!osa.yhteinenAika} tx={tx} />
+                    <Ruutu key={i} ruutu={ruutu} naytaAika={!osa.yhteinenAika} tx={tx} />
                   ))}
                 </tr>
               ))}

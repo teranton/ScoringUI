@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Compak timetable printout (`TulosteAikataulu.jsx`) reads the same `Aikataulu*` tabs as the screen. No layout
+  change; the lane-grid conventions it relies on (empty slot, `TAUKO`, U+200B referee marker) are now written down.
 - Master template: `KISANSPEKSIT` is rebuilt in sections (columns Selite / Avain / Arvo / Ohje; value right of
   the key) with the station table under `Asema` / `Maks` in F2. Same keys and values as before; the old tab
   is kept hidden as `KISANSPEKSIT vanha`. Existing competition sheets are unchanged. No UI change: keys are

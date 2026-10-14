@@ -5,22 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { haeTekstit } from './i18n';
-import { extractTitleSuffixFromFirstRow, muodostaRataRivit, tunnistaRataSarakkeet } from './utils/aikatauluRadat';
+import { extractTitleSuffixFromFirstRow, muodostaRataRivit, toSortValue, tunnistaRataSarakkeet } from './utils/aikatauluRadat';
 
 const logPerf = createPerfLogger('AikatauluPerf');
 
 // --- APUFUNKTIOT ---
 function normalizeHeader(value) {
   return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
-
-function toSortValue(timeText) {
-  const cleaned = String(timeText || '').trim();
-  const m = cleaned.match(/(\d{1,2})[:.](\d{2})/);
-  if (!m) return Number.MAX_SAFE_INTEGER;
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  return h * 60 + min;
 }
 
 function toShooterNumber(value) {
@@ -122,7 +113,7 @@ function calculatePrintScale(mode, fullWidth) {
   return Math.min(1, Math.max(0.4, printableWidthPx / fullWidth));
 }
 
-export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [], showGlobalSponsorLogos = true, onTulosta }) {
+export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [], showGlobalSponsorLogos = true, omaTuloste = false }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
   const [mobileViewModeBeforePrint, setMobileViewModeBeforePrint] = useState(null);
@@ -412,6 +403,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
+    if (omaTuloste) return undefined;
+
     const handleBeforePrint = () => {
       setPrintScale(calculatePrintScale(parsed.mode, timeColumnWidth + lanesTotalWidth));
       if (isMobileViewport && parsed.mode === 'lane-grid' && mobileViewMode !== 'table') {
@@ -434,20 +427,18 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
       window.removeEventListener('beforeprint', handleBeforePrint);
       window.removeEventListener('afterprint', handleAfterPrint);
     };
-  }, [isMobileViewport, parsed.mode, mobileViewMode, mobileViewModeBeforePrint, timeColumnWidth, lanesTotalWidth]);
+  }, [omaTuloste, isMobileViewport, parsed.mode, mobileViewMode, mobileViewModeBeforePrint, timeColumnWidth, lanesTotalWidth]);
 
   // Hookit kutsuttava ennen tätä, jotta niiden järjestys pysyy samana joka renderöinnissä.
   if (parsed.mode === 'empty' || (parsed.mode === 'events' && parsed.events.length === 0) || (parsed.mode === 'lane-grid' && parsed.laneRows.length === 0)) {
     return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.empty}</div>;
   }
 
-  // Rata-ruudukolla on oma tulostusasettelu (TulosteAikataulu), joka ei riipu näytön koosta.
-  const omaTuloste = parsed.mode === 'lane-grid' && typeof onTulosta === 'function';
-
   const handlePrint = async () => {
     if (typeof window === 'undefined') return;
+    // omaTuloste: App renderöi rata-ruudukolle oman A4-tulosteen (TulosteAikataulu), näytön ruudukkoa ei tulosteta.
     if (omaTuloste) {
-      onTulosta();
+      window.print();
       return;
     }
     setPrintScale(calculatePrintScale(parsed.mode, timeColumnWidth + lanesTotalWidth));

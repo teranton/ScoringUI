@@ -10,6 +10,7 @@ import MateriaaliNakyma from './MateriaaliNakyma';
 import TulosteTulokset from './TulosteTulokset';
 import TulosteAikataulu from './TulosteAikataulu';
 import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
+import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
@@ -122,8 +123,7 @@ export default function App() {
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
   // Tulostuksen aloitusaika; null kun tulosluettelon tulostus ei ole käynnissä.
-  // Tulostettava sisältö: { tyyppi: 'tulokset' | 'aikataulu', aika }.
-  const [tuloste, setTuloste] = useState(null);
+  const [tulosteenAika, setTulosteenAika] = useState(null);
   const [devTila] = useState(() => onkoDevTila());
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
@@ -159,10 +159,10 @@ export default function App() {
   const tx = haeTekstit('app', locale);
   const txTuloste = haeTekstit('tulosteTulokset', locale);
 
-  // Tuloste renderöidään ensin, sitten avataan selaimen tulostusikkuna.
+  // Tulosluettelo renderöidään ensin, sitten avataan selaimen tulostusikkuna.
   useEffect(() => {
-    if (!tuloste || typeof window === 'undefined') return undefined;
-    const lopeta = () => setTuloste(null);
+    if (!tulosteenAika || typeof window === 'undefined') return undefined;
+    const lopeta = () => setTulosteenAika(null);
     // Kaikki selaimet eivät lähetä afterprint-tapahtumaa; print-mediakyselyn päättyminen lopettaa myös.
     const printMedia = window.matchMedia?.('print');
     const kunMediaMuuttuu = (event) => {
@@ -176,7 +176,7 @@ export default function App() {
       window.removeEventListener('afterprint', lopeta);
       printMedia?.removeEventListener?.('change', kunMediaMuuttuu);
     };
-  }, [tuloste]);
+  }, [tulosteenAika]);
 
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
@@ -648,6 +648,14 @@ export default function App() {
     [nykyisenKisanParsitutRivit.speksitRows]
   );
   const kaytaRyhmaAikatauluNakymaa = aikatauluMalliAsetus === 'groups' || aikatauluRyhmittelyAsetus !== 'inline';
+  // Compak-aikataululla (rata-ruudukko) on oma A4-tuloste. Se on sivulla aina aikataulunäkymässä, jotta
+  // myös selaimen oma tulostus (Ctrl+P) tulostaa sen eikä näytön ruudukkoa.
+  const tulosteAikataulu = useMemo(
+    () => (kaytaRyhmaAikatauluNakymaa || !valittuAikatauluCsv
+      ? null
+      : muodostaTulosteAikataulu(parseCsvRows(valittuAikatauluCsv.raw || ''))),
+    [kaytaRyhmaAikatauluNakymaa, valittuAikatauluCsv]
+  );
   const naytaAikatauluOtsikonSponsorilogot = sponsoriLogoNakyvyysAsetus !== 'off';
   const onkoAikatauluSallittu = onkoAikataulua && (() => {
     if (onkoAikatauluPreviewOverride) return !onkoKisaPaattynyt;
@@ -655,6 +663,7 @@ export default function App() {
     if (aikatauluNakyvyysAsetus === 'after-start') return onkoTuloksetSallittu && !onkoKisaPaattynyt;
     return !onkoKisaPaattynyt;
   })();
+  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && Boolean(tulosteAikataulu);
   const onkoMateriaaleja = useMemo(() => {
     const rivit = nykyisenKisanParsitutRivit.speksitRows || [];
     return extractMaterialGuidesFromRows(rivit).length > 0;
@@ -813,7 +822,7 @@ export default function App() {
   const kilpailuNakymaMaxWidth = 'min(96vw, 1320px)';
 
   return (
-    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tuloste ? ' app-tulostetaan' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tulosteenAika || tulostetaanAikataulu ? ' app-tulostetaan' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
       <Card className="app-print-hide-header">
         <CardHeader className="gap-1.5 border-b border-[hsl(var(--border))] pb-3.5">
           <div className="flex items-center justify-between gap-2">
@@ -886,7 +895,7 @@ export default function App() {
           </Button>
         )}
         {devTila && onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
-          <Button onClick={() => setTuloste({ tyyppi: 'tulokset', aika: new Date() })} variant="outline" size="sm" className="ml-auto gap-1.5">
+          <Button onClick={() => setTulosteenAika(new Date())} variant="outline" size="sm" className="ml-auto gap-1.5">
             <Printer className="h-4 w-4" aria-hidden="true" />
             {txTuloste.button}
           </Button>
@@ -956,7 +965,7 @@ export default function App() {
                     sponsorLogos={kisanSponsorit}
                     showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
                     defaultGroupingMode={aikatauluRyhmittelyAsetus}
-                    onTulosta={() => setTuloste({ tyyppi: 'aikataulu', aika: new Date() })}
+                    omaTuloste={Boolean(tulosteAikataulu)}
                   />
                 )
               )}
@@ -982,24 +991,23 @@ export default function App() {
         </a>
       </footer>
 
-      {tuloste?.tyyppi === 'tulokset' && nykyisenKisanData?.henkilotCsvRaw && (
+      {tulosteenAika && nykyisenKisanData?.henkilotCsvRaw && (
         <TulosteTulokset
           rawRows={nykyisenKisanParsitutRivit.henkilotRows}
           parsedSpeksit={nykyisenKisanSpeksit}
           kisaNimi={valittuKisa.nimi}
           kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
           kisaStatus={kisanStatusInfo.status}
-          tulostusaika={tuloste.aika}
+          tulostusaika={tulosteenAika}
           locale={locale}
         />
       )}
-      {tuloste?.tyyppi === 'aikataulu' && valittuAikatauluCsv && (
+      {tulostetaanAikataulu && (
         <TulosteAikataulu
-          rawCsv={valittuAikatauluCsv.raw}
+          aikataulu={tulosteAikataulu}
           otsikko={valittuAikatauluCsv.label}
           kisaNimi={valittuKisa.nimi}
           kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
-          tulostusaika={tuloste.aika}
           locale={locale}
         />
       )}
