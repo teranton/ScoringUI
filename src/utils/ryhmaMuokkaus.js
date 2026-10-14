@@ -1,8 +1,9 @@
 // src/utils/ryhmaMuokkaus.js
 // Ryhmien muokkaus: ampujien paikat pääsivun osallistujariveillä (nimetty alue OSALLISTUJAT).
 // Ryhmä ja ampujanumero tulevat taulukossa rivin paikasta (Sporting/ESP: ROUNDUP(SEQUENCE()/ryhmäkoko),
-// Compak: aikataulun kaavat viittaavat pääsivun riveihin), joten kahden ampujan vaihto ryhmien välillä
-// on kahden rivin sisällön vaihto. Kaavoja ja kaavojen täyttämiä soluja ei kosketa.
+// NRO: SEQUENCE(COUNTA(nimet)), Compak: aikataulun kaavat viittaavat pääsivun riveihin), joten ampujan
+// siirto on rivien sisällön siirto. Vapaa paikka on rivi, jonka nimenä on sen oma numero (kuten arvonnassa
+// ja Compak-aikataulussa), jotta numerointi pysyy yhtenäisenä. Kaavoja ja kaavojen täyttämiä soluja ei kosketa.
 
 export const OSALLISTUJA_ALUE = 'OSALLISTUJAT';
 
@@ -72,73 +73,115 @@ export function etsiSarakkeet(otsikkoSolut) {
   };
 }
 
+// Paikan tyyppi: 'ampuja', 'vapaa' (nimenä numero), 'tyhja' (ei nimeä) tai 'lukittu' (nimi tulee kaavasta).
+function paikanTyyppi(nimiSolu) {
+  const nimi = solunTeksti(nimiSolu);
+  if (onKaava(nimiSolu) || onKaavanTayttama(nimiSolu)) return nimi ? 'lukittu' : 'tyhja';
+  if (!nimi) return 'tyhja';
+  return Number.isNaN(Number(nimi)) ? 'ampuja' : 'vapaa';
+}
+
 // rowData: spreadsheets.get-vastauksen sheets[0].data[0].rowData (otsikkorivi ensin).
-// Palauttaa ampujat paikkajärjestyksessä. Paikka on rivin järjestysnumero alueella (0 = ensimmäinen).
+// Palauttaa alueen kaikki paikat järjestyksessä. Paikka on rivin järjestysnumero alueella (0 = ensimmäinen).
 export function parsiOsallistujat(rowData, alue) {
   const rivit = Array.isArray(rowData) ? rowData : [];
   const sarakkeet = etsiSarakkeet(rivit[0]?.values || []);
-  const ampujat = [];
+  const paikat = [];
   const maara = alue.loppuRivi - alue.alkuRivi;
   for (let paikka = 0; paikka < maara; paikka++) {
     const solut = rivit[paikka + 1]?.values || [];
-    const nimiSolu = solut[sarakkeet.nimi];
-    const nimi = solunTeksti(nimiSolu);
-    // Kuten arvonnassa: tyhjä, kaava tai pelkkä numero ei ole ampuja. Kaavan täyttämää nimeä ei voi siirtää.
-    if (!nimi || onKaava(nimiSolu) || onKaavanTayttama(nimiSolu) || !Number.isNaN(Number(nimi))) continue;
+    const tyyppi = paikanTyyppi(solut[sarakkeet.nimi]);
     const ryhma = sarakkeet.ryhma >= 0 ? parseInt(solunTeksti(solut[sarakkeet.ryhma]), 10) : NaN;
-    ampujat.push({
+    const nro = sarakkeet.nro >= 0 ? solunTeksti(solut[sarakkeet.nro]) : '';
+    paikat.push({
       paikka,
       rivi: alue.alkuRivi + paikka,
-      nro: sarakkeet.nro >= 0 ? solunTeksti(solut[sarakkeet.nro]) : '',
+      // Tyhjän rivin numero on se, jonka SEQUENCE antaa, kun rivi täytetään.
+      nro: nro || String(paikka + 1),
       ryhma: Number.isFinite(ryhma) && ryhma > 0 ? ryhma : null,
-      nimi,
-      sarja: sarakkeet.sarja >= 0 ? solunTeksti(solut[sarakkeet.sarja]) : '',
-      seura: sarakkeet.seura >= 0 ? solunTeksti(solut[sarakkeet.seura]) : '',
-      onTuloksia: sarakkeet.tulokset.some((i) => solunTeksti(solut[i]) !== ''),
+      tyyppi,
+      nimi: solunTeksti(solut[sarakkeet.nimi]),
+      sarja: tyyppi === 'ampuja' && sarakkeet.sarja >= 0 ? solunTeksti(solut[sarakkeet.sarja]) : '',
+      seura: tyyppi === 'ampuja' && sarakkeet.seura >= 0 ? solunTeksti(solut[sarakkeet.seura]) : '',
+      onTuloksia: tyyppi === 'ampuja' && sarakkeet.tulokset.some((i) => solunTeksti(solut[i]) !== ''),
       solut
     });
   }
-  return { sarakkeet, ampujat };
+  return { sarakkeet, paikat, ampujat: paikat.filter((p) => p.tyyppi === 'ampuja') };
 }
 
-// Ryhmät taulukon Ryhmä-sarakkeesta, jos se on, muuten paikoista: paikat 0..koko-1 ovat ryhmä 1 jne.
-// Ryhmät, joissa ei ole ketään, jätetään pois.
-export function muodostaRyhmat(ampujat, koko) {
+const ryhmanNumero = (p, koko) => p.ryhma ?? Math.floor(p.paikka / koko) + 1;
+
+// Ryhmät paikkoineen. Ryhmä tulee taulukon Ryhmä-sarakkeesta, jos se on, muuten paikasta (0..koko-1 = ryhmä 1).
+// Mukana ovat ryhmät, joissa on ampuja tai vapaa paikka; viimeisen ryhmän loppuun jäävät tyhjät rivit
+// näytetään vapaina paikkoina. Ryhmän koko on asetuksen koko tai suurin ryhmä, jos taulukossa on isompia.
+export function muodostaRyhmat(paikat, kokoAsetus) {
+  const kaytossa = paikat.filter((p) => p.tyyppi !== 'tyhja');
+  const laskuri = new Map();
+  for (const p of kaytossa) {
+    const n = ryhmanNumero(p, kokoAsetus);
+    laskuri.set(n, (laskuri.get(n) || 0) + 1);
+  }
+  const koko = Math.max(kokoAsetus, ...laskuri.values());
   const ryhmat = new Map();
-  for (const ampuja of ampujat) {
-    const numero = ampuja.ryhma ?? Math.floor(ampuja.paikka / koko) + 1;
-    if (!ryhmat.has(numero)) ryhmat.set(numero, { numero, ampujat: [] });
-    ryhmat.get(numero).ampujat.push(ampuja);
+  for (const p of paikat) {
+    const numero = ryhmanNumero(p, koko);
+    if (!laskuri.has(numero)) continue;
+    if (!ryhmat.has(numero)) ryhmat.set(numero, { numero, koko, paikat: [] });
+    ryhmat.get(numero).paikat.push(p);
   }
-  return [...ryhmat.values()].sort((a, b) => a.numero - b.numero);
+  return [...ryhmat.values()]
+    .map((r) => ({ ...r, ampujia: r.paikat.filter((p) => p.tyyppi === 'ampuja').length }))
+    .sort((a, b) => a.numero - b.numero);
 }
 
-// Vaihdettavat sarakkeet: kummassakaan rivissä ei ole kaavaa eikä kaavan täyttämää arvoa,
-// ja ainakin toisessa on jotain. Tyhjä solu siirtyy tyhjänä. Vain sarakkeet 0..leveys-1 (etsiSarakkeet).
-export function vaihdettavatSarakkeet(solutA, solutB, leveys) {
-  const sarakkeet = [];
-  for (let i = 0; i < leveys; i++) {
-    const a = solutA[i];
-    const b = solutB[i];
-    if (onKaava(a) || onKaava(b) || onKaavanTayttama(a) || onKaavanTayttama(b)) continue;
-    if (!a?.userEnteredValue && !b?.userEnteredValue) continue;
-    sarakkeet.push(i);
-  }
-  return sarakkeet;
+// Ryhmän täyttöaste värikoodia varten: 'taysi', 'lahes' (yksi vapaa), 'vajaa' (2+ vapaata) tai 'tyhja'.
+export function ryhmanTayttoaste(ryhma) {
+  if (ryhma.ampujia === 0) return 'tyhja';
+  if (ryhma.ampujia >= ryhma.koko) return 'taysi';
+  return ryhma.ampujia === ryhma.koko - 1 ? 'lahes' : 'vajaa';
 }
 
-// Sarakkeet, joissa toisella rivillä on kaava ja toisella syötetty arvo. Niitä ei voi vaihtaa,
-// joten vaihto jäisi osittaiseksi: se torjutaan.
-export function ristiriitaisetSarakkeet(solutA, solutB, leveys) {
-  const sarakkeet = [];
-  for (let i = 0; i < leveys; i++) {
-    const a = solutA[i];
-    const b = solutB[i];
-    const syotettyA = Boolean(a?.userEnteredValue) && !onKaava(a);
-    const syotettyB = Boolean(b?.userEnteredValue) && !onKaava(b);
-    if ((onKaava(a) && syotettyB) || (onKaava(b) && syotettyA)) sarakkeet.push(i);
+// Siirtosuunnitelma: mitä kullekin riville kirjoitetaan. sijoitukset: [{ kohde: paikka, lahde: paikka | null }],
+// jossa null tarkoittaa vapaata paikkaa (nimenä kohderivin numero).
+//  - kohde on vapaa tai tyhjä paikka: ampuja siirtyy sinne ja hänen paikkansa vapautuu ('siirto');
+//    välissä olevat tyhjät rivit merkitään vapaiksi, jotta numerointi pysyy yhtenäisenä,
+//  - kohde on ampuja samassa ryhmässä: ampuja siirtyy kohteen paikalle ja väliin jäävät siirtyvät yhdellä ('jarjestys'),
+//  - kohde on ampuja toisessa ryhmässä: ampujat vaihtavat paikkaa ('vaihto').
+// Palauttaa { ok: true, toiminto, sijoitukset } tai { ok: false, syy: 'muuttunut' | 'tuloksia' }.
+export function suunnitteleSiirto(paikat, lahdeRivi, kohdeRivi, koko) {
+  const rivilla = new Map(paikat.map((p) => [p.rivi, p]));
+  const lahde = rivilla.get(lahdeRivi);
+  const kohde = rivilla.get(kohdeRivi);
+  if (!lahde || !kohde || lahde.rivi === kohde.rivi || lahde.tyyppi !== 'ampuja' || kohde.tyyppi === 'lukittu') {
+    return { ok: false, syy: 'muuttunut' };
   }
-  return sarakkeet;
+  const sisalto = (p) => (p.tyyppi === 'ampuja' ? p : null);
+  let toiminto;
+  let sijoitukset;
+  if (kohde.tyyppi === 'vapaa' || kohde.tyyppi === 'tyhja') {
+    toiminto = 'siirto';
+    const valissa = paikat.filter((p) => p.tyyppi === 'tyhja' && p.paikka < kohde.paikka);
+    sijoitukset = [{ kohde, lahde }, { kohde: lahde, lahde: null }, ...valissa.map((p) => ({ kohde: p, lahde: null }))];
+  } else if (ryhmanNumero(kohde, koko) === ryhmanNumero(lahde, koko)) {
+    toiminto = 'jarjestys';
+    const alas = lahde.paikka < kohde.paikka;
+    const [alku, loppu] = alas ? [lahde.paikka, kohde.paikka] : [kohde.paikka, lahde.paikka];
+    const paikalla = new Map(paikat.map((p) => [p.paikka, p]));
+    sijoitukset = [];
+    for (let i = alku; i <= loppu; i++) {
+      const rivi = paikalla.get(i);
+      if (i === kohde.paikka) sijoitukset.push({ kohde: rivi, lahde });
+      else sijoitukset.push({ kohde: rivi, lahde: sisalto(paikalla.get(alas ? i + 1 : i - 1)) });
+    }
+  } else {
+    toiminto = 'vaihto';
+    sijoitukset = [{ kohde, lahde }, { kohde: lahde, lahde: kohde }];
+  }
+  if (sijoitukset.some(({ kohde: k, lahde: l }) => k.onTuloksia || l?.onTuloksia || k.tyyppi === 'lukittu')) {
+    return { ok: false, syy: 'tuloksia' };
+  }
+  return { ok: true, toiminto, sijoitukset };
 }
 
 // Peräkkäiset sarakkeet yhdeksi alueeksi.
@@ -152,16 +195,39 @@ function jaksot(sarakkeet) {
   return tulos;
 }
 
-const syote = (solu) => (solu?.userEnteredValue ? { userEnteredValue: solu.userEnteredValue } : {});
+const syote = (solu) => (solu?.userEnteredValue && !onKaava(solu) ? { userEnteredValue: solu.userEnteredValue } : {});
+const onSyotetty = (solu) => Boolean(solu?.userEnteredValue) && !onKaava(solu);
 
-// batchUpdate-pyynnöt, jotka vaihtavat kahden ampujan rivien syötetyt arvot (muotoilut jäävät paikalleen).
-export function vaihtoPyynnot(sheetId, ampujaA, ampujaB, leveys) {
-  const sarakkeet = vaihdettavatSarakkeet(ampujaA.solut, ampujaB.solut, leveys);
+// batchUpdate-pyynnöt sijoituksille: syötetyt arvot kopioidaan lähteen riviltä kohteen riville sarakkeisiin
+// 0..leveys-1 (muotoilut jäävät paikalleen). Vapaan paikan nimeksi tulee kohderivin numero ja muut solut tyhjenevät.
+// Kohteen kaava- ja kaavan täyttämiin soluihin ei kirjoiteta. Jos siirto jäisi siksi osittaiseksi (lähteessä kaava
+// tai syötetty arvo sarakkeessa, jota kohteeseen ei voi kirjoittaa), palautetaan { ok: false, syy: 'kaavoja' }.
+export function siirtoPyynnot(sheetId, sijoitukset, sarakkeet) {
   const pyynnot = [];
-  for (const [kohde, lahde] of [[ampujaA, ampujaB], [ampujaB, ampujaA]]) {
-    for (const { alku, loppu } of jaksot(sarakkeet)) {
+  for (const { kohde, lahde } of sijoitukset) {
+    const uudet = new Map();
+    for (let i = 0; i < sarakkeet.leveys; i++) {
+      const vanha = kohde.solut[i];
+      const kirjoitettava = !onKaava(vanha) && !onKaavanTayttama(vanha);
+      let uusi;
+      if (lahde) {
+        const solu = lahde.solut[i];
+        if (onKaava(solu) && kirjoitettava) return { ok: false, syy: 'kaavoja' };
+        if (!kirjoitettava) {
+          if (onSyotetty(solu)) return { ok: false, syy: 'kaavoja' };
+          continue;
+        }
+        uusi = syote(solu);
+      } else {
+        if (!kirjoitettava) continue;
+        uusi = i === sarakkeet.nimi ? { userEnteredValue: { numberValue: Number(kohde.nro) || kohde.paikka + 1 } } : {};
+      }
+      if (!uusi.userEnteredValue && !vanha?.userEnteredValue) continue;
+      uudet.set(i, uusi);
+    }
+    for (const { alku, loppu } of jaksot([...uudet.keys()])) {
       const values = [];
-      for (let i = alku; i < loppu; i++) values.push(syote(lahde.solut[i]));
+      for (let i = alku; i < loppu; i++) values.push(uudet.get(i));
       pyynnot.push({
         updateCells: {
           range: { sheetId, startRowIndex: kohde.rivi, endRowIndex: kohde.rivi + 1, startColumnIndex: alku, endColumnIndex: loppu },
@@ -171,28 +237,38 @@ export function vaihtoPyynnot(sheetId, ampujaA, ampujaB, leveys) {
       });
     }
   }
-  return pyynnot;
+  return { ok: true, pyynnot };
 }
 
-// Tarkistaa tuoreesta datasta, että vaihdettavat ampujat ovat yhä samoilla riveillä, kummallakaan ei ole tuloksia,
-// eikä samassa sarakkeessa ole toisella kaavaa ja toisella syötettyä arvoa.
-// Palauttaa { ok: true, a, b } tai { ok: false, syy: 'muuttunut' | 'tuloksia' | 'kaavoja' }.
-export function tarkistaVaihto(ampujat, odotettuA, odotettuB, leveys = Infinity) {
-  const rivilla = (odotettu) => ampujat.find((x) => x.rivi === odotettu.rivi && x.nimi === odotettu.nimi);
-  const a = rivilla(odotettuA);
-  const b = rivilla(odotettuB);
-  if (!a || !b || a.rivi === b.rivi) return { ok: false, syy: 'muuttunut' };
-  if (a.onTuloksia || b.onTuloksia) return { ok: false, syy: 'tuloksia' };
-  const raja = Math.min(leveys, Math.max(a.solut.length, b.solut.length));
-  if (ristiriitaisetSarakkeet(a.solut, b.solut, raja).length) return { ok: false, syy: 'kaavoja' };
-  return { ok: true, a, b };
+// Mitä nimisoluissa pitää lukea sijoitusten jälkeen (kumoamisen tarkistukseen).
+export function odotetutNimet(sijoitukset) {
+  return sijoitukset.map(({ kohde, lahde }) => ({ rivi: kohde.rivi, nimi: lahde ? lahde.nimi : String(Number(kohde.nro) || kohde.paikka + 1) }));
 }
 
-// Näkymän välitön päivitys ennen tallennuksen valmistumista: ampujat vaihtavat paikkaa ja numeroa.
-export function vaihdaPaikallisesti(ampujat, a, b) {
-  return ampujat.map((x) => {
-    if (x.rivi === a.rivi) return { ...b, paikka: a.paikka, rivi: a.rivi, nro: a.nro, ryhma: a.ryhma };
-    if (x.rivi === b.rivi) return { ...a, paikka: b.paikka, rivi: b.rivi, nro: b.nro, ryhma: b.ryhma };
-    return x;
+// Täsmäävätkö rivien nimet odotettuihin (tuore data ennen kirjoitusta).
+export function nimetTasmaavat(paikat, odotetut) {
+  const rivilla = new Map(paikat.map((p) => [p.rivi, p]));
+  return odotetut.every(({ rivi, nimi }) => (rivilla.get(rivi)?.nimi ?? null) === nimi);
+}
+
+// Kumoaminen: sijoitukset, jotka palauttavat rivit ennen siirtoa luettuun tilaan.
+// tuoreet: nykyiset paikat; ennen: siirron sijoitusten kohteet sellaisina kuin ne olivat ennen kirjoitusta.
+export function kumoaSijoitukset(tuoreet, ennen) {
+  const rivilla = new Map(tuoreet.map((p) => [p.rivi, p]));
+  return ennen.map((vanha) => ({ kohde: rivilla.get(vanha.rivi), lahde: { ...vanha, solut: vanha.solut } }))
+    .filter((s) => s.kohde);
+}
+
+// Näkymän välitön päivitys ennen tallennuksen valmistumista. Paikka, rivi, numero ja ryhmä kuuluvat riville.
+export function sovellaPaikallisesti(paikat, sijoitukset) {
+  const uudet = new Map(sijoitukset.map(({ kohde, lahde }) => [kohde.rivi, lahde]));
+  return paikat.map((p) => {
+    if (!uudet.has(p.rivi)) return p;
+    const lahde = uudet.get(p.rivi);
+    const paikanTiedot = { paikka: p.paikka, rivi: p.rivi, nro: p.nro, ryhma: p.ryhma };
+    if (!lahde) {
+      return { ...p, ...paikanTiedot, tyyppi: 'vapaa', nimi: String(Number(p.nro) || p.paikka + 1), sarja: '', seura: '', onTuloksia: false };
+    }
+    return { ...lahde, ...paikanTiedot, solut: lahde.solut };
   });
 }

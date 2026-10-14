@@ -65,7 +65,8 @@ so column order can change but header names must not.
 
 ## Squad editing (organisers)
 
-`RyhmaJako.jsx` ("Järjestäjälle: muokkaa ryhmiä") lets an organiser swap two shooters between squads. It does not
+`RyhmaJako.jsx` ("Järjestäjälle: muokkaa ryhmiä") lets an organiser move a shooter to a free place, reorder a
+squad, or swap two shooters between squads. It does not
 go through `api/`: the browser reads and writes the sheet with the organiser's own Google sign-in
 (`spreadsheets` scope, `utils/googleKayttaja.js`), so only accounts that can edit the competition sheet can save.
 It depends on:
@@ -82,6 +83,13 @@ It depends on:
   columns, so check-in, name, class, club and tie-break move with the shooter. Shooters with any station result
   are not moved, and neither are names filled by a formula. A swap is refused when one row has a formula where the
   other has a typed value. Rows are re-read just before writing; if either name has changed, nothing is written.
+- Free places use the shuffle's convention: the name cell holds the place's own number (`Distributor.js` skips
+  numeric names), so `COUNTA` numbering stays contiguous. Moving a shooter to a free place writes the shooter's
+  values there and leaves the old row as a free place (its number as the name, other entered columns cleared).
+  Moving to an empty row past the last shooter also writes free-place numbers into the empty rows before it.
+  Reordering inside a squad shifts the rows between by one. Formula cells are never written.
+- Start times shown per squad are read from the `Aikataulu*` tabs the API already serves: the group timetable
+  by squad number (Sporting/ESP), the Compak lane grid by shooter number (earliest time of the squad's places per day).
 
 ## `KISANSPEKSIT` settings
 

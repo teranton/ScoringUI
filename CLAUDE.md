@@ -10,7 +10,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
 - Squad editing (`src/RyhmaJako.jsx`) is the one write path: the organiser signs in with Google in the browser
   (Google Identity Services, `VITE_GOOGLE_CLIENT_ID`, `spreadsheets` and `email` scopes, account chooser on every sign-in) and the browser reads and writes the
   sheet's `OSALLISTUJAT` rows with that token, so Google enforces editor access. Without `VITE_GOOGLE_CLIENT_ID`
-  the feature is hidden. The service account stays read-only.
+  the feature is hidden. The service account stays read-only. Moves to a free place write the place number as the
+  name (the shuffle's free-place convention), so `NRO`/`Ryhmä` formulas keep contiguous numbering.
 - The frontend parses tabs as CSV. The tabs, headers and settings it depends on are listed in
   `contract/sheet-layout.md`. That file is the contract with ScoringLib (`teranton/ScoringLib`) and the
   sheet template.

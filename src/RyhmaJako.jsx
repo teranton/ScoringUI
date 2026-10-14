@@ -1,11 +1,11 @@
 // src/RyhmaJako.jsx
-// Järjestäjän ryhmien muokkaus: kahden ampujan paikkojen vaihto ryhmien välillä.
-// Raahaus toimii hiirellä ja kosketuksella (kahvasta, pointer-tapahtumat), ja napautus kahteen ampujaan tekee saman.
+// Järjestäjän ryhmien muokkaus: ampujan siirto vapaalle paikalle, järjestys ryhmän sisällä ja vaihto ryhmien välillä.
+// Raahaus toimii hiirellä ja kosketuksella (kahvasta, pointer-tapahtumat), ja napautus ampujaan ja paikkaan tekee saman.
+// Ryhmät on väritetty täyttöasteen mukaan, ja otsikossa näkyvät ryhmän lähtöajat aikataulusta.
 // Data luetaan ja kirjoitetaan käyttäjän omalla Google-tunnisteella (utils/googleKayttaja.js).
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { GripVertical, Lock, LogOut, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Clock, GripVertical, Lock, LogOut, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
-import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { haeTekstit } from './i18n';
 import {
@@ -25,16 +25,31 @@ import {
   etsiOsallistujaAlue,
   muodostaRyhmat,
   osallistujaAlueA1,
+  kumoaSijoitukset,
+  nimetTasmaavat,
+  odotetutNimet,
   parsiOsallistujat,
-  tarkistaVaihto,
-  vaihdaPaikallisesti,
-  vaihtoPyynnot
+  ryhmanTayttoaste,
+  siirtoPyynnot,
+  sovellaPaikallisesti,
+  suunnitteleSiirto
 } from './utils/ryhmaMuokkaus';
+import { lueLahtoajat, ryhmanLahtoajat } from './utils/ryhmaLahtoajat';
 
 const tayta = (teksti, arvot) => teksti.replace(/\{(\w+)\}/g, (_, avain) => String(arvot[avain] ?? ''));
 
 // Näin lähellä ikkunan ylä- tai alareunaa raahaus vierittää sivua (mobiilissa pitkät ryhmälistat).
 const VIERITYSREUNA = 72;
+
+// Ryhmän väri täyttöasteen mukaan: täysi vihreä, yksi vapaa keltainen, useampi vapaa punainen.
+const TAYTTOASTE_VARIT = {
+  taysi: { kortti: 'border-emerald-400', otsikko: 'bg-emerald-50 text-emerald-900', merkki: 'bg-emerald-600 text-white', piste: 'bg-emerald-500' },
+  lahes: { kortti: 'border-amber-400', otsikko: 'bg-amber-50 text-amber-900', merkki: 'bg-amber-500 text-white', piste: 'bg-amber-400' },
+  vajaa: { kortti: 'border-rose-400', otsikko: 'bg-rose-50 text-rose-900', merkki: 'bg-rose-600 text-white', piste: 'bg-rose-500' },
+  tyhja: { kortti: 'border-[hsl(var(--border))]', otsikko: 'bg-[hsl(var(--muted))]', merkki: 'bg-[hsl(var(--muted-foreground))] text-white', piste: 'bg-[hsl(var(--muted-foreground))]' }
+};
+
+const paikoilla = (data, paikat) => ({ ...data, paikat, ampujat: paikat.filter((p) => p.tyyppi === 'ampuja') });
 
 function kohdeRiviPisteessa(x, y) {
   const elementti = document.elementFromPoint(x, y)?.closest?.('[data-ampuja-rivi]');
@@ -52,18 +67,20 @@ async function haeOsallistujatJaOikeus(sheetId) {
   return { tuore, voi };
 }
 
-export default function RyhmaJako({ sheetId, ryhmaKoko, locale = 'fi' }) {
+export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, locale = 'fi' }) {
   const tx = haeTekstit('ryhmaJako', locale);
+  const txAikataulu = haeTekstit('aikatauluRyhma', locale);
+  const lahtoajat = useMemo(() => lueLahtoajat(aikataulut, ryhmittely, txAikataulu), [aikataulut, ryhmittely, txAikataulu]);
   const kaytossa = Boolean(googleClientId());
 
   const [kirjautunut, setKirjautunut] = useState(() => onkoKirjautunut());
   const [ladataan, setLadataan] = useState(() => onkoKirjautunut());
   const [latausVirhe, setLatausVirhe] = useState('');
-  const [data, setData] = useState(null); // { alue, sarakkeet, ampujat }
+  const [data, setData] = useState(null); // { alue, sarakkeet, paikat, ampujat }
   const [muokattava, setMuokattava] = useState(false);
   const [valittuRivi, setValittuRivi] = useState(null);
   const [tallennetaan, setTallennetaan] = useState(false);
-  const [viesti, setViesti] = useState(null); // { teksti, virhe?, kumoa?: [a, b] }
+  const [viesti, setViesti] = useState(null); // { teksti, virhe?, kumoa?: { ennen, odotetut } }
   const [raahaus, setRaahaus] = useState(null); // { lahde, x, y, kohdeRivi }
   const raahausRef = useRef(null);
   const vieritysRef = useRef(null);
@@ -131,35 +148,38 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, locale = 'fi' }) {
     setViesti(null);
   };
 
-  const teeVaihto = async (a, b) => {
-    if (!data || tallennetaan || !a || !b || a.rivi === b.rivi) return;
-    if (a.onTuloksia || b.onTuloksia) {
-      setViesti({ teksti: tx.hasResults, virhe: true });
-      return;
-    }
+  const paikkaRivilla = (rivi) => data?.paikat.find((x) => x.rivi === rivi) || null;
+  const voiSiirtaa = (paikka) => muokattava && !tallennetaan && paikka.tyyppi === 'ampuja' && !paikka.onTuloksia;
+
+  // Ryhmäkoko, jolla paikat jaetaan ryhmiin (asetus tai suurin taulukon ryhmä).
+  const ryhmaKokoNyt = (paikat) => muodostaRyhmat(paikat, ryhmaKoko)[0]?.koko || ryhmaKoko;
+  const syynTeksti = (syy) => ({ tuloksia: tx.hasResults, kaavoja: tx.formulas }[syy] || tx.changed);
+
+  // Yhteinen tallennus: näkymä päivittyy heti, rivit luetaan juuri ennen kirjoitusta (toinen järjestäjä tai taulukko
+  // on voinut muuttaa niitä), suunnitelma tehdään tuoreesta datasta ja kirjoitetaan yhdellä batchUpdatella.
+  // suunnittele(tuore) palauttaa { ok, sijoitukset } tai { ok: false, syy }; valmis(sijoitukset, tuore) antaa viestin.
+  const tallenna = async (paikallinen, suunnittele, valmis) => {
     const ennen = data;
     setTallennetaan(true);
     setValittuRivi(null);
     setViesti(null);
-    setData({ ...data, ampujat: vaihdaPaikallisesti(data.ampujat, a, b) });
+    if (paikallinen) setData(paikoilla(data, sovellaPaikallisesti(data.paikat, paikallinen)));
     try {
-      // Luetaan rivit juuri ennen kirjoitusta: toinen järjestäjä tai taulukko on voinut muuttaa niitä.
       const tuore = await lueOsallistujat(sheetId, data.alue);
-      const tarkistus = tarkistaVaihto(tuore.ampujat, a, b, tuore.sarakkeet.leveys);
-      if (!tarkistus.ok) {
+      const suunnitelma = suunnittele(tuore);
+      const pyynnot = suunnitelma.ok ? siirtoPyynnot(tuore.alue.sheetId, suunnitelma.sijoitukset, tuore.sarakkeet) : suunnitelma;
+      if (!pyynnot.ok) {
         setData(tuore);
-        setViesti({ teksti: { tuloksia: tx.hasResults, kaavoja: tx.formulas }[tarkistus.syy] || tx.changed, virhe: true });
+        setViesti({ teksti: syynTeksti(pyynnot.syy), virhe: true });
         return;
       }
-      await paivitaTaulukko(sheetId, vaihtoPyynnot(tuore.alue.sheetId, tarkistus.a, tarkistus.b, tuore.sarakkeet.leveys));
-      // Tallennus onnistui. Uudelleenluku antaa kaavojen arvot (numerot, ryhmät); jos se epäonnistuu,
-      // vaihto näytetään tuoreesta datasta laskettuna eikä virheenä.
+      if (pyynnot.pyynnot.length) await paivitaTaulukko(sheetId, pyynnot.pyynnot);
+      // Tallennus onnistui. Uudelleenluku antaa kaavojen arvot; jos se epäonnistuu, muutos näytetään
+      // tuoreesta datasta laskettuna eikä virheenä.
       const jalkeen = await lueOsallistujat(sheetId, data.alue)
-        .catch(() => ({ ...tuore, ampujat: vaihdaPaikallisesti(tuore.ampujat, tarkistus.a, tarkistus.b) }));
+        .catch(() => paikoilla(tuore, sovellaPaikallisesti(tuore.paikat, suunnitelma.sijoitukset)));
       setData(jalkeen);
-      const uusiA = jalkeen.ampujat.find((x) => x.rivi === a.rivi);
-      const uusiB = jalkeen.ampujat.find((x) => x.rivi === b.rivi);
-      setViesti({ teksti: tayta(tx.swapped, { a: a.nimi, b: b.nimi }), kumoa: uusiA && uusiB ? [uusiA, uusiB] : null });
+      setViesti(valmis(suunnitelma.sijoitukset, tuore));
     } catch (virhe) {
       setData(ennen);
       if (virhe instanceof SheetsVirhe && virhe.status === 403) {
@@ -173,8 +193,43 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, locale = 'fi' }) {
     }
   };
 
-  const ampujaRivilla = (rivi) => data?.ampujat.find((x) => x.rivi === rivi) || null;
-  const voiSiirtaa = (ampuja) => muokattava && !tallennetaan && !ampuja.onTuloksia;
+  const teeSiirto = (lahde, kohde) => {
+    if (!data || tallennetaan || !lahde || !kohde || lahde.rivi === kohde.rivi) return;
+    const suunnitelma = suunnitteleSiirto(data.paikat, lahde.rivi, kohde.rivi, ryhmaKokoNyt(data.paikat));
+    if (!suunnitelma.ok) {
+      setValittuRivi(null);
+      setViesti({ teksti: syynTeksti(suunnitelma.syy), virhe: true });
+      return;
+    }
+    const nahdyt = [{ rivi: lahde.rivi, nimi: lahde.nimi }, { rivi: kohde.rivi, nimi: kohde.nimi }];
+    tallenna(
+      suunnitelma.sijoitukset,
+      (tuore) => (nimetTasmaavat(tuore.paikat, nahdyt)
+        ? suunnitteleSiirto(tuore.paikat, lahde.rivi, kohde.rivi, ryhmaKokoNyt(tuore.paikat))
+        : { ok: false, syy: 'muuttunut' }),
+      (sijoitukset) => ({
+        teksti: suunnitelma.toiminto === 'vaihto'
+          ? tayta(tx.swapped, { a: lahde.nimi, b: kohde.nimi })
+          : tayta(tx.moved, { nimi: lahde.nimi, nro: kohde.nro }),
+        kumoa: { ennen: sijoitukset.map((s) => s.kohde), odotetut: odotetutNimet(sijoitukset) }
+      })
+    );
+  };
+
+  // Kumoaminen palauttaa muutetut rivit ennalleen, jos kukaan ei ole muuttanut niitä välissä.
+  const kumoa = ({ ennen, odotetut }) => {
+    if (!data || tallennetaan) return;
+    tallenna(
+      null,
+      (tuore) => {
+        if (!nimetTasmaavat(tuore.paikat, odotetut)) return { ok: false, syy: 'muuttunut' };
+        const sijoitukset = kumoaSijoitukset(tuore.paikat, ennen);
+        if (sijoitukset.some((s) => s.kohde.onTuloksia)) return { ok: false, syy: 'tuloksia' };
+        return { ok: true, sijoitukset };
+      },
+      () => ({ teksti: tx.undone })
+    );
+  };
 
   // --- Raahaus: kahva kaappaa osoittimen, joten liike ja irrotus tulevat kahvalle myös sormen ollessa muualla.
   const paivitaRaahaus = (muutos) => {
@@ -223,30 +278,31 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, locale = 'fi' }) {
     setRaahaus(null);
     lopetaVieritys();
     if (peru) return;
-    const kohde = ampujaRivilla(kohdeRiviPisteessa(e.clientX, e.clientY));
-    if (kohde && kohde.rivi !== r.lahde.rivi) teeVaihto(r.lahde, kohde);
+    const kohde = paikkaRivilla(kohdeRiviPisteessa(e.clientX, e.clientY));
+    if (kohde && kohde.rivi !== r.lahde.rivi) teeSiirto(r.lahde, kohde);
   };
 
   useEffect(() => lopetaVieritys, []);
 
-  // --- Napautus: ensin ampuja, sitten se, jonka kanssa vaihdetaan.
-  const napauta = (ampuja) => {
+  // --- Napautus: ensin ampuja, sitten paikka (vapaa paikka tai toinen ampuja).
+  const napauta = (paikka) => {
     if (!muokattava || tallennetaan) return;
-    if (ampuja.onTuloksia) {
-      setViesti({ teksti: tx.hasResults, virhe: true });
-      return;
+    if (valittuRivi === null) {
+      if (voiSiirtaa(paikka)) setValittuRivi(paikka.rivi);
+      else if (paikka.onTuloksia) setViesti({ teksti: tx.hasResults, virhe: true });
+    } else if (valittuRivi === paikka.rivi) {
+      setValittuRivi(null);
+    } else {
+      teeSiirto(paikkaRivilla(valittuRivi), paikka);
     }
-    if (valittuRivi === null) setValittuRivi(ampuja.rivi);
-    else if (valittuRivi === ampuja.rivi) setValittuRivi(null);
-    else teeVaihto(ampujaRivilla(valittuRivi), ampuja);
   };
 
   if (!kaytossa) {
     return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.notConfigured}</div>;
   }
 
-  const ryhmat = data ? muodostaRyhmat(data.ampujat, ryhmaKoko) : [];
-  const valittu = valittuRivi !== null ? ampujaRivilla(valittuRivi) : null;
+  const ryhmat = data ? muodostaRyhmat(data.paikat, ryhmaKoko) : [];
+  const valittu = valittuRivi !== null ? paikkaRivilla(valittuRivi) : null;
   const kohdeRivi = raahaus?.kohdeRivi ?? null;
 
   return (
@@ -306,73 +362,115 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, locale = 'fi' }) {
             <Button type="button" size="sm" variant="outline" onClick={() => setValittuRivi(null)}>{tx.cancel}</Button>
           )}
           {!tallennetaan && !valittu && viesti?.kumoa && muokattava && (
-            <Button type="button" size="sm" variant="outline" onClick={() => teeVaihto(...viesti.kumoa)}>{tx.undo}</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => kumoa(viesti.kumoa)}>{tx.undo}</Button>
           )}
+        </div>
+      )}
+
+      {data && ryhmat.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-[hsl(var(--muted-foreground))]">
+          {[['taysi', tx.legendFull], ['lahes', tx.legendOneFree], ['vajaa', tx.legendFree]].map(([aste, teksti]) => (
+            <span key={aste} className="inline-flex items-center gap-1.5">
+              <span className={`h-2.5 w-2.5 rounded-full ${TAYTTOASTE_VARIT[aste].piste}`} aria-hidden="true" />
+              {teksti}
+            </span>
+          ))}
         </div>
       )}
 
       {data && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {ryhmat.map((ryhma) => (
-            <Card key={ryhma.numero} className="overflow-hidden">
-              <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2">
-                <CardTitle className="text-base">{tx.squad} {ryhma.numero}</CardTitle>
-                <Badge variant="outline">{ryhma.ampujat.length}</Badge>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-1.5 p-2">
-                {ryhma.ampujat.map((ampuja) => {
-                  const siirrettava = voiSiirtaa(ampuja);
-                  const onLahde = raahaus?.lahde.rivi === ampuja.rivi;
-                  const onKohde = raahaus && kohdeRivi === ampuja.rivi && !onLahde;
-                  const onValittu = valittuRivi === ampuja.rivi;
-                  const kehys = onKohde
-                    ? (ampuja.onTuloksia ? 'border-rose-400 bg-rose-50' : 'border-[hsl(var(--primary))] bg-[hsl(var(--muted))] ring-2 ring-[hsl(var(--primary))]')
-                    : onValittu ? 'border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary))]' : 'border-[hsl(var(--border))]';
-                  return (
-                    <div
-                      key={ampuja.rivi}
-                      data-ampuja-rivi={ampuja.rivi}
-                      className={`flex select-none items-stretch rounded-md border bg-[hsl(var(--card))] text-sm [-webkit-touch-callout:none] ${kehys}${onLahde ? ' opacity-40' : ''}`}
+          {ryhmat.map((ryhma) => {
+            const varit = TAYTTOASTE_VARIT[ryhmanTayttoaste(ryhma)];
+            const ajat = ryhmanLahtoajat(lahtoajat, ryhma);
+            return (
+              <Card key={ryhma.numero} className={`overflow-hidden border-2 ${varit.kortti}`}>
+                <CardHeader className={`space-y-1 border-b border-[hsl(var(--border))] px-3 py-2 ${varit.otsikko}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base">{tx.squad} {ryhma.numero}</CardTitle>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${varit.merkki}`}
+                      title={tayta(tx.fillLabel, { n: ryhma.ampujia, koko: ryhma.koko })}
+                      aria-label={tayta(tx.fillLabel, { n: ryhma.ampujia, koko: ryhma.koko })}
                     >
-                      {siirrettava ? (
+                      {tayta(tx.fill, { n: ryhma.ampujia, koko: ryhma.koko })}
+                    </span>
+                  </div>
+                  {ajat.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs" aria-label={tx.startTimes}>
+                      <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {ajat.map(({ paiva, aika }) => (
+                        <span key={paiva || aika} className="tabular-nums">
+                          {paiva && <span className="font-medium">{paiva} </span>}
+                          {aika}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="flex flex-col gap-1.5 p-2">
+                  {ryhma.paikat.map((paikka) => {
+                    const onAmpuja = paikka.tyyppi === 'ampuja' || paikka.tyyppi === 'lukittu';
+                    const siirrettava = voiSiirtaa(paikka);
+                    const lukossa = paikka.onTuloksia || paikka.tyyppi === 'lukittu';
+                    const onLahde = raahaus?.lahde.rivi === paikka.rivi;
+                    const onKohde = raahaus && kohdeRivi === paikka.rivi && !onLahde;
+                    const onValittu = valittuRivi === paikka.rivi;
+                    const kehys = onKohde
+                      ? (lukossa ? 'border-rose-400 bg-rose-50' : 'border-[hsl(var(--primary))] bg-[hsl(var(--muted))] ring-2 ring-[hsl(var(--primary))]')
+                      : onValittu ? 'border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary))]'
+                        : onAmpuja ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
+                          : `border-dashed border-[hsl(var(--border))]${valittu ? ' bg-[hsl(var(--muted))]' : ''}`;
+                    return (
+                      <div
+                        key={paikka.rivi}
+                        data-ampuja-rivi={paikka.rivi}
+                        className={`flex select-none items-stretch rounded-md border text-sm [-webkit-touch-callout:none] ${kehys}${onLahde ? ' opacity-40' : ''}`}
+                      >
+                        {siirrettava ? (
+                          <button
+                            type="button"
+                            aria-label={tayta(tx.dragHandle, { nimi: paikka.nimi })}
+                            className="flex w-10 shrink-0 cursor-grab touch-none items-center justify-center text-[hsl(var(--muted-foreground))] active:cursor-grabbing"
+                            onPointerDown={(e) => aloitaRaahaus(e, paikka)}
+                            onPointerMove={liikuta}
+                            onPointerUp={(e) => pudota(e)}
+                            onPointerCancel={(e) => pudota(e, true)}
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <GripVertical className="h-5 w-5" aria-hidden="true" />
+                          </button>
+                        ) : (
+                          <span className="flex w-10 shrink-0 items-center justify-center text-[hsl(var(--muted-foreground))]" title={lukossa ? tx.locked : undefined}>
+                            {lukossa && <Lock className="h-4 w-4" aria-label={tx.locked} />}
+                          </span>
+                        )}
                         <button
                           type="button"
-                          aria-label={tayta(tx.dragHandle, { nimi: ampuja.nimi })}
-                          className="flex w-10 shrink-0 cursor-grab touch-none items-center justify-center text-[hsl(var(--muted-foreground))] active:cursor-grabbing"
-                          onPointerDown={(e) => aloitaRaahaus(e, ampuja)}
-                          onPointerMove={liikuta}
-                          onPointerUp={(e) => pudota(e)}
-                          onPointerCancel={(e) => pudota(e, true)}
-                          onClick={(e) => e.preventDefault()}
+                          className="flex min-h-11 flex-1 items-center gap-2 py-1.5 pr-3 text-left disabled:cursor-default"
+                          onClick={() => napauta(paikka)}
+                          disabled={!muokattava || tallennetaan || (!onAmpuja && !valittu)}
+                          aria-pressed={onValittu}
                         >
-                          <GripVertical className="h-5 w-5" aria-hidden="true" />
+                          <span className="w-8 shrink-0 text-right font-semibold tabular-nums text-[hsl(var(--muted-foreground))]" translate="no">{paikka.nro}</span>
+                          {onAmpuja ? (
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium" translate="no">{paikka.nimi}</span>
+                              <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]" translate="no">
+                                {[paikka.sarja, paikka.seura].filter(Boolean).join(' · ')}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="min-w-0 flex-1 italic text-[hsl(var(--muted-foreground))]">{tx.freeSlot}</span>
+                          )}
                         </button>
-                      ) : (
-                        <span className="flex w-10 shrink-0 items-center justify-center text-[hsl(var(--muted-foreground))]" title={ampuja.onTuloksia ? tx.locked : undefined}>
-                          {ampuja.onTuloksia && <Lock className="h-4 w-4" aria-label={tx.locked} />}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        className="flex min-h-11 flex-1 items-center gap-2 py-1.5 pr-3 text-left disabled:cursor-default"
-                        onClick={() => napauta(ampuja)}
-                        disabled={!muokattava || tallennetaan}
-                        aria-pressed={onValittu}
-                      >
-                        <span className="w-8 shrink-0 text-right font-semibold tabular-nums text-[hsl(var(--muted-foreground))]" translate="no">{ampuja.nro}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium" translate="no">{ampuja.nimi}</span>
-                          <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]" translate="no">
-                            {[ampuja.sarja, ampuja.seura].filter(Boolean).join(' · ')}
-                          </span>
-                        </span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          ))}
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 

@@ -3,13 +3,17 @@ import assert from 'node:assert/strict';
 
 import {
   etsiOsallistujaAlue,
+  kumoaSijoitukset,
   muodostaRyhmat,
+  nimetTasmaavat,
+  odotetutNimet,
   osallistujaAlueA1,
   parsiOsallistujat,
   ryhmaKokoAsetuksesta,
-  tarkistaVaihto,
-  vaihdaPaikallisesti,
-  vaihtoPyynnot
+  ryhmanTayttoaste,
+  siirtoPyynnot,
+  sovellaPaikallisesti,
+  suunnitteleSiirto
 } from './ryhmaMuokkaus.js';
 
 const teksti = (arvo) => ({ formattedValue: arvo, userEnteredValue: { stringValue: arvo } });
@@ -56,68 +60,119 @@ test('alue löytyy nimetystä alueesta ja otsikkorivi on sen yläpuolella', () =
   assert.throws(() => etsiOsallistujaAlue({ namedRanges: [], sheets: [] }), /OSALLISTUJAT/);
 });
 
-test('ampujat, tulokset ja ryhmät paikkajärjestyksessä', () => {
-  const { sarakkeet, ampujat } = parsiOsallistujat(rowData, alue);
+const lue = (rivit = rowData) => parsiOsallistujat(rivit, alue);
+const kuvaa = (sijoitukset) => sijoitukset.map(({ kohde, lahde }) => [kohde.rivi, lahde ? lahde.nimi : null]);
+const pyyntoArvot = (pyynto) => pyynto.updateCells.rows[0].values.map((v) => {
+  const arvo = v.userEnteredValue;
+  return arvo ? (arvo.stringValue ?? arvo.numberValue) : null;
+});
+
+test('paikat, tyypit, tulokset ja ryhmät paikkajärjestyksessä', () => {
+  const { sarakkeet, paikat, ampujat } = lue();
   assert.equal(sarakkeet.nimi, 2);
   assert.equal(sarakkeet.leveys, 8);
   assert.deepEqual(sarakkeet.tulokset, [6, 7]);
+  assert.deepEqual(paikat.map((p) => p.tyyppi), ['ampuja', 'ampuja', 'ampuja', 'ampuja', 'ampuja', 'ampuja', 'vapaa', 'tyhja']);
   assert.deepEqual(ampujat.map((a) => a.nimi), ['Mika Pöllänen', 'Kenneth Asplund', 'Ilpo Mäläskä', 'Titta Pääkkönen', 'Mikko Norrback', 'Pauli Moilanen']);
   assert.equal(ampujat[3].onTuloksia, true);
   assert.equal(ampujat[0].onTuloksia, false);
-  assert.equal(ampujat[1].nro, '2');
-  assert.equal(ampujat[1].rivi, 2);
+  assert.deepEqual([paikat[1].nro, paikat[1].rivi, paikat[1].paikka], ['2', 2, 1]);
+  assert.equal(paikat[7].nro, '8');
 
-  const ryhmat = muodostaRyhmat(ampujat, 5);
-  assert.deepEqual(ryhmat.map((r) => [r.numero, r.ampujat.length]), [[1, 5], [2, 1]]);
+  const ryhmat = muodostaRyhmat(paikat, 5);
+  assert.deepEqual(ryhmat.map((r) => [r.numero, r.koko, r.paikat.length, r.ampujia]), [[1, 5, 5, 5], [2, 5, 3, 1]]);
+  assert.deepEqual(ryhmat.map(ryhmanTayttoaste), ['taysi', 'vajaa']);
+  assert.equal(ryhmanTayttoaste({ ampujia: 4, koko: 5 }), 'lahes');
+  assert.equal(ryhmanTayttoaste({ ampujia: 0, koko: 5 }), 'tyhja');
   assert.equal(ryhmaKokoAsetuksesta('group6'), 6);
   assert.equal(ryhmaKokoAsetuksesta('inline'), 5);
 });
 
-test('vaihto siirtää syötetyt solut mutta ei kaavoja, kaavojen täyttämiä soluja eikä Ohjeita-saraketta', () => {
-  const { sarakkeet, ampujat } = parsiOsallistujat(rowData, alue);
-  const [mika, kenneth] = ampujat;
-  const pyynnot = vaihtoPyynnot(alue.sheetId, mika, kenneth, sarakkeet.leveys);
-  // Sarakkeet B..E yhtenä alueena kumpaankin suuntaan; NRO (A), TULOS (F) ja tyhjät asemat jäävät pois.
-  assert.equal(pyynnot.length, 2);
-  const [mikanRivi, kennethinRivi] = pyynnot.map((p) => p.updateCells);
-  assert.deepEqual(mikanRivi.range, { sheetId: 7, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 1, endColumnIndex: 5 });
-  assert.deepEqual(mikanRivi.rows[0].values.map((v) => v.userEnteredValue.stringValue), ['OK', 'Kenneth Asplund', 'Y', 'JSF']);
-  assert.deepEqual(kennethinRivi.rows[0].values.map((v) => v.userEnteredValue.stringValue), ['OK', 'Mika Pöllänen', 'Y', 'KajA']);
-  assert.equal(mikanRivi.fields, 'userEnteredValue');
+test('siirto vapaalle paikalle: ampuja siirtyy ja hänen paikkansa vapautuu numerolla', () => {
+  const { sarakkeet, paikat } = lue();
+  const suunnitelma = suunnitteleSiirto(paikat, 1, 7, 5);
+  assert.equal(suunnitelma.toiminto, 'siirto');
+  assert.deepEqual(kuvaa(suunnitelma.sijoitukset), [[7, 'Mika Pöllänen'], [1, null]]);
+
+  const { ok, pyynnot } = siirtoPyynnot(alue.sheetId, suunnitelma.sijoitukset, sarakkeet);
+  assert.equal(ok, true);
+  // Sarakkeet B..E; NRO (A), TULOS (F) ja tyhjät asemat jäävät pois.
+  assert.deepEqual(pyynnot.map((p) => p.updateCells.range), [
+    { sheetId: 7, startRowIndex: 7, endRowIndex: 8, startColumnIndex: 1, endColumnIndex: 5 },
+    { sheetId: 7, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 1, endColumnIndex: 5 }
+  ]);
+  assert.deepEqual(pyyntoArvot(pyynnot[0]), ['OK', 'Mika Pöllänen', 'Y', 'KajA']);
+  assert.deepEqual(pyyntoArvot(pyynnot[1]), [null, 1, null, null]);
+  assert.equal(pyynnot[0].updateCells.fields, 'userEnteredValue');
+
+  const uudet = sovellaPaikallisesti(paikat, suunnitelma.sijoitukset);
+  assert.deepEqual([uudet[0].tyyppi, uudet[0].nimi, uudet[0].nro], ['vapaa', '1', '1']);
+  assert.deepEqual([uudet[6].tyyppi, uudet[6].nimi, uudet[6].nro, uudet[6].rivi], ['ampuja', 'Mika Pöllänen', '7', 7]);
 });
 
-test('toisen rivin tyhjä solu siirtyy tyhjänä', () => {
-  const a = { rivi: 1, solut: [taytetty('1'), teksti('OK'), teksti('A')] };
-  const b = { rivi: 2, solut: [taytetty('2'), {}, teksti('B')] };
-  const [aanRivi, bnRivi] = vaihtoPyynnot(0, a, b, 3).map((p) => p.updateCells);
-  assert.deepEqual(aanRivi.rows[0].values, [{}, { userEnteredValue: { stringValue: 'B' } }]);
-  assert.deepEqual(bnRivi.rows[0].values, [{ userEnteredValue: { stringValue: 'OK' } }, { userEnteredValue: { stringValue: 'A' } }]);
+test('siirto tyhjälle riville täyttää väliin jäävät tyhjät rivit vapailla paikoilla', () => {
+  const rivit = [otsikko, rivi(1, 'Mika Pöllänen', 'Y', 'KajA'), { values: [] }, { values: [] }];
+  const { sarakkeet, paikat } = parsiOsallistujat(rivit, { ...alue, loppuRivi: 4 });
+  const suunnitelma = suunnitteleSiirto(paikat, 1, 3, 5);
+  assert.deepEqual(kuvaa(suunnitelma.sijoitukset), [[3, 'Mika Pöllänen'], [1, null], [2, null]]);
+  const { pyynnot } = siirtoPyynnot(0, suunnitelma.sijoitukset, sarakkeet);
+  assert.deepEqual(pyynnot.map(pyyntoArvot), [['OK', 'Mika Pöllänen', 'Y', 'KajA'], [null, 1, null, null], [2]]);
+  assert.deepEqual(odotetutNimet(suunnitelma.sijoitukset), [{ rivi: 3, nimi: 'Mika Pöllänen' }, { rivi: 1, nimi: '1' }, { rivi: 2, nimi: '2' }]);
 });
 
-test('vaihto torjutaan, jos taulukko on muuttunut tai ampujalla on tuloksia', () => {
-  const { ampujat } = parsiOsallistujat(rowData, alue);
-  const [mika, kenneth, , titta] = ampujat;
-  assert.equal(tarkistaVaihto(ampujat, mika, kenneth).ok, true);
-  assert.deepEqual(tarkistaVaihto(ampujat, mika, titta), { ok: false, syy: 'tuloksia' });
-  assert.deepEqual(tarkistaVaihto(ampujat, { ...mika, nimi: 'Joku muu' }, kenneth), { ok: false, syy: 'muuttunut' });
-  assert.deepEqual(tarkistaVaihto(ampujat, mika, mika), { ok: false, syy: 'muuttunut' });
+test('järjestys ryhmän sisällä siirtää väliin jäävät yhdellä', () => {
+  const { paikat } = lue();
+  const alas = suunnitteleSiirto(paikat, 1, 2, 5);
+  assert.equal(alas.toiminto, 'jarjestys');
+  assert.deepEqual(kuvaa(alas.sijoitukset), [[1, 'Kenneth Asplund'], [2, 'Mika Pöllänen']]);
+  const ylos = suunnitteleSiirto(paikat, 3, 1, 5);
+  assert.deepEqual(kuvaa(ylos.sijoitukset), [[1, 'Ilpo Mäläskä'], [2, 'Mika Pöllänen'], [3, 'Kenneth Asplund']]);
+  // Välissä on ampuja, jolla on tuloksia.
+  assert.deepEqual(suunnitteleSiirto(paikat, 1, 5, 5), { ok: false, syy: 'tuloksia' });
 });
 
-test('paikallinen vaihto vaihtaa ampujat ja pitää paikkojen numerot', () => {
-  const { ampujat } = parsiOsallistujat(rowData, alue);
-  const uusi = vaihdaPaikallisesti(ampujat, ampujat[0], ampujat[4]);
-  assert.equal(uusi[0].nimi, 'Mikko Norrback');
-  assert.equal(uusi[0].nro, '1');
-  assert.equal(uusi[0].rivi, 1);
-  assert.equal(uusi[4].nimi, 'Mika Pöllänen');
-  assert.equal(uusi[4].nro, '5');
+test('toisen ryhmän ampujan kanssa paikat vaihtuvat', () => {
+  const { sarakkeet, paikat } = lue();
+  const suunnitelma = suunnitteleSiirto(paikat, 1, 6, 5);
+  assert.equal(suunnitelma.toiminto, 'vaihto');
+  assert.deepEqual(kuvaa(suunnitelma.sijoitukset), [[6, 'Mika Pöllänen'], [1, 'Pauli Moilanen']]);
+  const { pyynnot } = siirtoPyynnot(alue.sheetId, suunnitelma.sijoitukset, sarakkeet);
+  assert.deepEqual(pyynnot.map(pyyntoArvot), [['OK', 'Mika Pöllänen', 'Y', 'KajA'], ['OK', 'Pauli Moilanen', 'Y', 'KajA']]);
+});
+
+test('siirto torjutaan, jos lähde ei ole ampuja, kohde on lukittu tai jommallakummalla on tuloksia', () => {
+  const { paikat } = lue();
+  assert.deepEqual(suunnitteleSiirto(paikat, 7, 1, 5), { ok: false, syy: 'muuttunut' });
+  assert.deepEqual(suunnitteleSiirto(paikat, 1, 1, 5), { ok: false, syy: 'muuttunut' });
+  assert.deepEqual(suunnitteleSiirto(paikat, 1, 99, 5), { ok: false, syy: 'muuttunut' });
+  assert.deepEqual(suunnitteleSiirto(paikat, 4, 7, 5), { ok: false, syy: 'tuloksia' });
+  assert.deepEqual(suunnitteleSiirto(paikat, 6, 4, 5), { ok: false, syy: 'tuloksia' });
+});
+
+test('kumoaminen palauttaa rivit ennalleen ja tarkistaa, ettei niitä ole muutettu välissä', () => {
+  const { sarakkeet, paikat } = lue();
+  const suunnitelma = suunnitteleSiirto(paikat, 1, 7, 5);
+  const ennen = suunnitelma.sijoitukset.map((s) => s.kohde);
+  const odotetut = odotetutNimet(suunnitelma.sijoitukset);
+  const jalkeen = sovellaPaikallisesti(paikat, suunnitelma.sijoitukset);
+  assert.equal(nimetTasmaavat(jalkeen, odotetut), true);
+  assert.equal(nimetTasmaavat(paikat, odotetut), false);
+
+  const kumous = kumoaSijoitukset(jalkeen, ennen);
+  assert.deepEqual(kuvaa(kumous), [[7, '7'], [1, 'Mika Pöllänen']]);
+  const { pyynnot } = siirtoPyynnot(alue.sheetId, kumous, sarakkeet);
+  // Rivin 7 nimi palaa sellaisenaan (teksti "7"), ja Mikan rivi saa tietonsa takaisin.
+  assert.deepEqual(pyynnot.map(pyyntoArvot), [[null, '7', null, null], ['OK', 'Mika Pöllänen', 'Y', 'KajA']]);
+  assert.deepEqual(sovellaPaikallisesti(jalkeen, kumous).map((p) => p.nimi), paikat.map((p) => p.nimi));
 });
 
 test('Ryhmä-sarake ratkaisee ryhmän, ja avoin alue päättyy välilehden loppuun', () => {
   const otsikkoRyhma = { values: [...otsikko.values.slice(0, 8), kaava('Ryhmä', '={"Ryhmä";ARRAYFORMULA(ROUNDUP(SEQUENCE(8)/6))}')] };
   const rivit = [otsikkoRyhma, ...rowData.slice(1, 7).map((r, i) => ({ values: [...r.values.slice(0, 8), taytetty(String(Math.ceil((i + 1) / 6)))] }))];
-  const { ampujat } = parsiOsallistujat(rivit, alue);
-  assert.deepEqual(muodostaRyhmat(ampujat, 5).map((r) => r.ampujat.length), [6]);
+  const { paikat } = parsiOsallistujat(rivit, { ...alue, loppuRivi: 7 });
+  assert.deepEqual(muodostaRyhmat(paikat, 5).map((r) => [r.koko, r.ampujia]), [[6, 6]]);
+  // Ryhmä-sarakkeen mukaan Mikko ja Pauli ovat samassa ryhmässä, joten siirto on järjestyksen muutos.
+  assert.equal(suunnitteleSiirto(paikat, 5, 6, 5).toiminto, 'jarjestys');
 
   const meta = {
     namedRanges: [{ name: 'OSALLISTUJAT', range: { sheetId: 7, startRowIndex: 1 } }],
@@ -126,11 +181,16 @@ test('Ryhmä-sarake ratkaisee ryhmän, ja avoin alue päättyy välilehden loppu
   assert.equal(etsiOsallistujaAlue(meta).loppuRivi, 200);
 });
 
-test('kaavan täyttämä nimi ei ole siirrettävä ampuja, ja kaava vastaan syötetty arvo torjuu vaihdon', () => {
+test('kaavan täyttämä nimi on lukittu, ja kaava vastaan syötetty arvo torjuu siirron', () => {
   const rivit = [otsikko, { values: [taytetty('1'), teksti('OK'), taytetty('Kaava Nimi')] }, rivi(2, 'Kenneth Asplund', 'Y', 'JSF')];
-  assert.deepEqual(parsiOsallistujat(rivit, alue).ampujat.map((a) => a.nimi), ['Kenneth Asplund']);
+  const { paikat } = parsiOsallistujat(rivit, { ...alue, loppuRivi: 3 });
+  assert.deepEqual(paikat.map((p) => p.tyyppi), ['lukittu', 'ampuja']);
+  assert.deepEqual(suunnitteleSiirto(paikat, 2, 1, 5), { ok: false, syy: 'muuttunut' });
 
-  const a = { rivi: 1, nimi: 'A', solut: [taytetty('1'), teksti('OK'), teksti('A'), teksti('Y'), teksti('S')] };
-  const b = { rivi: 2, nimi: 'B', solut: [taytetty('2'), teksti('OK'), teksti('B'), teksti('Y'), kaava('S', '=VLOOKUP(C3;X;2)')] };
-  assert.deepEqual(tarkistaVaihto([a, b], a, b, 5), { ok: false, syy: 'kaavoja' });
+  const sarakkeet = { leveys: 5, nimi: 2 };
+  const a = { rivi: 1, paikka: 0, nro: '1', nimi: 'A', solut: [taytetty('1'), teksti('OK'), teksti('A'), teksti('Y'), teksti('S')] };
+  const b = { rivi: 2, paikka: 1, nro: '2', nimi: 'B', solut: [taytetty('2'), teksti('OK'), teksti('B'), teksti('Y'), kaava('S', '=VLOOKUP(C3;X;2)')] };
+  assert.deepEqual(siirtoPyynnot(0, [{ kohde: b, lahde: a }, { kohde: a, lahde: b }], sarakkeet), { ok: false, syy: 'kaavoja' });
+  // Vapaaksi jäävän rivin kaavaa ei kosketa.
+  assert.deepEqual(siirtoPyynnot(0, [{ kohde: b, lahde: null }], sarakkeet).pyynnot.map(pyyntoArvot), [[null, 2, null]]);
 });

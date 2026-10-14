@@ -983,6 +983,8 @@ export default function App() {
               key={valittuKisa.apiUrl}
               sheetId={valittuKisa.apiUrl}
               ryhmaKoko={ryhmaKokoAsetuksesta(aikatauluRyhmittelyAsetus)}
+              ryhmittely={aikatauluRyhmittelyAsetus}
+              aikataulut={aikatauluCsvList}
               locale={locale}
             />
           )}
