@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Private sheets: the API serves only the tabs the UI reads (`KISANSPEKSIT`, `Tulokset Y`, `NEW_Joukkue`,
+  `Ryhmäjako`, `Ilmoittautuneet`, `Aikataulu`, `Aikataulu La`, `Aikataulu Su`, `Timetable`); other tabs get 400.
+  The registry is read through the Sheets API instead of the docs.google.com CSV export, the service account
+  token only has the `spreadsheets.readonly` scope, and the unused `api/laukaukset.js` (gviz on `Kierrokset`) is removed.
+  No layout change. Every competition sheet in the registry and the registry itself must be shared with the
+  service account before "anyone with the link" is turned off.
 - Master template: `KISANSPEKSIT` is rebuilt in sections (columns Selite / Avain / Arvo / Ohje; value right of
   the key) with the station table under `Asema` / `Maks` in F2. Same keys and values as before; the old tab
   is kept hidden as `KISANSPEKSIT vanha`. Existing competition sheets are unchanged. No UI change: keys are

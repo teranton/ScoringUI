@@ -11,6 +11,18 @@ const valilehtiCache = luoValimuisti('valilehdet');
 
 const normalisoi = (nimi) => String(nimi || '').trim().toLowerCase();
 
+// Välilehdet, joita frontend lukee (contract/sheet-layout.md). API ei anna muita välilehtiä,
+// koska taulukoissa on myös tietoja, joita ei julkaista (esim. Suomisport-tuonti ja Sportti-ID:t).
+export const SALLITUT_VALILEHDET = [
+  'KISANSPEKSIT', 'Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet',
+  'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'Timetable'
+];
+const sallitutNormalisoituna = new Set(SALLITUT_VALILEHDET.map(normalisoi));
+
+export function onSallittuValilehti(nimi) {
+  return sallitutNormalisoituna.has(normalisoi(nimi));
+}
+
 function csvKentta(arvo) {
   const teksti = arvo == null ? '' : String(arvo);
   return /[",\r\n]|^\s|\s$/.test(teksti) ? `"${teksti.replace(/"/g, '""')}"` : teksti;

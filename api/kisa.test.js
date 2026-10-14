@@ -21,11 +21,11 @@ mock.module('./_lib/googleAuth.js', { namedExports: {
   onKiintioVirhe: () => false,
   pyyntoUudelleenyrittaen: (request, opts) => request(opts),
   haeGoogleAsiakas: async () => ({ request: async ({ url }) => {
-    if (url.includes('docs.google.com')) {
-      return { data: `ID,Nimi,Alku,Loppu,Sheet\n1,Vanha,2025-07-05,2025-07-06,${VANHA}\n2,Korjattava,${kolmePaivaaSitten},${kolmePaivaaSitten},${KORJATTAVA}` };
+    if (url.includes('/values/A:Z')) {
+      return { data: { values: [['ID', 'Nimi', 'Alku', 'Loppu', 'Sheet'], ['1', 'Vanha', '2025-07-05', '2025-07-06', VANHA], ['2', 'Korjattava', kolmePaivaaSitten, kolmePaivaaSitten, KORJATTAVA]] } };
     }
     googleHaut++;
-    if (!url.includes('batchGet')) return { data: { sheets: ['Tulokset Y', 'A', 'B'].map((title) => ({ properties: { title } })) } };
+    if (!url.includes('batchGet')) return { data: { sheets: ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako'].map((title) => ({ properties: { title } })) } };
     const alueet = new URL(url).searchParams.getAll('ranges');
     return { data: { valueRanges: alueet.map(() => ({ values: [['NIMI'], ['uusi']] })) } };
   } })
@@ -70,7 +70,7 @@ async function hae(sheetId, nimi) {
 }
 
 const kuva = (ika, csv, alkuPvm = '2025-07-05', loppuPvm = '2025-07-06') => ({
-  versio: 1, tallennettu: Date.now() - ika, paivaTila: 'paattynyt', alkuPvm, loppuPvm, csvByName: { A: csv }, notFound: []
+  versio: 1, tallennettu: Date.now() - ika, paivaTila: 'paattynyt', alkuPvm, loppuPvm, csvByName: { NEW_Joukkue: csv }, notFound: []
 });
 
 test('Google-haun jälkeen kuva tallennetaan vastauksen jälkeen', async () => {
@@ -85,24 +85,24 @@ test('Google-haun jälkeen kuva tallennetaan vastauksen jälkeen', async () => {
 
 test('korjausajan jälkeen vanha kuva annetaan heti ja päivitetään taustalla', async () => {
   taustat = [];
-  blob.set(`kisat/${VANHA}/A`, kuva(3 * PAIVA, 'vanha'));
+  blob.set(`kisat/${VANHA}/NEW_Joukkue`, kuva(3 * PAIVA, 'vanha'));
   const hautEnnen = googleHaut;
-  const r = await hae(VANHA, 'A');
+  const r = await hae(VANHA, 'NEW_Joukkue');
   assert.equal(r.b.timing.source, 'snapshot-stale');
-  assert.equal(r.b.csvByName.A, 'vanha');
+  assert.equal(r.b.csvByName.NEW_Joukkue, 'vanha');
   assert.equal(r.h['Cache-Control'], VANHA_KUVA_OTSIKKO);
   assert.equal(taustat.length, 1);
   await odotaTaustat();
   assert.ok(googleHaut > hautEnnen);
-  assert.match(blob.get(`kisat/${VANHA}/A`).csvByName.A, /uusi/);
-  assert.equal((await hae(VANHA, 'A')).b.timing.source, 'server-cache');
+  assert.match(blob.get(`kisat/${VANHA}/NEW_Joukkue`).csvByName.NEW_Joukkue, /uusi/);
+  assert.equal((await hae(VANHA, 'NEW_Joukkue')).b.timing.source, 'server-cache');
 });
 
 test('tuore kuva ei hae Googlesta', async () => {
   taustat = [];
-  blob.set(`kisat/${VANHA}/B`, kuva(5 * 60 * 60 * 1000, 'tuore'));
+  blob.set(`kisat/${VANHA}/Ryhmäjako`, kuva(5 * 60 * 60 * 1000, 'tuore'));
   const hautEnnen = googleHaut;
-  const r = await hae(VANHA, 'B');
+  const r = await hae(VANHA, 'Ryhmäjako');
   assert.equal(r.b.timing.source, 'snapshot');
   assert.equal(googleHaut, hautEnnen);
   assert.equal(taustat.length, 0);
@@ -111,8 +111,21 @@ test('tuore kuva ei hae Googlesta', async () => {
 test('korjausaika lasketaan rekisterin nykyisistä päivistä, ei kuvaan tallennetuista', async () => {
   taustat = [];
   // Kuvassa on vanhat (väärät) päivät, mutta rekisterin mukaan kisa on korjausajassa.
-  blob.set(`kisat/${KORJATTAVA}/A`, kuva(3 * PAIVA, 'vanha'));
-  const r = await hae(KORJATTAVA, 'A');
+  blob.set(`kisat/${KORJATTAVA}/NEW_Joukkue`, kuva(3 * PAIVA, 'vanha'));
+  const r = await hae(KORJATTAVA, 'NEW_Joukkue');
   assert.equal(r.b.timing.source, 'google');
-  assert.match(r.b.csvByName.A, /uusi/);
+  assert.match(r.b.csvByName.NEW_Joukkue, /uusi/);
+});
+
+test('muita kuin julkaistavia välilehtiä ei anneta', async () => {
+  const hautEnnen = googleHaut;
+  const r = await hae(VANHA, 'Suomisport Import');
+  assert.equal(r.s, 400);
+  assert.deepEqual(r.b.sheetNames, ['Suomisport Import']);
+  assert.equal(googleHaut, hautEnnen);
+});
+
+test('välilehden nimen kirjainkoolla ei ole väliä', async () => {
+  const r = await hae(VANHA, ' tulokset y ');
+  assert.equal(r.s, 200);
 });
