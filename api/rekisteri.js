@@ -5,7 +5,7 @@ import { haeRekisteriCsv } from './_lib/sheetAllowlist.js';
 
 export default async function handler(req, res) {
   try {
-    // Haetaan päärekisteri Googlen export-rajapinnasta botin tunnuksilla.
+    // Haetaan päärekisteri Sheets API:lla palvelutilin tunnuksilla.
     // CDN pitää listan 5 min tuoreena ja palauttaa vanhan heti, kun uusi haetaan taustalla.
     const csvText = await haeRekisteriCsv();
 

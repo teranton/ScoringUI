@@ -427,7 +427,7 @@ export default function App() {
         joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
         eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
         ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
-        aikatauluCsvRaw: csvByName['Aikataulu'] || csvByName['Timetable'] || vanhaData.aikatauluCsvRaw || "",
+        aikatauluCsvRaw: csvByName['Aikataulu'] || vanhaData.aikatauluCsvRaw || "",
         aikatauluLaCsvRaw: onkoStaattinen
           ? (csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "")
           : (csvByName['Aikataulu La'] || ""),

@@ -129,3 +129,10 @@ test('välilehden nimen kirjainkoolla ei ole väliä', async () => {
   const r = await hae(VANHA, ' tulokset y ');
   assert.equal(r.s, 200);
 });
+
+test('julkaistavat välilehdet annetaan, vaikka mukana olisi muita', async () => {
+  const r = vastaus();
+  await handler({ query: { sheetId: VANHA, sheetNames: ['Tulokset Y', 'KITI_DATA'] }, headers: {} }, r);
+  assert.equal(r.s, 200);
+  assert.deepEqual(Object.keys(r.b.csvByName), ['Tulokset Y']);
+});

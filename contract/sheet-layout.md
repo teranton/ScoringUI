@@ -26,7 +26,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx` |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
 
-Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is accepted as a fallback for `Aikataulu`.
+Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
 
 The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`); any other tab
 (`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
@@ -109,4 +109,4 @@ when they are missing): `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `Asemien määr
 ## To do
 
 - Add CSV fixtures exported from the dev sheet under `contract/fixtures/` and use them in tests.
-- Confirm the exact header row of `Tulokset Y` and `Kierrokset` against the dev sheet.
+- Confirm the exact header row of `Tulokset Y` against the dev sheet.

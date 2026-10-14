@@ -103,7 +103,7 @@ export default async function handler(req, res) {
   const alku = Date.now();
   const { sheetId } = req.query;
   const raakaNimet = req.query.sheetNames;
-  const nimet = [...new Set((Array.isArray(raakaNimet) ? raakaNimet : [raakaNimet])
+  let nimet = [...new Set((Array.isArray(raakaNimet) ? raakaNimet : [raakaNimet])
     .map(decodeQueryValue)
     .map((n) => n.trim())
     .filter(Boolean))];
@@ -112,8 +112,13 @@ export default async function handler(req, res) {
   if (nimet.length === 0 || nimet.length > MAKS_VALILEHDET) {
     return lahetaVirhe(res, 400, { error: `sheetNames: 1–${MAKS_VALILEHDET} välilehteä` });
   }
+  // Muita välilehtiä ei julkaista. Jos frontend pyytää vain niitä, pyyntö torjutaan; muuten ne jätetään pois.
   const eiSallitut = nimet.filter((n) => !onSallittuValilehti(n));
-  if (eiSallitut.length) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
+  if (eiSallitut.length === nimet.length) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
+  if (eiSallitut.length) {
+    console.error('[KISA] Ohitetaan välilehdet, joita ei julkaista:', eiSallitut);
+    nimet = nimet.filter(onSallittuValilehti);
+  }
 
   const polku = kuvanPolku(sheetId, nimet);
   const tallessa = await vastausValimuisti.hae(polku);

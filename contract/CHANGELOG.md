@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Private sheets: the API serves only the tabs the UI reads (`KISANSPEKSIT`, `Tulokset Y`, `NEW_Joukkue`,
-  `Ryhmäjako`, `Ilmoittautuneet`, `Aikataulu`, `Aikataulu La`, `Aikataulu Su`, `Timetable`); other tabs get 400.
+  `Ryhmäjako`, `Ilmoittautuneet`, `Aikataulu`, `Aikataulu La`, `Aikataulu Su`). Other tabs are left out of the response (400 if nothing else
+  was asked for). `Timetable` was never requested and is not served.
   The registry is read through the Sheets API instead of the docs.google.com CSV export, the service account
   token only has the `spreadsheets.readonly` scope, and the unused `api/laukaukset.js` (gviz on `Kierrokset`) is removed.
   No layout change. Every competition sheet in the registry and the registry itself must be shared with the
