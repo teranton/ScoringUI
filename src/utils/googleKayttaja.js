@@ -6,6 +6,8 @@
 
 const GIS_URL = 'https://accounts.google.com/gsi/client';
 const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+// Sähköposti näytetään, jotta usean Google-tilin käyttäjä näkee, millä tilillä on kirjautunut.
+const SCOPET = `${SCOPE} email`;
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 
 export function googleClientId() {
@@ -33,7 +35,11 @@ export function lataaGoogleKirjautuminen() {
   return gisLupaus;
 }
 
-let tunniste = null; // { token, vanhenee }
+let tunniste = null; // { token, vanhenee, sahkoposti }
+
+export function kirjautunutTili() {
+  return onkoKirjautunut() ? tunniste.sahkoposti || '' : '';
+}
 
 export function onkoKirjautunut() {
   return Boolean(tunniste && tunniste.vanhenee > Date.now());
@@ -55,8 +61,8 @@ export function kirjaudu() {
     }
     const asiakas = oauth2.initTokenClient({
       client_id: googleClientId(),
-      scope: SCOPE,
-      callback: (vastaus) => {
+      scope: SCOPET,
+      callback: async (vastaus) => {
         if (vastaus?.error || !vastaus?.access_token) {
           hylkaa(new Error(vastaus?.error_description || vastaus?.error || 'Kirjautuminen epäonnistui.'));
           return;
@@ -67,12 +73,26 @@ export function kirjaudu() {
         }
         // Minuutti varaa, ettei tunniste vanhene kesken pyynnön.
         tunniste = { token: vastaus.access_token, vanhenee: Date.now() + (Number(vastaus.expires_in) || 3600) * 1000 - 60000 };
+        tunniste.sahkoposti = await haeSahkoposti(vastaus.access_token);
         ratkaise();
       },
-      error_callback: (virhe) => hylkaa(new Error(virhe?.type === 'popup_closed' ? 'Kirjautuminen keskeytettiin.' : 'Kirjautuminen epäonnistui.'))
+      error_callback: (virhe) => hylkaa(new Error({
+        popup_closed: 'Kirjautuminen keskeytettiin.',
+        popup_failed_to_open: 'Kirjautumisikkuna ei auennut. Salli ponnahdusikkunat tälle sivulle.'
+      }[virhe?.type] || `Kirjautuminen epäonnistui (${virhe?.type || 'tuntematon'}).`))
     });
-    asiakas.requestAccessToken();
+    // Tilin valinta joka kerta: selaimen oletustili ei aina ole se, jolla on muokkausoikeus.
+    asiakas.requestAccessToken({ prompt: 'select_account' });
   });
+}
+
+async function haeSahkoposti(token) {
+  try {
+    const vastaus = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${token}` } });
+    return vastaus.ok ? String((await vastaus.json())?.email || '') : '';
+  } catch {
+    return '';
+  }
 }
 
 export class SheetsVirhe extends Error {

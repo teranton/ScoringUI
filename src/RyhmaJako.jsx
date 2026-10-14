@@ -14,6 +14,7 @@ import {
   haeRivit,
   haeTaulukonMeta,
   kirjaudu,
+  kirjautunutTili,
   kirjauduUlos,
   lataaGoogleKirjautuminen,
   onkoKirjautunut,
@@ -267,6 +268,9 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, locale = 'fi' }) {
               </div>
             )}
           </div>
+          {kirjautunut && kirjautunutTili() && (
+            <CardDescription>{tayta(tx.signedInAs, { tili: kirjautunutTili() })}</CardDescription>
+          )}
           {kirjautunut ? (
             muokattava ? (
               <>
