@@ -90,6 +90,9 @@ const paikanNimi = (nimiSolu, tyyppi) => {
 // Vapaan paikan nimi: paikan oma numero (sama kuin arvonnassa).
 export const vapaanPaikanNimi = (paikka) => String(Number(paikka.nro) || paikka.paikka + 1);
 
+// Ampujan paikka: nimi syötetty tai kaavasta.
+const onAmpuja = (p) => p.tyyppi === 'ampuja' || p.tyyppi === 'lukittu';
+
 // rowData: spreadsheets.get-vastauksen sheets[0].data[0].rowData (otsikkorivi ensin).
 // Palauttaa alueen kaikki paikat järjestyksessä. Paikka on rivin järjestysnumero alueella (0 = ensimmäinen).
 export function parsiOsallistujat(rowData, alue) {
@@ -113,8 +116,8 @@ export function parsiOsallistujat(rowData, alue) {
       // Tyhjä rivi, jonka nimisolussa on kaava: sinne ei voi kirjoittaa.
       kaavaNimi: onKaava(nimiSolu) || onKaavanTayttama(nimiSolu),
       nimi: paikanNimi(nimiSolu, tyyppi),
-      sarja: tyyppi === 'ampuja' && sarakkeet.sarja >= 0 ? solunTeksti(solut[sarakkeet.sarja]) : '',
-      seura: tyyppi === 'ampuja' && sarakkeet.seura >= 0 ? solunTeksti(solut[sarakkeet.seura]) : '',
+      sarja: onAmpuja({ tyyppi }) && sarakkeet.sarja >= 0 ? solunTeksti(solut[sarakkeet.sarja]) : '',
+      seura: onAmpuja({ tyyppi }) && sarakkeet.seura >= 0 ? solunTeksti(solut[sarakkeet.seura]) : '',
       onTuloksia: tyyppi === 'ampuja' && sarakkeet.tulokset.some((i) => solunTeksti(solut[i]) !== ''),
       solut
     });
@@ -123,7 +126,6 @@ export function parsiOsallistujat(rowData, alue) {
 }
 
 const ryhmanNumero = (p, koko) => p.ryhma ?? Math.floor(p.paikka / koko) + 1;
-const onAmpuja = (p) => p.tyyppi === 'ampuja' || p.tyyppi === 'lukittu';
 
 // Ryhmäkoko, jolla paikat jaetaan: asetuksen koko tai suurin ryhmä, jos taulukossa on isompia (Ryhmä-sarake).
 export function laskeRyhmaKoko(paikat, kokoAsetus) {

@@ -72,11 +72,9 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
   const tx = haeTekstit('ryhmaJako', locale);
   const txAikataulu = haeTekstit('aikatauluRyhma', locale);
   // KISANSPEKSIT "Ei tuomaroivat:" -sarjat korostetaan, jotta niitä ei kerry liikaa samaan ryhmään.
-  const eiTuomaroivatSarjat = useMemo(
-    () => new Set((eiTuomaroivat || []).map((s) => String(s).trim().toUpperCase())),
-    [eiTuomaroivat]
-  );
-  const eiTuomaroi = (paikka) => paikka.tyyppi === 'ampuja' && eiTuomaroivatSarjat.has(String(paikka.sarja).trim().toUpperCase());
+  // Sarja verrataan sellaisenaan kuten ScoringLibin arvonnassa.
+  const eiTuomaroivatSarjat = useMemo(() => new Set(eiTuomaroivat || []), [eiTuomaroivat]);
+  const eiTuomaroi = (paikka) => Boolean(paikka.sarja) && eiTuomaroivatSarjat.has(paikka.sarja);
   const lahtoajat = useMemo(() => lueLahtoajat(aikataulut, ryhmittely, txAikataulu), [aikataulut, ryhmittely, txAikataulu]);
   const kaytossa = Boolean(googleClientId());
 

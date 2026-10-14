@@ -96,13 +96,23 @@ export function haeAikatauluMalliSpekseista(speksitData) {
   return haeAsetusSpekseista(speksitData, AIKATAULU_MALLI_AVAIMET, tulkitseAikatauluMalli);
 }
 
-// "Ei tuomaroivat:" – sarjat, joiden ampujat eivät tuomaroi (pilkuilla eroteltu lista, kuten ScoringLibin
-// ConfigManager.parseCsv). Arvona on avaimen oikealla puolella oleva solu. Palauttaa sarjat sellaisinaan.
-const EI_TUOMAROIVAT_AVAIMET = asetusJoukko(['Ei tuomaroivat:']);
+// "Ei tuomaroivat:" – sarjat, joiden ampujat eivät tuomaroi. Luetaan kuten ScoringLib (Speksit.js,
+// ConfigManager.parseCsv): ensimmäisen avaimen viereinen solu, avaimen puuttuessa vanha solu B20,
+// pilkuilla eroteltu lista. Sarjat verrataan SARJA-sarakkeeseen sellaisinaan (Distributor.js: indexOf).
+const EI_TUOMAROIVAT_AVAIN = normalisoiAsetus('Ei tuomaroivat:');
 
 export function haeEiTuomaroivatSarjatSpekseista(speksitData) {
-  return haeAsetusSpekseista(speksitData, EI_TUOMAROIVAT_AVAIMET, (arvo) => {
-    const sarjat = String(arvo).split(',').map((s) => s.trim()).filter(Boolean);
-    return sarjat.length ? sarjat : null;
-  }) || [];
+  const rivit = Array.isArray(speksitData)
+    ? speksitData
+    : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
+  let arvo = null;
+  for (const rivi of rivit) {
+    const i = Array.isArray(rivi) ? rivi.findIndex((s) => normalisoiAsetus(s) === EI_TUOMAROIVAT_AVAIN) : -1;
+    if (i >= 0) {
+      arvo = rivi[i + 1];
+      break;
+    }
+  }
+  if (arvo === null) arvo = rivit[19]?.[1];
+  return String(arvo ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 }

@@ -107,7 +107,7 @@ Any other key or value is ignored and the default applies.
 | Timetable grouping | `AIKATAULU_RYHMAKOKO` | `5`, `6`, `INLINE` | `INLINE` |
 | Sponsor logos | `LOGOT_NAKYVYYS` | `TRUE`, `FALSE` | shown |
 | Tie-break prize places | `RATKO_PALKINTO_SIJA` | number | 3 |
-| Classes that don't referee (highlighted in the squad editor) | `Ei tuomaroivat:` | comma-separated classes, matched to `SARJA` (as ScoringLib's shuffle) | none |
+| Classes that don't referee (highlighted in the squad editor) | `Ei tuomaroivat:` | comma-separated classes in the cell right of the key (B20 when the key is missing), matched exactly to `SARJA`, as ScoringLib's shuffle | none |
 
 ### Keys ScoringLib reads
 
