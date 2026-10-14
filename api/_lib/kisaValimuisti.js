@@ -59,9 +59,10 @@ export function onkoKuvaTuore(kuva, nyt = Date.now()) {
   return kuvanIka(kuva, nyt) < maksimiIka;
 }
 
-// Vanhempikin kuva annetaan heti, kun se on CDN:n vanhan vastauksen rajoissa (korjausaikana 1 h + 1 vrk,
-// sen jälkeen 1 h + 30 vrk); tuore data haetaan silloin taustalla.
+// Korjausajan jälkeen tulokset eivät enää muutu: vanhempikin kuva annetaan heti CDN:n vanhan vastauksen
+// rajoissa (1 h + 30 vrk), ja tuore data haetaan silloin taustalla. Korjausaikana kelpaa vain tuore kuva.
 export function onkoKuvaKaytettava(kuva, nyt = Date.now()) {
-  const { tuore, vanha } = saanto('paattynyt', kuva, nyt);
+  if (!onkoKorjausaikaOhi(kuva, nyt)) return onkoKuvaTuore(kuva, nyt);
+  const { tuore, vanha } = SAANNOT.paattynyt;
   return kuvanIka(kuva, nyt) < (tuore + vanha) * 1000;
 }
