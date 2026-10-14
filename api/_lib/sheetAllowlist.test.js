@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { luoSheetAllowlist, normalisoiSheetId, parseRekisterinSheetIdt } from './sheetAllowlist.js';
+import { luoSheetAllowlist, normalisoiSheetId, parseRekisterinKisat, parseRekisterinSheetIdt } from './sheetAllowlist.js';
+import { rivitCsvksi } from './sheetsData.js';
 
 const ID_A = '1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 const ID_B = '1BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
@@ -80,4 +81,17 @@ test('rekisterin kisarivi ja latauksen tila ovat luettavissa', async () => {
   assert.equal(onSallittu.onLadattu(), true);
   assert.deepEqual(onSallittu.kisa(ID_A), { alkuPvm: '2026-01-01', loppuPvm: '2026-01-02' });
   assert.equal(onSallittu.kisa(ID_C), null);
+});
+
+test('Sheets API:n lyhyet rekisteririvit jäsentyvät kuten CSV-vienti', () => {
+  // Sheets API jättää rivin lopun tyhjät solut pois (F/G-liput puuttuvat).
+  const csv = rivitCsvksi([
+    ['Kisa-ID', 'Kisan nimi', 'Alkupvm', 'Loppupvm', 'Sheet ID', 'Joukkue', 'Piilotettu'],
+    ['1', 'A', '2026-01-01', '', ID_A],
+    ['2', 'B', '2026-02-01', '2026-02-02', ID_B, '1', '1']
+  ]);
+  const kisat = parseRekisterinKisat(csv);
+  assert.deepEqual([...kisat.keys()], [ID_A, ID_B]);
+  assert.deepEqual(kisat.get(ID_A), { alkuPvm: '2026-01-01', loppuPvm: '' });
+  assert.equal(rivitCsvksi([]), '');
 });
