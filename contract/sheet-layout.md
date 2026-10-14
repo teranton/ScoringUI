@@ -24,10 +24,15 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
-| `Kierrokset` | Sheet formulas | `api/laukaukset.js` (gviz query on column B = shooter) |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
 
-Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is accepted as a fallback for `Aikataulu`.
+Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
+
+The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`); any other tab
+(`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
+
+Access: the sheets and the registry are read only with the service account (`spreadsheets.readonly` scope),
+so each of them must be shared with it (Viewer is enough). They don't need "anyone with the link" sharing.
 
 ## Columns
 
@@ -56,7 +61,6 @@ so column order can change but header names must not.
 - ScoringLib's `KISANSPEKSIT` fallback cells (see "Keys ScoringLib reads"), used when a key's text is missing.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no). Row 1 is a header if B contains "nimi" or A contains "id".
-- `Kierrokset`: column B is the shooter id (`api/laukaukset.js`).
 
 ## `KISANSPEKSIT` settings
 
@@ -108,4 +112,4 @@ when they are missing): `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `Asemien määr
 ## To do
 
 - Add CSV fixtures exported from the dev sheet under `contract/fixtures/` and use them in tests.
-- Confirm the exact header row of `Tulokset Y` and `Kierrokset` against the dev sheet.
+- Confirm the exact header row of `Tulokset Y` against the dev sheet.

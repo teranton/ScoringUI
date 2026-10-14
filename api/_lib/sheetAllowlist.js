@@ -2,6 +2,7 @@
 // Estää sen, että API:lla luettaisiin mitä tahansa palvelutilille jaettua taulukkoa.
 import { parseCsvRows } from '../../src/utils/csv.js';
 import { haeGoogleAsiakas, pyyntoUudelleenyrittaen } from './googleAuth.js';
+import { rivitCsvksi } from './sheetsData.js';
 import { luoValimuisti, luoYhdistaja } from './valimuisti.js';
 
 export const REKISTERI_SHEET_ID = '1P1Zd-oPY_d3kmvdllG5rBdG6_ISjkW-ZkQVvSierEGA';
@@ -101,13 +102,14 @@ const REKISTERI_VARALLA_MAKS_MS = 24 * 60 * 60 * 1000;
 const rekisteriValimuisti = luoValimuisti('rekisteri');
 const yhdistaRekisteri = luoYhdistaja();
 
+// Rekisterin ensimmäinen välilehti Sheets API:lla palvelutilin oikeuksin (ei vaadi linkkijakoa).
+// Alue ilman välilehden nimeä tarkoittaa ensimmäistä välilehteä, kuten CSV-viennissä.
 async function haeRekisteriGooglesta() {
   const asiakas = await haeGoogleAsiakas();
   const res = await pyyntoUudelleenyrittaen((opts) => asiakas.request(opts), {
-    url: `https://docs.google.com/spreadsheets/d/${REKISTERI_SHEET_ID}/export?format=csv`,
-    responseType: 'text'
+    url: `https://sheets.googleapis.com/v4/spreadsheets/${REKISTERI_SHEET_ID}/values/A:Z?valueRenderOption=FORMATTED_VALUE`
   });
-  return res.data;
+  return rivitCsvksi(res.data.values || []);
 }
 
 export async function haeRekisteriCsv({ nyt = Date.now } = {}) {

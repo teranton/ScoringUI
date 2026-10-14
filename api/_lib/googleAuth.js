@@ -10,10 +10,8 @@ export function haeGoogleAsiakas() {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
         private_key: String(process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
       },
-      scopes: [
-        'https://www.googleapis.com/auth/spreadsheets.readonly',
-        'https://www.googleapis.com/auth/drive.readonly'
-      ],
+      // Vain lukuoikeus taulukoihin: palvelutili ei pääse Driveen eikä voi kirjoittaa.
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
     asiakasLupaus = auth.getClient().catch((error) => {
       asiakasLupaus = null;
