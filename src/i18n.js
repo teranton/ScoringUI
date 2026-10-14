@@ -169,6 +169,21 @@ const TEKSTIT = jaadyta({
       title: 'Eräjako',
       description: 'Voit järjestellä ampujia erien välillä raahaamalla.',
       heat: 'Erä'
+    },
+    saa: {
+      title: 'Sääennuste',
+      source: 'Sää: yr.no (MET Norway)',
+      rain: 'Sademäärä klo 8–20',
+      wind: 'Tuuli (suurin keskituuli klo 8–20)',
+      selkea: 'Selkeää',
+      puolipilvinen: 'Puolipilvistä',
+      pilvinen: 'Pilvistä',
+      sumu: 'Sumua',
+      tihku: 'Tihkusadetta',
+      sade: 'Sadetta',
+      lumi: 'Lumisadetta',
+      ranta: 'Räntää',
+      ukkonen: 'Ukkosta'
     }
   },
   en: {
@@ -331,6 +346,21 @@ const TEKSTIT = jaadyta({
       title: 'Heat Assignment',
       description: 'You can rearrange shooters between heats by dragging.',
       heat: 'Heat'
+    },
+    saa: {
+      title: 'Weather forecast',
+      source: 'Weather: yr.no (MET Norway)',
+      rain: 'Precipitation 8–20',
+      wind: 'Wind (max mean speed 8–20)',
+      selkea: 'Clear',
+      puolipilvinen: 'Partly cloudy',
+      pilvinen: 'Cloudy',
+      sumu: 'Fog',
+      tihku: 'Drizzle',
+      sade: 'Rain',
+      lumi: 'Snow',
+      ranta: 'Sleet',
+      ukkonen: 'Thunderstorm'
     }
   }
 });

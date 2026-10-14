@@ -18,13 +18,13 @@ export function normalisoiSheetId(arvo) {
   return /^[A-Za-z0-9_-]{20,}$/.test(teksti) ? teksti : '';
 }
 
-// Rekisterin kisat sheetId:n mukaan: { alkuPvm, loppuPvm } (sarakkeet C ja D sellaisinaan).
+// Rekisterin kisat sheetId:n mukaan: { alkuPvm, loppuPvm, paikka } (sarakkeet C, D ja H sellaisinaan).
 export function parseRekisterinKisat(csvText) {
   const kisat = new Map();
   parseCsvRows(csvText).forEach((row, i) => {
     if (i === 0 && (row[1]?.toLowerCase().includes('nimi') || row[0]?.toLowerCase().includes('id'))) return;
     const id = normalisoiSheetId(row[4]);
-    if (id && !kisat.has(id)) kisat.set(id, { alkuPvm: row[2] || '', loppuPvm: row[3] || '' });
+    if (id && !kisat.has(id)) kisat.set(id, { alkuPvm: row[2] || '', loppuPvm: row[3] || '', paikka: row[7] || '' });
   });
   return kisat;
 }
@@ -89,7 +89,7 @@ export function luoSheetAllowlist({ haeRekisteriCsv, now = () => Date.now() }) {
 
   // Onko rekisteri jo muistissa (tarkistus ei silloin odota verkkoa).
   onSallittu.onLadattu = () => sallitut !== null;
-  // Kisan rekisteririvi ({ alkuPvm, loppuPvm }) tai null.
+  // Kisan rekisteririvi ({ alkuPvm, loppuPvm, paikka }) tai null.
   onSallittu.kisa = (sheetId) => sallitut?.get(sheetId) || null;
   return onSallittu;
 }

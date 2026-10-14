@@ -39,6 +39,13 @@ export function parsiPaivamaara(pvmStr) {
   return date;
 }
 
+// Päivämäärä muodossa vvvv-kk-pp (paikallinen aika).
+export function isoPaiva(pvm) {
+  const kuukausi = String(pvm.getMonth() + 1).padStart(2, '0');
+  const paiva = String(pvm.getDate()).padStart(2, '0');
+  return `${pvm.getFullYear()}-${kuukausi}-${paiva}`;
+}
+
 export function laskeOnkoIlmoittautuminenPaattynyt(alkuStr, nykyhetki = new Date()) {
   if (!alkuStr) return true;
   const aloitusPaiva = parsiPaivamaara(alkuStr);
