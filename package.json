@@ -8,6 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "mittaa": "node scripts/mittaa-kisat.mjs",
+    "tarkista": "node scripts/mittaa-kisat.mjs --tarkista",
     "test": "node --test --experimental-test-module-mocks 'src/**/*.test.js' 'api/**/*.test.js'"
   },
   "dependencies": {
