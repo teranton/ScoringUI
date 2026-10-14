@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ennustePaivat, naytetaankoSaa, parsiKoordinaatit, poimiPaivat, saaTyyppi, tamaPaivaSuomessa } from './saaEnnuste.js';
+import { ennustePaiva, naytetaankoSaa, paivaYhteenvedot, parsiKoordinaatit, saaTyyppi, suomenAika, tamaPaivaSuomessa } from './saaEnnuste.js';
 
-const NYT = new Date(2026, 9, 14, 12, 0);
+// Ke 14.10.2026 klo 12 Suomen aikaa.
+const NYT = new Date('2026-10-14T09:00:00Z');
 
 test('koordinaatit desimaalipisteellä, muu teksti on paikan nimi', () => {
   assert.deepEqual(parsiKoordinaatit('63.67, 22.70'), { lat: 63.67, lon: 22.7 });
@@ -14,18 +15,29 @@ test('koordinaatit desimaalipisteellä, muu teksti on paikan nimi', () => {
   assert.equal(parsiKoordinaatit(''), null);
 });
 
-test('ennustepäivät: kisan päivät tästä päivästä 16 päivän päähän, enintään 4', () => {
-  assert.deepEqual(ennustePaivat('2026-10-17', '2026-10-18', NYT), ['2026-10-17', '2026-10-18']);
-  assert.deepEqual(ennustePaivat('17.10.2026', '', NYT), ['2026-10-17']);
-  // Käynnissä oleva kisa: menneitä päiviä ei näytetä.
-  assert.deepEqual(ennustePaivat('2026-10-13', '2026-10-15', NYT), ['2026-10-14', '2026-10-15']);
-  // Viimeinen ennustepäivä on 29.10.
-  assert.deepEqual(ennustePaivat('2026-10-29', '2026-10-30', NYT), ['2026-10-29']);
-  assert.deepEqual(ennustePaivat('2026-10-30', '2026-10-31', NYT), []);
-  assert.deepEqual(ennustePaivat('2026-10-12', '2026-10-13', NYT), []);
-  assert.equal(ennustePaivat('2026-10-14', '2026-10-24', NYT).length, 4);
-  assert.deepEqual(ennustePaivat('', '', NYT), []);
-  assert.deepEqual(ennustePaivat('2026-10-18', '2026-10-16', NYT), []);
+test('tuleva kisa: aloituspäivä, jos se on ennusteen sisällä (9 päivää)', () => {
+  assert.equal(ennustePaiva('2026-10-17', '2026-10-18', NYT), '2026-10-17');
+  assert.equal(ennustePaiva('17.10.2026', '', NYT), '2026-10-17');
+  assert.equal(ennustePaiva('2026-10-22', '2026-10-23', NYT), '2026-10-22');
+  assert.equal(ennustePaiva('2026-10-23', '', NYT), '');
+  assert.equal(ennustePaiva('', '', NYT), '');
+  assert.equal(ennustePaiva('2026-10-18', '2026-10-16', NYT), '');
+});
+
+test('käynnissä oleva kisa: seuraava kisapäivä, viimeisenä päivänä tämä päivä', () => {
+  assert.equal(ennustePaiva('2026-10-13', '2026-10-15', NYT), '2026-10-15');
+  assert.equal(ennustePaiva('2026-10-14', '2026-10-15', NYT), '2026-10-15');
+  assert.equal(ennustePaiva('2026-10-13', '2026-10-14', NYT), '2026-10-14');
+  assert.equal(ennustePaiva('2026-10-14', '', NYT), '2026-10-14');
+  assert.equal(ennustePaiva('2026-10-12', '2026-10-13', NYT), '');
+});
+
+test('tämä päivä ja tunti lasketaan Suomen aikaa', () => {
+  assert.equal(tamaPaivaSuomessa(new Date('2026-10-14T22:30:00Z')), '2026-10-15');
+  assert.equal(tamaPaivaSuomessa(new Date('2026-10-14T20:30:00Z')), '2026-10-14');
+  assert.deepEqual(suomenAika(new Date('2026-07-11T09:00:00Z')), { pvm: '2026-07-11', tunti: 12 });
+  // Klo 01.30 Suomessa (22.30 UTC) kisan ensimmäinen päivä on jo alkanut.
+  assert.equal(ennustePaiva('2026-10-15', '2026-10-16', new Date('2026-10-14T22:30:00Z')), '2026-10-16');
 });
 
 test('sää näytetään vain, kun paikka on annettu eikä kisa ole päättynyt', () => {
@@ -36,35 +48,43 @@ test('sää näytetään vain, kun paikka on annettu eikä kisa ole päättynyt'
   assert.equal(naytetaankoSaa({ ...kisa, alkuPvm: '1.12.2026', loppuPvm: '' }, 'tulossa', NYT), false);
 });
 
-test('WMO-koodit tyypeiksi', () => {
-  assert.equal(saaTyyppi(0), 'selkea');
-  assert.equal(saaTyyppi(2), 'puolipilvinen');
-  assert.equal(saaTyyppi(45), 'sumu');
-  assert.equal(saaTyyppi(53), 'tihku');
-  assert.equal(saaTyyppi(81), 'sade');
-  assert.equal(saaTyyppi(73), 'lumi');
-  assert.equal(saaTyyppi(95), 'ukkonen');
-  assert.equal(saaTyyppi(null), 'pilvinen');
+test('yr.no-symbolit tyypeiksi', () => {
+  assert.equal(saaTyyppi('clearsky_day'), 'selkea');
+  assert.equal(saaTyyppi('fair_night'), 'puolipilvinen');
+  assert.equal(saaTyyppi('partlycloudy_polartwilight'), 'puolipilvinen');
+  assert.equal(saaTyyppi('cloudy'), 'pilvinen');
+  assert.equal(saaTyyppi('fog'), 'sumu');
+  assert.equal(saaTyyppi('lightrainshowers_day'), 'tihku');
+  assert.equal(saaTyyppi('heavyrain'), 'sade');
+  assert.equal(saaTyyppi('sleetshowers_day'), 'ranta');
+  assert.equal(saaTyyppi('lightsnow'), 'lumi');
+  assert.equal(saaTyyppi('rainandthunder'), 'ukkonen');
+  assert.equal(saaTyyppi(''), 'pilvinen');
 });
 
-test('päiväennusteesta poimitaan pyydetyt päivät', () => {
-  const daily = {
-    time: ['2026-10-14', '2026-10-15'],
-    weather_code: [3, 61],
-    temperature_2m_max: [9.4, 7.1],
-    temperature_2m_min: [2.2, null],
-    precipitation_probability_max: [10, 80],
-    wind_speed_10m_max: [4.2, 6.8]
-  };
-  assert.deepEqual(poimiPaivat(daily, ['2026-10-15', '2026-10-16']), [
-    { pvm: '2026-10-15', koodi: 61, maks: 7.1, min: null, sade: 80, tuuli: 6.8 }
+const rivi = (time, lampo, { tuuli = 3, sade1, sade6, symboli1, symboli6, maks6, min6 } = {}) => ({
+  time,
+  data: {
+    instant: { details: { air_temperature: lampo, wind_speed: tuuli } },
+    ...(sade1 !== undefined || symboli1 ? { next_1_hours: { summary: { symbol_code: symboli1 }, details: { precipitation_amount: sade1 } } } : {}),
+    ...(sade6 !== undefined || symboli6 ? { next_6_hours: { summary: { symbol_code: symboli6 }, details: { precipitation_amount: sade6, air_temperature_max: maks6, air_temperature_min: min6 } } } : {})
+  }
+});
+
+test('päivän yhteenveto kisa-ajalta (klo 8–20 Suomen aikaa)', () => {
+  const sarja = [
+    rivi('2026-10-15T03:00:00Z', 1, { sade1: 5, symboli1: 'rain' }), // klo 6: ei mukana
+    rivi('2026-10-15T06:00:00Z', 4, { sade1: 0.2, symboli1: 'cloudy', sade6: 1, symboli6: 'partlycloudy_day', tuuli: 2 }),
+    rivi('2026-10-15T09:00:00Z', 9, { sade1: 0.3, symboli1: 'lightrain', sade6: 2, symboli6: 'rain', tuuli: 6.5 }),
+    rivi('2026-10-15T17:00:00Z', 6, { sade1: 0, symboli1: 'cloudy' }),
+    rivi('2026-10-15T18:00:00Z', 5, { sade1: 4, symboli1: 'rain' }), // klo 21: ei mukana
+    // Kauempana 6 tunnin rivit.
+    rivi('2026-10-20T06:00:00Z', 3, { sade6: 1.25, symboli6: 'cloudy', maks6: 7, min6: 2 }),
+    rivi('2026-10-20T12:00:00Z', 6, { sade6: 0.5, symboli6: 'fair_day', maks6: 8, min6: 4 })
+  ];
+  assert.deepEqual(paivaYhteenvedot(sarja), [
+    { pvm: '2026-10-15', symboli: 'partlycloudy_day', maks: 9, min: 4, sade: 0.5, tuuli: 6.5 },
+    { pvm: '2026-10-20', symboli: 'cloudy', maks: 8, min: 2, sade: 1.8, tuuli: 3 }
   ]);
-  assert.deepEqual(poimiPaivat(null, ['2026-10-15']), []);
-});
-
-test('tämä päivä lasketaan Suomen aikaa', () => {
-  assert.equal(tamaPaivaSuomessa(new Date('2026-10-14T22:30:00Z')), '2026-10-15');
-  assert.equal(tamaPaivaSuomessa(new Date('2026-10-14T20:30:00Z')), '2026-10-14');
-  // Klo 01.30 Suomessa (22.30 UTC) ennusteikkuna alkaa jo seuraavasta päivästä.
-  assert.deepEqual(ennustePaivat('2026-10-14', '2026-10-15', new Date('2026-10-14T22:30:00Z')), ['2026-10-15']);
+  assert.deepEqual(paivaYhteenvedot(null), []);
 });

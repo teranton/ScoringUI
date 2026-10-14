@@ -172,9 +172,9 @@ const TEKSTIT = jaadyta({
     },
     saa: {
       title: 'Sääennuste',
-      source: 'Sää: Open-Meteo',
-      rainChance: 'Sateen todennäköisyys',
-      wind: 'Tuuli (suurin keskituuli)',
+      source: 'Sää: yr.no (MET Norway)',
+      rain: 'Sademäärä klo 8–20',
+      wind: 'Tuuli (suurin keskituuli klo 8–20)',
       selkea: 'Selkeää',
       puolipilvinen: 'Puolipilvistä',
       pilvinen: 'Pilvistä',
@@ -182,6 +182,7 @@ const TEKSTIT = jaadyta({
       tihku: 'Tihkusadetta',
       sade: 'Sadetta',
       lumi: 'Lumisadetta',
+      ranta: 'Räntää',
       ukkonen: 'Ukkosta'
     }
   },
@@ -348,9 +349,9 @@ const TEKSTIT = jaadyta({
     },
     saa: {
       title: 'Weather forecast',
-      source: 'Weather: Open-Meteo',
-      rainChance: 'Chance of rain',
-      wind: 'Wind (max mean speed)',
+      source: 'Weather: yr.no (MET Norway)',
+      rain: 'Precipitation 8–20',
+      wind: 'Wind (max mean speed 8–20)',
       selkea: 'Clear',
       puolipilvinen: 'Partly cloudy',
       pilvinen: 'Cloudy',
@@ -358,6 +359,7 @@ const TEKSTIT = jaadyta({
       tihku: 'Drizzle',
       sade: 'Rain',
       lumi: 'Snow',
+      ranta: 'Sleet',
       ukkonen: 'Thunderstorm'
     }
   }

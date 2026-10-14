@@ -1,7 +1,7 @@
 // api/saa.js
 // Kisan sääennuste: /api/saa?sheetId=<rekisterin sarake E> → { paikka, paivat }.
 // Paikka luetaan rekisterin sarakkeesta H; päättyneelle kisalle tai ilman paikkaa paivat on tyhjä.
-// CDN pitää vastauksen tuoreena puoli tuntia (ennuste päivittyy Open-Meteossa noin tunnin välein).
+// CDN pitää vastauksen tuoreena puoli tuntia (yr.no päivittää ennusteen noin tunnin välein).
 import dotenv from 'dotenv';
 dotenv.config();
 

@@ -1,7 +1,8 @@
-// Pieni sääennuste kisakorttiin: kisapäivien sää, ylin/alin lämpötila, sateen todennäköisyys ja tuuli.
+// Pieni sääennuste kisakorttiin (yr.no): yhden kisapäivän sää, ylin/alin lämpötila, sademäärä ja tuuli kisa-ajalta.
+// Tulevasta kisasta näytetään aloituspäivä, käynnissä olevasta seuraava kisapäivä.
 // Näytetään vain tulevalle tai käynnissä olevalle kisalle, jolla on paikka rekisterissä ja ennuste saatavilla.
 import { useEffect, useState } from 'react';
-import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Sun } from 'lucide-react';
+import { Cloud, CloudDrizzle, CloudFog, CloudHail, CloudLightning, CloudRain, CloudSnow, CloudSun, Sun } from 'lucide-react';
 import { haeTekstit } from '../i18n';
 import { naytetaankoSaa, saaTyyppi, tamaPaivaSuomessa } from '../utils/saaEnnuste';
 
@@ -13,6 +14,7 @@ const IKONIT = {
   tihku: CloudDrizzle,
   sade: CloudRain,
   lumi: CloudSnow,
+  ranta: CloudHail,
   ukkonen: CloudLightning
 };
 
@@ -68,7 +70,7 @@ export default function SaaEnnuste({ kisa, status, locale, className = '' }) {
   return (
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs print:hidden text-[hsl(var(--muted-foreground))] ${className}`} aria-label={`${tx.title}${ennuste.paikka ? `, ${ennuste.paikka}` : ''}`}>
       {paivat.map((p) => {
-        const tyyppi = saaTyyppi(p.koodi);
+        const tyyppi = saaTyyppi(p.symboli);
         const Ikoni = IKONIT[tyyppi];
         const kuvaus = tx[tyyppi];
         return (
@@ -78,7 +80,7 @@ export default function SaaEnnuste({ kisa, status, locale, className = '' }) {
             <span className="font-medium text-[hsl(var(--foreground))]">
               {asteet(p.maks)}{p.min !== null && <span className="font-normal text-[hsl(var(--muted-foreground))]"> / {asteet(p.min)}</span>}
             </span>
-            {p.sade !== null && p.sade >= 20 && <span title={tx.rainChance}>☂ {Math.round(p.sade)} %</span>}
+            {p.sade >= 0.1 && <span title={tx.rain}>☂ {p.sade.toLocaleString(locale === 'en' ? 'en-GB' : 'fi-FI', { maximumFractionDigits: 1 })} mm</span>}
             {p.tuuli !== null && <span title={tx.wind}>{Math.round(p.tuuli)} m/s</span>}
           </span>
         );

@@ -1,7 +1,8 @@
-// Sääennuste Open-Meteosta (ilmainen, ei API-avainta).
-// Paikan nimi muutetaan koordinaateiksi Open-Meteon geokoodauksella; tulos pidetään tallessa pitkään.
+// Sääennuste yr.no:sta (MET Norwayn Locationforecast 2.0, ilmainen, ei API-avainta).
+// MET vaatii User-Agent-otsikon, jossa on yhteystieto, ja pyytää välimuistia (ei hakuja Expires-aikaa tiheämmin).
+// Paikan nimi muutetaan koordinaateiksi Open-Meteon geokoodauksella (METillä ei ole hakua nimellä); tulos pidetään tallessa pitkään.
 // Ennuste pidetään tallessa ENNUSTE_TUORE_MS ajan, ja hakuvirheen sattuessa vanhaa käytetään vielä ENNUSTE_VARALLA_MS ajan.
-import { ennustePaivat, parsiKoordinaatit, poimiPaivat, ENNUSTE_PAIVIA } from '../../src/utils/saaEnnuste.js';
+import { ennustePaiva, paivaYhteenvedot, parsiKoordinaatit } from '../../src/utils/saaEnnuste.js';
 import { luoValimuisti, luoYhdistaja } from './valimuisti.js';
 
 const TUNTI_MS = 60 * 60 * 1000;
@@ -13,11 +14,12 @@ const PAIKKA_EI_LOYDY_MS = 24 * TUNTI_MS;
 // Geokoodaus ja ennuste haetaan peräkkäin; yhteensä alle Vercelin funktion aikarajan.
 const AIKARAJA_MS = 4000;
 
-const PAIVAN_SARJAT = ['weather_code', 'temperature_2m_max', 'temperature_2m_min', 'precipitation_probability_max', 'wind_speed_10m_max'];
+// MET:n käyttöehdot: tunnistettava sovellus ja yhteystieto. SAA_USER_AGENT vaihtaa sen.
+const USER_AGENT = process.env.SAA_USER_AGENT || 'TT-Tulospalvelu/1.0 github.com/teranton/ScoringUI tt.tulospalvelu@gmail.com';
 
-async function haeJson(hae, url) {
-  const vastaus = await hae(url, { signal: AbortSignal.timeout(AIKARAJA_MS) });
-  if (!vastaus.ok) throw new Error(`Open-Meteo vastasi ${vastaus.status}`);
+async function haeJson(hae, url, palvelu) {
+  const vastaus = await hae(url, { signal: AbortSignal.timeout(AIKARAJA_MS), headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
+  if (!vastaus.ok) throw new Error(`${palvelu} vastasi ${vastaus.status}`);
   return vastaus.json();
 }
 
@@ -38,7 +40,7 @@ export function luoSaaHaku({ hae = fetch, nyt = Date.now, valimuisti = luoValimu
     return yhdista(avain, async () => {
       try {
         const params = new URLSearchParams({ name: paikka.trim(), count: '5', language: 'fi', format: 'json' });
-        const data = await haeJson(hae, `https://geocoding-api.open-meteo.com/v1/search?${params}`);
+        const data = await haeJson(hae, `https://geocoding-api.open-meteo.com/v1/search?${params}`, 'Open-Meteo');
         const tulokset = Array.isArray(data?.results) ? data.results : [];
         const osuma = tulokset.find((t) => t.country_code === 'FI') || tulokset[0];
         const arvo = osuma && Number.isFinite(osuma.latitude) && Number.isFinite(osuma.longitude)
@@ -53,28 +55,22 @@ export function luoSaaHaku({ hae = fetch, nyt = Date.now, valimuisti = luoValimu
     });
   }
 
-  // Koko 16 päivän päiväennuste paikalle ({ time: [...], weather_code: [...], ... }).
+  // Päivittäiset yhteenvedot paikan ennusteesta ([{ pvm, symboli, maks, min, sade, tuuli }]).
   async function paivaEnnuste(lat, lon) {
-    const avain = `ennuste:${lat.toFixed(2)},${lon.toFixed(2)}`;
+    const avain = `yr:${lat.toFixed(2)},${lon.toFixed(2)}`;
     const tallessa = await valimuisti.hae(avain);
     const ika = tallessa ? nyt() - tallessa.tallennettu : Infinity;
     if (ika < ENNUSTE_TUORE_MS) return tallessa.arvo;
 
     return yhdista(avain, async () => {
       try {
-        const params = new URLSearchParams({
-          latitude: lat.toFixed(2),
-          longitude: lon.toFixed(2),
-          daily: PAIVAN_SARJAT.join(','),
-          timezone: 'Europe/Helsinki',
-          wind_speed_unit: 'ms',
-          forecast_days: String(ENNUSTE_PAIVIA)
-        });
-        const data = await haeJson(hae, `https://api.open-meteo.com/v1/forecast?${params}`);
-        if (!Array.isArray(data?.daily?.time) || !data.daily.time.length) throw new Error('Open-Meteon vastauksessa ei ole päiväennustetta');
-        const daily = Object.fromEntries(['time', ...PAIVAN_SARJAT].map((s) => [s, Array.isArray(data?.daily?.[s]) ? data.daily[s] : []]));
-        await valimuisti.aseta(avain, daily, nyt());
-        return daily;
+        // MET pyytää enintään neljää desimaalia; kaksi riittää ja jakaa välimuistin lähipaikoille.
+        const params = new URLSearchParams({ lat: lat.toFixed(2), lon: lon.toFixed(2) });
+        const data = await haeJson(hae, `https://api.met.no/weatherapi/locationforecast/2.0/compact?${params}`, 'MET Norway');
+        const paivat = paivaYhteenvedot(data?.properties?.timeseries);
+        if (!paivat.length) throw new Error('MET Norwayn vastauksessa ei ole ennustetta');
+        await valimuisti.aseta(avain, paivat, nyt());
+        return paivat;
       } catch (error) {
         if (tallessa && ika < ENNUSTE_VARALLA_MS) {
           console.error('[SAA] Ennusteen haku epäonnistui, käytetään tallessa olevaa:', error?.message);
@@ -85,15 +81,15 @@ export function luoSaaHaku({ hae = fetch, nyt = Date.now, valimuisti = luoValimu
     });
   }
 
-  // { paikka, paivat: [{ pvm, koodi, maks, min, sade, tuuli }] }; paivat on tyhjä, jos ennustetta ei ole.
+  // { paikka, paivat: [{ pvm, symboli, maks, min, sade, tuuli }] } näytettävälle päivälle (yksi tai ei yhtään).
   return async function kisanSaa({ paikka, alkuPvm, loppuPvm }) {
     const teksti = String(paikka || '').trim();
-    const paivat = ennustePaivat(alkuPvm, loppuPvm, new Date(nyt()));
-    if (!teksti || !paivat.length) return { paikka: '', paivat: [] };
+    const pvm = ennustePaiva(alkuPvm, loppuPvm, new Date(nyt()));
+    if (!teksti || !pvm) return { paikka: '', paivat: [] };
 
     const sijainti = await paikanKoordinaatit(teksti);
     if (!sijainti) return { paikka: '', paivat: [] };
-    const daily = await paivaEnnuste(sijainti.lat, sijainti.lon);
-    return { paikka: sijainti.nimi || teksti, paivat: poimiPaivat(daily, paivat) };
+    const paivat = await paivaEnnuste(sijainti.lat, sijainti.lon);
+    return { paikka: sijainti.nimi || teksti, paivat: paivat.filter((p) => p.pvm === pvm) };
   };
 }

@@ -60,7 +60,8 @@ so column order can change but header names must not.
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no).
   H place (optional): a town name (`Oulainen`, looked up with Open-Meteo geocoding, Finnish match first) or
   coordinates with a decimal point (`64.27, 24.81`). With a place, upcoming and running competitions show a
-  weather forecast for their days within the next 16 days; empty means no forecast. Row 1 is a header if B contains "nimi" or A contains "id".
+  weather forecast from yr.no for one day (the start day of an upcoming competition, the next competition day of a
+  running one) when it is within the next 9 days; empty means no forecast. Row 1 is a header if B contains "nimi" or A contains "id".
 
 ## `KISANSPEKSIT` settings
 

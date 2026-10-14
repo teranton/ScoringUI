@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Registry column H (optional): competition place, a town name or `lat, lon`. Upcoming and running
-  competitions with a place show a weather forecast (Open-Meteo, `api/saa.js`) in the competition box.
+  competitions with a place show a weather forecast (yr.no / MET Norway, `api/saa.js`) in the competition box.
   Additive: an empty or missing column H shows no forecast.
 - Private sheets: the API serves only the tabs the UI reads (`KISANSPEKSIT`, `Tulokset Y`, `NEW_Joukkue`,
   `Ryhmäjako`, `Ilmoittautuneet`, `Aikataulu`, `Aikataulu La`, `Aikataulu Su`). Other tabs are left out of the response (400 if nothing else

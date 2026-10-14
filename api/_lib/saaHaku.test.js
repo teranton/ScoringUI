@@ -7,22 +7,28 @@ import path from 'node:path';
 import { luoSaaHaku, ENNUSTE_TUORE_MS } from './saaHaku.js';
 import { luoValimuisti } from './valimuisti.js';
 
-const NYT = new Date(2026, 9, 14, 12, 0).getTime();
+// Ke 14.10.2026 klo 12 Suomen aikaa.
+const NYT = new Date('2026-10-14T09:00:00Z').getTime();
 
-const DAILY = {
-  time: ['2026-10-14', '2026-10-15', '2026-10-16'],
-  weather_code: [0, 3, 61],
-  temperature_2m_max: [10.4, 8.2, 6.6],
-  temperature_2m_min: [1.1, 2.4, 3.9],
-  precipitation_probability_max: [0, 15, 90],
-  wind_speed_10m_max: [3.1, 4.5, 8.0]
-};
+const rivi = (time, lampo, symboli) => ({
+  time,
+  data: {
+    instant: { details: { air_temperature: lampo, wind_speed: 4 } },
+    next_6_hours: { summary: { symbol_code: symboli }, details: { precipitation_amount: 0.4 } }
+  }
+});
+const YR = { properties: { timeseries: [
+  rivi('2026-10-14T09:00:00Z', 10, 'clearsky_day'),
+  rivi('2026-10-15T09:00:00Z', 8, 'cloudy'),
+  rivi('2026-10-16T09:00:00Z', 6, 'rain')
+] } };
 
 function luo({ vastaukset = {}, nyt = () => NYT } = {}) {
   const haut = [];
-  const hae = async (url) => {
+  const hae = async (url, opts) => {
     haut.push(url);
     const isanta = new URL(url).hostname;
+    assert.match(opts?.headers?.['User-Agent'] || '', /tulospalvelu/i);
     const vastaus = vastaukset[isanta];
     if (vastaus instanceof Error) throw vastaus;
     return { ok: true, status: 200, json: async () => vastaus };
@@ -36,14 +42,15 @@ const GEO = { results: [
   { name: 'Pietarsaari', latitude: 63.67, longitude: 22.7, country_code: 'FI' }
 ] };
 
-test('paikan nimi geokoodataan (suomalainen osuma) ja ennusteesta poimitaan kisapäivät', async () => {
-  const { kisanSaa, haut } = luo({ vastaukset: { 'geocoding-api.open-meteo.com': GEO, 'api.open-meteo.com': { daily: DAILY } } });
+test('paikan nimi geokoodataan (suomalainen osuma) ja tulevasta kisasta näytetään aloituspäivä', async () => {
+  const { kisanSaa, haut } = luo({ vastaukset: { 'geocoding-api.open-meteo.com': GEO, 'api.met.no': YR } });
   const tulos = await kisanSaa({ paikka: 'Pietarsaari', alkuPvm: '2026-10-15', loppuPvm: '2026-10-16' });
   assert.equal(tulos.paikka, 'Pietarsaari');
-  assert.deepEqual(tulos.paivat.map((p) => [p.pvm, p.koodi, p.maks]), [['2026-10-15', 3, 8.2], ['2026-10-16', 61, 6.6]]);
+  assert.deepEqual(tulos.paivat, [{ pvm: '2026-10-15', symboli: 'cloudy', maks: 8, min: 8, sade: 0.4, tuuli: 4 }]);
   const ennusteUrl = new URL(haut[1]);
-  assert.equal(ennusteUrl.searchParams.get('latitude'), '63.67');
-  assert.equal(ennusteUrl.searchParams.get('wind_speed_unit'), 'ms');
+  assert.equal(ennusteUrl.pathname, '/weatherapi/locationforecast/2.0/compact');
+  assert.equal(ennusteUrl.searchParams.get('lat'), '63.67');
+  assert.equal(ennusteUrl.searchParams.get('lon'), '22.70');
 
   // Toinen haku tulee välimuistista.
   await kisanSaa({ paikka: 'pietarsaari ', alkuPvm: '2026-10-15', loppuPvm: '' });
@@ -51,9 +58,10 @@ test('paikan nimi geokoodataan (suomalainen osuma) ja ennusteesta poimitaan kisa
 });
 
 test('koordinaatit käytetään suoraan, kaukainen tai puuttuva kisa ei hae mitään', async () => {
-  const { kisanSaa, haut } = luo({ vastaukset: { 'api.open-meteo.com': { daily: DAILY } } });
-  const tulos = await kisanSaa({ paikka: '64.1, 24.5', alkuPvm: '14.10.2026', loppuPvm: '' });
-  assert.deepEqual(tulos.paivat.map((p) => p.pvm), ['2026-10-14']);
+  const { kisanSaa, haut } = luo({ vastaukset: { 'api.met.no': YR } });
+  // Käynnissä olevasta kisasta seuraava kisapäivä.
+  const tulos = await kisanSaa({ paikka: '64.1, 24.5', alkuPvm: '13.10.2026', loppuPvm: '16.10.2026' });
+  assert.deepEqual(tulos.paivat.map((p) => p.pvm), ['2026-10-15']);
   assert.equal(haut.length, 1);
 
   assert.deepEqual(await kisanSaa({ paikka: '64.1, 24.5', alkuPvm: '2026-12-01', loppuPvm: '' }), { paikka: '', paivat: [] });
@@ -70,12 +78,12 @@ test('tuntematon paikka palauttaa tyhjän ja muistetaan', async () => {
 
 test('hakuvirheessä käytetään vanhaa ennustetta, ilman sitä virhe heitetään', async () => {
   let aika = NYT;
-  const vastaukset = { 'api.open-meteo.com': { daily: DAILY } };
+  const vastaukset = { 'api.met.no': YR };
   const { kisanSaa } = luo({ vastaukset, nyt: () => aika });
   const kisa = { paikka: '64.1, 24.5', alkuPvm: '2026-10-15', loppuPvm: '' };
   await kisanSaa(kisa);
 
-  vastaukset['api.open-meteo.com'] = new Error('verkko');
+  vastaukset['api.met.no'] = new Error('verkko');
   aika = NYT + ENNUSTE_TUORE_MS + 1;
   assert.equal((await kisanSaa(kisa)).paivat.length, 1);
 
@@ -83,14 +91,14 @@ test('hakuvirheessä käytetään vanhaa ennustetta, ilman sitä virhe heitetä�
   await assert.rejects(tyhjaHaku(kisa), /verkko/);
 });
 
-test('vastaus ilman päiväennustetta on virhe eikä korvaa vanhaa', async () => {
+test('vastaus ilman aikasarjaa on virhe eikä korvaa vanhaa', async () => {
   let aika = NYT;
-  const vastaukset = { 'api.open-meteo.com': { daily: DAILY } };
+  const vastaukset = { 'api.met.no': YR };
   const { kisanSaa } = luo({ vastaukset, nyt: () => aika });
   const kisa = { paikka: '64.1, 24.5', alkuPvm: '2026-10-15', loppuPvm: '' };
   await kisanSaa(kisa);
 
-  vastaukset['api.open-meteo.com'] = { error: false };
+  vastaukset['api.met.no'] = { properties: {} };
   aika = NYT + ENNUSTE_TUORE_MS + 1;
   assert.equal((await kisanSaa(kisa)).paivat.length, 1);
 });
