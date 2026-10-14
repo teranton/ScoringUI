@@ -59,3 +59,9 @@ test('palauttaa nykyisen sivun jos muutosta ei tarvita', () => {
   const seuraava = laskeSeuraavaAktiivinenSivu(perus);
   assert.equal(seuraava, 'tulokset');
 });
+
+test('ryhmien muokkaus pysyy auki tulevassa kisassa ja suljetaan, kun se ei ole sallittu', () => {
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, onkoKisaTulossa: true, onkoAikatauluSallittu: false, aktiivinenSivu: 'ryhmat', onkoRyhmaMuokkausSallittu: true }), 'ryhmat');
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, aktiivinenSivu: 'ryhmat', onkoRyhmaMuokkausSallittu: false }), 'tulokset');
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, onkoKisaTulossa: true, onkoTuloksetSallittu: false, aktiivinenSivu: 'ryhmat', onkoRyhmaMuokkausSallittu: false }), 'ilmoittautuneet');
+});

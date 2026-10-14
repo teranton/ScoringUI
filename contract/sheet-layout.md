@@ -24,6 +24,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
+| `OSALLISTUJAT+TULOKSET` (named range `OSALLISTUJAT`) | Organiser, ScoringLib (`Distributor.js` shuffle), squad editor (`RyhmaJako.jsx`, organiser's own account) | `RyhmaJako.jsx` only, not through `api/` |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
 
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
@@ -62,6 +63,34 @@ so column order can change but header names must not.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no). Row 1 is a header if B contains "nimi" or A contains "id".
 
+## Squad editing (organisers)
+
+`RyhmaJako.jsx` ("Järjestäjälle: muokkaa ryhmiä") lets an organiser move a shooter to a free place, reorder a
+squad, or swap two shooters between squads. It does not
+go through `api/`: the browser reads and writes the sheet with the organiser's own Google sign-in
+(`spreadsheets` scope, `utils/googleKayttaja.js`), so only accounts that can edit the competition sheet can save.
+It depends on:
+
+- The named range `OSALLISTUJAT` on the main tab (`OSALLISTUJAT+TULOKSET`), with the header row directly above it.
+- Squads and shooter numbers come from the row position in that range: Sporting/ESP `Ryhmä` is
+  `ROUNDUP(SEQUENCE()/size)`, `NRO` is `SEQUENCE(COUNTA(C2:C))`, and the Compak timetable refers to main-tab rows.
+  The editor takes each shooter's squad from the `Ryhmä` column when the tab has one (Sporting/ESP), otherwise
+  squads of `AIKATAULU_RYHMAKOKO` (6 when `6`, otherwise 5).
+- Header names: name column containing `NIMI` / `NAME` / `OSALLISTUJA` (as `Distributor.js`), `SARJA`, `SEURA`,
+  `NRO`, and station result columns whose header is a number `1`..`N`. The shooter's columns end at the first
+  empty header (the `Ohjeita` column after it is not moved).
+- A swap moves every entered value (not formulas, not cells filled by array formulas) between the two rows in those
+  columns, so check-in, name, class, club and tie-break move with the shooter. Shooters with any station result
+  are not moved, and neither are names filled by a formula. A swap is refused when one row has a formula where the
+  other has a typed value. Rows are re-read just before writing; if either name has changed, nothing is written.
+- Free places use the shuffle's convention: the name cell holds the place's own number (`Distributor.js` skips
+  numeric names), so `COUNTA` numbering stays contiguous. Moving a shooter to a free place writes the shooter's
+  values there and leaves the old row as a free place (its number as the name, other entered columns cleared).
+  Moving to an empty row past the last shooter also writes free-place numbers into the empty rows before it.
+  Reordering inside a squad shifts the rows between by one. Formula cells are never written.
+- Start times shown per squad are read from the `Aikataulu*` tabs the API already serves: the group timetable
+  by squad number (Sporting/ESP), the Compak lane grid by shooter number (earliest time of the squad's places per day).
+
 ## `KISANSPEKSIT` settings
 
 Keys are found anywhere on the tab; the value is the next non-empty cell to the right.
@@ -78,6 +107,7 @@ Any other key or value is ignored and the default applies.
 | Timetable grouping | `AIKATAULU_RYHMAKOKO` | `5`, `6`, `INLINE` | `INLINE` |
 | Sponsor logos | `LOGOT_NAKYVYYS` | `TRUE`, `FALSE` | shown |
 | Tie-break prize places | `RATKO_PALKINTO_SIJA` | number | 3 |
+| Classes that don't referee (highlighted in the squad editor) | `Ei tuomaroivat:` | comma-separated classes in the cell right of the key (B20 when the key is missing), matched exactly to `SARJA`, as ScoringLib's shuffle | none |
 
 ### Keys ScoringLib reads
 
