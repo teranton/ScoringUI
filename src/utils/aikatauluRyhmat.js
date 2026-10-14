@@ -1,35 +1,9 @@
 // src/utils/aikatauluRyhmat.js
 import { parseCsvRows } from './csv.js';
 import { parsiPaivamaara } from './kisaStatus.js';
+import { extractTitleSuffixFromFirstRow, isLaneHeader, isTimeLike, toSortValue } from './aikatauluRadat.js';
 
-export function toSortValue(timeText) {
-  const cleaned = String(timeText || '').trim();
-  const m = cleaned.match(/(\d{1,2})[:.](\d{2})/);
-  if (!m) return Number.MAX_SAFE_INTEGER;
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  return h * 60 + min;
-}
-
-function isTimeLike(value) {
-  return /(\d{1,2})[:.](\d{2})/.test(String(value || '').trim());
-}
-
-function isLaneHeader(value) {
-  const text = String(value || '').trim().toUpperCase();
-  return /^RATA\s*\d+/.test(text) || /^LANE\s*\d+/.test(text) || /^\d+\s+\S+/.test(text);
-}
-
-function extractTitleSuffixFromFirstRow(row) {
-  const first = String(row?.[0] || '').trim();
-  const second = String(row?.[1] || '').trim();
-  if (second) return second;
-
-  const separatorIndex = first.indexOf('|');
-  if (separatorIndex === -1) return '';
-
-  return first.slice(separatorIndex + 1).trim();
-}
+export { toSortValue };
 
 function toShooterNumber(value) {
   const text = String(value || '').trim();

@@ -23,7 +23,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
-| `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx` |
+| `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
 
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
@@ -49,6 +49,9 @@ so column order can change but header names must not.
   Fallback when no header is found: columns J, K, L (index 9, 10, 11).
 - `Aikataulu*`: first row is the title row (label and date); header row matched by name; lane columns
   detected from header labels.
+  Lane-grid (Compak) tabs have three columns per lane: time, shooter number, name. A name that is only a
+  number is an empty slot; `TAUKO` with no number is a break; a name ending in U+200B (zero-width space)
+  starts as referee. The screen and the printout read these the same way.
 
 **Read by position** (fragile, keep stable):
 - The UI's `KISANSPEKSIT` station-table fallback (columns J, K, L) when no header is found. Sheets made

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Compak timetable printout (`TulosteAikataulu.jsx`) reads the same `Aikataulu*` tabs as the screen. No layout
+  change; the lane-grid conventions it relies on (empty slot, `TAUKO`, U+200B referee marker) are now written down.
 - Private sheets: the API serves only the tabs the UI reads (`KISANSPEKSIT`, `Tulokset Y`, `NEW_Joukkue`,
   `Ryhmäjako`, `Ilmoittautuneet`, `Aikataulu`, `Aikataulu La`, `Aikataulu Su`). Other tabs are left out of the response (400 if nothing else
   was asked for). `Timetable` was never requested and is not served.

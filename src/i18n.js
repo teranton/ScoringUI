@@ -60,6 +60,18 @@ const TEKSTIT = jaadyta({
     aikatauluTulostus: {
       button: 'Tulosta / PDF'
     },
+    tulosteAikataulu: {
+      title: 'Aikataulu',
+      empty: 'Aikataulussa ei ole tulostettavia rivejä.',
+      printed: 'Tulostettu',
+      lane: 'Rata',
+      time: 'Aika',
+      number: 'Nro',
+      shooter: 'Ampuja',
+      break: 'TAUKO',
+      refereeSample: 'Nimi',
+      refereeLegend: '= aloitustuomarointi'
+    },
     aikatauluRyhma: {
       title: 'Eräluettelo',
       empty: 'Ryhmäaikataulurivejä ei löytynyt.',
@@ -221,6 +233,18 @@ const TEKSTIT = jaadyta({
     },
     aikatauluTulostus: {
       button: 'Print / PDF'
+    },
+    tulosteAikataulu: {
+      title: 'Timetable',
+      empty: 'No timetable rows to print.',
+      printed: 'Printed',
+      lane: 'Lane',
+      time: 'Time',
+      number: 'No.',
+      shooter: 'Shooter',
+      break: 'BREAK',
+      refereeSample: 'Name',
+      refereeLegend: '= starts as referee'
     },
     aikatauluRyhma: {
       title: 'Heat Schedule',

@@ -8,7 +8,9 @@ import AikatauluNakyma from './AikatauluNakyma';
 import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import TulosteTulokset from './TulosteTulokset';
+import TulosteAikataulu from './TulosteAikataulu';
 import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
+import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
@@ -646,6 +648,14 @@ export default function App() {
     [nykyisenKisanParsitutRivit.speksitRows]
   );
   const kaytaRyhmaAikatauluNakymaa = aikatauluMalliAsetus === 'groups' || aikatauluRyhmittelyAsetus !== 'inline';
+  // Compak-aikataululla (rata-ruudukko) on oma A4-tuloste. Se on sivulla aina aikataulunäkymässä, jotta
+  // myös selaimen oma tulostus (Ctrl+P) tulostaa sen eikä näytön ruudukkoa.
+  const tulosteAikataulu = useMemo(
+    () => (kaytaRyhmaAikatauluNakymaa || !valittuAikatauluCsv
+      ? null
+      : muodostaTulosteAikataulu(parseCsvRows(valittuAikatauluCsv.raw || ''))),
+    [kaytaRyhmaAikatauluNakymaa, valittuAikatauluCsv]
+  );
   const naytaAikatauluOtsikonSponsorilogot = sponsoriLogoNakyvyysAsetus !== 'off';
   const onkoAikatauluSallittu = onkoAikataulua && (() => {
     if (onkoAikatauluPreviewOverride) return !onkoKisaPaattynyt;
@@ -653,6 +663,7 @@ export default function App() {
     if (aikatauluNakyvyysAsetus === 'after-start') return onkoTuloksetSallittu && !onkoKisaPaattynyt;
     return !onkoKisaPaattynyt;
   })();
+  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && Boolean(tulosteAikataulu);
   const onkoMateriaaleja = useMemo(() => {
     const rivit = nykyisenKisanParsitutRivit.speksitRows || [];
     return extractMaterialGuidesFromRows(rivit).length > 0;
@@ -811,7 +822,7 @@ export default function App() {
   const kilpailuNakymaMaxWidth = 'min(96vw, 1320px)';
 
   return (
-    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tulosteenAika ? ' app-tulostetaan-tulokset' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tulosteenAika || tulostetaanAikataulu ? ' app-tulostetaan' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
       <Card className="app-print-hide-header">
         <CardHeader className="gap-1.5 border-b border-[hsl(var(--border))] pb-3.5">
           <div className="flex items-center justify-between gap-2">
@@ -954,6 +965,7 @@ export default function App() {
                     sponsorLogos={kisanSponsorit}
                     showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
                     defaultGroupingMode={aikatauluRyhmittelyAsetus}
+                    omaTuloste={Boolean(tulosteAikataulu)}
                   />
                 )
               )}
@@ -987,6 +999,15 @@ export default function App() {
           kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
           kisaStatus={kisanStatusInfo.status}
           tulostusaika={tulosteenAika}
+          locale={locale}
+        />
+      )}
+      {tulostetaanAikataulu && (
+        <TulosteAikataulu
+          aikataulu={tulosteAikataulu}
+          otsikko={valittuAikatauluCsv.label}
+          kisaNimi={valittuKisa.nimi}
+          kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
           locale={locale}
         />
       )}
