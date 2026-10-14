@@ -7,7 +7,8 @@ let saaTulos = { paikka: 'Oulainen', paivat: [{ pvm: '2026-10-15' }] };
 const pyynnot = [];
 
 mock.module('./_lib/sheetAllowlist.js', { namedExports: {
-  onSallittuSheetId: Object.assign(async (id) => id in rekisteri, { kisa: (id) => rekisteri[id] || null }),
+  haeRekisteriCsv: async () => 'csv',
+  parseRekisterinKisat: () => new Map(Object.entries(rekisteri)),
   torjuEiSallittuSheetId: async (id, res) => {
     if (id in rekisteri) return false;
     res.status(403).json({ error: 'ei' });

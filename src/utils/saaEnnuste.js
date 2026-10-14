@@ -1,17 +1,19 @@
 // src/utils/saaEnnuste.js
 // Sääennusteen apufunktiot, joita käyttävät sekä kisakortti että api/saa.js.
 // Ennuste tulee Open-Meteosta (ilmainen, ei avainta) kisan paikan mukaan (rekisterin sarake H).
-import { parsiPaivamaara } from './kisaStatus.js';
+import { isoPaiva, parsiPaivamaara } from './kisaStatus.js';
 
 // Open-Meteon päiväennuste ulottuu 16 päivän päähän (tämä päivä mukaan lukien).
 export const ENNUSTE_PAIVIA = 16;
 // Pitkän kisan ennusteesta näytetään enintään näin monta päivää.
 const MAKS_PAIVIA = 4;
 
-function isoPaiva(pvm) {
-  const kuukausi = String(pvm.getMonth() + 1).padStart(2, '0');
-  const paiva = String(pvm.getDate()).padStart(2, '0');
-  return `${pvm.getFullYear()}-${kuukausi}-${paiva}`;
+const SUOMEN_PAIVA = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Helsinki', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+// Tämä päivä Suomen aikaa (vvvv-kk-pp): ennuste pyydetään Helsingin ajassa, ja palvelin ajaa UTC:ssä.
+export function tamaPaivaSuomessa(nyt = new Date()) {
+  const osa = Object.fromEntries(SUOMEN_PAIVA.formatToParts(nyt).map((o) => [o.type, o.value]));
+  return `${osa.year}-${osa.month}-${osa.day}`;
 }
 
 // "63.67, 22.70" tai "63.67 22.70" (desimaalipiste) → { lat, lon }; muuten null (paikan nimi).
@@ -24,14 +26,14 @@ export function parsiKoordinaatit(paikka) {
   return { lat, lon };
 }
 
-// Kisan päivät (vvvv-kk-pp), joille ennuste on saatavilla: tästä päivästä eteenpäin, ENNUSTE_PAIVIA päivän sisällä.
+// Kisan päivät (vvvv-kk-pp), joille ennuste on saatavilla: tästä päivästä (Suomen aikaa) eteenpäin, ENNUSTE_PAIVIA päivän sisällä.
 export function ennustePaivat(alkuPvm, loppuPvm, nyt = new Date()) {
   const alku = parsiPaivamaara(alkuPvm);
   if (!alku) return [];
   const loppu = parsiPaivamaara(loppuPvm) || alku;
   if (loppu < alku) return [];
 
-  const tanaan = new Date(nyt.getFullYear(), nyt.getMonth(), nyt.getDate());
+  const tanaan = parsiPaivamaara(tamaPaivaSuomessa(nyt));
   const viimeinen = new Date(tanaan.getFullYear(), tanaan.getMonth(), tanaan.getDate() + ENNUSTE_PAIVIA - 1);
   const paivat = [];
   for (let pvm = new Date(Math.max(alku, tanaan)); pvm <= loppu && pvm <= viimeinen && paivat.length < MAKS_PAIVIA;) {

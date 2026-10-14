@@ -5,12 +5,13 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { onSallittuSheetId, torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
+import { haeRekisteriCsv, parseRekisterinKisat, torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
 import { luoSaaHaku } from './_lib/saaHaku.js';
 
 export const SAA_OTSIKOT = {
-  ennuste: 'public, s-maxage=1800, stale-while-revalidate=21600',
-  tyhja: 'public, s-maxage=3600, stale-while-revalidate=86400',
+  ennuste: 'public, s-maxage=1800, stale-while-revalidate=3600',
+  // Lyhyt, jotta sarakkeen H täyttäminen tai kisan tulo ennusteikkunaan näkyy pian.
+  tyhja: 'public, s-maxage=600, stale-while-revalidate=3600',
   virhe: 'public, s-maxage=60'
 };
 
@@ -27,8 +28,10 @@ export default async function handler(req, res) {
   if (!sheetId) return laheta(res, 400, 'no-store', { error: 'sheetId puuttuu' });
   if (await torjuEiSallittuSheetId(sheetId, res)) return;
 
-  const kisa = onSallittuSheetId.kisa(sheetId);
   try {
+    // Rekisteririvi luetaan suoraan (välimuistissa 30 s): sallittujen lista ei lataa rekisteriä
+    // EXTRA_ALLOWED_SHEET_IDS-taulukoille, joten sen rivi voisi puuttua.
+    const kisa = parseRekisterinKisat(await haeRekisteriCsv()).get(sheetId);
     const tulos = await kisanSaa({ paikka: kisa?.paikka, alkuPvm: kisa?.alkuPvm, loppuPvm: kisa?.loppuPvm });
     return laheta(res, 200, tulos.paivat.length ? SAA_OTSIKOT.ennuste : SAA_OTSIKOT.tyhja, tulos);
   } catch (error) {

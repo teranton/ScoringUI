@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ennustePaivat, naytetaankoSaa, parsiKoordinaatit, poimiPaivat, saaTyyppi } from './saaEnnuste.js';
+import { ennustePaivat, naytetaankoSaa, parsiKoordinaatit, poimiPaivat, saaTyyppi, tamaPaivaSuomessa } from './saaEnnuste.js';
 
 const NYT = new Date(2026, 9, 14, 12, 0);
 
@@ -60,4 +60,11 @@ test('päiväennusteesta poimitaan pyydetyt päivät', () => {
     { pvm: '2026-10-15', koodi: 61, maks: 7.1, min: null, sade: 80, tuuli: 6.8 }
   ]);
   assert.deepEqual(poimiPaivat(null, ['2026-10-15']), []);
+});
+
+test('tämä päivä lasketaan Suomen aikaa', () => {
+  assert.equal(tamaPaivaSuomessa(new Date('2026-10-14T22:30:00Z')), '2026-10-15');
+  assert.equal(tamaPaivaSuomessa(new Date('2026-10-14T20:30:00Z')), '2026-10-14');
+  // Klo 01.30 Suomessa (22.30 UTC) ennusteikkuna alkaa jo seuraavasta päivästä.
+  assert.deepEqual(ennustePaivat('2026-10-14', '2026-10-15', new Date('2026-10-14T22:30:00Z')), ['2026-10-15']);
 });

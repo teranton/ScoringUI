@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Sun } from 'lucide-react';
 import { haeTekstit } from '../i18n';
-import { naytetaankoSaa, saaTyyppi } from '../utils/saaEnnuste';
+import { naytetaankoSaa, saaTyyppi, tamaPaivaSuomessa } from '../utils/saaEnnuste';
 
 const IKONIT = {
   selkea: Sun,
@@ -26,7 +26,12 @@ function haeSaa(sheetId) {
   const lupaus = fetch(`/api/saa?${new URLSearchParams({ sheetId })}`)
     .then((vastaus) => (vastaus.ok ? vastaus.json() : null))
     .catch(() => null)
-    .then((data) => (Array.isArray(data?.paivat) ? data : null));
+    .then((data) => {
+      // Epäonnistunutta hakua ei muisteta: seuraava näkymä yrittää uudelleen.
+      if (Array.isArray(data?.paivat)) return data;
+      haut.delete(sheetId);
+      return null;
+    });
   haut.set(sheetId, { lupaus, aika: Date.now() });
   return lupaus;
 }
@@ -55,7 +60,9 @@ export default function SaaEnnuste({ kisa, status, locale, className = '' }) {
     return () => { peruttu = true; };
   }, [haetaan, sheetId]);
 
-  const paivat = haetaan && ennuste?.sheetId === sheetId ? ennuste.paivat : [];
+  // CDN voi palauttaa edellisenä päivänä tehdyn vastauksen; menneet päivät jätetään pois.
+  const tanaan = tamaPaivaSuomessa();
+  const paivat = haetaan && ennuste?.sheetId === sheetId ? ennuste.paivat.filter((p) => p.pvm >= tanaan) : [];
   if (!paivat.length) return null;
 
   return (

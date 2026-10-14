@@ -82,3 +82,15 @@ test('hakuvirheess채 k채ytet채채n vanhaa ennustetta, ilman sit채 virhe heitet채�
   const { kisanSaa: tyhjaHaku } = luo({ vastaukset });
   await assert.rejects(tyhjaHaku(kisa), /verkko/);
 });
+
+test('vastaus ilman p채iv채ennustetta on virhe eik채 korvaa vanhaa', async () => {
+  let aika = NYT;
+  const vastaukset = { 'api.open-meteo.com': { daily: DAILY } };
+  const { kisanSaa } = luo({ vastaukset, nyt: () => aika });
+  const kisa = { paikka: '64.1, 24.5', alkuPvm: '2026-10-15', loppuPvm: '' };
+  await kisanSaa(kisa);
+
+  vastaukset['api.open-meteo.com'] = { error: false };
+  aika = NYT + ENNUSTE_TUORE_MS + 1;
+  assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+});

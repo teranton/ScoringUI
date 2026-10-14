@@ -10,7 +10,8 @@ const ENNUSTE_VARALLA_MS = 12 * TUNTI_MS;
 const PAIKKA_TUORE_MS = 30 * 24 * TUNTI_MS;
 // Tuntematon paikan nimi haetaan uudelleen aikaisintaan päivän päästä.
 const PAIKKA_EI_LOYDY_MS = 24 * TUNTI_MS;
-const AIKARAJA_MS = 5000;
+// Geokoodaus ja ennuste haetaan peräkkäin; yhteensä alle Vercelin funktion aikarajan.
+const AIKARAJA_MS = 4000;
 
 const PAIVAN_SARJAT = ['weather_code', 'temperature_2m_max', 'temperature_2m_min', 'precipitation_probability_max', 'wind_speed_10m_max'];
 
@@ -70,6 +71,7 @@ export function luoSaaHaku({ hae = fetch, nyt = Date.now, valimuisti = luoValimu
           forecast_days: String(ENNUSTE_PAIVIA)
         });
         const data = await haeJson(hae, `https://api.open-meteo.com/v1/forecast?${params}`);
+        if (!Array.isArray(data?.daily?.time) || !data.daily.time.length) throw new Error('Open-Meteon vastauksessa ei ole päiväennustetta');
         const daily = Object.fromEntries(['time', ...PAIVAN_SARJAT].map((s) => [s, Array.isArray(data?.daily?.[s]) ? data.daily[s] : []]));
         await valimuisti.aseta(avain, daily, nyt());
         return daily;
