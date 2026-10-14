@@ -1,0 +1,118 @@
+import { mock, test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = mkdtempSync(path.join(tmpdir(), 'kisa-test-'));
+
+const VANHA = '1Ert3n7Fft235Zpoc42NZnGxOOhM1kQzwhef6lRF0geI';
+const KORJATTAVA = '1erSyJGWLU84kNmLVFI50SOiHFfOeNbA81NJG4zr3hbg';
+const PAIVA = 24 * 60 * 60 * 1000;
+const iso = (d) => d.toISOString().slice(0, 10);
+const kolmePaivaaSitten = iso(new Date(Date.now() - 3 * PAIVA));
+
+let googleHaut = 0;
+const blob = new Map();
+let blobKirjoitukset = 0;
+
+mock.module('./_lib/googleAuth.js', { namedExports: {
+  onKiintioVirhe: () => false,
+  pyyntoUudelleenyrittaen: (request, opts) => request(opts),
+  haeGoogleAsiakas: async () => ({ request: async ({ url }) => {
+    if (url.includes('docs.google.com')) {
+      return { data: `ID,Nimi,Alku,Loppu,Sheet\n1,Vanha,2025-07-05,2025-07-06,${VANHA}\n2,Korjattava,${kolmePaivaaSitten},${kolmePaivaaSitten},${KORJATTAVA}` };
+    }
+    googleHaut++;
+    if (!url.includes('batchGet')) return { data: { sheets: ['Tulokset Y', 'A', 'B'].map((title) => ({ properties: { title } })) } };
+    const alueet = new URL(url).searchParams.getAll('ranges');
+    return { data: { valueRanges: alueet.map(() => ({ values: [['NIMI'], ['uusi']] })) } };
+  } })
+} });
+
+mock.module('./_lib/kisaKuva.js', { namedExports: {
+  onkoKuvatKaytossa: () => true,
+  kuvanPolku: (id, nimet) => `kisat/${id}/${[...nimet].sort().join('|')}`,
+  datanVersio: (c) => createHash('sha1').update(JSON.stringify(c || {})).digest('hex').slice(0, 16),
+  lueKuva: async (polku) => blob.get(polku) || null,
+  tallennaKuva: async (polku, kuva) => {
+    await new Promise((ratkaise) => setTimeout(ratkaise, 10));
+    blobKirjoitukset++;
+    blob.set(polku, kuva);
+  }
+} });
+
+// Vercelin pyyntökonteksti: waitUntil-tehtävät kerätään talteen.
+let taustat = [];
+// Odottaa myös taustatehtävien itse lisäämät tehtävät.
+async function odotaTaustat() {
+  let odotetut = 0;
+  while (odotetut < taustat.length) {
+    odotetut = taustat.length;
+    await Promise.all(taustat);
+  }
+}
+globalThis[Symbol.for('@vercel/request-context')] = { get: () => ({ waitUntil: (p) => taustat.push(p) }) };
+
+const { default: handler } = await import('./kisa.js');
+const { VANHA_KUVA_OTSIKKO } = await import('./_lib/kisaValimuisti.js');
+
+function vastaus() {
+  const r = { h: {}, setHeader(k, v) { r.h[k] = v; }, status(s) { r.s = s; return r; }, json(b) { r.b = b; return r; }, end() { return r; } };
+  return r;
+}
+
+async function hae(sheetId, nimi) {
+  const r = vastaus();
+  await handler({ query: { sheetId, sheetNames: [nimi] }, headers: {} }, r);
+  return r;
+}
+
+const kuva = (ika, csv, alkuPvm = '2025-07-05', loppuPvm = '2025-07-06') => ({
+  versio: 1, tallennettu: Date.now() - ika, paivaTila: 'paattynyt', alkuPvm, loppuPvm, csvByName: { A: csv }, notFound: []
+});
+
+test('Google-haun jälkeen kuva tallennetaan vastauksen jälkeen', async () => {
+  taustat = [];
+  const r = await hae(VANHA, 'Tulokset Y');
+  assert.equal(r.b.timing.source, 'google');
+  assert.equal(taustat.length, 1);
+  assert.equal(blobKirjoitukset, 0);
+  await odotaTaustat();
+  assert.equal(blobKirjoitukset, 1);
+});
+
+test('korjausajan jälkeen vanha kuva annetaan heti ja päivitetään taustalla', async () => {
+  taustat = [];
+  blob.set(`kisat/${VANHA}/A`, kuva(3 * PAIVA, 'vanha'));
+  const hautEnnen = googleHaut;
+  const r = await hae(VANHA, 'A');
+  assert.equal(r.b.timing.source, 'snapshot-stale');
+  assert.equal(r.b.csvByName.A, 'vanha');
+  assert.equal(r.h['Cache-Control'], VANHA_KUVA_OTSIKKO);
+  assert.equal(taustat.length, 1);
+  await odotaTaustat();
+  assert.ok(googleHaut > hautEnnen);
+  assert.match(blob.get(`kisat/${VANHA}/A`).csvByName.A, /uusi/);
+  assert.equal((await hae(VANHA, 'A')).b.timing.source, 'server-cache');
+});
+
+test('tuore kuva ei hae Googlesta', async () => {
+  taustat = [];
+  blob.set(`kisat/${VANHA}/B`, kuva(5 * 60 * 60 * 1000, 'tuore'));
+  const hautEnnen = googleHaut;
+  const r = await hae(VANHA, 'B');
+  assert.equal(r.b.timing.source, 'snapshot');
+  assert.equal(googleHaut, hautEnnen);
+  assert.equal(taustat.length, 0);
+});
+
+test('korjausaika lasketaan rekisterin nykyisistä päivistä, ei kuvaan tallennetuista', async () => {
+  taustat = [];
+  // Kuvassa on vanhat (väärät) päivät, mutta rekisterin mukaan kisa on korjausajassa.
+  blob.set(`kisat/${KORJATTAVA}/A`, kuva(3 * PAIVA, 'vanha'));
+  const r = await hae(KORJATTAVA, 'A');
+  assert.equal(r.b.timing.source, 'google');
+  assert.match(r.b.csvByName.A, /uusi/);
+});

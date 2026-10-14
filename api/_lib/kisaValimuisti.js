@@ -20,6 +20,8 @@ const otsikko = ({ tuore, vanha }) => `public, s-maxage=${tuore}, stale-while-re
 export const CDN_OTSIKOT = Object.fromEntries(Object.entries(SAANNOT).map(([avain, saanto]) => [avain, otsikko(saanto)]));
 // Varalla olevan (Google ei vastannut) datan saa pitää CDN:ssä vain hetken.
 export const VARALLA_OTSIKKO = 'public, s-maxage=10';
+// Vanhentunut kuva on tuore vain hetken, mutta CDN saa antaa sitä heti, kun päivitetty haetaan taustalla.
+export const VANHA_KUVA_OTSIKKO = `public, s-maxage=10, stale-while-revalidate=${SAANNOT.paattynyt.vanha}`;
 
 // Tila rekisterin päivistä. KISANSPEKSIT-ohitus ei vaikuta välimuistiin: kisapäivinä data pidetään aina tuoreena.
 export function kisanPaivaTila(kisa, nyt = new Date()) {
@@ -48,9 +50,21 @@ export function cdnOtsikko(paivaTila, kisa = null, nyt = Date.now(), ikaMs = 0) 
   return otsikko({ tuore: Math.max(1, tuore - Math.floor(ikaMs / 1000)), vanha });
 }
 
-// Päättyneen kisan tallennettu kuva kelpaa tunnin korjausaikana ja vuorokauden sen jälkeen.
+function kuvanIka(kuva, nyt) {
+  if (!kuva || kuva.paivaTila !== 'paattynyt' || !Number.isFinite(kuva.tallennettu)) return Infinity;
+  return nyt - kuva.tallennettu;
+}
+
+// Päättyneen kisan tallennettu kuva on tuore tunnin korjausaikana ja vuorokauden sen jälkeen.
 export function onkoKuvaTuore(kuva, nyt = Date.now()) {
-  if (!kuva || kuva.paivaTila !== 'paattynyt' || !Number.isFinite(kuva.tallennettu)) return false;
   const maksimiIka = onkoKorjausaikaOhi(kuva, nyt) ? PAIVA_MS : TUNTI_MS;
-  return (nyt - kuva.tallennettu) < maksimiIka;
+  return kuvanIka(kuva, nyt) < maksimiIka;
+}
+
+// Korjausajan jälkeen tulokset eivät enää muutu: vanhempikin kuva annetaan heti CDN:n vanhan vastauksen
+// rajoissa (1 h + 30 vrk), ja tuore data haetaan silloin taustalla. Korjausaikana kelpaa vain tuore kuva.
+export function onkoKuvaKaytettava(kuva, nyt = Date.now()) {
+  if (!onkoKorjausaikaOhi(kuva, nyt)) return onkoKuvaTuore(kuva, nyt);
+  const { tuore, vanha } = SAANNOT.paattynyt;
+  return kuvanIka(kuva, nyt) < (tuore + vanha) * 1000;
 }
