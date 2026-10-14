@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { haeTekstit } from './i18n';
+import { extractTitleSuffixFromFirstRow, muodostaRataRivit, tunnistaRataSarakkeet } from './utils/aikatauluRadat';
 
 const logPerf = createPerfLogger('AikatauluPerf');
 
@@ -20,26 +21,6 @@ function toSortValue(timeText) {
   const h = parseInt(m[1], 10);
   const min = parseInt(m[2], 10);
   return h * 60 + min;
-}
-
-function isTimeLike(value) {
-  return /(\d{1,2})[:.](\d{2})/.test(String(value || '').trim());
-}
-
-function isLaneHeader(value) {
-  const text = String(value || '').trim().toUpperCase();
-  return /^RATA\s*\d+/.test(text) || /^LANE\s*\d+/.test(text) || /^\d+\s+\S+/.test(text);
-}
-
-function extractTitleSuffixFromFirstRow(row) {
-  const first = String(row?.[0] || '').trim();
-  const second = String(row?.[1] || '').trim();
-  if (second) return second;
-
-  const separatorIndex = first.indexOf('|');
-  if (separatorIndex === -1) return '';
-
-  return first.slice(separatorIndex + 1).trim();
 }
 
 function toShooterNumber(value) {
@@ -141,7 +122,7 @@ function calculatePrintScale(mode, fullWidth) {
   return Math.min(1, Math.max(0.4, printableWidthPx / fullWidth));
 }
 
-export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [], showGlobalSponsorLogos = true }) {
+export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = [], showGlobalSponsorLogos = true, onTulosta }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileViewMode, setMobileViewMode] = useState('lanes');
   const [mobileViewModeBeforePrint, setMobileViewModeBeforePrint] = useState(null);
@@ -180,48 +161,10 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
     const titleRow = rows[0] || [];
     const titleSuffix = extractTitleSuffixFromFirstRow(titleRow);
-    const laneHeaderRow = rows.find((row) => Array.isArray(row) && row.some(isLaneHeader));
-    const laneColumns = [];
-
-    if (laneHeaderRow) {
-      for (let i = 0; i < laneHeaderRow.length; i++) {
-        if (!isLaneHeader(laneHeaderRow[i])) continue;
-        let startIndex = i;
-        if (i > 0 && !isLaneHeader(laneHeaderRow[i - 1])) {
-          startIndex = i - 1;
-        }
-        const rawLabel = String(laneHeaderRow[i]).trim();
-        // Extract "1 Jake" from "RATA 1 Jake" or "LANE 1 Jake"
-        const match = rawLabel.toUpperCase().match(/^(?:RATA|LANE)\s*(\d+\s*.*)/i);
-        const cleanLabel = match ? match[1] : rawLabel;
-        laneColumns.push({ label: cleanLabel, startIndex });
-      }
-    }
+    const laneColumns = tunnistaRataSarakkeet(rows);
 
     if (laneColumns.length >= 2) {
-      const laneRows = [];
-      rows.forEach((row, rowIndex) => {
-        if (!Array.isArray(row)) return;
-        const laneSlots = laneColumns.map((lane) => {
-          const rawTime = String(row[lane.startIndex] || '').trim();
-          const number = String(row[lane.startIndex + 1] || '').trim();
-          const shooter = String(row[lane.startIndex + 2] || '').trim();
-          return { lane: lane.label, time: rawTime, number, shooter };
-        });
-
-        const hasAnyShooter = laneSlots.some((slot) => slot.shooter);
-        const globalTimeSlot = laneSlots.find((slot) => isTimeLike(slot.time));
-        if (!hasAnyShooter || !globalTimeSlot) return;
-
-        const rowTime = globalTimeSlot.time;
-        const finalizedSlots = laneSlots.map(slot => ({
-          ...slot,
-          time: isTimeLike(slot.time) ? slot.time : rowTime
-        }));
-
-        laneRows.push({ id: `${rowIndex}-${rowTime}`, time: rowTime, slots: finalizedSlots });
-      });
-
+      const laneRows = muodostaRataRivit(rows, laneColumns);
       laneRows.sort((a, b) => toSortValue(a.time) - toSortValue(b.time));
       const { numberGroupMap, groupCount, groupRanges } = buildGroupMeta(laneRows, laneColumns.length);
       logPerf('parseCsvRows(lane-grid)', perfStart, {
@@ -498,8 +441,15 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.empty}</div>;
   }
 
+  // Rata-ruudukolla on oma tulostusasettelu (TulosteAikataulu), joka ei riipu näytön koosta.
+  const omaTuloste = parsed.mode === 'lane-grid' && typeof onTulosta === 'function';
+
   const handlePrint = async () => {
     if (typeof window === 'undefined') return;
+    if (omaTuloste) {
+      onTulosta();
+      return;
+    }
     setPrintScale(calculatePrintScale(parsed.mode, timeColumnWidth + lanesTotalWidth));
     if (isMobileViewport && parsed.mode === 'lane-grid' && mobileViewMode !== 'table') {
       setMobileViewModeBeforePrint(mobileViewMode);
@@ -565,7 +515,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
         <CardHeader className="pb-3 bg-[hsl(var(--muted))]/20 border-b">
           <div className="flex items-center gap-3">
             <CardTitle className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-[hsl(var(--foreground))]">{title}</CardTitle>
-            <Button type="button" size="sm" variant="outline" onClick={handlePrint} className="aikataulu-print-hide hidden md:inline-flex">
+            <Button type="button" size="sm" variant="outline" onClick={handlePrint} className={`aikataulu-print-hide ${omaTuloste ? 'shrink-0' : 'hidden md:inline-flex'}`}>
               {txPrint.button}
             </Button>
             {showGlobalSponsorLogos && globalSponsorLogos.length > 0 && (

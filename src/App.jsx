@@ -8,6 +8,7 @@ import AikatauluNakyma from './AikatauluNakyma';
 import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import TulosteTulokset from './TulosteTulokset';
+import TulosteAikataulu from './TulosteAikataulu';
 import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
@@ -121,7 +122,8 @@ export default function App() {
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
   // Tulostuksen aloitusaika; null kun tulosluettelon tulostus ei ole käynnissä.
-  const [tulosteenAika, setTulosteenAika] = useState(null);
+  // Tulostettava sisältö: { tyyppi: 'tulokset' | 'aikataulu', aika }.
+  const [tuloste, setTuloste] = useState(null);
   const [devTila] = useState(() => onkoDevTila());
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
@@ -157,10 +159,10 @@ export default function App() {
   const tx = haeTekstit('app', locale);
   const txTuloste = haeTekstit('tulosteTulokset', locale);
 
-  // Tulosluettelo renderöidään ensin, sitten avataan selaimen tulostusikkuna.
+  // Tuloste renderöidään ensin, sitten avataan selaimen tulostusikkuna.
   useEffect(() => {
-    if (!tulosteenAika || typeof window === 'undefined') return undefined;
-    const lopeta = () => setTulosteenAika(null);
+    if (!tuloste || typeof window === 'undefined') return undefined;
+    const lopeta = () => setTuloste(null);
     // Kaikki selaimet eivät lähetä afterprint-tapahtumaa; print-mediakyselyn päättyminen lopettaa myös.
     const printMedia = window.matchMedia?.('print');
     const kunMediaMuuttuu = (event) => {
@@ -174,7 +176,7 @@ export default function App() {
       window.removeEventListener('afterprint', lopeta);
       printMedia?.removeEventListener?.('change', kunMediaMuuttuu);
     };
-  }, [tulosteenAika]);
+  }, [tuloste]);
 
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
@@ -811,7 +813,7 @@ export default function App() {
   const kilpailuNakymaMaxWidth = 'min(96vw, 1320px)';
 
   return (
-    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tulosteenAika ? ' app-tulostetaan-tulokset' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tuloste ? ' app-tulostetaan' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
       <Card className="app-print-hide-header">
         <CardHeader className="gap-1.5 border-b border-[hsl(var(--border))] pb-3.5">
           <div className="flex items-center justify-between gap-2">
@@ -884,7 +886,7 @@ export default function App() {
           </Button>
         )}
         {devTila && onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
-          <Button onClick={() => setTulosteenAika(new Date())} variant="outline" size="sm" className="ml-auto gap-1.5">
+          <Button onClick={() => setTuloste({ tyyppi: 'tulokset', aika: new Date() })} variant="outline" size="sm" className="ml-auto gap-1.5">
             <Printer className="h-4 w-4" aria-hidden="true" />
             {txTuloste.button}
           </Button>
@@ -954,6 +956,7 @@ export default function App() {
                     sponsorLogos={kisanSponsorit}
                     showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
                     defaultGroupingMode={aikatauluRyhmittelyAsetus}
+                    onTulosta={() => setTuloste({ tyyppi: 'aikataulu', aika: new Date() })}
                   />
                 )
               )}
@@ -979,14 +982,24 @@ export default function App() {
         </a>
       </footer>
 
-      {tulosteenAika && nykyisenKisanData?.henkilotCsvRaw && (
+      {tuloste?.tyyppi === 'tulokset' && nykyisenKisanData?.henkilotCsvRaw && (
         <TulosteTulokset
           rawRows={nykyisenKisanParsitutRivit.henkilotRows}
           parsedSpeksit={nykyisenKisanSpeksit}
           kisaNimi={valittuKisa.nimi}
           kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
           kisaStatus={kisanStatusInfo.status}
-          tulostusaika={tulosteenAika}
+          tulostusaika={tuloste.aika}
+          locale={locale}
+        />
+      )}
+      {tuloste?.tyyppi === 'aikataulu' && valittuAikatauluCsv && (
+        <TulosteAikataulu
+          rawCsv={valittuAikatauluCsv.raw}
+          otsikko={valittuAikatauluCsv.label}
+          kisaNimi={valittuKisa.nimi}
+          kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
+          tulostusaika={tuloste.aika}
           locale={locale}
         />
       )}
