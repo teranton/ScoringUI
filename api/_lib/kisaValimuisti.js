@@ -20,6 +20,8 @@ const otsikko = ({ tuore, vanha }) => `public, s-maxage=${tuore}, stale-while-re
 export const CDN_OTSIKOT = Object.fromEntries(Object.entries(SAANNOT).map(([avain, saanto]) => [avain, otsikko(saanto)]));
 // Varalla olevan (Google ei vastannut) datan saa pitää CDN:ssä vain hetken.
 export const VARALLA_OTSIKKO = 'public, s-maxage=10';
+// Vanhentunut kuva on tuore vain hetken, mutta CDN saa antaa sitä heti, kun päivitetty haetaan taustalla.
+export const VANHA_KUVA_OTSIKKO = `public, s-maxage=10, stale-while-revalidate=${SAANNOT.paattynyt.vanha}`;
 
 // Tila rekisterin päivistä. KISANSPEKSIT-ohitus ei vaikuta välimuistiin: kisapäivinä data pidetään aina tuoreena.
 export function kisanPaivaTila(kisa, nyt = new Date()) {

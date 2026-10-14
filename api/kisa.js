@@ -11,7 +11,7 @@ import { waitUntil } from '@vercel/functions';
 import { normalisoiSheetId, onSallittuSheetId } from './_lib/sheetAllowlist.js';
 import { haeGoogleAsiakas, onKiintioVirhe, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
 import { haeValilehdetCsv } from './_lib/sheetsData.js';
-import { VARALLA_OTSIKKO, cdnOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
+import { VANHA_KUVA_OTSIKKO, VARALLA_OTSIKKO, cdnOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
 import { datanVersio, kuvanPolku, lueKuva, onkoKuvatKaytossa, tallennaKuva } from './_lib/kisaKuva.js';
 import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
 
@@ -63,15 +63,22 @@ async function haeGooglesta(sheetId, nimet) {
   }
 }
 
-// Palvelimen välimuisti kirjoitetaan ennen vastausta: se on paikallinen ja nopea, ja `vercel dev`
-// voi lopettaa prosessin heti vastauksen jälkeen. Päättyneen kisan kuva (Blob) kirjoitetaan taustalla.
-function tallennaValimuistiin(polku, google, paivaTila, kisa) {
-  return vastausValimuisti.aseta(polku, { csvByName: google.csvByName, notFound: google.notFound, paivaTila, kisa });
+// Ajaa tehtävän vastauksen jälkeen Vercelin waitUntililla. Ilman Vercelin pyyntökontekstia
+// (esim. `vercel dev` tai testit) waitUntil ei tee mitään, joten tehtävä odotetaan loppuun.
+// Kontekstin tarkistus on sama, jota @vercel/functions käyttää sisäisesti.
+const PYYNTOKONTEKSTI = Symbol.for('@vercel/request-context');
+
+async function taustalla(lupaus) {
+  const turvallinen = Promise.resolve(lupaus).catch((error) => console.error('[KISA] Taustatehtävä epäonnistui:', error?.message));
+  if (typeof globalThis[PYYNTOKONTEKSTI]?.get?.()?.waitUntil === 'function') waitUntil(turvallinen);
+  else await turvallinen;
 }
 
-function tallennaKuvaksi(polku, google, paivaTila, kisa) {
-  if (paivaTila !== 'paattynyt' || !onkoKuvatKaytossa()) return null;
-  return tallennaKuva(polku, {
+// Palvelimen välimuisti kirjoitetaan ennen vastausta (paikallinen ja nopea); päättyneen kisan kuva (Blob) taustalla.
+async function tallennaTulos(polku, google, paivaTila, kisa) {
+  await vastausValimuisti.aseta(polku, { csvByName: google.csvByName, notFound: google.notFound, paivaTila, kisa });
+  if (paivaTila !== 'paattynyt' || !onkoKuvatKaytossa()) return;
+  await taustalla(tallennaKuva(polku, {
     versio: 1,
     tallennettu: Date.now(),
     paivaTila,
@@ -79,11 +86,17 @@ function tallennaKuvaksi(polku, google, paivaTila, kisa) {
     loppuPvm: kisa?.loppuPvm || '',
     csvByName: google.csvByName,
     notFound: google.notFound
-  });
+  }));
 }
 
-function taustalla(lupaus) {
-  waitUntil(Promise.resolve(lupaus).catch((error) => console.error('[KISA] Taustatallennus epäonnistui:', error?.message)));
+// Vanhentuneen kuvan päivitys Googlesta vastauksen jälkeen.
+async function paivitaKuva(googleLupaus, polku, paivaTila, kisa) {
+  const google = await googleLupaus;
+  if (!google.ok) {
+    console.error('[KISA] Kuvan päivitys Googlesta epäonnistui:', google.error?.message);
+    return;
+  }
+  await tallennaTulos(polku, google, paivaTila, kisa);
 }
 
 export default async function handler(req, res) {
@@ -143,19 +156,16 @@ export default async function handler(req, res) {
   }
 
   // Päättyneen kisan kuva annetaan heti. Jos se ei ole enää tuore, uusi haetaan Googlesta taustalla,
-  // ja CDN pitää vanhaa vastausta vain hetken, jotta päivitetty data tulee pian näkyviin.
-  if (paivaTila === 'paattynyt' && onkoKuvaKaytettava(kuva)) {
-    const tuore = onkoKuvaTuore(kuva);
-    if (!tuore) {
-      taustalla((googleLupaus || haeYhdistetysti()).then((google) => {
-        if (google.ok) return Promise.all([tallennaValimuistiin(polku, google, paivaTila, kisa), tallennaKuvaksi(polku, google, paivaTila, kisa)]);
-        console.error('[KISA] Kuvan päivitys Googlesta epäonnistui:', google.error?.message);
-      }));
-    }
+  // ja CDN pitää vanhaa vastausta tuoreena vain hetken, jotta päivitetty data tulee pian näkyviin.
+  // Korjausajan raja lasketaan rekisterin nykyisistä päivistä, ei kuvaan tallennetuista.
+  const kuvaNyt = kuva && { ...kuva, alkuPvm: kisa?.alkuPvm || '', loppuPvm: kisa?.loppuPvm || '' };
+  if (paivaTila === 'paattynyt' && onkoKuvaKaytettava(kuvaNyt)) {
+    const tuore = onkoKuvaTuore(kuvaNyt);
+    if (!tuore) await taustalla(paivitaKuva(googleLupaus || haeYhdistetysti(), polku, paivaTila, kisa));
     return lahetaData(req, res, {
       csvByName: kuva.csvByName,
       notFound: kuva.notFound || [],
-      cacheControl: tuore ? cdnOtsikko(paivaTila, kisa) : VARALLA_OTSIKKO,
+      cacheControl: tuore ? cdnOtsikko(paivaTila, kisa) : VANHA_KUVA_OTSIKKO,
       timing: { total_ms: Date.now() - alku, source: tuore ? 'snapshot' : 'snapshot-stale', generated_at_ms: kuva.tallennettu }
     });
   }
@@ -187,8 +197,7 @@ export default async function handler(req, res) {
     return lahetaVirhe(res, 502, { error: 'Kisan datan haku epäonnistui', message: google.error?.message });
   }
 
-  await tallennaValimuistiin(polku, google, paivaTila, kisa);
-  taustalla(tallennaKuvaksi(polku, google, paivaTila, kisa));
+  await tallennaTulos(polku, google, paivaTila, kisa);
 
   const total = Date.now() - alku;
   console.log(`[KISA] ${sheetId} ${paivaTila} google ${google.google_ms} ms, yhteensä ${total} ms`);
