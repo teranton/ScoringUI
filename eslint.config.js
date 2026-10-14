@@ -19,8 +19,8 @@ export default defineConfig([
     },
   },
   {
-    // Vercel-funktiot, konfiguraatiot ja node:test-testit ajetaan Nodessa.
-    files: ['api/**/*.js', '*.config.js', '**/*.test.js'],
+    // Vercel-funktiot, konfiguraatiot, node:test-testit ja skriptit ajetaan Nodessa.
+    files: ['api/**/*.js', '*.config.js', '**/*.test.js', 'scripts/**/*.mjs'],
     languageOptions: {
       globals: globals.node,
     },

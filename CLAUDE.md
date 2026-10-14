@@ -26,6 +26,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
 ## Commands
 
 - `npm ci`, `npm run dev` (needs `vercel dev` on port 3000 for `/api`), `npm test`, `npm run build`, `npm run lint`.
+- `npm run tarkista -- <url>` checks that the API reads every registry sheet from Google (sharing with the service account);
+  `npm run mittaa -- <url>` measures load times per cache level (`scripts/mittaa-kisat.mjs`).
 - `npm test` runs with `--experimental-test-module-mocks` (`api/kisa.test.js` mocks Google and Blob with `mock.module`).
 - `npm run lint` is clean and CI fails on any lint error.
 
