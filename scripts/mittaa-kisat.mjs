@@ -15,8 +15,12 @@
 //               välilehtipari, jota sovellus ei koskaan pyydä, joten välimuistissa ei ole mitään ja vastaus tulee
 //               Googlesta (lähde google) tai on virhe (esim. 502, kun taulukkoa ei ole jaettu palvelutilille).
 //               Pari vaihtuu ajokerrasta toiseen, koska ensimmäinen ajo jättää vastauksen välimuistiin.
-// Välilehtilistat (STAATTINEN, LIVE) ovat samat kuin src/App.jsx:n sivutKisalle; pidä ne samoina.
-// Skripti ei tarvitse riippuvuuksia (Node 18+).
+// Päivien tulkinta ja välilehtilista tulevat API:n omista moduuleista. Ei npm-riippuvuuksia (Node 18+).
+
+import { parseCsvRows } from '../src/utils/csv.js';
+import { parsiPaivamaara } from '../src/utils/kisaStatus.js';
+import { kisanPaivaTila, onkoKorjausaikaOhi } from '../api/_lib/kisaValimuisti.js';
+import { SALLITUT_VALILEHDET } from '../api/_lib/sheetsData.js';
 
 const args = process.argv.slice(2);
 const base = (args.find((a) => /^https?:\/\//.test(a)) || '').replace(/\/$/, '');
@@ -28,47 +32,9 @@ if (!base) {
   process.exit(1);
 }
 
+// Päättyneelle kisalle sovellus pyytää nämä (src/App.jsx sivutKisalle); muille kaikki julkaistavat välilehdet.
 const STAATTINEN = ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT'];
-const LIVE = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
-const KORJAUSAIKA_PV = 14;
-
-function parseCsv(teksti) {
-  const rivit = [];
-  let rivi = [], kentta = '', lainaus = false;
-  for (let i = 0; i < teksti.length; i++) {
-    const c = teksti[i];
-    if (lainaus) {
-      if (c === '"' && teksti[i + 1] === '"') { kentta += '"'; i++; }
-      else if (c === '"') lainaus = false;
-      else kentta += c;
-    } else if (c === '"') lainaus = true;
-    else if (c === ',') { rivi.push(kentta); kentta = ''; }
-    else if (c === '\n' || c === '\r') {
-      if (c === '\r' && teksti[i + 1] === '\n') i++;
-      rivi.push(kentta); rivit.push(rivi); rivi = []; kentta = '';
-    } else kentta += c;
-  }
-  if (kentta || rivi.length) { rivi.push(kentta); rivit.push(rivi); }
-  return rivit;
-}
-
-function pvm(s) {
-  const t = String(s || '').trim();
-  const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  const o = iso ? [iso[3], iso[2], iso[1]] : t.split('.');
-  if (o.length !== 3) return null;
-  const d = new Date(Number(o[2]), Number(o[1]) - 1, Number(o[0]));
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function tila(alku, loppu, nyt = new Date()) {
-  const a = pvm(alku), l = loppu ? pvm(loppu) : a;
-  if (!a || !l) return 'tulossa';
-  const t = new Date(nyt); t.setHours(0, 0, 0, 0);
-  if (t < a) return 'tulossa';
-  if (t > l) return 'paattynyt';
-  return 'kaynnissa';
-}
+const LIVE = SALLITUT_VALILEHDET;
 
 function url(sheetId, nimet, lisa = '') {
   const p = new URLSearchParams({ sheetId });
@@ -94,6 +60,7 @@ async function mittaa(osoite) {
     google: json?.timing?.google_ms ?? '',
     fn: json?.timing?.total_ms ?? '',
     kb: Math.round(runko.length / 1024),
+    runko,
     virhe: res.ok ? '' : (json?.error || runko.slice(0, 80))
   };
 }
@@ -108,7 +75,15 @@ function satunnainenPari() {
   return parit[Math.floor(Math.random() * parit.length)];
 }
 
+// OK: luettiin Googlesta. VIRHE: Google ei vastannut (virhekoodi tai varalla oleva vanha data, lähde *-fallback),
+// esim. taulukkoa ei ole jaettu palvelutilille. VÄLIMUISTI: pari oli jo välimuistissa, joten lukua ei tarkistettu.
+function luokittele(t) {
+  if (t.http !== 200 || String(t.lahde).endsWith('-fallback')) return 'VIRHE';
+  return t.lahde === 'google' ? 'OK' : 'VÄLIMUISTI';
+}
+
 async function tarkistaKaikki(kisat) {
+  if (!kisat.length) throw new Error('Rekisteristä ei löytynyt yhtään kisaa: tarkista osoite');
   const pari = satunnainenPari();
   console.log(`Välilehtipari: ${pari.join(' + ')}\n`);
   const rivit = [];
@@ -116,38 +91,43 @@ async function tarkistaKaikki(kisat) {
     let t = await mittaa(url(k.sheetId, pari, `&_m=${satunnainen()}`));
     // 503 = Googlen lukukiintiö (minuuttikohtainen) täynnä: odotetaan ja yritetään kerran uudelleen.
     if (t.http === 503) { await odota(30000); t = await mittaa(url(k.sheetId, pari, `&_m=${satunnainen()}`)); }
-    const ok = t.http === 200 && t.lahde === 'google';
-    rivit.push({ kisa: String(k.nimi).slice(0, 34), http: t.http, 'lähde': t.lahde, ms: t.ms, tulos: ok ? 'OK' : 'TARKISTA', ...(t.virhe ? { virhe: t.virhe } : {}) });
+    rivit.push({ kisa: String(k.nimi).slice(0, 34), http: t.http, 'lähde': t.lahde, ms: t.ms, tulos: luokittele(t), ...(t.virhe ? { virhe: t.virhe } : {}) });
     await odota(2500);
   }
   console.table(rivit);
-  const huonot = rivit.filter((r) => r.tulos !== 'OK');
-  console.log(huonot.length ? `\n${huonot.length} kisaa ei luettu Googlesta. Jos lähde on muu kuin google, aja uudelleen (uusi pari).` : '\nKaikki kisat luettiin Googlesta palvelutilillä.');
-  process.exit(huonot.some((r) => r.http !== 200) ? 1 : 0);
+  const virheet = rivit.filter((r) => r.tulos === 'VIRHE').length;
+  const valimuistissa = rivit.filter((r) => r.tulos === 'VÄLIMUISTI').length;
+  if (virheet) console.log(`\n${virheet} kisaa ei saatu luettua Googlesta. Tarkista niiden jako palvelutilille.`);
+  if (valimuistissa) console.log(`\n${valimuistissa} kisaa tuli välimuistista (pari oli jo käytössä): aja uudelleen, niin pari vaihtuu.`);
+  if (!virheet && !valimuistissa) console.log('\nKaikki kisat luettiin Googlesta palvelutilillä.');
+  process.exit(virheet || valimuistissa ? 1 : 0);
 }
 
 async function main() {
   const rek = await mittaa(`${base}/api/rekisteri`);
   console.log(`Rekisteri: ${rek.ms} ms (TTFB ${rek.ttfb}), CDN ${rek.cdn}, age ${rek.age}\n`);
-  const rekisteriCsv = await (await fetch(`${base}/api/rekisteri`)).text();
-  const kisat = parseCsv(rekisteriCsv)
+  if (rek.http !== 200) throw new Error(`Rekisterin haku epäonnistui: ${rek.http} ${rek.virhe}`);
+  // API käyttää rekisteristä vain sheetId:n ensimmäisen rivin, joten toistot ohitetaan.
+  const nahdyt = new Set();
+  const kisat = parseCsvRows(rek.runko)
     .filter((r) => /^[A-Za-z0-9_-]{20,}$/.test(String(r[4] || '').trim()))
-    .map((r) => ({ nimi: r[1], alku: r[2], loppu: r[3], sheetId: r[4].trim(), tila: tila(r[2], r[3]) }));
+    .map((r) => ({ nimi: r[1], alkuPvm: r[2], loppuPvm: r[3], sheetId: r[4].trim() }))
+    .filter((k) => !nahdyt.has(k.sheetId) && nahdyt.add(k.sheetId))
+    .map((k) => ({ ...k, tila: kisanPaivaTila(k) }));
 
-  const jarj = (a, b) => (pvm(b.alku)?.getTime() || 0) - (pvm(a.alku)?.getTime() || 0);
+  // Lähin ensin; kisa ilman kelvollista päivää viimeiseksi.
+  const aika = (k) => parsiPaivamaara(k.alkuPvm)?.getTime() ?? Infinity;
   const valitut = [
     ...kisat.filter((k) => k.tila === 'kaynnissa'),
-    ...kisat.filter((k) => k.tila === 'tulossa').sort(jarj).reverse().slice(0, 2),
-    ...kisat.filter((k) => k.tila === 'paattynyt').sort(jarj).slice(0, paattyneita)
+    ...kisat.filter((k) => k.tila === 'tulossa').sort((a, b) => aika(a) - aika(b)).slice(0, 2),
+    ...kisat.filter((k) => k.tila === 'paattynyt').sort((a, b) => aika(b) - aika(a)).slice(0, paattyneita)
   ];
   if (tarkista) return tarkistaKaikki(kisat);
   if (!valitut.length) throw new Error('Rekisteristä ei löytynyt kisoja');
 
   const tulokset = [];
   for (const k of valitut) {
-    const loppu = pvm(k.loppu) || pvm(k.alku);
-    const korjausaika = k.tila === 'paattynyt' && loppu && (Date.now() - loppu) / 864e5 <= KORJAUSAIKA_PV + 1;
-    const ryhma = k.tila === 'paattynyt' ? (korjausaika ? 'päättynyt (korjausaika)' : 'päättynyt') : k.tila;
+    const ryhma = k.tila === 'paattynyt' ? (onkoKorjausaikaOhi(k) ? 'päättynyt' : 'päättynyt (korjausaika)') : k.tila;
     const nimet = k.tila === 'paattynyt' ? STAATTINEN : LIVE;
     const vaiheet = [
       ['1 avaus', url(k.sheetId, nimet)],
