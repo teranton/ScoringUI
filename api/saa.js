@@ -5,7 +5,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { haeRekisteriCsv, parseRekisterinKisat, torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
+import { haeRekisteriCsv, onSallittuSheetId, parseRekisterinKisat, torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
 import { luoSaaHaku } from './_lib/saaHaku.js';
 
 export const SAA_OTSIKOT = {
@@ -29,9 +29,9 @@ export default async function handler(req, res) {
   if (await torjuEiSallittuSheetId(sheetId, res)) return;
 
   try {
-    // Rekisteririvi luetaan suoraan (välimuistissa 30 s): sallittujen lista ei lataa rekisteriä
-    // EXTRA_ALLOWED_SHEET_IDS-taulukoille, joten sen rivi voisi puuttua.
-    const kisa = parseRekisterinKisat(await haeRekisteriCsv()).get(sheetId);
+    // Rekisteririvi sallittujen listasta; EXTRA_ALLOWED_SHEET_IDS-taulukolle lista ei välttämättä ole ladattu,
+    // joten silloin rivi luetaan rekisteristä (välimuistissa 30 s).
+    const kisa = onSallittuSheetId.kisa(sheetId) || parseRekisterinKisat(await haeRekisteriCsv()).get(sheetId);
     const tulos = await kisanSaa({ paikka: kisa?.paikka, alkuPvm: kisa?.alkuPvm, loppuPvm: kisa?.loppuPvm });
     return laheta(res, 200, tulos.paivat.length ? SAA_OTSIKOT.ennuste : SAA_OTSIKOT.tyhja, tulos);
   } catch (error) {

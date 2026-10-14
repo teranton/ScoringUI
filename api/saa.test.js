@@ -8,6 +8,7 @@ const pyynnot = [];
 
 mock.module('./_lib/sheetAllowlist.js', { namedExports: {
   haeRekisteriCsv: async () => 'csv',
+  onSallittuSheetId: Object.assign(async () => true, { kisa: () => null }),
   parseRekisterinKisat: () => new Map(Object.entries(rekisteri)),
   torjuEiSallittuSheetId: async (id, res) => {
     if (id in rekisteri) return false;

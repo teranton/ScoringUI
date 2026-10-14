@@ -10,6 +10,10 @@ test('koordinaatit desimaalipisteellä, muu teksti on paikan nimi', () => {
   assert.deepEqual(parsiKoordinaatit('63.67, 22.70'), { lat: 63.67, lon: 22.7 });
   assert.deepEqual(parsiKoordinaatit(' 61.48 21.79 '), { lat: 61.48, lon: 21.79 });
   assert.deepEqual(parsiKoordinaatit('-33.9;18.4'), { lat: -33.9, lon: 18.4 });
+  assert.deepEqual(parsiKoordinaatit('64,27 24,81'), { lat: 64.27, lon: 24.81 });
+  assert.deepEqual(parsiKoordinaatit('64,27; 24,81'), { lat: 64.27, lon: 24.81 });
+  assert.equal(parsiKoordinaatit('64,27'), null);
+  assert.equal(parsiKoordinaatit('64, 27'), null);
   assert.equal(parsiKoordinaatit('Pietarsaari'), null);
   assert.equal(parsiKoordinaatit('95.0, 20.0'), null);
   assert.equal(parsiKoordinaatit(''), null);
@@ -73,18 +77,23 @@ const rivi = (time, lampo, { tuuli = 3, sade1, sade6, symboli1, symboli6, maks6,
 
 test('päivän yhteenveto kisa-ajalta (klo 8–20 Suomen aikaa)', () => {
   const sarja = [
-    rivi('2026-10-15T03:00:00Z', 1, { sade1: 5, symboli1: 'rain' }), // klo 6: ei mukana
-    rivi('2026-10-15T06:00:00Z', 4, { sade1: 0.2, symboli1: 'cloudy', sade6: 1, symboli6: 'partlycloudy_day', tuuli: 2 }),
-    rivi('2026-10-15T09:00:00Z', 9, { sade1: 0.3, symboli1: 'lightrain', sade6: 2, symboli6: 'rain', tuuli: 6.5 }),
-    rivi('2026-10-15T17:00:00Z', 6, { sade1: 0, symboli1: 'cloudy' }),
-    rivi('2026-10-15T18:00:00Z', 5, { sade1: 4, symboli1: 'rain' }), // klo 21: ei mukana
-    // Kauempana 6 tunnin rivit.
+    // Tuntiennuste (lokakuussa UTC+3).
+    rivi('2026-10-15T04:00:00Z', 1, { sade1: 5, symboli1: 'rain' }), // klo 7: ei mukana
+    rivi('2026-10-15T05:00:00Z', 4, { sade1: 0.2, symboli1: 'cloudy', sade6: 1, symboli6: 'partlycloudy_day', tuuli: 2 }),
+    rivi('2026-10-15T09:00:00Z', 9, { sade1: 0.3, symboli1: 'lightrain', tuuli: 6.5 }),
+    rivi('2026-10-15T16:00:00Z', 6, { sade1: 0, symboli1: 'cloudy' }),
+    rivi('2026-10-15T17:00:00Z', 5, { sade1: 4, symboli1: 'rain' }), // klo 20: lämpötila mukaan, klo 20–21 sade ei
+    // Kuuden tunnin rivit: klo 3, 9, 15 ja 21.
+    rivi('2026-10-20T00:00:00Z', -1, { sade6: 3, symboli6: 'rain', maks6: 3, min6: -2 }),
     rivi('2026-10-20T06:00:00Z', 3, { sade6: 1.25, symboli6: 'cloudy', maks6: 7, min6: 2 }),
-    rivi('2026-10-20T12:00:00Z', 6, { sade6: 0.5, symboli6: 'fair_day', maks6: 8, min6: 4 })
+    rivi('2026-10-20T12:00:00Z', 6, { sade6: 0.5, symboli6: 'fair_day', maks6: 8, min6: -4 }),
+    rivi('2026-10-20T18:00:00Z', -5, { sade6: 9, symboli6: 'snow', maks6: 0, min6: -6 }),
+    // Sarjan viimeinen, vajaa päivä jätetään pois.
+    rivi('2026-10-21T06:00:00Z', 3, { sade6: 1, symboli6: 'cloudy', maks6: 7, min6: 2 })
   ];
   assert.deepEqual(paivaYhteenvedot(sarja), [
-    { pvm: '2026-10-15', symboli: 'partlycloudy_day', maks: 9, min: 4, sade: 0.5, tuuli: 6.5 },
-    { pvm: '2026-10-20', symboli: 'cloudy', maks: 8, min: 2, sade: 1.8, tuuli: 3 }
+    { pvm: '2026-10-15', symboli: 'lightrain', maks: 9, min: 4, sade: 0.5, tuuli: 6.5 },
+    { pvm: '2026-10-20', symboli: 'cloudy', maks: 7, min: 2, sade: 1.8, tuuli: 3 }
   ]);
   assert.deepEqual(paivaYhteenvedot(null), []);
 });

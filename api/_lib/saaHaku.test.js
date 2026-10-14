@@ -18,9 +18,12 @@ const rivi = (time, lampo, symboli) => ({
   }
 });
 const YR = { properties: { timeseries: [
-  rivi('2026-10-14T09:00:00Z', 10, 'clearsky_day'),
-  rivi('2026-10-15T09:00:00Z', 8, 'cloudy'),
-  rivi('2026-10-16T09:00:00Z', 6, 'rain')
+  rivi('2026-10-14T06:00:00Z', 10, 'clearsky_day'),
+  rivi('2026-10-14T12:00:00Z', 11, 'clearsky_day'),
+  rivi('2026-10-15T06:00:00Z', 8, 'cloudy'),
+  rivi('2026-10-15T12:00:00Z', 9, 'rain'),
+  rivi('2026-10-16T06:00:00Z', 6, 'rain'),
+  rivi('2026-10-16T12:00:00Z', 7, 'rain')
 ] } };
 
 function luo({ vastaukset = {}, nyt = () => NYT } = {}) {
@@ -46,7 +49,7 @@ test('paikan nimi geokoodataan (suomalainen osuma) ja tulevasta kisasta näytet�
   const { kisanSaa, haut } = luo({ vastaukset: { 'geocoding-api.open-meteo.com': GEO, 'api.met.no': YR } });
   const tulos = await kisanSaa({ paikka: 'Pietarsaari', alkuPvm: '2026-10-15', loppuPvm: '2026-10-16' });
   assert.equal(tulos.paikka, 'Pietarsaari');
-  assert.deepEqual(tulos.paivat, [{ pvm: '2026-10-15', symboli: 'cloudy', maks: 8, min: 8, sade: 0.4, tuuli: 4 }]);
+  assert.deepEqual(tulos.paivat, [{ pvm: '2026-10-15', symboli: 'cloudy', maks: 9, min: 8, sade: 0.8, tuuli: 4 }]);
   const ennusteUrl = new URL(haut[1]);
   assert.equal(ennusteUrl.pathname, '/weatherapi/locationforecast/2.0/compact');
   assert.equal(ennusteUrl.searchParams.get('lat'), '63.67');
@@ -67,6 +70,11 @@ test('koordinaatit käytetään suoraan, kaukainen tai puuttuva kisa ei hae mit�
   assert.deepEqual(await kisanSaa({ paikka: '64.1, 24.5', alkuPvm: '2026-12-01', loppuPvm: '' }), { paikka: '', paivat: [] });
   assert.deepEqual(await kisanSaa({ paikka: '', alkuPvm: '2026-10-15', loppuPvm: '' }), { paikka: '', paivat: [] });
   assert.equal(haut.length, 1);
+});
+
+test('vain ulkomainen osuma ei kelpaa', async () => {
+  const { kisanSaa } = luo({ vastaukset: { 'geocoding-api.open-meteo.com': { results: [GEO.results[0]] } } });
+  assert.deepEqual(await kisanSaa({ paikka: 'Jakobstad', alkuPvm: '2026-10-15', loppuPvm: '' }), { paikka: '', paivat: [] });
 });
 
 test('tuntematon paikka palauttaa tyhjän ja muistetaan', async () => {

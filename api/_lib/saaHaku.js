@@ -11,8 +11,8 @@ const ENNUSTE_VARALLA_MS = 12 * TUNTI_MS;
 const PAIKKA_TUORE_MS = 30 * 24 * TUNTI_MS;
 // Tuntematon paikan nimi haetaan uudelleen aikaisintaan päivän päästä.
 const PAIKKA_EI_LOYDY_MS = 24 * TUNTI_MS;
-// Geokoodaus ja ennuste haetaan peräkkäin; yhteensä alle Vercelin funktion aikarajan.
-const AIKARAJA_MS = 4000;
+// Geokoodaus ja ennuste haetaan peräkkäin (geokoodaus vain paikan ensimmäisellä haulla); yhteensä 6 s.
+const AIKARAJA_MS = 3000;
 
 // MET:n käyttöehdot: tunnistettava sovellus ja yhteystieto. SAA_USER_AGENT vaihtaa sen.
 const USER_AGENT = process.env.SAA_USER_AGENT || 'TT-Tulospalvelu/1.0 github.com/teranton/ScoringUI tt.tulospalvelu@gmail.com';
@@ -27,7 +27,8 @@ async function haeJson(hae, url, palvelu) {
 export function luoSaaHaku({ hae = fetch, nyt = Date.now, valimuisti = luoValimuisti('saa') } = {}) {
   const yhdista = luoYhdistaja();
 
-  // Paikan nimi → { lat, lon, nimi } tai null. Suomalainen osuma ensin.
+  // Paikan nimi → { lat, lon, nimi } tai null. Vain suomalaiset osumat: väärin kirjoitettu nimi ei saa
+  // näyttää samannimisen ulkomaisen paikan säätä (ulkomaiselle kisalle sarakkeeseen H koordinaatit).
   async function paikanKoordinaatit(paikka) {
     const koordinaatit = parsiKoordinaatit(paikka);
     if (koordinaatit) return { ...koordinaatit, nimi: '' };
@@ -42,7 +43,7 @@ export function luoSaaHaku({ hae = fetch, nyt = Date.now, valimuisti = luoValimu
         const params = new URLSearchParams({ name: paikka.trim(), count: '5', language: 'fi', format: 'json' });
         const data = await haeJson(hae, `https://geocoding-api.open-meteo.com/v1/search?${params}`, 'Open-Meteo');
         const tulokset = Array.isArray(data?.results) ? data.results : [];
-        const osuma = tulokset.find((t) => t.country_code === 'FI') || tulokset[0];
+        const osuma = tulokset.find((t) => t.country_code === 'FI');
         const arvo = osuma && Number.isFinite(osuma.latitude) && Number.isFinite(osuma.longitude)
           ? { lat: osuma.latitude, lon: osuma.longitude, nimi: String(osuma.name || '') }
           : null;
