@@ -80,7 +80,7 @@ test('paikat, tyypit, tulokset ja ryhmät paikkajärjestyksessä', () => {
   assert.equal(paikat[7].nro, '8');
 
   const ryhmat = muodostaRyhmat(paikat, 5);
-  assert.deepEqual(ryhmat.map((r) => [r.numero, r.koko, r.paikat.length, r.ampujia]), [[1, 5, 5, 5], [2, 5, 3, 1]]);
+  assert.deepEqual(ryhmat.map((r) => [r.numero, r.koko, r.paikat.length, r.ampujia]), [[1, 5, 5, 5], [2, 5, 2, 1]]);
   assert.deepEqual(ryhmat.map(ryhmanTayttoaste), ['taysi', 'vajaa']);
   assert.equal(ryhmanTayttoaste({ ampujia: 4, koko: 5 }), 'lahes');
   assert.equal(ryhmanTayttoaste({ ampujia: 0, koko: 5 }), 'tyhja');
@@ -185,7 +185,9 @@ test('kaavan täyttämä nimi on lukittu, ja kaava vastaan syötetty arvo torjuu
   const rivit = [otsikko, { values: [taytetty('1'), teksti('OK'), taytetty('Kaava Nimi')] }, rivi(2, 'Kenneth Asplund', 'Y', 'JSF')];
   const { paikat } = parsiOsallistujat(rivit, { ...alue, loppuRivi: 3 });
   assert.deepEqual(paikat.map((p) => p.tyyppi), ['lukittu', 'ampuja']);
-  assert.deepEqual(suunnitteleSiirto(paikat, 2, 1, 5), { ok: false, syy: 'muuttunut' });
+  assert.deepEqual(suunnitteleSiirto(paikat, 2, 1, 5), { ok: false, syy: 'lukittu' });
+  assert.deepEqual(suunnitteleSiirto(paikat, 1, 2, 5), { ok: false, syy: 'lukittu' });
+  assert.equal(muodostaRyhmat(paikat, 5)[0].ampujia, 2);
 
   const sarakkeet = { leveys: 5, nimi: 2 };
   const a = { rivi: 1, paikka: 0, nro: '1', nimi: 'A', solut: [taytetty('1'), teksti('OK'), teksti('A'), teksti('Y'), teksti('S')] };
@@ -193,4 +195,21 @@ test('kaavan täyttämä nimi on lukittu, ja kaava vastaan syötetty arvo torjuu
   assert.deepEqual(siirtoPyynnot(0, [{ kohde: b, lahde: a }, { kohde: a, lahde: b }], sarakkeet), { ok: false, syy: 'kaavoja' });
   // Vapaaksi jäävän rivin kaavaa ei kosketa.
   assert.deepEqual(siirtoPyynnot(0, [{ kohde: b, lahde: null }], sarakkeet).pyynnot.map(pyyntoArvot), [[null, 2, null]]);
+});
+
+test('tyhjä kaavarivi ei ole vapaa paikka, eikä sen yli voi täyttää', () => {
+  const { paikat } = lue();
+  // Fixturen rivi 8: nimen kaava antaa tyhjän.
+  assert.equal(paikat[7].kaavaNimi, true);
+  assert.deepEqual(muodostaRyhmat(paikat, 5)[1].paikat.map((p) => p.rivi), [6, 7]);
+  assert.deepEqual(suunnitteleSiirto(paikat, 1, 8, 5), { ok: false, syy: 'lukittu' });
+});
+
+test('vapaan paikan numero luetaan syötteestä numeromuotoilusta riippumatta', () => {
+  const rivit = [otsikko, { values: [taytetty('1'), {}, { formattedValue: '1,00', userEnteredValue: { numberValue: 1 } }] }, rivi(2, 'Kenneth Asplund', 'Y', 'JSF')];
+  const { paikat } = parsiOsallistujat(rivit, { ...alue, loppuRivi: 3 });
+  assert.deepEqual([paikat[0].tyyppi, paikat[0].nimi], ['vapaa', '1']);
+  const suunnitelma = suunnitteleSiirto(paikat, 2, 1, 5);
+  assert.equal(suunnitelma.toiminto, 'siirto');
+  assert.equal(nimetTasmaavat(paikat, [{ rivi: 1, nimi: '1' }]), true);
 });

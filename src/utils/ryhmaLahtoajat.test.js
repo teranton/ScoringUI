@@ -53,3 +53,11 @@ test('eri välilehdet ovat eri päiviä', () => {
   assert.deepEqual(ryhmanLahtoajat(ajat, { numero: 2, paikat: [{ nro: '6' }] }), [{ paiva: 'La 6.6.', aika: '9:00' }, { paiva: 'Su 7.6.', aika: '8:30' }]);
   assert.deepEqual(ryhmanLahtoajat(null, { numero: 1, paikat: [] }), []);
 });
+
+test('samannimiset välilehdet pysyvät eri päivinä', () => {
+  const ajat = lueLahtoajat([
+    { key: 'aikataulu-la', raw: RATARUUDUKKO, label: 'SM 2026' },
+    { key: 'aikataulu-su', raw: RATARUUDUKKO.replace('9:00', '8:30'), label: 'SM 2026' }
+  ], 'inline', TX);
+  assert.deepEqual(ryhmanLahtoajat(ajat, { numero: 2, paikat: [{ nro: '6' }] }), [{ paiva: 'SM 2026', aika: '9:00' }, { paiva: 'SM 2026', aika: '8:30' }]);
+});

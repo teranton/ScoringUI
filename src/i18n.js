@@ -213,6 +213,7 @@ const TEKSTIT = jaadyta({
       cancel: 'Peru',
       dragHandle: 'Raahaa ampujaa {nimi}',
       locked: 'Tuloksia kirjattu',
+      formulaName: 'Nimi tulee taulukossa kaavasta, joten tätä riviä ei voi muuttaa täältä.',
       notConfigured: 'Ryhmien muokkaus ei ole käytössä tässä palvelussa.'
     }
   },
@@ -420,6 +421,7 @@ const TEKSTIT = jaadyta({
       cancel: 'Cancel',
       dragHandle: 'Drag {nimi}',
       locked: 'Has results',
+      formulaName: 'This row\'s name comes from a formula in the sheet, so it cannot be changed here.',
       notConfigured: 'Squad editing is not enabled on this service.'
     }
   }

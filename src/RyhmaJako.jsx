@@ -26,6 +26,7 @@ import {
   muodostaRyhmat,
   osallistujaAlueA1,
   kumoaSijoitukset,
+  laskeRyhmaKoko,
   nimetTasmaavat,
   odotetutNimet,
   parsiOsallistujat,
@@ -152,12 +153,13 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
   const voiSiirtaa = (paikka) => muokattava && !tallennetaan && paikka.tyyppi === 'ampuja' && !paikka.onTuloksia;
 
   // Ryhmäkoko, jolla paikat jaetaan ryhmiin (asetus tai suurin taulukon ryhmä).
-  const ryhmaKokoNyt = (paikat) => muodostaRyhmat(paikat, ryhmaKoko)[0]?.koko || ryhmaKoko;
-  const syynTeksti = (syy) => ({ tuloksia: tx.hasResults, kaavoja: tx.formulas }[syy] || tx.changed);
+  const ryhmaKokoNyt = (paikat) => laskeRyhmaKoko(paikat, ryhmaKoko).koko;
+  const syynTeksti = (syy) => ({ tuloksia: tx.hasResults, kaavoja: tx.formulas, lukittu: tx.formulaName }[syy] || tx.changed);
 
   // Yhteinen tallennus: näkymä päivittyy heti, rivit luetaan juuri ennen kirjoitusta (toinen järjestäjä tai taulukko
   // on voinut muuttaa niitä), suunnitelma tehdään tuoreesta datasta ja kirjoitetaan yhdellä batchUpdatella.
-  // suunnittele(tuore) palauttaa { ok, sijoitukset } tai { ok: false, syy }; valmis(sijoitukset, tuore) antaa viestin.
+  // suunnittele(tuore) palauttaa { ok, sijoitukset } tai { ok: false, syy }; valmis(suunnitelma) antaa viestin
+  // kirjoitetusta (tuoreesta) suunnitelmasta.
   const tallenna = async (paikallinen, suunnittele, valmis) => {
     const ennen = data;
     setTallennetaan(true);
@@ -179,7 +181,7 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
       const jalkeen = await lueOsallistujat(sheetId, data.alue)
         .catch(() => paikoilla(tuore, sovellaPaikallisesti(tuore.paikat, suunnitelma.sijoitukset)));
       setData(jalkeen);
-      setViesti(valmis(suunnitelma.sijoitukset, tuore));
+      setViesti(valmis(suunnitelma));
     } catch (virhe) {
       setData(ennen);
       if (virhe instanceof SheetsVirhe && virhe.status === 403) {
@@ -199,6 +201,8 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
     if (!suunnitelma.ok) {
       setValittuRivi(null);
       setViesti({ teksti: syynTeksti(suunnitelma.syy), virhe: true });
+      // Näkymä ei vastaa taulukkoa: ladataan, kuten viesti kertoo.
+      if (suunnitelma.syy === 'muuttunut') lataa();
       return;
     }
     const nahdyt = [{ rivi: lahde.rivi, nimi: lahde.nimi }, { rivi: kohde.rivi, nimi: kohde.nimi }];
@@ -207,11 +211,11 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
       (tuore) => (nimetTasmaavat(tuore.paikat, nahdyt)
         ? suunnitteleSiirto(tuore.paikat, lahde.rivi, kohde.rivi, ryhmaKokoNyt(tuore.paikat))
         : { ok: false, syy: 'muuttunut' }),
-      (sijoitukset) => ({
-        teksti: suunnitelma.toiminto === 'vaihto'
+      ({ toiminto, sijoitukset }) => ({
+        teksti: toiminto === 'vaihto'
           ? tayta(tx.swapped, { a: lahde.nimi, b: kohde.nimi })
-          : tayta(tx.moved, { nimi: lahde.nimi, nro: kohde.nro }),
-        kumoa: { ennen: sijoitukset.map((s) => s.kohde), odotetut: odotetutNimet(sijoitukset) }
+          : tayta(tx.moved, { nimi: lahde.nimi, nro: sijoitukset.find((x) => x.lahde?.rivi === lahde.rivi)?.kohde.nro ?? kohde.nro }),
+        kumoa: { ennen: sijoitukset.map((x) => x.kohde), odotetut: odotetutNimet(sijoitukset) }
       })
     );
   };
@@ -284,12 +288,15 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
 
   useEffect(() => lopetaVieritys, []);
 
+  const ryhmat = useMemo(() => (data ? muodostaRyhmat(data.paikat, ryhmaKoko) : []), [data, ryhmaKoko]);
+
   // --- Napautus: ensin ampuja, sitten paikka (vapaa paikka tai toinen ampuja).
   const napauta = (paikka) => {
     if (!muokattava || tallennetaan) return;
     if (valittuRivi === null) {
       if (voiSiirtaa(paikka)) setValittuRivi(paikka.rivi);
       else if (paikka.onTuloksia) setViesti({ teksti: tx.hasResults, virhe: true });
+      else if (paikka.tyyppi === 'lukittu') setViesti({ teksti: tx.formulaName, virhe: true });
     } else if (valittuRivi === paikka.rivi) {
       setValittuRivi(null);
     } else {
@@ -301,7 +308,6 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
     return <div className="py-6 text-sm text-[hsl(var(--muted-foreground))]">{tx.notConfigured}</div>;
   }
 
-  const ryhmat = data ? muodostaRyhmat(data.paikat, ryhmaKoko) : [];
   const valittu = valittuRivi !== null ? paikkaRivilla(valittuRivi) : null;
   const kohdeRivi = raahaus?.kohdeRivi ?? null;
 
@@ -399,8 +405,8 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
                   {ajat.length > 0 && (
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs" aria-label={tx.startTimes}>
                       <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      {ajat.map(({ paiva, aika }) => (
-                        <span key={paiva || aika} className="tabular-nums">
+                      {ajat.map(({ paiva, aika }, i) => (
+                        <span key={i} className="tabular-nums">
                           {paiva && <span className="font-medium">{paiva} </span>}
                           {aika}
                         </span>
@@ -413,6 +419,7 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
                     const onAmpuja = paikka.tyyppi === 'ampuja' || paikka.tyyppi === 'lukittu';
                     const siirrettava = voiSiirtaa(paikka);
                     const lukossa = paikka.onTuloksia || paikka.tyyppi === 'lukittu';
+                    const lukonSyy = paikka.onTuloksia ? tx.locked : tx.formulaName;
                     const onLahde = raahaus?.lahde.rivi === paikka.rivi;
                     const onKohde = raahaus && kohdeRivi === paikka.rivi && !onLahde;
                     const onValittu = valittuRivi === paikka.rivi;
@@ -441,8 +448,8 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
                             <GripVertical className="h-5 w-5" aria-hidden="true" />
                           </button>
                         ) : (
-                          <span className="flex w-10 shrink-0 items-center justify-center text-[hsl(var(--muted-foreground))]" title={lukossa ? tx.locked : undefined}>
-                            {lukossa && <Lock className="h-4 w-4" aria-label={tx.locked} />}
+                          <span className="flex w-10 shrink-0 items-center justify-center text-[hsl(var(--muted-foreground))]" title={lukossa ? lukonSyy : undefined}>
+                            {lukossa && <Lock className="h-4 w-4" aria-label={lukonSyy} />}
                           </span>
                         )}
                         <button
