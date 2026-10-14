@@ -24,6 +24,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
+| `OSALLISTUJAT+TULOKSET` (named range `OSALLISTUJAT`) | Organiser, ScoringLib (`Distributor.js` shuffle), squad editor (`RyhmaJako.jsx`, organiser's own account) | `RyhmaJako.jsx` only, not through `api/` |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
 
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
@@ -61,6 +62,24 @@ so column order can change but header names must not.
 - ScoringLib's `KISANSPEKSIT` fallback cells (see "Keys ScoringLib reads"), used when a key's text is missing.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no). Row 1 is a header if B contains "nimi" or A contains "id".
+
+## Squad editing (organisers)
+
+`RyhmaJako.jsx` ("Järjestäjälle: muokkaa ryhmiä") lets an organiser swap two shooters between squads. It does not
+go through `api/`: the browser reads and writes the sheet with the organiser's own Google sign-in
+(`spreadsheets` scope, `utils/googleKayttaja.js`), so only accounts that can edit the competition sheet can save.
+It depends on:
+
+- The named range `OSALLISTUJAT` on the main tab (`OSALLISTUJAT+TULOKSET`), with the header row directly above it.
+- Squads and shooter numbers come from the row position in that range: Sporting/ESP `Ryhmä` is
+  `ROUNDUP(SEQUENCE()/size)`, `NRO` is `SEQUENCE(COUNTA(C2:C))`, and the Compak timetable refers to main-tab rows.
+  The editor shows squads of `AIKATAULU_RYHMAKOKO` (6 when `6`, otherwise 5).
+- Header names: name column containing `NIMI` / `NAME` / `OSALLISTUJA` (as `Distributor.js`), `SARJA`, `SEURA`,
+  `NRO`, and station result columns whose header is a number `1`..`N`. The shooter's columns end at the first
+  empty header (the `Ohjeita` column after it is not moved).
+- A swap moves every entered value (not formulas, not cells filled by array formulas) between the two rows in those
+  columns, so check-in, name, class, club and tie-break move with the shooter. Shooters with any station result
+  are not moved. Rows are re-read just before writing; if either name has changed, nothing is written.
 
 ## `KISANSPEKSIT` settings
 

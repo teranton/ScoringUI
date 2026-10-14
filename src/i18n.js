@@ -177,10 +177,32 @@ const TEKSTIT = jaadyta({
       previewHint: 'Klikkaa avataksesi linkin'
     },
     ryhmaJako: {
-      loading: 'Ladataan erätietoja...',
-      title: 'Eräjako',
-      description: 'Voit järjestellä ampujia erien välillä raahaamalla.',
-      heat: 'Erä'
+      openEditor: 'Järjestäjälle: muokkaa ryhmiä',
+      title: 'Ryhmien muokkaus',
+      description: 'Vaihda ampujien paikkoja ryhmien välillä raahaamalla kahvasta tai napauttamalla ensin ampujaa ja sitten sitä, jonka kanssa hän vaihtaa paikkaa. Vaihto tallentuu heti kilpailutaulukkoon.',
+      numberNote: 'Ampujanumero kuuluu paikalle, joten vaihdossa ampujat vaihtavat myös numeroa. Ampujaa, jolla on jo tuloksia, ei voi siirtää.',
+      signInInfo: 'Ryhmiä voi muokata, jos Google-tililläsi on muokkausoikeus tämän kilpailun taulukkoon.',
+      signIn: 'Kirjaudu Googlella',
+      signOut: 'Kirjaudu ulos',
+      loading: 'Ladataan ryhmiä taulukosta...',
+      reload: 'Lataa uudelleen',
+      squad: 'Ryhmä',
+      empty: 'Taulukossa ei ole vielä ampujia.',
+      noAccess: 'Google-tililläsi ei ole pääsyä tämän kilpailun taulukkoon.',
+      readOnly: 'Google-tililläsi on taulukkoon vain katseluoikeus, joten ryhmiä ei voi muokata.',
+      changed: 'Taulukko oli muuttunut, joten vaihtoa ei tehty. Ryhmät on ladattu uudelleen.',
+      hasResults: 'Ampujalla on jo tuloksia, joten häntä ei voi siirtää.',
+      swapped: 'Vaihdettu: {a} ↔ {b}.',
+      undo: 'Kumoa',
+      saving: 'Tallennetaan...',
+      saveFailed: 'Tallennus epäonnistui: {virhe}',
+      loadFailed: 'Ryhmien lataus epäonnistui: {virhe}',
+      sessionExpired: 'Kirjautuminen vanheni. Kirjaudu uudelleen.',
+      selected: 'Valittu: {nimi}. Napauta ampujaa, jonka kanssa hän vaihtaa paikkaa.',
+      cancel: 'Peru',
+      dragHandle: 'Raahaa ampujaa {nimi}',
+      locked: 'Tuloksia kirjattu',
+      notConfigured: 'Ryhmien muokkaus ei ole käytössä tässä palvelussa.'
     }
   },
   en: {
@@ -351,10 +373,32 @@ const TEKSTIT = jaadyta({
       previewHint: 'Click to open the link'
     },
     ryhmaJako: {
-      loading: 'Loading heat data...',
-      title: 'Heat Assignment',
-      description: 'You can rearrange shooters between heats by dragging.',
-      heat: 'Heat'
+      openEditor: 'For organisers: edit squads',
+      title: 'Edit squads',
+      description: 'Swap shooters between squads by dragging the handle, or tap a shooter and then the shooter to swap places with. Each swap is saved to the competition sheet at once.',
+      numberNote: 'The competition number belongs to the place, so swapped shooters also swap numbers. Shooters who already have results cannot be moved.',
+      signInInfo: 'You can edit squads if your Google account can edit this competition\'s sheet.',
+      signIn: 'Sign in with Google',
+      signOut: 'Sign out',
+      loading: 'Loading squads from the sheet...',
+      reload: 'Reload',
+      squad: 'Squad',
+      empty: 'The sheet has no shooters yet.',
+      noAccess: 'Your Google account has no access to this competition\'s sheet.',
+      readOnly: 'Your Google account can only view the sheet, so squads cannot be edited.',
+      changed: 'The sheet had changed, so nothing was swapped. Squads were reloaded.',
+      hasResults: 'This shooter already has results and cannot be moved.',
+      swapped: 'Swapped: {a} ↔ {b}.',
+      undo: 'Undo',
+      saving: 'Saving...',
+      saveFailed: 'Saving failed: {virhe}',
+      loadFailed: 'Loading squads failed: {virhe}',
+      sessionExpired: 'Your sign-in expired. Sign in again.',
+      selected: 'Selected: {nimi}. Tap the shooter to swap places with.',
+      cancel: 'Cancel',
+      dragHandle: 'Drag {nimi}',
+      locked: 'Has results',
+      notConfigured: 'Squad editing is not enabled on this service.'
     }
   }
 });

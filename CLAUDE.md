@@ -7,6 +7,10 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
 
 - Serverless functions in `api/` read the competition spreadsheets directly with a Google service
   account (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`). There is no API to ScoringLib.
+- Squad editing (`src/RyhmaJako.jsx`) is the one write path: the organiser signs in with Google in the browser
+  (Google Identity Services, `VITE_GOOGLE_CLIENT_ID`, `spreadsheets` scope) and the browser reads and writes the
+  sheet's `OSALLISTUJAT` rows with that token, so Google enforces editor access. Without `VITE_GOOGLE_CLIENT_ID`
+  the feature is hidden. The service account stays read-only.
 - The frontend parses tabs as CSV. The tabs, headers and settings it depends on are listed in
   `contract/sheet-layout.md`. That file is the contract with ScoringLib (`teranton/ScoringLib`) and the
   sheet template.

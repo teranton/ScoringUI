@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Squad editing for organisers (`RyhmaJako.jsx`): reads the main tab through the named range `OSALLISTUJAT` and swaps
+  two shooters' entered values, with the organiser's own Google account (not the service account). Squads and
+  numbers stay position based, as ScoringLib builds them. No layout change; ScoringLib must keep the named range,
+  the header row above it and position-based squads (see "Squad editing" in `sheet-layout.md`).
 - Compak timetable printout (`TulosteAikataulu.jsx`) reads the same `Aikataulu*` tabs as the screen. No layout
   change; the lane-grid conventions it relies on (empty slot, `TAUKO`, U+200B referee marker) are now written down.
 - Private sheets: the API serves only the tabs the UI reads (`KISANSPEKSIT`, `Tulokset Y`, `NEW_Joukkue`,
