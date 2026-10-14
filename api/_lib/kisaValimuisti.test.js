@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CDN_OTSIKOT, cdnOtsikko, kisanPaivaTila, onkoKuvaTuore, vastausTuoreMs } from './kisaValimuisti.js';
+import { CDN_OTSIKOT, cdnOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './kisaValimuisti.js';
 
 const nyt = new Date(2026, 9, 13, 12, 0, 0);
 const TUNTI = 60 * 60 * 1000;
@@ -25,6 +25,20 @@ test('tallennettu kuva: tunti korjausaikana, vuorokausi sen jälkeen', () => {
 
   assert.equal(onkoKuvaTuore({ ...vanha, paivaTila: 'kaynnissa', tallennettu: nyt.getTime() }, nyt.getTime()), false);
   assert.equal(onkoKuvaTuore(null, nyt.getTime()), false);
+});
+
+test('vanhempi kuva annetaan heti CDN:n vanhan vastauksen rajoissa', () => {
+  const PAIVA = 24 * TUNTI;
+  const vanha = { paivaTila: 'paattynyt', alkuPvm: '2025-07-05', loppuPvm: '2025-07-06' };
+  assert.equal(onkoKuvaKaytettava({ ...vanha, tallennettu: nyt.getTime() - 29 * PAIVA }, nyt.getTime()), true);
+  assert.equal(onkoKuvaKaytettava({ ...vanha, tallennettu: nyt.getTime() - 31 * PAIVA }, nyt.getTime()), false);
+
+  const tuore = { paivaTila: 'paattynyt', alkuPvm: '2026-10-10', loppuPvm: '2026-10-11' };
+  assert.equal(onkoKuvaKaytettava({ ...tuore, tallennettu: nyt.getTime() - 20 * TUNTI }, nyt.getTime()), true);
+  assert.equal(onkoKuvaKaytettava({ ...tuore, tallennettu: nyt.getTime() - 26 * TUNTI }, nyt.getTime()), false);
+
+  assert.equal(onkoKuvaKaytettava({ ...vanha, paivaTila: 'kaynnissa', tallennettu: nyt.getTime() }, nyt.getTime()), false);
+  assert.equal(onkoKuvaKaytettava(null, nyt.getTime()), false);
 });
 
 test('korjausaikana vanhaa vastausta tarjotaan korkeintaan vuorokauden', () => {

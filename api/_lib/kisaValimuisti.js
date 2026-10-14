@@ -48,9 +48,20 @@ export function cdnOtsikko(paivaTila, kisa = null, nyt = Date.now(), ikaMs = 0) 
   return otsikko({ tuore: Math.max(1, tuore - Math.floor(ikaMs / 1000)), vanha });
 }
 
-// Päättyneen kisan tallennettu kuva kelpaa tunnin korjausaikana ja vuorokauden sen jälkeen.
+function kuvanIka(kuva, nyt) {
+  if (!kuva || kuva.paivaTila !== 'paattynyt' || !Number.isFinite(kuva.tallennettu)) return Infinity;
+  return nyt - kuva.tallennettu;
+}
+
+// Päättyneen kisan tallennettu kuva on tuore tunnin korjausaikana ja vuorokauden sen jälkeen.
 export function onkoKuvaTuore(kuva, nyt = Date.now()) {
-  if (!kuva || kuva.paivaTila !== 'paattynyt' || !Number.isFinite(kuva.tallennettu)) return false;
   const maksimiIka = onkoKorjausaikaOhi(kuva, nyt) ? PAIVA_MS : TUNTI_MS;
-  return (nyt - kuva.tallennettu) < maksimiIka;
+  return kuvanIka(kuva, nyt) < maksimiIka;
+}
+
+// Vanhempikin kuva annetaan heti, kun se on CDN:n vanhan vastauksen rajoissa (korjausaikana 1 h + 1 vrk,
+// sen jälkeen 1 h + 30 vrk); tuore data haetaan silloin taustalla.
+export function onkoKuvaKaytettava(kuva, nyt = Date.now()) {
+  const { tuore, vanha } = saanto('paattynyt', kuva, nyt);
+  return kuvanIka(kuva, nyt) < (tuore + vanha) * 1000;
 }
