@@ -106,7 +106,7 @@ async function pyynto(url, { method = 'GET', body } = {}) {
 }
 
 export function haeTaulukonMeta(sheetId) {
-  const fields = 'namedRanges(name,range),sheets(properties(sheetId,title))';
+  const fields = 'namedRanges(name,range),sheets(properties(sheetId,title,gridProperties(rowCount)))';
   return pyynto(`${SHEETS_API}/${encodeURIComponent(sheetId)}?fields=${encodeURIComponent(fields)}`);
 }
 

@@ -74,6 +74,8 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, locale = 'fi' }) {
   const kasitteleVirhe = useCallback((virhe, pohja) => {
     if (virhe instanceof SheetsVirhe && virhe.status === 401) {
       setKirjautunut(false);
+      setData(null);
+      setMuokattava(false);
       return tx.sessionExpired;
     }
     return tayta(pohja, { virhe: virhe?.message || String(virhe) });
@@ -142,14 +144,17 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, locale = 'fi' }) {
     try {
       // Luetaan rivit juuri ennen kirjoitusta: toinen järjestäjä tai taulukko on voinut muuttaa niitä.
       const tuore = await lueOsallistujat(sheetId, data.alue);
-      const tarkistus = tarkistaVaihto(tuore.ampujat, a, b);
+      const tarkistus = tarkistaVaihto(tuore.ampujat, a, b, tuore.sarakkeet.leveys);
       if (!tarkistus.ok) {
         setData(tuore);
-        setViesti({ teksti: tarkistus.syy === 'tuloksia' ? tx.hasResults : tx.changed, virhe: true });
+        setViesti({ teksti: { tuloksia: tx.hasResults, kaavoja: tx.formulas }[tarkistus.syy] || tx.changed, virhe: true });
         return;
       }
       await paivitaTaulukko(sheetId, vaihtoPyynnot(tuore.alue.sheetId, tarkistus.a, tarkistus.b, tuore.sarakkeet.leveys));
-      const jalkeen = await lueOsallistujat(sheetId, data.alue);
+      // Tallennus onnistui. Uudelleenluku antaa kaavojen arvot (numerot, ryhmät); jos se epäonnistuu,
+      // vaihto näytetään tuoreesta datasta laskettuna eikä virheenä.
+      const jalkeen = await lueOsallistujat(sheetId, data.alue)
+        .catch(() => ({ ...tuore, ampujat: vaihdaPaikallisesti(tuore.ampujat, tarkistus.a, tarkistus.b) }));
       setData(jalkeen);
       const uusiA = jalkeen.ampujat.find((x) => x.rivi === a.rivi);
       const uusiB = jalkeen.ampujat.find((x) => x.rivi === b.rivi);

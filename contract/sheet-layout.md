@@ -73,13 +73,15 @@ It depends on:
 - The named range `OSALLISTUJAT` on the main tab (`OSALLISTUJAT+TULOKSET`), with the header row directly above it.
 - Squads and shooter numbers come from the row position in that range: Sporting/ESP `Ryhmä` is
   `ROUNDUP(SEQUENCE()/size)`, `NRO` is `SEQUENCE(COUNTA(C2:C))`, and the Compak timetable refers to main-tab rows.
-  The editor shows squads of `AIKATAULU_RYHMAKOKO` (6 when `6`, otherwise 5).
+  The editor takes each shooter's squad from the `Ryhmä` column when the tab has one (Sporting/ESP), otherwise
+  squads of `AIKATAULU_RYHMAKOKO` (6 when `6`, otherwise 5).
 - Header names: name column containing `NIMI` / `NAME` / `OSALLISTUJA` (as `Distributor.js`), `SARJA`, `SEURA`,
   `NRO`, and station result columns whose header is a number `1`..`N`. The shooter's columns end at the first
   empty header (the `Ohjeita` column after it is not moved).
 - A swap moves every entered value (not formulas, not cells filled by array formulas) between the two rows in those
   columns, so check-in, name, class, club and tie-break move with the shooter. Shooters with any station result
-  are not moved. Rows are re-read just before writing; if either name has changed, nothing is written.
+  are not moved, and neither are names filled by a formula. A swap is refused when one row has a formula where the
+  other has a typed value. Rows are re-read just before writing; if either name has changed, nothing is written.
 
 ## `KISANSPEKSIT` settings
 

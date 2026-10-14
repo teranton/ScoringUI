@@ -112,3 +112,25 @@ test('paikallinen vaihto vaihtaa ampujat ja pitää paikkojen numerot', () => {
   assert.equal(uusi[4].nimi, 'Mika Pöllänen');
   assert.equal(uusi[4].nro, '5');
 });
+
+test('Ryhmä-sarake ratkaisee ryhmän, ja avoin alue päättyy välilehden loppuun', () => {
+  const otsikkoRyhma = { values: [...otsikko.values.slice(0, 8), kaava('Ryhmä', '={"Ryhmä";ARRAYFORMULA(ROUNDUP(SEQUENCE(8)/6))}')] };
+  const rivit = [otsikkoRyhma, ...rowData.slice(1, 7).map((r, i) => ({ values: [...r.values.slice(0, 8), taytetty(String(Math.ceil((i + 1) / 6)))] }))];
+  const { ampujat } = parsiOsallistujat(rivit, alue);
+  assert.deepEqual(muodostaRyhmat(ampujat, 5).map((r) => r.ampujat.length), [6]);
+
+  const meta = {
+    namedRanges: [{ name: 'OSALLISTUJAT', range: { sheetId: 7, startRowIndex: 1 } }],
+    sheets: [{ properties: { sheetId: 7, title: 'P', gridProperties: { rowCount: 200 } } }]
+  };
+  assert.equal(etsiOsallistujaAlue(meta).loppuRivi, 200);
+});
+
+test('kaavan täyttämä nimi ei ole siirrettävä ampuja, ja kaava vastaan syötetty arvo torjuu vaihdon', () => {
+  const rivit = [otsikko, { values: [taytetty('1'), teksti('OK'), taytetty('Kaava Nimi')] }, rivi(2, 'Kenneth Asplund', 'Y', 'JSF')];
+  assert.deepEqual(parsiOsallistujat(rivit, alue).ampujat.map((a) => a.nimi), ['Kenneth Asplund']);
+
+  const a = { rivi: 1, nimi: 'A', solut: [taytetty('1'), teksti('OK'), teksti('A'), teksti('Y'), teksti('S')] };
+  const b = { rivi: 2, nimi: 'B', solut: [taytetty('2'), teksti('OK'), teksti('B'), teksti('Y'), kaava('S', '=VLOOKUP(C3;X;2)')] };
+  assert.deepEqual(tarkistaVaihto([a, b], a, b, 5), { ok: false, syy: 'kaavoja' });
+});
