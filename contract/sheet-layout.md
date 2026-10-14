@@ -24,7 +24,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx` |
-| Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
+| Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition; column H is the place for the weather forecast, `api/saa.js`) |
 
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
 
@@ -57,7 +57,10 @@ so column order can change but header names must not.
   in F2:H2 (data F3:I28), which both the UI and ScoringLib match, so new sheets don't depend on the fallback.
 - ScoringLib's `KISANSPEKSIT` fallback cells (see "Keys ScoringLib reads"), used when a key's text is missing.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
-  G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no). Row 1 is a header if B contains "nimi" or A contains "id".
+  G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no).
+  H place (optional): a town name (`Oulainen`, looked up with Open-Meteo geocoding, Finnish match first) or
+  coordinates with a decimal point (`64.27, 24.81`). With a place, upcoming and running competitions show a
+  weather forecast for their days within the next 16 days; empty means no forecast. Row 1 is a header if B contains "nimi" or A contains "id".
 
 ## `KISANSPEKSIT` settings
 

@@ -64,7 +64,8 @@ export function parsiKilpailurekisteri(raakaRivit) {
         loppuPvm: muotoileIsoPaivamaaraSuomeksi(row[3]),
         apiUrl: row[4] || "",
         joukkueKisaAsetus,
-        piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true
+        piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true,
+        paikka: String(row[7] || '').trim()
       });
     }
   }

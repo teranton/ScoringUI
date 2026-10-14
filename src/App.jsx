@@ -34,6 +34,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 import { Badge } from './components/ui/badge';
 import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer } from 'lucide-react';
 import { haeTekstit } from './i18n';
+import SaaEnnuste from './components/SaaEnnuste';
 import { lueKisat, lueRekisteri, tallennaKisa, tallennaRekisteri } from './utils/paikallinenValimuisti';
 
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
@@ -716,6 +717,7 @@ export default function App() {
               <div className="text-sm text-[hsl(var(--muted-foreground))]">
                 {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
               </div>
+              <SaaEnnuste kisa={kisa} status={statusData.status} locale={locale} />
             </div>
             <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
           </CardContent>
@@ -839,6 +841,7 @@ export default function App() {
               <CardDescription>
                 {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
               </CardDescription>
+              <SaaEnnuste kisa={valittuKisa} status={kisanStatusInfo.status} locale={locale} className="mt-1" />
             </div>
             <Badge variant={statusToBadgeVariant(kisanStatusInfo.status)}>{labelForStatus(kisanStatusInfo.status, locale)}</Badge>
           </div>

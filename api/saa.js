@@ -1,0 +1,38 @@
+// api/saa.js
+// Kisan sääennuste: /api/saa?sheetId=<rekisterin sarake E> → { paikka, paivat }.
+// Paikka luetaan rekisterin sarakkeesta H; päättyneelle kisalle tai ilman paikkaa paivat on tyhjä.
+// CDN pitää vastauksen tuoreena puoli tuntia (ennuste päivittyy Open-Meteossa noin tunnin välein).
+import dotenv from 'dotenv';
+dotenv.config();
+
+import { onSallittuSheetId, torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
+import { luoSaaHaku } from './_lib/saaHaku.js';
+
+export const SAA_OTSIKOT = {
+  ennuste: 'public, s-maxage=1800, stale-while-revalidate=21600',
+  tyhja: 'public, s-maxage=3600, stale-while-revalidate=86400',
+  virhe: 'public, s-maxage=60'
+};
+
+const kisanSaa = luoSaaHaku();
+
+function laheta(res, status, cacheControl, body) {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', cacheControl);
+  return res.status(status).json(body);
+}
+
+export default async function handler(req, res) {
+  const sheetId = String(req.query?.sheetId || '');
+  if (!sheetId) return laheta(res, 400, 'no-store', { error: 'sheetId puuttuu' });
+  if (await torjuEiSallittuSheetId(sheetId, res)) return;
+
+  const kisa = onSallittuSheetId.kisa(sheetId);
+  try {
+    const tulos = await kisanSaa({ paikka: kisa?.paikka, alkuPvm: kisa?.alkuPvm, loppuPvm: kisa?.loppuPvm });
+    return laheta(res, 200, tulos.paivat.length ? SAA_OTSIKOT.ennuste : SAA_OTSIKOT.tyhja, tulos);
+  } catch (error) {
+    console.error('[SAA] Ennusteen haku epäonnistui:', error?.message);
+    return laheta(res, 200, SAA_OTSIKOT.virhe, { paikka: '', paivat: [] });
+  }
+}
