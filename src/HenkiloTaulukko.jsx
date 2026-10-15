@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { parseCsvRows } from './utils/csv';
 import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import {
@@ -69,6 +69,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [naytaKaantoVihje, setNaytaKaantoVihje] = useState(false);
   const natiiviKokoNayttoRef = useRef(false);
   const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);
+  // Tulostuksen aloitusaika; tuloste renderöidään vain tulostuksen ajaksi (beforeprint–afterprint).
+  const [tulosteenAika, setTulosteenAika] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
   const [jarjestysSarake, setJarjestysSarake] = useState('sija');
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
@@ -261,6 +263,19 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       setNaytaKaantoVihje(false);
     };
   }, [onkoKokoNaytto]);
+
+  // Tuloste renderöidään beforeprintissä synkronisesti (flushSync), jotta se ehtii tulostettavaksi myös Ctrl+P:llä.
+  useEffect(() => {
+    if (!tulosteJuuri || typeof window === 'undefined') return undefined;
+    const ennenTulostusta = () => flushSync(() => setTulosteenAika(new Date()));
+    const tulostuksenJalkeen = () => setTulosteenAika(null);
+    window.addEventListener('beforeprint', ennenTulostusta);
+    window.addEventListener('afterprint', tulostuksenJalkeen);
+    return () => {
+      window.removeEventListener('beforeprint', ennenTulostusta);
+      window.removeEventListener('afterprint', tulostuksenJalkeen);
+    };
+  }, [tulosteJuuri]);
 
   // Avaa koko näytön ja kääntää näkymän vaakaan, jos selain sallii (Android Chrome). Muualla (iOS)
   // avataan sovelluksen oma koko näyttö ja pyydetään kääntämään puhelin.
@@ -881,7 +896,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       </CardContent>
 
       {/* Tulosteessa kaikki sarakkeet, vaikka näytöltä olisi piilotettu niitä kapeuden takia. */}
-      {tulosteJuuri && createPortal(
+      {tulosteJuuri && tulosteenAika && createPortal(
         <TulosteTaulukko
           kisaNimi={kisaNimi}
           kisaPaivat={kisaPaivat}
@@ -905,6 +920,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             { otsikko: tx.printMedian, arvot: rataTilastot.map((t) => muotoileNumero(t.median)) },
             { otsikko: tx.printMaxPct, arvot: rataTilastot.map((t) => muotoileProsentti(t.maxPct)) }
           ] : null}
+          tulostusaika={tulosteenAika}
           locale={locale}
         />,
         tulosteJuuri

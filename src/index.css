@@ -494,6 +494,14 @@ body {
     font-weight: 700;
   }
 
+  /* Koko nimet ja kaikki ratko-merkinnät rivitetään katkaisun sijaan. Seura katkaistaan, ettei pitkän seuran
+     nimi kahdenna jokaisen jäsenensä rivikorkeutta. */
+  .tuloste-taulukko .tuloste-nimi,
+  .tuloste-taulukko .tuloste-ratko {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .tuloste-taulukko .tuloste-analyysi td {
     font-size: 0.8em;
     font-style: italic;

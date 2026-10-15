@@ -1,8 +1,6 @@
 // Tulostettava tulostaulukko: näytön taulukon sarja ja järjestys A4-sivuille, kaikki sarakkeet ja koko nimet.
-// HenkiloTaulukko renderöi tämän App:n tulostejuureen (portaali), joten myös selaimen oma tulostus (Ctrl+P)
-// käyttää tätä eikä vieritettävää näytön taulukkoa. Näkyy vain tulostettaessa (index.css).
-import { useEffect, useState } from 'react';
-import { flushSync } from 'react-dom';
+// HenkiloTaulukko renderöi tämän tulostuksen ajaksi App:n tulostejuureen (portaali), joten myös selaimen oma
+// tulostus (Ctrl+P) käyttää tätä eikä vieritettävää näytön taulukkoa. Näkyy vain tulostettaessa (index.css).
 import { laskeTulosteTaulukonKoko, muodostaTulosteRatko } from './utils/henkiloTaulukko';
 import { haeTekstit } from './i18n';
 
@@ -24,18 +22,10 @@ export default function TulosteTaulukko({
   paivaSarakeNimet,
   ratkoIdt,
   analyysi,
+  tulostusaika,
   locale = 'fi'
 }) {
   const tx = haeTekstit('henkiloTaulukko', locale);
-  const [tulostusaika, setTulostusaika] = useState(() => new Date());
-
-  // Tulostusaika päivitetään juuri ennen tulostusta; flushSync, jotta uusi aika ehtii tulosteeseen.
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const ennenTulostusta = () => flushSync(() => setTulostusaika(new Date()));
-    window.addEventListener('beforeprint', ennenTulostusta);
-    return () => window.removeEventListener('beforeprint', ennenTulostusta);
-  }, []);
 
   const { vaaka, tiivis } = laskeTulosteTaulukonKoko(radat.length);
   const etusarakkeita = 3
@@ -94,15 +84,20 @@ export default function TulosteTaulukko({
               ))}
             </tr>
           </thead>
+          {/* Analyysi omassa tbodyssa, ettei se siirrä ampujarivien raidoitusta. */}
+          {analyysi && (
+            <tbody className="tuloste-analyysi">
+              {analyysi.map((rivi) => (
+                <tr key={rivi.otsikko}>
+                  <td colSpan={etusarakkeita}>{rivi.otsikko}</td>
+                  {rivi.arvot.map((arvo, i) => (
+                    <td key={radat[i]} className={`tuloste-num${i === 0 ? ' tuloste-raja' : ''}`}>{arvo}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          )}
           <tbody>
-            {analyysi && analyysi.map((rivi) => (
-              <tr key={rivi.otsikko} className="tuloste-analyysi">
-                <td colSpan={etusarakkeita}>{rivi.otsikko}</td>
-                {rivi.arvot.map((arvo, i) => (
-                  <td key={radat[i]} className={`tuloste-num${i === 0 ? ' tuloste-raja' : ''}`}>{arvo}</td>
-                ))}
-              </tr>
-            ))}
             {ampujat.map((ampuja) => (
               <tr key={ampuja.id}>
                 <td className="tuloste-num">{ampuja.laskettuSija}</td>
@@ -112,7 +107,7 @@ export default function TulosteTaulukko({
                 {sarakkeet.la && <td className="tuloste-num">{ampuja.la}</td>}
                 {sarakkeet.su && <td className="tuloste-num">{ampuja.su}</td>}
                 <td className="tuloste-num tuloste-yht">{ampuja.kokonaistulos}</td>
-                {sarakkeet.ratko && <td>{muodostaTulosteRatko(ampuja, ratkoIdt)}</td>}
+                {sarakkeet.ratko && <td className="tuloste-ratko">{muodostaTulosteRatko(ampuja, ratkoIdt)}</td>}
                 {radat.map((n, i) => {
                   const arvo = ampuja.erat[n] || '';
                   const luokat = ['tuloste-num', i === 0 && 'tuloste-raja', onkoMaksimi(n, arvo) && 'tuloste-maksimi'];
