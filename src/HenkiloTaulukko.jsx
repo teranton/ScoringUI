@@ -183,7 +183,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const onkoLaTuloksia = ampujat.some((a) => a.la !== null);
   const onkoSuTuloksia = ampujat.some((a) => a.su !== null);
-  const onkoSeuroja = ampujat.some((a) => Boolean(a.seura));
+  const seuraMerkit = ampujat.reduce((pisin, a) => Math.max(pisin, String(a.seura || '').trim().length), 0);
+  const onkoSeuroja = seuraMerkit > 0;
 
   const asettelu = useMemo(() => laskeTaulukkoAsettelu({
     leveys: taulukkoNakymaLeveys,
@@ -191,9 +192,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     naytaRatko: naytaRatkoSarake,
     onkoSarja: sarjaSuodatin === 'OPEN (Y)',
     onkoSeura: onkoSeuroja,
+    seuraMerkit,
     paivienMaara: (onkoLaTuloksia ? 1 : 0) + (onkoSuTuloksia ? 1 : 0),
     kaikkiSarakkeet
-  }), [taulukkoNakymaLeveys, radatList.length, naytaRatkoSarake, sarjaSuodatin, onkoSeuroja, onkoLaTuloksia, onkoSuTuloksia, kaikkiSarakkeet]);
+  }), [taulukkoNakymaLeveys, radatList.length, naytaRatkoSarake, sarjaSuodatin, onkoSeuroja, seuraMerkit, onkoLaTuloksia, onkoSuTuloksia, kaikkiSarakkeet]);
 
   const kokoLuokka = asettelu.taso;
   const leveydet = asettelu.leveydet;

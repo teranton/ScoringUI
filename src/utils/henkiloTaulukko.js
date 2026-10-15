@@ -272,13 +272,26 @@ export function onkoAliTulosPuuttuu(arvo) {
 
 // Sarakeleveydet (px) tasoittain. Taso valitaan sen mukaan, mitä taulukon leveyteen mahtuu.
 const TASOT = {
-  desktop: { sija: 35, nimi: 200, sarja: 50, seura: 160, paiva: 35, yht: 35, ratko: 52, rata: 30, rataMax: 40 },
+  desktop: { sija: 35, nimi: 200, sarja: 50, seura: 140, paiva: 35, yht: 35, ratko: 52, rata: 30, rataMax: 40 },
   mobile: { sija: 24, nimi: 154, sarja: 20, seura: 100, paiva: 24, yht: 24, ratko: 42, rata: 24, rataMax: 32 },
   compact: { sija: 24, nimi: 90, sarja: 20, seura: 100, paiva: 24, yht: 24, ratko: 30, rata: 18, rataMax: 26 }
 };
 
 // Vierityspalkin ja reunojen varaus, ettei taulukko mene juuri ja juuri yli.
 const LEVEYS_VARA = 8;
+
+// Seura-sarakkeen leveys pisimmän seuran nimen mukaan, enintään tason maksimi (pidemmät katkaistaan).
+// Merkin leveys on arvio Interin keskileveydestä; desktopilla text-sm ja px-3, muuten text-xs ja px-2.
+const SEURA_MIN = 40;
+const SEURA_MERKKI = { desktop: 7.5, mobile: 6.5, compact: 6.5 };
+const SEURA_PADDING = { desktop: 24, mobile: 16, compact: 16 };
+
+function laskeSeuraLeveys(taso, seuraMerkit) {
+  const maksimi = TASOT[taso].seura;
+  if (!(seuraMerkit > 0)) return maksimi;
+  const tarve = Math.ceil(seuraMerkit * SEURA_MERKKI[taso]) + SEURA_PADDING[taso];
+  return Math.max(SEURA_MIN, Math.min(maksimi, tarve));
+}
 
 // Valitsee taulukon asettelun käytettävissä olevan leveyden mukaan. Leveä Seura pudotetaan ensin, jotta
 // isompi teksti säilyy; sitten kavennetaan sarakkeita, pudotetaan La/Su ja Sarja ja lopuksi tiivistetään
@@ -290,6 +303,7 @@ export function laskeTaulukkoAsettelu({
   naytaRatko = false,
   onkoSarja = false,
   onkoSeura = true,
+  seuraMerkit = 0,
   paivienMaara = 0,
   kaikkiSarakkeet = false
 } = {}) {
@@ -308,6 +322,7 @@ export function laskeTaulukkoAsettelu({
       ['compact', ilman('seura', 'paivat', 'sarja')]
     ];
 
+  const tasonLeveydet = (taso) => ({ ...TASOT[taso], seura: laskeSeuraLeveys(taso, seuraMerkit) });
   const laskeLeveys = (l, sarakkeet, rata) => l.sija + l.nimi + l.yht
     + (sarakkeet.sarja ? l.sarja : 0)
     + (sarakkeet.seura ? l.seura : 0)
@@ -317,10 +332,10 @@ export function laskeTaulukkoAsettelu({
 
   const kaytettavissa = leveys - LEVEYS_VARA;
   const valittu = (leveys > 0
-    && vaihtoehdot.find(([taso, sarakkeet]) => laskeLeveys(TASOT[taso], sarakkeet, TASOT[taso].rata) <= kaytettavissa))
+    && vaihtoehdot.find(([taso, sarakkeet]) => laskeLeveys(tasonLeveydet(taso), sarakkeet, TASOT[taso].rata) <= kaytettavissa))
     || (leveys > 0 ? vaihtoehdot[vaihtoehdot.length - 1] : vaihtoehdot[0]);
   const [taso, sarakkeet] = valittu;
-  const l = TASOT[taso];
+  const l = tasonLeveydet(taso);
   const perusLeveys = laskeLeveys(l, sarakkeet, l.rata);
   const mahtuu = leveys <= 0 || perusLeveys <= kaytettavissa;
 
