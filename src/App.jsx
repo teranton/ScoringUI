@@ -1,14 +1,9 @@
 // src/App.jsx
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
-import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
-import AikatauluNakyma from './AikatauluNakyma';
-import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
-import TulosteTulokset from './TulosteTulokset';
-import TulosteAikataulu from './TulosteAikataulu';
 import RankingTulokset from './RankingTulokset';
 import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
@@ -41,6 +36,14 @@ import { Badge } from './components/ui/badge';
 import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer } from 'lucide-react';
 import { haeTekstit } from './i18n';
 import { lueKisat, lueRekisteri, tallennaKisa, tallennaRekisteri } from './utils/paikallinenValimuisti';
+
+// Taulukko-, aikataulu- ja tulostenäkymät ladataan omina paloinaan vasta, kun ne avataan.
+// TulosteTaulukko tulee HenkiloTaulukon mukana, koska se renderöidään beforeprintissä synkronisesti.
+const HenkiloTaulukko = lazy(() => import('./HenkiloTaulukko'));
+const AikatauluNakyma = lazy(() => import('./AikatauluNakyma'));
+const AikatauluRyhmaNakyma = lazy(() => import('./AikatauluRyhmaNakyma'));
+const TulosteAikataulu = lazy(() => import('./TulosteAikataulu'));
+const lataaTulosteTulokset = () => import('./TulosteTulokset');
 
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
 // Päättyneen kisan data haetaan avattaessa uudelleen vain, jos se on tätä vanhempi.
@@ -136,6 +139,8 @@ export default function App() {
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
   // Tulostuksen aloitusaika; null kun tulosluettelon tulostus ei ole käynnissä.
   const [tulosteenAika, setTulosteenAika] = useState(null);
+  // Tulosluettelo ladataan ennen tulostusta, ettei window.print() avaudu ennen kuin luettelo on sivulla.
+  const [TulosteTulokset, setTulosteTulokset] = useState(null);
   // Taulukkonäkymän tulosteen juurielementti; HenkiloTaulukko renderöi tulosteen siihen (portaali).
   const [taulukkoTulosteJuuri, setTaulukkoTulosteJuuri] = useState(null);
   const [devTila] = useState(() => onkoDevTila());
@@ -191,6 +196,16 @@ export default function App() {
       printMedia?.removeEventListener?.('change', kunMediaMuuttuu);
     };
   }, [tulosteenAika]);
+
+  const tulostaTulokset = async () => {
+    try {
+      const moduuli = await lataaTulosteTulokset();
+      setTulosteTulokset(() => moduuli.default);
+      setTulosteenAika(new Date());
+    } catch (virhe) {
+      console.error('Tulosluettelon lataus epäonnistui', virhe);
+    }
+  };
 
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
@@ -924,7 +939,7 @@ export default function App() {
           </Button>
         )}
         {devTila && onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
-          <Button onClick={() => setTulosteenAika(new Date())} variant="outline" size="sm" className="ml-auto gap-1.5">
+          <Button onClick={tulostaTulokset} variant="outline" size="sm" className="ml-auto gap-1.5">
             <Printer className="h-4 w-4" aria-hidden="true" />
             {txTuloste.button}
           </Button>
@@ -960,6 +975,7 @@ export default function App() {
             </div>
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
+            <Suspense fallback={<NakymaLatautuu teksti={tx.fetchingCompetitionData} />}>
             <HenkiloTaulukko
               data={nykyisenKisanData}
               parsedRows={nykyisenKisanParsitutRivit}
@@ -970,6 +986,7 @@ export default function App() {
               kisaNimi={valittuKisa.nimi}
               kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
             />
+            </Suspense>
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <div className="mx-auto w-full max-w-3xl">
@@ -999,7 +1016,8 @@ export default function App() {
               )}
 
               {Boolean(valittuAikatauluCsv) && (
-                kaytaRyhmaAikatauluNakymaa ? (
+                <Suspense fallback={<NakymaLatautuu teksti={tx.fetchingCompetitionData} />}>
+                {kaytaRyhmaAikatauluNakymaa ? (
                   <AikatauluRyhmaNakyma
                     rawCsv={valittuAikatauluCsv?.raw || ''}
                     locale={locale}
@@ -1017,7 +1035,8 @@ export default function App() {
                     defaultGroupingMode={aikatauluRyhmittelyAsetus}
                     omaTuloste={Boolean(tulosteAikataulu)}
                   />
-                )
+                )}
+                </Suspense>
               )}
             </div>
           )}
@@ -1041,7 +1060,7 @@ export default function App() {
         </a>
       </footer>
 
-      {tulosteenAika && nykyisenKisanData?.henkilotCsvRaw && (
+      {tulosteenAika && TulosteTulokset && nykyisenKisanData?.henkilotCsvRaw && (
         <TulosteTulokset
           rawRows={nykyisenKisanParsitutRivit.henkilotRows}
           parsedSpeksit={nykyisenKisanSpeksit}
@@ -1054,6 +1073,7 @@ export default function App() {
       )}
       {tulostetaanTaulukko && <div ref={setTaulukkoTulosteJuuri} className="tuloste-root" lang={locale} />}
       {tulostetaanAikataulu && (
+        <Suspense fallback={null}>
         <TulosteAikataulu
           aikataulu={tulosteAikataulu}
           otsikko={valittuAikatauluCsv.label}
@@ -1061,7 +1081,14 @@ export default function App() {
           kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
           locale={locale}
         />
+        </Suspense>
       )}
     </div>
+  );
+}
+
+function NakymaLatautuu({ teksti }) {
+  return (
+    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">{teksti}</div>
   );
 }
