@@ -47,6 +47,16 @@ const SOLU_LUOKAT = {
   stage: (koko) => `text-center font-mono ${TEKSTIKOKO[koko]} border-r border-slate-200/40`
 };
 
+// Vapauttaa vaakalukituksen ja poistuu selaimen omasta koko näytöstä, jos se on päällä.
+function vapautaNatiiviKokoNaytto() {
+  try {
+    window.screen?.orientation?.unlock?.();
+  } catch {
+    // unlock heittää, jos lukitus ei ole tuettu.
+  }
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+
 export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const tx = haeTekstit('henkiloTaulukko', locale);
   const onPysty = useMediaQuery('(orientation: portrait)');
@@ -173,15 +183,17 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const onkoLaTuloksia = ampujat.some((a) => a.la !== null);
   const onkoSuTuloksia = ampujat.some((a) => a.su !== null);
+  const onkoSeuroja = ampujat.some((a) => Boolean(a.seura));
 
   const asettelu = useMemo(() => laskeTaulukkoAsettelu({
     leveys: taulukkoNakymaLeveys,
     ratojenMaara: radatList.length,
     naytaRatko: naytaRatkoSarake,
     onkoSarja: sarjaSuodatin === 'OPEN (Y)',
+    onkoSeura: onkoSeuroja,
     paivienMaara: (onkoLaTuloksia ? 1 : 0) + (onkoSuTuloksia ? 1 : 0),
     kaikkiSarakkeet
-  }), [taulukkoNakymaLeveys, radatList.length, naytaRatkoSarake, sarjaSuodatin, onkoLaTuloksia, onkoSuTuloksia, kaikkiSarakkeet]);
+  }), [taulukkoNakymaLeveys, radatList.length, naytaRatkoSarake, sarjaSuodatin, onkoSeuroja, onkoLaTuloksia, onkoSuTuloksia, kaikkiSarakkeet]);
 
   const kokoLuokka = asettelu.taso;
   const leveydet = asettelu.leveydet;
@@ -226,6 +238,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     const kasitteleNatiiviPoistuminen = () => {
       if (!document.fullscreenElement && natiiviKokoNayttoRef.current) {
         natiiviKokoNayttoRef.current = false;
+        vapautaNatiiviKokoNaytto();
         setOnkoKokoNaytto(false);
       }
     };
@@ -238,12 +251,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       document.body.style.overflow = alkuperainenOverflow;
       if (natiiviKokoNayttoRef.current) {
         natiiviKokoNayttoRef.current = false;
-        try {
-          window.screen?.orientation?.unlock?.();
-        } catch {
-          // unlock heittää, jos lukitus ei ole tuettu.
-        }
-        if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+        vapautaNatiiviKokoNaytto();
       }
       setNaytaKaantoVihje(false);
     };
@@ -259,13 +267,20 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       setNaytaKaantoVihje(true);
       return;
     }
-    // requestFullscreen pitää kutsua suoraan painalluksesta, ennen ensimmäistä awaitia.
+    // requestFullscreen pitää kutsua suoraan painalluksesta, ennen ensimmäistä awaitia. Ref asetetaan heti,
+    // jotta koko näytöstä poistuminen ennen lupauksen ratkeamista näkyy alla (ref on silloin jo false).
+    natiiviKokoNayttoRef.current = true;
     juuri.requestFullscreen()
       .then(() => {
-        natiiviKokoNayttoRef.current = true;
+        if (!natiiviKokoNayttoRef.current) {
+          vapautaNatiiviKokoNaytto();
+          return undefined;
+        }
         return window.screen.orientation.lock('landscape');
       })
-      .catch(() => setNaytaKaantoVihje(true));
+      .catch(() => {
+        if (natiiviKokoNayttoRef.current) setNaytaKaantoVihje(true);
+      });
   };
 
 
@@ -549,7 +564,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
         <div
           ref={taulukkoScrollRef}
           className={cn(
-            'w-full overflow-auto bg-white',
+            // Vakio vierityspalkin tila: muuten rivikorkeuden vaihtuminen voisi tuoda ja viedä palkin,
+            // jolloin mitattu leveys ja asettelu vaihtelisivat edestakaisin.
+            'w-full overflow-auto bg-white [scrollbar-gutter:stable]',
             onkoKokoNaytto ? 'h-full' : 'h-[60vh] md:h-[68vh]'
           )}
         >

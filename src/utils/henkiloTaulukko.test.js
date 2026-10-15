@@ -123,6 +123,13 @@ test('laskeTaulukkoAsettelu: leveällä näytöllä radat levenevät enintään 
 });
 
 test('laskeTaulukkoAsettelu: kapeammalla ensin kavennetaan, sitten pudotetaan sarakkeita', () => {
+  const lappari = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(lappari.taso, 'desktop');
+  assert.deepEqual(lappari.sarakkeet, { sarja: true, seura: false, paivat: true });
+
+  const eiSeuroja = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSeura: false });
+  assert.equal(eiSeuroja.piilotettuja, false);
+
   const tabletti = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
   assert.equal(tabletti.taso, 'mobile');
   assert.deepEqual(tabletti.sarakkeet, { sarja: true, seura: true, paivat: true });

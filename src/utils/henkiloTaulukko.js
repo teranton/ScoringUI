@@ -280,8 +280,8 @@ const TASOT = {
 // Vierityspalkin ja reunojen varaus, ettei taulukko mene juuri ja juuri yli.
 const LEVEYS_VARA = 8;
 
-// Valitsee taulukon asettelun käytettävissä olevan leveyden mukaan. Ensin kavennetaan sarakkeita,
-// sitten pudotetaan valinnaiset sarakkeet järjestyksessä Seura, La/Su, Sarja ja lopuksi tiivistetään
+// Valitsee taulukon asettelun käytettävissä olevan leveyden mukaan. Leveä Seura pudotetaan ensin, jotta
+// isompi teksti säilyy; sitten kavennetaan sarakkeita, pudotetaan La/Su ja Sarja ja lopuksi tiivistetään
 // nimet. Jos mikään ei mahdu, palautetaan tiivein asettelu (taulukkoa vieritetään sivusuunnassa).
 // Ylimääräinen tila jaetaan rata-sarakkeille. Leveys 0 (ei vielä mitattu) = väljin asettelu.
 export function laskeTaulukkoAsettelu({
@@ -300,6 +300,7 @@ export function laskeTaulukkoAsettelu({
     ? [['desktop', kaikki], ['mobile', kaikki], ['compact', kaikki]]
     : [
       ['desktop', kaikki],
+      ['desktop', ilman('seura')],
       ['mobile', kaikki],
       ['mobile', ilman('seura')],
       ['mobile', ilman('seura', 'paivat')],
