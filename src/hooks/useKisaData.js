@@ -44,6 +44,8 @@ export function useKisaData({ kisat, valittuKisa }) {
   const [kisaVirheBySheet, setKisaVirheBySheet] = useState({});
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
+  // Etusivun speksihaulla on oma lippunsa, ettei se estä samaan aikaan avatun kisan täyttä hakua.
+  const speksitInFlightRef = useRef({});
   const esihakuAjastinRef = useRef(null);
   const esihakuKaynnissaRef = useRef(false);
 
@@ -95,8 +97,8 @@ export function useKisaData({ kisat, valittuKisa }) {
       const sheetIds = [...new Set(haettavat.map((k) => k.apiUrl))];
 
       for (const sheetId of sheetIds) {
-        if (fetchInFlightRef.current[sheetId]) continue;
-        fetchInFlightRef.current[sheetId] = true;
+        if (speksitInFlightRef.current[sheetId]) continue;
+        speksitInFlightRef.current[sheetId] = true;
 
         try {
           const response = await fetch(kisaDataUrl(sheetId, ['KISANSPEKSIT']));
@@ -117,7 +119,7 @@ export function useKisaData({ kisat, valittuKisa }) {
         } catch (err) {
           console.error(`Speksit-haku epäonnistui sheetille ${sheetId}:`, err);
         } finally {
-          fetchInFlightRef.current[sheetId] = false;
+          speksitInFlightRef.current[sheetId] = false;
         }
       }
     }

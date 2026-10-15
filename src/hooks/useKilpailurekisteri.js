@@ -1,6 +1,7 @@
 // Kilpailurekisteri: selaimeen tallennettu lista näytetään heti, tuore haetaan taustalla /api/rekisteri-osoitteesta.
 import { useEffect, useState } from 'react';
 import { onkoCsvVirheellinen, parseCsvRows } from '../utils/csv';
+import { tulkitseLippu } from '../utils/devTila';
 import { parsiKilpailurekisteri } from '../utils/kilpailurekisteri';
 import { lueRekisteri, tallennaRekisteri } from '../utils/paikallinenValimuisti';
 
@@ -8,16 +9,14 @@ function onkoPreviewOverrideAktiivinen() {
   if (typeof window === 'undefined') return false;
   try {
     const params = new URLSearchParams(window.location.search || '');
-    const value = String(params.get('preview') || params.get('showHidden') || '').trim().toLowerCase();
-    return ['1', 'true', 'yes', 'on'].includes(value);
+    return tulkitseLippu(params.get('preview') || params.get('showHidden')) === true;
   } catch {
     return false;
   }
 }
 
 function naytetaankoPiilotetutKisat() {
-  const env = String(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS ?? '').toLowerCase();
-  return ['1', 'true', 'yes', 'on'].includes(env) || onkoPreviewOverrideAktiivinen();
+  return tulkitseLippu(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS) === true || onkoPreviewOverrideAktiivinen();
 }
 
 function naytettavatKisatRekisterista(csvText, naytaPiilotetut) {
@@ -27,12 +26,13 @@ function naytettavatKisatRekisterista(csvText, naytaPiilotetut) {
 
 export function useKilpailurekisteri() {
   const [tallennettuRekisteri] = useState(() => lueRekisteri());
+  // Osoite ja ympäristö eivät muutu sivun aikana, joten asetus luetaan kerran.
+  const [onkoPiilotettujenKisojenOverride] = useState(naytetaankoPiilotetutKisat);
   const [kisat, setKisat] = useState(() => (
-    tallennettuRekisteri ? naytettavatKisatRekisterista(tallennettuRekisteri.csv, naytetaankoPiilotetutKisat()) : []
+    tallennettuRekisteri ? naytettavatKisatRekisterista(tallennettuRekisteri.csv, onkoPiilotettujenKisojenOverride) : []
   ));
   const [ladataanKisalista, setLadataanKisalista] = useState(() => !tallennettuRekisteri);
   const [virhe, setVirhe] = useState(null);
-  const onkoPiilotettujenKisojenOverride = naytetaankoPiilotetutKisat();
 
   useEffect(() => {
     let peruttu = false;

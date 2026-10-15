@@ -5,6 +5,8 @@ import { trackAnalyticsEvent } from '../utils/analytiikka';
 export function useKisaReititys({ kisat, ladataanKisalista }) {
   const [valittuKisa, setValittuKisa] = useState(null);
   const [aktiivinenSivu, setAktiivinenSivu] = useState('tulokset');
+  // Kasvaa selaimen Takaisin/Eteenpäin-siirrossa, jotta hash luetaan uudelleen (Eteenpäin kisaan).
+  const [historiaSiirto, setHistoriaSiirto] = useState(0);
   // Etusivun vierityskohta talteen, kun kisa avataan; palautetaan, kun palataan listalle.
   const etusivunVieritysRef = useRef(0);
   // Kohta, johon vieritetään seuraavan näkymänvaihdon jälkeen (null: ei vieritetä, esim. suora linkki tai sivun lataus).
@@ -54,9 +56,16 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
     }
 
     const kasitteleSelaimenTakaisin = () => {
-      vieritysKohdeRef.current = etusivunVieritysRef.current;
+      // Eteenpäin kisaan: etusivun kohta talteen ja kisa ylhäältä. Takaisin etusivulle: palautetaan kohta.
+      if ((window.location.hash || '').startsWith('#kisa-')) {
+        etusivunVieritysRef.current = window.scrollY;
+        vieritysKohdeRef.current = 0;
+      } else {
+        vieritysKohdeRef.current = etusivunVieritysRef.current;
+      }
       setValittuKisa(null);
       setAktiivinenSivu('tulokset');
+      setHistoriaSiirto((n) => n + 1);
     };
 
     window.addEventListener('popstate', kasitteleSelaimenTakaisin);
@@ -87,7 +96,7 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
         `${window.location.pathname}${window.location.search}#kisa-${loydettyKisa.id}`
       );
     }
-  }, [kisat, ladataanKisalista, valittuKisa]);
+  }, [kisat, ladataanKisalista, valittuKisa, historiaSiirto]);
 
   useEffect(() => {
     trackAnalyticsEvent('view_change', {
