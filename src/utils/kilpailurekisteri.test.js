@@ -93,3 +93,13 @@ test('parsiKilpailurekisteri: virheellinen päivämäärä järjestyy kuin päiv
   ]);
   assert.deepEqual(kisat.map((k) => k.id), ['b', 'a']);
 });
+
+test('parsiKilpailurekisteri järjestää rankingin loppupäivän mukaan', () => {
+  const kisat = parsiKilpailurekisteri([
+    ['r', 'Ranking 2026', '2026-03-01', '2026-10-31', 'sheet-r', '', '', 'RANKING'],
+    ['s', 'Syyskisa', '2026-09-05', '', 'sheet-s', '', '', ''],
+    ['k', 'Kevätkisa', '2026-04-05', '', 'sheet-k', '', '', 'Nokia']
+  ]);
+  assert.deepEqual(kisat.map((k) => k.id), ['r', 's', 'k']);
+  assert.deepEqual(kisat.map((k) => k.onkoRanking), [true, false, false]);
+});

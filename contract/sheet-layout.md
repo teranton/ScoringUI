@@ -25,12 +25,13 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
 | `RANKING_vvvv` (season ranking sheet, e.g. `RANKING_2026`) | Sheet formulas from the ranking sheet's `TULOKSET` / `KISAT` tabs | `RankingTulokset.jsx`, `utils/rankingTulokset.js` |
+| `KISAT` (season ranking sheet) | Tero | `RankingTulokset.jsx`, `utils/rankingTulokset.js` (competition names) |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
 
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
 
 The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`, plus any tab named
-`RANKING_` and a four-digit year on sheets marked `RANKING` in the registry); any other tab
+`RANKING_` and a four-digit year, and `KISAT`, on sheets marked `RANKING` in the registry); any other tab
 (`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
 
 Access: the sheets and the registry are read only with the service account (`spreadsheets.readonly` scope),
@@ -71,10 +72,14 @@ so column order can change but header names must not.
 ## Season ranking
 
 A registry row with `RANKING` in column H is a season ranking, not a competition. C is the season's start date and
-D its end date (may be empty). The UI reads the tab `RANKING_<year of C>` and, if it exists, `KISANSPEKSIT`.
-The ranking is "Käynnissä" from C onwards until `KILPAILUNSTATUS` is `FINISHED` (or `PAUSED`) on a `KISANSPEKSIT` tab
-in the ranking sheet; the end date does not end it. The API caches it like a running competition from C on, whatever D says,
-and serves `RANKING_vvvv` tabs only from sheets marked `RANKING` (400 otherwise).
+D its end date. The front page orders it by D (competitions by C). The UI reads the tabs `RANKING_<year of C>`, `KISAT`
+and, if it exists, `KISANSPEKSIT`. The ranking is "Käynnissä" from C to D without any `KILPAILUNSTATUS` and "Päättynyt"
+after D, or earlier when a `KISANSPEKSIT` tab in the ranking sheet has `KILPAILUNSTATUS` = `FINISHED`. Without D it
+runs until `FINISHED`. The API caches it by C and D like a competition (without D: running from C on), and serves
+`RANKING_vvvv` and `KISAT` only from sheets marked `RANKING` (400 otherwise).
+
+`KISAT` is read by header name: the first row with `Koodi`; `Koodi` is the competition code used as a
+`RANKING_vvvv` column header and `Kisa` its name, shown instead of the code.
 
 `RANKING_vvvv` is read by header name, not position:
 - Header row: the first row with both `Nimi` and `Sarja`. Columns `Sija`, `Nimi`, `Sarja`, `Seura`, `Yhteensä`,

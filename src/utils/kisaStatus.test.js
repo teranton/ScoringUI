@@ -88,18 +88,20 @@ test('haeStatusOverrideSpekseista ei lue arvoa rivin muista soluista', () => {
   assert.equal(haeStatusOverrideSpekseista([['PAUSED', 'KILPAILUNSTATUS', '']]), null);
 });
 
-test('laskeRankingStatus: käynnissä alkupäivästä, kunnes KILPAILUNSTATUS on FINISHED', () => {
+test('laskeRankingStatus: käynnissä kauden ajan, päättyy loppupäivän jälkeen tai FINISHED-asetuksella', () => {
   const finished = 'KILPAILUNSTATUS,FINISHED';
-  assert.equal(laskeRankingStatus('1.4.2026', '', hetki(31, 3, 2026)).status, 'tulossa');
-  assert.equal(laskeRankingStatus('1.4.2026', '', hetki(1, 4, 2026, 8)).status, 'kaynnissa');
-  assert.equal(laskeRankingStatus('1.4.2026', '', hetki(15, 12, 2026)).status, 'kaynnissa');
-  assert.equal(laskeRankingStatus('', '', hetki(15, 12, 2026)).status, 'kaynnissa');
-  assert.equal(laskeRankingStatus('1.4.2026', finished, hetki(15, 12, 2026)).status, 'paattynyt');
-  assert.equal(laskeRankingStatus('1.4.2026', 'KILPAILUNSTATUS,RUNNING', hetki(15, 12, 2026)).status, 'kaynnissa');
+  assert.equal(laskeRankingStatus('1.4.2026', '31.10.2026', '', hetki(31, 3, 2026)).status, 'tulossa');
+  assert.equal(laskeRankingStatus('1.4.2026', '31.10.2026', '', hetki(1, 4, 2026, 8)).status, 'kaynnissa');
+  assert.equal(laskeRankingStatus('1.4.2026', '31.10.2026', '', hetki(31, 10, 2026, 23)).status, 'kaynnissa');
+  assert.equal(laskeRankingStatus('1.4.2026', '31.10.2026', '', hetki(1, 11, 2026)).status, 'paattynyt');
+  assert.equal(laskeRankingStatus('1.4.2026', '', '', hetki(15, 12, 2026)).status, 'kaynnissa');
+  assert.equal(laskeRankingStatus('', '', '', hetki(15, 12, 2026)).status, 'kaynnissa');
+  assert.equal(laskeRankingStatus('1.4.2026', '31.10.2026', finished, hetki(15, 9, 2026)).status, 'paattynyt');
 });
 
 test('laskeStatusKisalle valitsee rankingin tai kisan säännön', () => {
-  const nyt = hetki(15, 10, 2026);
+  // Kisa kauden keskellä ilman KILPAILUNSTATUS-asetusta on "tulossa", ranking käynnissä.
+  const nyt = hetki(15, 6, 2026);
   assert.equal(laskeStatusKisalle({ onkoRanking: true, alkuPvm: '1.4.2026', loppuPvm: '30.9.2026' }, '', nyt).status, 'kaynnissa');
-  assert.equal(laskeStatusKisalle({ alkuPvm: '1.4.2026', loppuPvm: '30.9.2026' }, '', nyt).status, 'paattynyt');
+  assert.equal(laskeStatusKisalle({ alkuPvm: '1.4.2026', loppuPvm: '30.9.2026' }, '', nyt).status, 'tulossa');
 });

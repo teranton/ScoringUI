@@ -141,8 +141,10 @@ test('julkaistavat välilehdet annetaan, vaikka mukana olisi muita', async () =>
 test('rankingin välilehti annetaan vain rankingiksi merkitystä taulukosta', async () => {
   const kisasta = await hae(VANHA, 'RANKING_2026');
   assert.equal(kisasta.s, 400);
+  assert.equal((await hae(VANHA, 'KISAT')).s, 400);
   const rankingista = await hae(RANKING, 'RANKING_2026');
   assert.equal(rankingista.s, 200);
   assert.ok(rankingista.b.csvByName.RANKING_2026);
   assert.match(rankingista.h['Cache-Control'], /s-maxage=15,/);
+  assert.equal((await hae(RANKING, 'KISAT')).s, 200);
 });

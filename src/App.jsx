@@ -102,7 +102,7 @@ function rankingValilehti(kisa) {
 }
 
 function sivutKisalle(kisa, onkoStaattinen) {
-  if (kisa?.onkoRanking) return [rankingValilehti(kisa), 'KISANSPEKSIT'];
+  if (kisa?.onkoRanking) return [rankingValilehti(kisa), 'KISAT', 'KISANSPEKSIT'];
   return onkoStaattinen
     ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
     : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
@@ -298,10 +298,10 @@ export default function App() {
         const viimeisinSpeksitHaku = Number(cacheData?.speksitFetchedAt || 0);
 
         if (kisa.onkoRanking) {
-          // Kauden ranking päättyy vasta, kun KILPAILUNSTATUS on FINISHED: sitä seurataan alkupäivästä siihen asti.
-          // Edellisten vuosien ranking haetaan kerran, jotta sen tila näkyy oikein.
-          if (laskeRankingStatus(kisa.alkuPvm, '').status !== 'kaynnissa') return false;
-          if (laskeRankingStatus(kisa.alkuPvm, cacheData?.speksitCsvRaw || '').status === 'paattynyt') return false;
+          // Kauden rankingia seurataan koko kauden (se voi päättyä FINISHED-asetuksella ennen loppupäivää).
+          // Edellisten vuosien ranking ilman loppupäivää haetaan kerran, jotta sen tila näkyy oikein.
+          if (laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, '').status !== 'kaynnissa') return false;
+          if (laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, cacheData?.speksitCsvRaw || '').status === 'paattynyt') return false;
           if (haeKisanVuosi(kisa) < new Date().getFullYear() && viimeisinSpeksitHaku) return false;
         } else if (laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm).status !== 'kaynnissa') {
           return false;
@@ -461,6 +461,7 @@ export default function App() {
           ? (csvByName['Aikataulu Su'] || vanhaData.aikatauluSuCsvRaw || "")
           : (csvByName['Aikataulu Su'] || ""),
         rankingCsvRaw: kisa.onkoRanking ? (csvByName[sivut[0]] || vanhaData.rankingCsvRaw || "") : "",
+        rankingKisatCsvRaw: kisa.onkoRanking ? (csvByName['KISAT'] || vanhaData.rankingKisatCsvRaw || "") : "",
         speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
         speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0),
         haettu: Date.now()
@@ -935,7 +936,11 @@ export default function App() {
         <main className="w-full flex-1">
           {nykyisenKisanData && (
             <div className="mx-auto w-full max-w-3xl">
-              <RankingTulokset rawCsv={nykyisenKisanData.rankingCsvRaw} locale={locale} />
+              <RankingTulokset
+                rawCsv={nykyisenKisanData.rankingCsvRaw}
+                kisatCsv={nykyisenKisanData.rankingKisatCsvRaw}
+                locale={locale}
+              />
             </div>
           )}
         </main>

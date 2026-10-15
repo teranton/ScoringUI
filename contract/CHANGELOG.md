@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- Season ranking: registry column H `RANKING` marks a season ranking. The UI reads `RANKING_<year>` (new allowed tab
-  pattern in the API) and the optional `KISANSPEKSIT` (`KILPAILUNSTATUS` = `FINISHED` ends the season). Additive:
-  no existing tab, header or key changes.
+- Season ranking: registry column H `RANKING` marks a season ranking, ordered by its end date. The UI reads
+  `RANKING_<year>` and `KISAT` (allowed only on ranking sheets) and the optional `KISANSPEKSIT`. The ranking ends
+  after its end date or with `KILPAILUNSTATUS` = `FINISHED`. Additive: no existing tab, header or key changes.
 - Compak timetable with layouts shot twice (ScoringLib "Kierroksia per rata"): later rounds sit below a
   `RATOJEN VAIHTO` row in the same lane columns, headers read `RATA1 / RATA3`. The UI shows the header as
   "1 / 3", prints the change row like a break, and the screen, search and group view do not treat break rows as

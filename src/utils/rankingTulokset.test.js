@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   parsiRanking,
+  parsiRankingKisaNimet,
   rankingSarjatAmpujille,
   rankingValilehdenNimi,
   suodataRanking
@@ -74,4 +75,16 @@ test('rankingSarjatAmpujille näyttää vain sarjat, joissa on ampujia', () => {
 
 test('rankingValilehdenNimi', () => {
   assert.equal(rankingValilehdenNimi(2026), 'RANKING_2026');
+});
+
+test('parsiRankingKisaNimet lukee KISAT-välilehden koodit ja nimet', () => {
+  const nimet = parsiRankingKisaNimet([
+    ['Koodi', 'Kisa', 'Laji', 'Taso', 'SM-ryhmä (K)', '', 'ASETUKSET'],
+    ['CSP_SM', 'Compak SM', 'Compak', 'SM', 'K', '', 'SM-ryhmästä pakollisina parhaat (kpl)', '2'],
+    ['CSP_EM', 'Compak EM', 'Compak', 'EM'],
+    ['', 'Ilman koodia'],
+    ['TYHJA', '']
+  ]);
+  assert.deepEqual([...nimet], [['CSP_SM', 'Compak SM'], ['CSP_EM', 'Compak EM']]);
+  assert.equal(parsiRankingKisaNimet([]).size, 0);
 });

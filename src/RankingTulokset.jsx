@@ -2,7 +2,7 @@
 // Kauden ranking: kokonaispisteet ja kisakohtaiset pisteet, suodatus yhdistetyillä sarjoilla.
 import { useMemo, useState } from 'react';
 import { parseCsvRows } from './utils/csv';
-import { RANKING_KAIKKI, parsiRanking, rankingSarjatAmpujille, suodataRanking } from './utils/rankingTulokset';
+import { RANKING_KAIKKI, parsiRanking, parsiRankingKisaNimet, rankingSarjatAmpujille, suodataRanking } from './utils/rankingTulokset';
 import { Button } from './components/ui/button';
 import { Card, CardContent } from './components/ui/card';
 import { Badge } from './components/ui/badge';
@@ -16,12 +16,13 @@ const TILA_VARIT = {
   3: 'bg-amber-500'
 };
 
-export default function RankingTulokset({ rawCsv, locale = 'fi' }) {
+export default function RankingTulokset({ rawCsv, kisatCsv, locale = 'fi' }) {
   const tx = haeTekstit('rankingTulokset', locale);
   const [sarjaSuodatin, setSarjaSuodatin] = useState(RANKING_KAIKKI);
   const [valittuId, setValittuId] = useState(null);
 
   const ranking = useMemo(() => parsiRanking(parseCsvRows(rawCsv || '')), [rawCsv]);
+  const kisaNimet = useMemo(() => parsiRankingKisaNimet(parseCsvRows(kisatCsv || '')), [kisatCsv]);
   const sarjat = useMemo(() => rankingSarjatAmpujille(ranking.ampujat), [ranking.ampujat]);
   // Jos valitun sarjan viimeinen ampuja poistuu päivityksessä, näytetään Open.
   const valittuSarja = sarjat.some((s) => s.avain === sarjaSuodatin) ? sarjaSuodatin : RANKING_KAIKKI;
@@ -52,7 +53,19 @@ export default function RankingTulokset({ rawCsv, locale = 'fi' }) {
         ))}
       </div>
 
-      <p className="mb-3 text-xs text-slate-500">{tx.explanation}</p>
+      <p className="mb-1.5 text-xs text-slate-500">{tx.explanation}</p>
+      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+        {[1, 2, 3].map((tila) => (
+          <span key={`tila-${tila}`} className="inline-flex items-center gap-1.5">
+            <span className={cn('inline-block h-2.5 w-2.5 rounded-full ring-1 ring-black/10', TILA_VARIT[tila])} />
+            {tilaTeksti(tila)}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-4 rounded-sm border border-amber-300 bg-amber-50" />
+          {tx.counted}
+        </span>
+      </div>
 
       <div className="flex flex-col gap-2">
         {naytettavat.map((ampuja) => {
@@ -108,7 +121,7 @@ export default function RankingTulokset({ rawCsv, locale = 'fi' }) {
 
               {onAuki && ampuja.tulokset.length > 0 && (
                 <CardContent className="border-t border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3">
-                  <div className="grid w-full grid-cols-2 gap-1 sm:grid-cols-3">
+                  <div className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2">
                     {ampuja.tulokset.map((tulos) => (
                       <div
                         key={`${ampuja.id}-${tulos.koodi}`}
@@ -121,7 +134,9 @@ export default function RankingTulokset({ rawCsv, locale = 'fi' }) {
                         title={tulos.mukana ? tx.counted : undefined}
                       >
                         <div className="min-w-0">
-                          <div translate="no" className="truncate text-[11px] font-semibold text-slate-700">{tulos.koodi}</div>
+                          <div translate="no" className="break-words text-xs font-semibold text-slate-700">
+                            {kisaNimet.get(tulos.koodi) || tulos.koodi}
+                          </div>
                           {tulos.taso && <div className="text-[10px] text-slate-500">{tulos.taso}</div>}
                         </div>
                         <div className={cn('text-sm text-slate-900', tulos.mukana ? 'font-black' : 'font-semibold')}>
@@ -137,18 +152,6 @@ export default function RankingTulokset({ rawCsv, locale = 'fi' }) {
         })}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
-        {[1, 2, 3].map((tila) => (
-          <span key={`tila-${tila}`} className="inline-flex items-center gap-1.5">
-            <span className={cn('inline-block h-2.5 w-2.5 rounded-full ring-1 ring-black/10', TILA_VARIT[tila])} />
-            {tilaTeksti(tila)}
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-4 rounded-sm border border-amber-300 bg-amber-50" />
-          {tx.counted}
-        </span>
-      </div>
     </div>
   );
 }

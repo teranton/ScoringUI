@@ -113,6 +113,7 @@ test('onSallittuValilehti sallii kisan välilehdet ja kauden rankingin, ei muita
   assert.equal(onSallittuValilehti(' kisanspeksit '), true);
   assert.equal(onSallittuValilehti('RANKING_2026'), true);
   assert.equal(onSallittuValilehti('ranking_2027'), true);
+  assert.equal(onSallittuValilehti('KISAT'), true);
   assert.equal(onSallittuValilehti('RANKING'), false);
   assert.equal(onSallittuValilehti('RANKING_2026_vanha'), false);
   assert.equal(onSallittuValilehti('LASKENTA'), false);

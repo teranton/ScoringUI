@@ -116,20 +116,23 @@ export function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData, nyt
   return { ...STATUS_TYYLIT.tulossa };
 }
 
-// Kauden ranking on käynnissä alkupäivästä siihen asti, kunnes KISANSPEKSIT-välilehdellä on
-// KILPAILUNSTATUS = FINISHED. Loppupäivä ei päätä rankingia. Ilman alkupäivää ranking on käynnissä.
-export function laskeRankingStatus(alkuStr, speksitData, nyt = new Date()) {
+// Kauden ranking on käynnissä koko kauden alkupäivästä loppupäivään ilman KILPAILUNSTATUS-asetusta.
+// Se päättyy loppupäivän jälkeen tai aiemmin, jos KISANSPEKSIT-välilehdellä on KILPAILUNSTATUS = FINISHED.
+// Ilman alkupäivää ranking on käynnissä, ilman loppupäivää se ei pääty päivämäärän mukaan.
+export function laskeRankingStatus(alkuStr, loppuStr, speksitData, nyt = new Date()) {
   const override = haeStatusOverrideSpekseista(speksitData);
   if (override === 'paattynyt' || override === 'tauolla') return { ...STATUS_TYYLIT[override] };
   const alku = parsiPaivamaara(alkuStr);
+  const loppu = parsiPaivamaara(loppuStr);
   const tanaan = new Date(nyt.getTime());
   tanaan.setHours(0, 0, 0, 0);
   if (alku && tanaan < alku) return { ...STATUS_TYYLIT.tulossa };
+  if (loppu && tanaan > loppu) return { ...STATUS_TYYLIT.paattynyt };
   return { ...STATUS_TYYLIT.kaynnissa };
 }
 
 // Kisan tai rankingin näkyvä tila.
 export function laskeStatusKisalle(kisa, speksitData, nyt = new Date()) {
-  if (kisa?.onkoRanking) return laskeRankingStatus(kisa.alkuPvm, speksitData, nyt);
+  if (kisa?.onkoRanking) return laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, speksitData, nyt);
   return laskeKisanEfektiivinenStatus(kisa?.alkuPvm, kisa?.loppuPvm, speksitData, nyt);
 }

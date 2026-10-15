@@ -75,9 +75,11 @@ export function parsiKilpailurekisteri(raakaRivit) {
     }
   }
 
+  // Kauden ranking järjestetään loppupäivän mukaan (koko kauden kestävä tapahtuma), kisat alkupäivän mukaan.
+  const jarjestysPvm = (kisa) => (kisa.onkoRanking && kisa.loppuPvm ? kisa.loppuPvm : kisa.alkuPvm);
   parsitutKisat.sort((a, b) => {
-    const aKey = muunnaPaivamaaraJarjestysavaimeksi(a.alkuPvm);
-    const bKey = muunnaPaivamaaraJarjestysavaimeksi(b.alkuPvm);
+    const aKey = muunnaPaivamaaraJarjestysavaimeksi(jarjestysPvm(a));
+    const bKey = muunnaPaivamaaraJarjestysavaimeksi(jarjestysPvm(b));
 
     if (aKey && bKey) return bKey.localeCompare(aKey);
     if (aKey) return -1;

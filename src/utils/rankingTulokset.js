@@ -90,6 +90,24 @@ export function parsiRanking(rivit) {
   return { ampujat };
 }
 
+// KISAT-välilehti: kisakoodi (Koodi) -> kisan nimi (Kisa).
+export function parsiRankingKisaNimet(rivit) {
+  const nimet = new Map();
+  if (!Array.isArray(rivit)) return nimet;
+  const otsikkoIdx = rivit.findIndex((rivi) => (rivi || []).map(normalisoiOtsikko).includes('KOODI'));
+  if (otsikkoIdx === -1) return nimet;
+  const otsikot = rivit[otsikkoIdx].map(normalisoiOtsikko);
+  const idxKoodi = otsikot.indexOf('KOODI');
+  const idxNimi = otsikot.indexOf('KISA');
+  if (idxNimi === -1) return nimet;
+  for (const rivi of rivit.slice(otsikkoIdx + 1)) {
+    const koodi = String(rivi?.[idxKoodi] ?? '').trim();
+    const nimi = String(rivi?.[idxNimi] ?? '').trim();
+    if (koodi && nimi && !nimet.has(koodi)) nimet.set(koodi, nimi);
+  }
+  return nimet;
+}
+
 function kuuluuSarjaan(ampuja, rankingSarja) {
   if (!rankingSarja?.sarjat) return true;
   const sarja = String(ampuja.sarja || '').trim().toUpperCase();

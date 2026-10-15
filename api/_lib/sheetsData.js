@@ -18,12 +18,13 @@ export const SALLITUT_VALILEHDET = [
   'Aikataulu', 'Aikataulu La', 'Aikataulu Su'
 ];
 const sallitutNormalisoituna = new Set(SALLITUT_VALILEHDET.map(normalisoi));
-// Kauden rankingin välilehti (RANKING_2026 ...), luetaan rekisterissä RANKING-tyyppiseksi merkitystä taulukosta.
-// api/kisa.js antaa sen vain rankingiksi merkitystä taulukosta.
+// Kauden rankingin välilehdet: tulokset (RANKING_2026 ...) ja kisojen nimet (KISAT).
+// api/kisa.js antaa ne vain rekisterissä rankingiksi (H = RANKING) merkitystä taulukosta.
 const RANKING_VALILEHTI = /^ranking_\d{4}$/;
 
 export function onRankingValilehti(nimi) {
-  return RANKING_VALILEHTI.test(normalisoi(nimi));
+  const normalisoitu = normalisoi(nimi);
+  return RANKING_VALILEHTI.test(normalisoitu) || normalisoitu === 'kisat';
 }
 
 export function onSallittuValilehti(nimi) {
