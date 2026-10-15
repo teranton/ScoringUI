@@ -1,7 +1,7 @@
 // src/utils/aikatauluRyhmat.js
 import { parseCsvRows } from './csv.js';
 import { parsiPaivamaara } from './kisaStatus.js';
-import { extractTitleSuffixFromFirstRow, isLaneHeader, isTimeLike, toSortValue } from './aikatauluRadat.js';
+import { extractTitleSuffixFromFirstRow, isTimeLike, taukoTyyppi, toSortValue, tunnistaRataSarakkeet } from './aikatauluRadat.js';
 
 export { toSortValue };
 
@@ -396,21 +396,8 @@ export function parseAikatauluRyhmat(rawCsv, defaultGroupingMode, tx) {
   if (parsedCombined) return parsedCombined;
 
   const titleSuffix = extractTitleSuffixFromFirstRow(rows[0] || []);
-  const laneHeaderRow = rows.find((row) => Array.isArray(row) && row.some(isLaneHeader));
-  const laneColumns = [];
-
-  if (laneHeaderRow) {
-    for (let i = 0; i < laneHeaderRow.length; i++) {
-      if (!isLaneHeader(laneHeaderRow[i])) continue;
-      let startIndex = i;
-      if (i > 0 && !isLaneHeader(laneHeaderRow[i - 1])) {
-        startIndex = i - 1;
-      }
-      const rawLabel = String(laneHeaderRow[i]).trim();
-      const match = rawLabel.toUpperCase().match(/^(?:RATA|LANE)\s*(\d+\s*.*)/i);
-      laneColumns.push({ label: match ? match[1] : rawLabel, startIndex });
-    }
-  }
+  // Sama ratojen tunnistus kuin rata-ruudukossa (myös kierrokset allekkain: "RATA1 / RATA3")
+  const laneColumns = tunnistaRataSarakkeet(rows);
 
   if (laneColumns.length < 2) {
     return { mode: 'lane-grid', titleSuffix, laneColumns: [], laneRows: [], heats: [], daySections: [] };
@@ -489,7 +476,8 @@ export function parseAikatauluRyhmat(rawCsv, defaultGroupingMode, tx) {
 
     for (const slot of row.slots || []) {
       const shooter = sanitizeName(slot.shooter);
-      if (!shooter) continue;
+      // Tauko ja ratojen vaihto eivät ole ampujia
+      if (!shooter || taukoTyyppi(shooter, slot.number)) continue;
 
       const number = toShooterNumber(slot.number);
       const groupIndex = number !== null && numberGroupMap.has(number)

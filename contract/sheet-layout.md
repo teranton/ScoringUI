@@ -52,6 +52,9 @@ so column order can change but header names must not.
   Lane-grid (Compak) tabs have three columns per lane: time, shooter number, name. A name that is only a
   number is an empty slot; `TAUKO` with no number is a break; a name ending in U+200B (zero-width space)
   starts as referee. The screen and the printout read these the same way.
+  When the layouts are shot twice (e.g. 100 targets on two stands), the later round continues in the same
+  lane columns below a row with `RATOJEN VAIHTO` (no number) in the name column, and the lane header names
+  both layouts (`RATA1 / RATA3`). `TAUKO` and `RATOJEN VAIHTO` rows keep their time in the time column.
 
 **Read by position** (fragile, keep stable):
 - The UI's `KISANSPEKSIT` station-table fallback (columns J, K, L) when no header is found. Sheets made
