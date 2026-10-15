@@ -448,7 +448,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     minWidth: `${leveydet.nimi}px`,
     maxWidth: `${leveydet.nimi}px`
   };
-  // Seuran nimi venyttäisi saraketta (taulukko on min-w-max), joten leveys lukitaan kuten nimellä.
+  // Sisältö (otsikko, seuran nimi) venyttäisi saraketta (taulukko on min-w-max), joten leveys lukitaan kuten nimellä.
+  const sarjaStyle = { width: `${leveydet.sarja}px`, minWidth: `${leveydet.sarja}px`, maxWidth: `${leveydet.sarja}px` };
   const seuraStyle = { width: `${leveydet.seura}px`, minWidth: `${leveydet.seura}px`, maxWidth: `${leveydet.seura}px` };
   const riviKorkeus = kokoLuokka === 'desktop' ? 'h-11' : 'h-9';
   const otsikkoPadding = kokoLuokka === 'desktop' ? 'px-3' : 'px-2';
@@ -597,7 +598,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         </th>
                         
                         {naytaSarjaSarake && (
-                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30')} style={{ width: `${leveydet.sarja}px` }}>
+                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30')} style={sarjaStyle}>
                             <button type="button" className="w-full" onClick={() => paivitaJarjestys('sarja')}>
                               {tx.classLabel}{jarjestysMerkki('sarja')}
                             </button>
@@ -729,7 +730,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                           </td>
                           
                           {naytaSarjaSarake && (
-                            <td className={cn(soluLuokka('series'), 'bg-white group-hover:bg-slate-50/30')} style={{ width: `${leveydet.sarja}px` }}>
+                            <td className={cn(soluLuokka('series'), 'bg-white group-hover:bg-slate-50/30')} style={sarjaStyle}>
                               {ampuja.sarja}
                             </td>
                           )}

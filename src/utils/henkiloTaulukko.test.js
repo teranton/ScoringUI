@@ -167,12 +167,15 @@ test('laskeTaulukkoAsettelu: kaikki sarakkeet -tilassa mitään ei piiloteta', (
 
 test('laskeTaulukkoAsettelu: Seura on pisimmän seuran levyinen, enintään tason maksimi', () => {
   const lyhyet = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 4 });
-  assert.equal(lyhyet.leveydet.seura, 54);
+  assert.equal(lyhyet.leveydet.seura, 55);
 
   const pitkat = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 35 });
   assert.equal(pitkat.leveydet.seura, 140);
 
   const mobiili = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2, seuraMerkit: 10 });
   assert.equal(mobiili.taso, 'mobile');
-  assert.equal(mobiili.leveydet.seura, 81);
+  assert.equal(mobiili.leveydet.seura, 70);
+
+  const trapp = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2, seuraMerkit: 8 });
+  assert.equal(trapp.leveydet.seura, 69);
 });
