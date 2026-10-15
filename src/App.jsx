@@ -497,8 +497,9 @@ export default function App() {
 
     const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
     const cacheData = kisaCacheRef.current[sheetId] || null;
+    // Rankingin kisojen nimet (KISAT) puuttuvat myös selaimeen ennen niiden lisäämistä tallennetusta datasta.
     const puuttuuPakollistaKisaDataa = !cacheData || (valittuKisa.onkoRanking
-      ? onkoCsvVirheellinen(cacheData.rankingCsvRaw, 10)
+      ? onkoCsvVirheellinen(cacheData.rankingCsvRaw, 10) || onkoCsvVirheellinen(cacheData.rankingKisatCsvRaw, 2)
       : onkoCsvVirheellinen(cacheData.henkilotCsvRaw, 10)
         || onkoCsvVirheellinen(cacheData.joukkueetCsvRaw, 10)
         || onkoCsvVirheellinen(cacheData.speksitCsvRaw, 2));
