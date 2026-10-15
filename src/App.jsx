@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
+import { Component, useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
@@ -975,7 +975,8 @@ export default function App() {
             </div>
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
-            <Suspense fallback={<NakymaLatautuu teksti={tx.fetchingCompetitionData} />}>
+            <NakymaVirheRaja tx={tx}>
+<Suspense fallback={<NakymaLatautuu teksti={tx.fetchingCompetitionData} />}>
             <HenkiloTaulukko
               data={nykyisenKisanData}
               parsedRows={nykyisenKisanParsitutRivit}
@@ -987,6 +988,7 @@ export default function App() {
               kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
             />
             </Suspense>
+            </NakymaVirheRaja>
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <div className="mx-auto w-full max-w-3xl">
@@ -1016,7 +1018,8 @@ export default function App() {
               )}
 
               {Boolean(valittuAikatauluCsv) && (
-                <Suspense fallback={<NakymaLatautuu teksti={tx.fetchingCompetitionData} />}>
+                <NakymaVirheRaja tx={tx}>
+<Suspense fallback={<NakymaLatautuu teksti={tx.fetchingCompetitionData} />}>
                 {kaytaRyhmaAikatauluNakymaa ? (
                   <AikatauluRyhmaNakyma
                     rawCsv={valittuAikatauluCsv?.raw || ''}
@@ -1037,6 +1040,7 @@ export default function App() {
                   />
                 )}
                 </Suspense>
+                </NakymaVirheRaja>
               )}
             </div>
           )}
@@ -1073,6 +1077,7 @@ export default function App() {
       )}
       {tulostetaanTaulukko && <div ref={setTaulukkoTulosteJuuri} className="tuloste-root" lang={locale} />}
       {tulostetaanAikataulu && (
+        <NakymaVirheRaja tx={null}>
         <Suspense fallback={null}>
         <TulosteAikataulu
           aikataulu={tulosteAikataulu}
@@ -1082,6 +1087,7 @@ export default function App() {
           locale={locale}
         />
         </Suspense>
+        </NakymaVirheRaja>
       )}
     </div>
   );
@@ -1091,4 +1097,34 @@ function NakymaLatautuu({ teksti }) {
   return (
     <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">{teksti}</div>
   );
+}
+
+// Laiskasti ladatun näkymän virhe (esim. pala puuttuu verkkokatkon takia) ei kaada koko sovellusta.
+class NakymaVirheRaja extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { virhe: null };
+  }
+
+  static getDerivedStateFromError(virhe) {
+    return { virhe };
+  }
+
+  componentDidCatch(virhe) {
+    console.error('Näkymän lataus epäonnistui', virhe);
+  }
+
+  render() {
+    if (!this.state.virhe) return this.props.children;
+    const { tx } = this.props;
+    if (!tx) return null;
+    return (
+      <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">
+        {tx.viewLoadFailed}{' '}
+        <button type="button" className="underline hover:text-[hsl(var(--foreground))]" onClick={() => window.location.reload()}>
+          {tx.reloadPage}
+        </button>
+      </div>
+    );
+  }
 }

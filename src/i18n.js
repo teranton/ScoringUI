@@ -26,7 +26,9 @@ const TEKSTIT = jaadyta({
       themeDefault: 'Oletus',
       themeOcean: 'Meri',
       themeForest: 'Metsa',
-      fetchingCompetitionData: 'Haetaan kilpailun tietoja...'
+      fetchingCompetitionData: 'Haetaan kilpailun tietoja...',
+      viewLoadFailed: 'Näkymän lataus epäonnistui.',
+      reloadPage: 'Lataa sivu uudelleen'
     },
     kisaStatus: {
       kaynnissa: 'Käynnissä',
@@ -222,7 +224,9 @@ const TEKSTIT = jaadyta({
       themeDefault: 'Default',
       themeOcean: 'Ocean',
       themeForest: 'Forest',
-      fetchingCompetitionData: 'Fetching competition data...'
+      fetchingCompetitionData: 'Fetching competition data...',
+      viewLoadFailed: 'Loading the view failed.',
+      reloadPage: 'Reload page'
     },
     kisaStatus: {
       kaynnissa: 'Ongoing',
