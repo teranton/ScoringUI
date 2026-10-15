@@ -1,14 +1,9 @@
 // src/App.jsx
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
+import { Component, useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
-import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
-import AikatauluNakyma from './AikatauluNakyma';
-import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
-import TulosteTulokset from './TulosteTulokset';
-import TulosteAikataulu from './TulosteAikataulu';
 import RankingTulokset from './RankingTulokset';
 import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
@@ -41,6 +36,24 @@ import { Badge } from './components/ui/badge';
 import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer } from 'lucide-react';
 import { haeTekstit } from './i18n';
 import { lueKisat, lueRekisteri, tallennaKisa, tallennaRekisteri } from './utils/paikallinenValimuisti';
+
+// Taulukko-, aikataulu- ja tulostenäkymät ovat omia palojaan. Ne esiladataan, kun kisa avataan,
+// joten ne ovat yleensä valmiina ennen kuin näkymä avataan (myös jos yhteys katkeaa radalla).
+// TulosteTaulukko tulee HenkiloTaulukon mukana, koska se renderöidään beforeprintissä synkronisesti.
+const NAKYMAPALAT = {
+  taulukko: () => import('./HenkiloTaulukko'),
+  aikataulu: () => import('./AikatauluNakyma'),
+  ryhmaAikataulu: () => import('./AikatauluRyhmaNakyma'),
+  tulosteAikataulu: () => import('./TulosteAikataulu'),
+  tulosteTulokset: () => import('./TulosteTulokset')
+};
+const HenkiloTaulukko = lazy(NAKYMAPALAT.taulukko);
+const AikatauluNakyma = lazy(NAKYMAPALAT.aikataulu);
+const AikatauluRyhmaNakyma = lazy(NAKYMAPALAT.ryhmaAikataulu);
+const TulosteAikataulu = lazy(NAKYMAPALAT.tulosteAikataulu);
+// Tulosluettelo renderöidään suoraan ladatusta moduulista (ei lazy), koska print() kutsutaan heti renderöinnin
+// jälkeen eikä React.lazy ehdi renderöidä ensimmäisellä kerralla.
+const ladatutModuulit = {};
 
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
 // Päättyneen kisan data haetaan avattaessa uudelleen vain, jos se on tätä vanhempi.
@@ -136,6 +149,10 @@ export default function App() {
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
   // Tulostuksen aloitusaika; null kun tulosluettelon tulostus ei ole käynnissä.
   const [tulosteenAika, setTulosteenAika] = useState(null);
+  // Ladatut näkymäpalat. Tulosteet ovat sivulla vasta, kun niiden pala on ladattu, ettei tulostus tyhjennä sivua.
+  const [ladatutPalat, setLadatutPalat] = useState({});
+  const tulostusLatautuuRef = useRef(false);
+  const TulosteTulokset = ladatutPalat.tulosteTulokset ? ladatutModuulit.tulosteTulokset.default : null;
   // Taulukkonäkymän tulosteen juurielementti; HenkiloTaulukko renderöi tulosteen siihen (portaali).
   const [taulukkoTulosteJuuri, setTaulukkoTulosteJuuri] = useState(null);
   const [devTila] = useState(() => onkoDevTila());
@@ -191,6 +208,31 @@ export default function App() {
       printMedia?.removeEventListener?.('change', kunMediaMuuttuu);
     };
   }, [tulosteenAika]);
+
+  const lataaPala = useCallback((avain) => NAKYMAPALAT[avain]().then((moduuli) => {
+    ladatutModuulit[avain] = moduuli;
+    setLadatutPalat((vanha) => (vanha[avain] ? vanha : { ...vanha, [avain]: true }));
+    return moduuli;
+  }), []);
+
+  const tulostaTulokset = async () => {
+    // Valmiiksi ladattu pala tulostetaan heti, jolloin print() on vielä painalluksen sisällä.
+    if (ladatutPalat.tulosteTulokset) {
+      setTulosteenAika(new Date());
+      return;
+    }
+    if (tulostusLatautuuRef.current) return;
+    tulostusLatautuuRef.current = true;
+    try {
+      await lataaPala('tulosteTulokset');
+      setTulosteenAika(new Date());
+    } catch (virhe) {
+      console.error('Tulosluettelon lataus epäonnistui', virhe);
+      window.alert(tx.viewLoadFailed);
+    } finally {
+      tulostusLatautuuRef.current = false;
+    }
+  };
 
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
@@ -579,6 +621,19 @@ export default function App() {
   const kisaRyhmat = useMemo(() => ryhmitteleKisatVuosittain(kisat, kuluvaVuosi), [kisat, kuluvaVuosi]);
 
   const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
+
+  // Esiladataan näkymäpalat, kun ensimmäinen kisa on auki. Epäonnistunut esilataus yritetään uudelleen avattaessa.
+  const onkoKisaDataa = Boolean(nykyisenKisanData) && !valittuKisa?.onkoRanking;
+  useEffect(() => {
+    if (!onkoKisaDataa || typeof window === 'undefined') return undefined;
+    const esilataa = () => Object.keys(NAKYMAPALAT).forEach((avain) => lataaPala(avain).catch(() => {}));
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(esilataa, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const ajastin = window.setTimeout(esilataa, 200);
+    return () => window.clearTimeout(ajastin);
+  }, [onkoKisaDataa, lataaPala]);
   const ladataanKisaa = valittuKisa?.apiUrl ? Boolean(ladataanKisaaBySheet[valittuKisa.apiUrl]) : false;
   const valitunKisanVirhe = valittuKisa?.apiUrl ? kisaVirheBySheet[valittuKisa.apiUrl] : null;
 
@@ -690,9 +745,10 @@ export default function App() {
     if (aikatauluNakyvyysAsetus === 'after-start') return onkoTuloksetSallittu && !onkoKisaPaattynyt;
     return !onkoKisaPaattynyt;
   })();
-  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && Boolean(tulosteAikataulu);
+  const onkoOmaAikatauluTuloste = Boolean(tulosteAikataulu) && Boolean(ladatutPalat.tulosteAikataulu);
+  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && onkoOmaAikatauluTuloste;
   // Taulukkonäkymässä tulostetaan taulukon oma A4-tuloste (myös Ctrl+P), ei vieritettävää näytön taulukkoa.
-  const tulostetaanTaulukko = !tulosteenAika && aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && Boolean(nykyisenKisanData?.henkilotCsvRaw);
+  const tulostetaanTaulukko = !tulosteenAika && aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && Boolean(nykyisenKisanData?.henkilotCsvRaw) && Boolean(ladatutPalat.taulukko);
   const onkoMateriaaleja = useMemo(() => {
     const rivit = nykyisenKisanParsitutRivit.speksitRows || [];
     return extractMaterialGuidesFromRows(rivit).length > 0;
@@ -924,7 +980,7 @@ export default function App() {
           </Button>
         )}
         {devTila && onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
-          <Button onClick={() => setTulosteenAika(new Date())} variant="outline" size="sm" className="ml-auto gap-1.5">
+          <Button onClick={tulostaTulokset} variant="outline" size="sm" className="ml-auto gap-1.5">
             <Printer className="h-4 w-4" aria-hidden="true" />
             {txTuloste.button}
           </Button>
@@ -932,7 +988,7 @@ export default function App() {
       </nav>}
 
       {ladataanKisaa && !nykyisenKisanData ? (
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">{tx.fetchingCompetitionData}</div>
+        <IlmoitusLaatikko>{tx.fetchingCompetitionData}</IlmoitusLaatikko>
       ) : valittuKisa.onkoRanking ? (
         <main className="w-full flex-1">
           {nykyisenKisanData && (
@@ -960,6 +1016,8 @@ export default function App() {
             </div>
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
+            <NakymaVirheRaja tx={tx}>
+            <Suspense fallback={<IlmoitusLaatikko>{tx.loadingView}</IlmoitusLaatikko>}>
             <HenkiloTaulukko
               data={nykyisenKisanData}
               parsedRows={nykyisenKisanParsitutRivit}
@@ -970,6 +1028,8 @@ export default function App() {
               kisaNimi={valittuKisa.nimi}
               kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
             />
+            </Suspense>
+            </NakymaVirheRaja>
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <div className="mx-auto w-full max-w-3xl">
@@ -999,7 +1059,9 @@ export default function App() {
               )}
 
               {Boolean(valittuAikatauluCsv) && (
-                kaytaRyhmaAikatauluNakymaa ? (
+                <NakymaVirheRaja tx={tx} key={valittuAikatauluCsv.key}>
+                <Suspense fallback={<IlmoitusLaatikko>{tx.loadingView}</IlmoitusLaatikko>}>
+                {kaytaRyhmaAikatauluNakymaa ? (
                   <AikatauluRyhmaNakyma
                     rawCsv={valittuAikatauluCsv?.raw || ''}
                     locale={locale}
@@ -1015,9 +1077,11 @@ export default function App() {
                     sponsorLogos={kisanSponsorit}
                     showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
                     defaultGroupingMode={aikatauluRyhmittelyAsetus}
-                    omaTuloste={Boolean(tulosteAikataulu)}
+                    omaTuloste={onkoOmaAikatauluTuloste}
                   />
-                )
+                )}
+                </Suspense>
+                </NakymaVirheRaja>
               )}
             </div>
           )}
@@ -1041,7 +1105,7 @@ export default function App() {
         </a>
       </footer>
 
-      {tulosteenAika && nykyisenKisanData?.henkilotCsvRaw && (
+      {tulosteenAika && TulosteTulokset && nykyisenKisanData?.henkilotCsvRaw && (
         <TulosteTulokset
           rawRows={nykyisenKisanParsitutRivit.henkilotRows}
           parsedSpeksit={nykyisenKisanSpeksit}
@@ -1054,6 +1118,8 @@ export default function App() {
       )}
       {tulostetaanTaulukko && <div ref={setTaulukkoTulosteJuuri} className="tuloste-root" lang={locale} />}
       {tulostetaanAikataulu && (
+        <NakymaVirheRaja tx={null}>
+        <Suspense fallback={null}>
         <TulosteAikataulu
           aikataulu={tulosteAikataulu}
           otsikko={valittuAikatauluCsv.label}
@@ -1061,7 +1127,50 @@ export default function App() {
           kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
           locale={locale}
         />
+        </Suspense>
+        </NakymaVirheRaja>
       )}
     </div>
   );
+}
+
+function IlmoitusLaatikko({ children }) {
+  return (
+    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">{children}</div>
+  );
+}
+
+// Näkymän virhe (esim. pala ei latautunut verkkokatkon tai uuden julkaisun takia) ei kaada koko sovellusta.
+// Uudelleenlatausnappi näytetään vain verkossa, ettei offline-tilassa välimuistista toimiva sovellus katoa.
+// Avain (key) nollaa rajan, kun näkymän sisältö vaihtuu.
+class NakymaVirheRaja extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { virhe: null };
+  }
+
+  static getDerivedStateFromError(virhe) {
+    return { virhe };
+  }
+
+  componentDidCatch(virhe) {
+    console.error('Näkymän lataus epäonnistui', virhe);
+  }
+
+  render() {
+    if (!this.state.virhe) return this.props.children;
+    const { tx } = this.props;
+    if (!tx) return null;
+    const verkossa = typeof navigator === 'undefined' || navigator.onLine !== false;
+    return (
+      <IlmoitusLaatikko>
+        {verkossa ? tx.viewLoadFailed : tx.viewLoadFailedOffline}{' '}
+        {verkossa && (
+          <button type="button" className="underline hover:text-[hsl(var(--foreground))]" onClick={() => window.location.reload()}>
+            {tx.reloadPage}
+          </button>
+        )}
+      </IlmoitusLaatikko>
+    );
+  }
 }

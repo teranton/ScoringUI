@@ -26,7 +26,11 @@ const TEKSTIT = jaadyta({
       themeDefault: 'Oletus',
       themeOcean: 'Meri',
       themeForest: 'Metsa',
-      fetchingCompetitionData: 'Haetaan kilpailun tietoja...'
+      fetchingCompetitionData: 'Haetaan kilpailun tietoja...',
+      loadingView: 'Ladataan näkymää...',
+      viewLoadFailed: 'Näkymän lataus epäonnistui.',
+      viewLoadFailedOffline: 'Näkymää ei voi ladata ilman verkkoyhteyttä.',
+      reloadPage: 'Lataa sivu uudelleen'
     },
     kisaStatus: {
       kaynnissa: 'Käynnissä',
@@ -222,7 +226,11 @@ const TEKSTIT = jaadyta({
       themeDefault: 'Default',
       themeOcean: 'Ocean',
       themeForest: 'Forest',
-      fetchingCompetitionData: 'Fetching competition data...'
+      fetchingCompetitionData: 'Fetching competition data...',
+      loadingView: 'Loading view...',
+      viewLoadFailed: 'Loading the view failed.',
+      viewLoadFailedOffline: 'The view cannot be loaded without a network connection.',
+      reloadPage: 'Reload page'
     },
     kisaStatus: {
       kaynnissa: 'Ongoing',
