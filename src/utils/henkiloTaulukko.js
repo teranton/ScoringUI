@@ -269,3 +269,72 @@ export function onkoAliTulosPuuttuu(arvo) {
   const teksti = String(arvo ?? '').trim().toUpperCase();
   return teksti === '' || teksti === '-' || teksti === '—' || teksti === 'N/A';
 }
+
+// Sarakeleveydet (px) tasoittain. Taso valitaan sen mukaan, mitä taulukon leveyteen mahtuu.
+const TASOT = {
+  desktop: { sija: 35, nimi: 200, sarja: 50, seura: 160, paiva: 35, yht: 35, ratko: 52, rata: 30, rataMax: 40 },
+  mobile: { sija: 24, nimi: 154, sarja: 20, seura: 100, paiva: 24, yht: 24, ratko: 42, rata: 24, rataMax: 32 },
+  compact: { sija: 24, nimi: 90, sarja: 20, seura: 100, paiva: 24, yht: 24, ratko: 30, rata: 18, rataMax: 26 }
+};
+
+// Vierityspalkin ja reunojen varaus, ettei taulukko mene juuri ja juuri yli.
+const LEVEYS_VARA = 8;
+
+// Valitsee taulukon asettelun käytettävissä olevan leveyden mukaan. Ensin kavennetaan sarakkeita,
+// sitten pudotetaan valinnaiset sarakkeet järjestyksessä Seura, La/Su, Sarja ja lopuksi tiivistetään
+// nimet. Jos mikään ei mahdu, palautetaan tiivein asettelu (taulukkoa vieritetään sivusuunnassa).
+// Ylimääräinen tila jaetaan rata-sarakkeille. Leveys 0 (ei vielä mitattu) = väljin asettelu.
+export function laskeTaulukkoAsettelu({
+  leveys = 0,
+  ratojenMaara = 0,
+  naytaRatko = false,
+  onkoSarja = false,
+  onkoSeura = true,
+  paivienMaara = 0,
+  kaikkiSarakkeet = false
+} = {}) {
+  const kaikki = { sarja: onkoSarja, seura: onkoSeura, paivat: paivienMaara > 0 };
+  const ilman = (...pois) => ({ ...kaikki, ...Object.fromEntries(pois.map((avain) => [avain, false])) });
+
+  const vaihtoehdot = kaikkiSarakkeet
+    ? [['desktop', kaikki], ['mobile', kaikki], ['compact', kaikki]]
+    : [
+      ['desktop', kaikki],
+      ['mobile', kaikki],
+      ['mobile', ilman('seura')],
+      ['mobile', ilman('seura', 'paivat')],
+      ['mobile', ilman('seura', 'paivat', 'sarja')],
+      ['compact', ilman('seura', 'paivat', 'sarja')]
+    ];
+
+  const laskeLeveys = (l, sarakkeet, rata) => l.sija + l.nimi + l.yht
+    + (sarakkeet.sarja ? l.sarja : 0)
+    + (sarakkeet.seura ? l.seura : 0)
+    + (sarakkeet.paivat ? l.paiva * paivienMaara : 0)
+    + (naytaRatko ? l.ratko : 0)
+    + rata * ratojenMaara;
+
+  const kaytettavissa = leveys - LEVEYS_VARA;
+  const valittu = (leveys > 0
+    && vaihtoehdot.find(([taso, sarakkeet]) => laskeLeveys(TASOT[taso], sarakkeet, TASOT[taso].rata) <= kaytettavissa))
+    || (leveys > 0 ? vaihtoehdot[vaihtoehdot.length - 1] : vaihtoehdot[0]);
+  const [taso, sarakkeet] = valittu;
+  const l = TASOT[taso];
+  const perusLeveys = laskeLeveys(l, sarakkeet, l.rata);
+  const mahtuu = leveys <= 0 || perusLeveys <= kaytettavissa;
+
+  let rata = l.rata;
+  if (leveys > 0 && mahtuu && ratojenMaara > 0) {
+    const ylimaarainen = Math.floor((kaytettavissa - perusLeveys) / ratojenMaara);
+    rata = Math.min(l.rataMax, l.rata + Math.max(0, ylimaarainen));
+  }
+
+  return {
+    taso,
+    sarakkeet,
+    leveydet: { sija: l.sija, nimi: l.nimi, sarja: l.sarja, seura: l.seura, paiva: l.paiva, yht: l.yht, ratko: l.ratko, rata },
+    lyhennaNimet: taso === 'compact',
+    mahtuu,
+    piilotettuja: Object.keys(kaikki).some((avain) => kaikki[avain] && !sarakkeet[avain])
+  };
+}

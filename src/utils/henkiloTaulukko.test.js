@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   jarjestaAmpujat,
   laskeRataTilastot,
+  laskeTaulukkoAsettelu,
   onkoAliTulosPuuttuu,
   parsiTaulukkoAmpujat,
   tunnistaPaivaSarakeNimet
@@ -100,4 +101,59 @@ test('onkoAliTulosPuuttuu tunnistaa tyhjät ja viivat', () => {
   }
   assert.equal(onkoAliTulosPuuttuu('0'), false);
   assert.equal(onkoAliTulosPuuttuu(24), false);
+});
+
+test('laskeTaulukkoAsettelu: mittaamaton leveys antaa väljän asettelun', () => {
+  const asettelu = laskeTaulukkoAsettelu({ leveys: 0, ratojenMaara: 8, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(asettelu.taso, 'desktop');
+  assert.equal(asettelu.mahtuu, true);
+  assert.equal(asettelu.piilotettuja, false);
+  assert.equal(asettelu.leveydet.rata, 30);
+});
+
+test('laskeTaulukkoAsettelu: leveällä näytöllä radat levenevät enintään kattoon', () => {
+  const vahan = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(vahan.taso, 'desktop');
+  assert.equal(vahan.leveydet.rata, 40);
+
+  const compak = laskeTaulukkoAsettelu({ leveys: 1440, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(compak.taso, 'desktop');
+  assert.equal(compak.leveydet.rata, 34);
+  assert.equal(compak.mahtuu, true);
+});
+
+test('laskeTaulukkoAsettelu: kapeammalla ensin kavennetaan, sitten pudotetaan sarakkeita', () => {
+  const tabletti = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(tabletti.taso, 'mobile');
+  assert.deepEqual(tabletti.sarakkeet, { sarja: true, seura: true, paivat: true });
+
+  const pieniKisa = laskeTaulukkoAsettelu({ leveys: 390, ratojenMaara: 5, onkoSarja: true });
+  assert.equal(pieniKisa.taso, 'mobile');
+  assert.deepEqual(pieniKisa.sarakkeet, { sarja: true, seura: false, paivat: false });
+  assert.equal(pieniKisa.lyhennaNimet, false);
+
+  const puhelin = laskeTaulukkoAsettelu({ leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(puhelin.taso, 'compact');
+  assert.deepEqual(puhelin.sarakkeet, { sarja: false, seura: false, paivat: false });
+  assert.equal(puhelin.lyhennaNimet, true);
+  assert.equal(puhelin.piilotettuja, true);
+  assert.equal(puhelin.mahtuu, true);
+  assert.equal(puhelin.leveydet.rata, 26);
+});
+
+test('laskeTaulukkoAsettelu: jos mikään ei mahdu, tiivein asettelu ja vieritys', () => {
+  const asettelu = laskeTaulukkoAsettelu({ leveys: 390, ratojenMaara: 24, naytaRatko: true, onkoSarja: true });
+  assert.equal(asettelu.taso, 'compact');
+  assert.equal(asettelu.mahtuu, false);
+  assert.equal(asettelu.leveydet.rata, 18);
+});
+
+test('laskeTaulukkoAsettelu: kaikki sarakkeet -tilassa mitään ei piiloteta', () => {
+  const asettelu = laskeTaulukkoAsettelu({
+    leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2, kaikkiSarakkeet: true
+  });
+  assert.equal(asettelu.taso, 'compact');
+  assert.deepEqual(asettelu.sarakkeet, { sarja: true, seura: true, paivat: true });
+  assert.equal(asettelu.piilotettuja, false);
+  assert.equal(asettelu.mahtuu, false);
 });
