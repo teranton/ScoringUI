@@ -470,3 +470,49 @@ body {
     text-decoration: underline;
   }
 }
+
+/* Tulostaulukko (TulosteTaulukko.jsx): kaikki radat rinnakkain. Yli 16 radalla pienempi teksti, jotta 24 rataa
+   mahtuu vaaka-A4:lle (sarakkeet em-yksiköissä, joten ne kapenevat tekstin mukana). */
+@media print {
+  .tuloste-taulukko-tiivis {
+    font-size: 7.5pt;
+  }
+
+  .tuloste-taulukko-tiivis th {
+    font-size: 6.5pt;
+  }
+
+  .tuloste-taulukko .tuloste-col-era { width: 2.2em; }
+  .tuloste-taulukko .tuloste-col-seura { width: 9em; }
+
+  /* Pystyviiva ennen ratoja. Vähintään 1pt, ettei se katoa pyöristyksessä. */
+  .tuloste-taulukko .tuloste-raja {
+    border-left: 1pt solid #555;
+  }
+
+  .tuloste-taulukko .tuloste-maksimi {
+    font-weight: 700;
+  }
+
+  /* Koko nimet ja kaikki ratko-merkinnät rivitetään katkaisun sijaan. Seura katkaistaan, ettei pitkän seuran
+     nimi kahdenna jokaisen jäsenensä rivikorkeutta. */
+  .tuloste-taulukko .tuloste-nimi,
+  .tuloste-taulukko .tuloste-ratko {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .tuloste-taulukko .tuloste-ratko {
+    text-align: center;
+  }
+
+  .tuloste-taulukko .tuloste-analyysi td {
+    font-size: 0.8em;
+    font-style: italic;
+  }
+
+  .tuloste-taulukko .tuloste-analyysi .tuloste-num {
+    padding-left: 1pt;
+    padding-right: 1pt;
+  }
+}

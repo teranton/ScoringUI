@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 import { parseCsvRows } from './utils/csv';
 import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import {
@@ -23,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import TulosteTaulukko from './TulosteTaulukko';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
@@ -57,7 +59,8 @@ function vapautaNatiiviKokoNaytto() {
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
 }
 
-export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
+// tulosteJuuri: App:n tulostettava elementti (tuloste-root), johon taulukon A4-tuloste renderöidään; null = ei tulostetta.
+export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaStatus, locale = 'fi', tulosteJuuri = null, kisaNimi = '', kisaPaivat = '' }) {
   const tx = haeTekstit('henkiloTaulukko', locale);
   const onPysty = useMediaQuery('(orientation: portrait)');
   const onKosketus = useMediaQuery('(pointer: coarse)');
@@ -66,6 +69,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [naytaKaantoVihje, setNaytaKaantoVihje] = useState(false);
   const natiiviKokoNayttoRef = useRef(false);
   const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);
+  // Tulostuksen aloitusaika; tuloste renderöidään vain tulostuksen ajaksi (beforeprint–afterprint).
+  const [tulosteenAika, setTulosteenAika] = useState(null);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
   const [jarjestysSarake, setJarjestysSarake] = useState('sija');
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
@@ -258,6 +263,19 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       setNaytaKaantoVihje(false);
     };
   }, [onkoKokoNaytto]);
+
+  // Tuloste renderöidään beforeprintissä synkronisesti (flushSync), jotta se ehtii tulostettavaksi myös Ctrl+P:llä.
+  useEffect(() => {
+    if (!tulosteJuuri || typeof window === 'undefined') return undefined;
+    const ennenTulostusta = () => flushSync(() => setTulosteenAika(new Date()));
+    const tulostuksenJalkeen = () => setTulosteenAika(null);
+    window.addEventListener('beforeprint', ennenTulostusta);
+    window.addEventListener('afterprint', tulostuksenJalkeen);
+    return () => {
+      window.removeEventListener('beforeprint', ennenTulostusta);
+      window.removeEventListener('afterprint', tulostuksenJalkeen);
+    };
+  }, [tulosteJuuri]);
 
   // Avaa koko näytön ja kääntää näkymän vaakaan, jos selain sallii (Android Chrome). Muualla (iOS)
   // avataan sovelluksen oma koko näyttö ja pyydetään kääntämään puhelin.
@@ -555,6 +573,18 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             >
               {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
             </Button>
+
+            {tulosteJuuri && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 px-3 text-xs font-semibold"
+                onClick={() => window.print()}
+              >
+                {tx.print}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -864,6 +894,37 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
           <div className="pointer-events-none absolute inset-y-0 right-0 z-30 w-4 bg-gradient-to-l from-slate-200/80 to-transparent" />
         )}
       </CardContent>
+
+      {/* Tulosteessa kaikki sarakkeet, vaikka näytöltä olisi piilotettu niitä kapeuden takia. */}
+      {tulosteJuuri && tulosteenAika && createPortal(
+        <TulosteTaulukko
+          kisaNimi={kisaNimi}
+          kisaPaivat={kisaPaivat}
+          kisaStatus={kisaStatus}
+          sarja={sarjaSuodatin}
+          ampujat={naytettavatAmpujat}
+          radat={radatList}
+          asemaMaksimit={speksit.asemaMaksimit}
+          sarakkeet={{
+            sarja: sarjaSuodatin === 'OPEN (Y)',
+            seura: onkoSeuroja,
+            la: onkoLaTuloksia,
+            su: onkoSuTuloksia,
+            ratko: naytaRatkoSarake
+          }}
+          paivaSarakeNimet={paivaSarakeNimet}
+          ratkoIdt={naytaRatkoIds}
+          analyysi={naytaRataAnalyysi ? [
+            // Rata-sarakkeet ovat tulosteessa kapeita, joten yksi luku soluun.
+            { otsikko: tx.printAvg, arvot: rataTilastot.map((t) => muotoileNumero(t.avg)) },
+            { otsikko: tx.printMedian, arvot: rataTilastot.map((t) => muotoileNumero(t.median)) },
+            { otsikko: tx.printMaxPct, arvot: rataTilastot.map((t) => muotoileProsentti(t.maxPct)) }
+          ] : null}
+          tulostusaika={tulosteenAika}
+          locale={locale}
+        />,
+        tulosteJuuri
+      )}
     </Card>
   );
 }

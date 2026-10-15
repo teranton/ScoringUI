@@ -139,7 +139,14 @@ const TEKSTIT = jaadyta({
       showStageAnalytics: 'Rata-analyysi',
       hideStageAnalytics: 'Piilota analyysi',
       analyticsAvg: 'KA (n)',
-      analyticsDetails: 'Md / Max%'
+      analyticsDetails: 'Md / Max%',
+      print: 'Tulosta / PDF',
+      printed: 'Tulostettu',
+      unofficial: 'Epäviralliset tulokset',
+      printEmpty: 'Ei tuloksia tulostettavaksi.',
+      printAvg: 'Keskiarvo',
+      printMedian: 'Mediaani',
+      printMaxPct: 'Täysiä tuloksia (%)'
     },
     henkiloTulokset: {
       noResults: 'Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.',
@@ -315,7 +322,14 @@ const TEKSTIT = jaadyta({
       showStageAnalytics: 'Stage Analytics',
       hideStageAnalytics: 'Hide Analytics',
       analyticsAvg: 'Avg (n)',
-      analyticsDetails: 'Md / Max%'
+      analyticsDetails: 'Md / Max%',
+      print: 'Print / PDF',
+      printed: 'Printed',
+      unofficial: 'Unofficial results',
+      printEmpty: 'No results to print.',
+      printAvg: 'Average',
+      printMedian: 'Median',
+      printMaxPct: 'Perfect scores (%)'
     },
     henkiloTulokset: {
       noResults: 'No individual results available or sheet not found.',
