@@ -252,3 +252,17 @@ test('päivän otsikko ja ensimmäinen mainittu viikonpäivä', () => {
   ]), 'group5', TX);
   assert.deepEqual(daySections.map((s) => s.label), ['Sunnuntai']);
 });
+
+test('parseAikatauluRyhmat: kierrokset allekkain, RATOJEN VAIHTO ja TAUKO eivät ole ampujia', () => {
+  const parsed = parseAikatauluRyhmat(csv([
+    ['AIKATAULU | 1.8.2026'],
+    ['', 'RATA1 / RATA3', '', '', 'RATA2 / RATA4', ''],
+    ['09:00', '1', 'Matti', '09:00', '2', 'Liisa'],
+    ['09:03', '', 'TAUKO', '09:03', '', 'TAUKO'],
+    ['09:06', '', 'RATOJEN VAIHTO', '09:06', '', 'RATOJEN VAIHTO'],
+    ['09:21', '1', 'Matti', '09:21', '2', 'Liisa']
+  ]), 'group5', TX);
+  assert.deepEqual(parsed.laneColumns.map((l) => l.label), ['1 / 3', '2 / 4']);
+  const nimet = parsed.daySections[0].heats.flatMap((h) => h.shooters.map((s) => s.shooter));
+  assert.deepEqual(nimet, ['Matti', 'Liisa', 'Matti', 'Liisa']);
+});

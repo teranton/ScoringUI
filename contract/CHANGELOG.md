@@ -4,7 +4,8 @@
 
 - Compak timetable with layouts shot twice (ScoringLib "Kierroksia per rata"): later rounds sit below a
   `RATOJEN VAIHTO` row in the same lane columns, headers read `RATA1 / RATA3`. The UI shows the header as
-  "1 / 3", prints the change row like a break and does not count it as a shooter. No new tabs or keys.
+  "1 / 3", prints the change row like a break, and the screen, search and group view do not treat break rows as
+  shooters. No new tabs or keys.
 - Compak timetable printout (`TulosteAikataulu.jsx`) reads the same `Aikataulu*` tabs as the screen. No layout
   change; the lane-grid conventions it relies on (empty slot, `TAUKO`, U+200B referee marker) are now written down.
 - Private sheets: the API serves only the tabs the UI reads (`KISANSPEKSIT`, `Tulokset Y`, `NEW_Joukkue`,

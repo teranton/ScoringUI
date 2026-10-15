@@ -63,7 +63,7 @@ export function tunnistaRataSarakkeet(rows) {
     }
     const rawLabel = String(laneHeaderRow[i]).trim();
     // "RATA 1 Jake" / "LANE 1 Jake" -> "1 Jake"; kierrokset allekkain: "RATA1 / RATA3" -> "1 / 3"
-    const cleanLabel = !/^(?:RATA|LANE)\s*\d/i.test(rawLabel) ? rawLabel : rawLabel.toUpperCase().replace(/(^|\/\s*)(?:RATA|LANE)\s*(?=\d)/gi, '$1');
+    const cleanLabel = !/^(?:RATA|LANE)\s*\d/i.test(rawLabel) ? rawLabel : rawLabel.toUpperCase().replace(/(^|\/\s*)(?:RATA|LANE)\s*(?=\d)/g, '$1');
     laneColumns.push({ label: cleanLabel, startIndex });
   }
   return laneColumns;

@@ -208,7 +208,7 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
     const matches = [];
     for (const row of parsed.laneRows) {
       for (const slot of row.slots || []) {
-        if (slot.shooter && slot.shooter.toLowerCase().includes(query)) {
+        if (slot.shooter && !taukoTyyppi(slot.shooter, slot.number) && slot.shooter.toLowerCase().includes(query)) {
           matches.push({ time: row.time, lane: slot.lane, number: slot.number, shooter: slot.shooter });
         }
       }
@@ -227,7 +227,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
     const timelines = parsed.laneColumns.map((lane, laneIdx) => {
       const entries = [];
-      let visibleCount = 0;
+      // Ampujat kerran, vaikka rata ammutaan kahdesti (samat ampujat ratojen vaihdon alla)
+      const ampujat = new Set();
 
       for (const row of parsed.laneRows) {
         const slot = row.slots?.[laneIdx];
@@ -253,14 +254,14 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
 
         // Tauko ja ratojen vaihto näkyvät listassa, mutta eivät ole ampujia
         if (!onkoPelkaNumero(cleanedShooter) && !taukoTyyppi(cleanedShooter, slot.number)) {
-          visibleCount += 1;
+          ampujat.add(slot.number || cleanedShooter);
         }
       }
 
       return {
         laneLabel: lane.label,
         entries,
-        visibleCount
+        visibleCount: ampujat.size
       };
     });
     const totalEntries = timelines.reduce((sum, lane) => sum + lane.entries.length, 0);
