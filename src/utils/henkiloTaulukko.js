@@ -355,3 +355,16 @@ export function laskeTaulukkoAsettelu({
     piilotettuja: Object.keys(kaikki).some((avain) => kaikki[avain] && !sarakkeet[avain])
   };
 }
+
+// Taulukon A4-tuloste (TulosteTaulukko.jsx): yli 8 rataa ei mahdu pystysivulle, yli 16 vaakasivullekaan
+// tavallisella tekstikoolla. Leveydet: index.css .tuloste-taulukko.
+export function laskeTulosteTaulukonKoko(ratojenMaara = 0) {
+  return { vaaka: ratojenMaara > 8, tiivis: ratojenMaara > 16 };
+}
+
+// Ratko-solun teksti tulosteeseen: statusmerkinnät ja tasatuloksen ratko, kuten näytön taulukossa.
+export function muodostaTulosteRatko(ampuja, ratkoIdt) {
+  const statukset = ampuja?.ratkoNaytto?.statusEtiketit || [];
+  const teksti = ratkoIdt?.has(ampuja?.id) ? (ampuja?.ratkoNaytto?.teksti || '') : '';
+  return [...statukset, teksti].filter(Boolean).join(' ');
+}

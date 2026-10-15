@@ -5,6 +5,8 @@ import {
   jarjestaAmpujat,
   laskeRataTilastot,
   laskeTaulukkoAsettelu,
+  laskeTulosteTaulukonKoko,
+  muodostaTulosteRatko,
   onkoAliTulosPuuttuu,
   parsiTaulukkoAmpujat,
   tunnistaPaivaSarakeNimet
@@ -178,4 +180,19 @@ test('laskeTaulukkoAsettelu: Seura on pisimmän seuran levyinen, enintään taso
 
   const trapp = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2, seuraMerkit: 8 });
   assert.equal(trapp.leveydet.seura, 69);
+});
+
+test('laskeTulosteTaulukonKoko: pysty 8 rataan asti, vaaka sen yli ja tiivis yli 16 radalla', () => {
+  assert.deepEqual(laskeTulosteTaulukonKoko(8), { vaaka: false, tiivis: false });
+  assert.deepEqual(laskeTulosteTaulukonKoko(9), { vaaka: true, tiivis: false });
+  assert.deepEqual(laskeTulosteTaulukonKoko(16), { vaaka: true, tiivis: false });
+  assert.deepEqual(laskeTulosteTaulukonKoko(24), { vaaka: true, tiivis: true });
+});
+
+test('muodostaTulosteRatko näyttää statuksen aina ja ratkon vain tasatuloksen ampujalle', () => {
+  const tasa = { id: 'a', ratkoNaytto: { statusEtiketit: [], teksti: '24' } };
+  const status = { id: 'b', ratkoNaytto: { statusEtiketit: ['DNF'], teksti: '' } };
+  assert.equal(muodostaTulosteRatko(tasa, new Set(['a'])), '24');
+  assert.equal(muodostaTulosteRatko(tasa, new Set()), '');
+  assert.equal(muodostaTulosteRatko(status, new Set()), 'DNF');
 });
