@@ -78,7 +78,7 @@ export default function TulosteTaulukko({
               {sarakkeet.la && <th className="tuloste-num">{paivaSarakeNimet.laLabel}</th>}
               {sarakkeet.su && <th className="tuloste-num">{paivaSarakeNimet.suLabel}</th>}
               <th className="tuloste-num">{tx.total}</th>
-              {sarakkeet.ratko && <th>Ratko</th>}
+              {sarakkeet.ratko && <th className="tuloste-ratko">Ratko</th>}
               {radat.map((n, i) => (
                 <th key={n} className={`tuloste-num${i === 0 ? ' tuloste-raja' : ''}`}>{n}</th>
               ))}

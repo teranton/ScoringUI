@@ -502,6 +502,10 @@ body {
     overflow-wrap: anywhere;
   }
 
+  .tuloste-taulukko .tuloste-ratko {
+    text-align: center;
+  }
+
   .tuloste-taulukko .tuloste-analyysi td {
     font-size: 0.8em;
     font-style: italic;
