@@ -18,9 +18,12 @@ export const SALLITUT_VALILEHDET = [
   'Aikataulu', 'Aikataulu La', 'Aikataulu Su'
 ];
 const sallitutNormalisoituna = new Set(SALLITUT_VALILEHDET.map(normalisoi));
+// Kauden rankingin välilehti (RANKING_2026 ...), luetaan rekisterissä RANKING-tyyppiseksi merkitystä taulukosta.
+const RANKING_VALILEHTI = /^ranking_\d{4}$/;
 
 export function onSallittuValilehti(nimi) {
-  return sallitutNormalisoituna.has(normalisoi(nimi));
+  const normalisoitu = normalisoi(nimi);
+  return sallitutNormalisoituna.has(normalisoitu) || RANKING_VALILEHTI.test(normalisoitu);
 }
 
 function csvKentta(arvo) {

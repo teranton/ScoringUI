@@ -10,6 +10,7 @@ process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = await mkdtemp(path.join(tmpdir(), '
 const {
   haeValilehdetCsv,
   kohdistaValilehdet,
+  onSallittuValilehti,
   rivitCsvksi,
   tyhjennaValilehtiCache,
   valilehtiAlue
@@ -105,4 +106,15 @@ test('iso joukko ilman listaa: ensin lista, sitten yksi batchGet', async () => {
   const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}8`, nimet });
   assert.deepEqual(tulos.notFound, ['NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet']);
   assert.equal(kutsut.length, 2);
+});
+
+test('onSallittuValilehti sallii kisan välilehdet ja kauden rankingin, ei muita', () => {
+  assert.equal(onSallittuValilehti('Tulokset Y'), true);
+  assert.equal(onSallittuValilehti(' kisanspeksit '), true);
+  assert.equal(onSallittuValilehti('RANKING_2026'), true);
+  assert.equal(onSallittuValilehti('ranking_2027'), true);
+  assert.equal(onSallittuValilehti('RANKING'), false);
+  assert.equal(onSallittuValilehti('RANKING_2026_vanha'), false);
+  assert.equal(onSallittuValilehti('LASKENTA'), false);
+  assert.equal(onSallittuValilehti('Suomisport Import'), false);
 });

@@ -24,7 +24,12 @@ export const VARALLA_OTSIKKO = 'public, s-maxage=10';
 export const VANHA_KUVA_OTSIKKO = `public, s-maxage=10, stale-while-revalidate=${SAANNOT.paattynyt.vanha}`;
 
 // Tila rekisterin päivistä. KISANSPEKSIT-ohitus ei vaikuta välimuistiin: kisapäivinä data pidetään aina tuoreena.
+// Kauden rankingilla ilman loppupäivää ei ole loppua: se on käynnissä alkupäivästä lähtien.
 export function kisanPaivaTila(kisa, nyt = new Date()) {
+  if (kisa?.ranking && !String(kisa.loppuPvm || '').trim()) {
+    const tila = laskeKisanStatusJaTyyli(kisa.alkuPvm, '', nyt).status;
+    return tila === 'tulossa' ? 'tulossa' : 'kaynnissa';
+  }
   return laskeKisanStatusJaTyyli(kisa?.alkuPvm, kisa?.loppuPvm, nyt).status;
 }
 

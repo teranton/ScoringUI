@@ -79,7 +79,7 @@ test('rekisterin kisarivi ja latauksen tila ovat luettavissa', async () => {
   assert.equal(onSallittu.kisa(ID_A), null);
   await onSallittu(ID_A);
   assert.equal(onSallittu.onLadattu(), true);
-  assert.deepEqual(onSallittu.kisa(ID_A), { alkuPvm: '2026-01-01', loppuPvm: '2026-01-02' });
+  assert.deepEqual(onSallittu.kisa(ID_A), { alkuPvm: '2026-01-01', loppuPvm: '2026-01-02', ranking: false });
   assert.equal(onSallittu.kisa(ID_C), null);
 });
 
@@ -88,10 +88,12 @@ test('Sheets API:n lyhyet rekisteririvit jäsentyvät kuten CSV-vienti', () => {
   const csv = rivitCsvksi([
     ['Kisa-ID', 'Kisan nimi', 'Alkupvm', 'Loppupvm', 'Sheet ID', 'Joukkue', 'Piilotettu'],
     ['1', 'A', '2026-01-01', '', ID_A],
-    ['2', 'B', '2026-02-01', '2026-02-02', ID_B, '1', '1']
+    ['2', 'B', '2026-02-01', '2026-02-02', ID_B, '1', '1'],
+    ['3', 'Ranking', '2026-03-01', '', ID_C, '', '', 'Ranking']
   ]);
   const kisat = parseRekisterinKisat(csv);
-  assert.deepEqual([...kisat.keys()], [ID_A, ID_B]);
-  assert.deepEqual(kisat.get(ID_A), { alkuPvm: '2026-01-01', loppuPvm: '' });
+  assert.deepEqual([...kisat.keys()], [ID_A, ID_B, ID_C]);
+  assert.deepEqual(kisat.get(ID_A), { alkuPvm: '2026-01-01', loppuPvm: '', ranking: false });
+  assert.equal(kisat.get(ID_C).ranking, true);
   assert.equal(rivitCsvksi([]), '');
 });

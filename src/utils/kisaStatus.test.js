@@ -6,6 +6,8 @@ import {
   laskeKisanEfektiivinenStatus,
   laskeKisanStatusJaTyyli,
   laskeOnkoIlmoittautuminenPaattynyt,
+  laskeRankingStatus,
+  laskeStatusKisalle,
   parsiPaivamaara
 } from './kisaStatus.js';
 
@@ -84,4 +86,20 @@ test('laskeKisanEfektiivinenStatus: päättynyt-merkintä voittaa päivämäär�
 test('haeStatusOverrideSpekseista ei lue arvoa rivin muista soluista', () => {
   assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', 'tuntematon', '', 'Muu asetus', 'RUNNING']]), null);
   assert.equal(haeStatusOverrideSpekseista([['PAUSED', 'KILPAILUNSTATUS', '']]), null);
+});
+
+test('laskeRankingStatus: käynnissä alkupäivästä, kunnes KILPAILUNSTATUS on FINISHED', () => {
+  const finished = 'KILPAILUNSTATUS,FINISHED';
+  assert.equal(laskeRankingStatus('1.4.2026', '', hetki(31, 3, 2026)).status, 'tulossa');
+  assert.equal(laskeRankingStatus('1.4.2026', '', hetki(1, 4, 2026, 8)).status, 'kaynnissa');
+  assert.equal(laskeRankingStatus('1.4.2026', '', hetki(15, 12, 2026)).status, 'kaynnissa');
+  assert.equal(laskeRankingStatus('', '', hetki(15, 12, 2026)).status, 'kaynnissa');
+  assert.equal(laskeRankingStatus('1.4.2026', finished, hetki(15, 12, 2026)).status, 'paattynyt');
+  assert.equal(laskeRankingStatus('1.4.2026', 'KILPAILUNSTATUS,RUNNING', hetki(15, 12, 2026)).status, 'kaynnissa');
+});
+
+test('laskeStatusKisalle valitsee rankingin tai kisan säännön', () => {
+  const nyt = hetki(15, 10, 2026);
+  assert.equal(laskeStatusKisalle({ onkoRanking: true, alkuPvm: '1.4.2026', loppuPvm: '30.9.2026' }, '', nyt).status, 'kaynnissa');
+  assert.equal(laskeStatusKisalle({ alkuPvm: '1.4.2026', loppuPvm: '30.9.2026' }, '', nyt).status, 'paattynyt');
 });

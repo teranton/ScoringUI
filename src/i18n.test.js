@@ -6,7 +6,7 @@ import { haeTekstit } from './i18n.js';
 const NAKYMAT = [
   'app', 'kisaStatus', 'aikataulu', 'aikatauluHaku', 'aikatauluMobiili', 'aikatauluTulostus',
   'aikatauluRyhma', 'henkiloTaulukko', 'henkiloTulokset', 'ilmoittautuneet', 'joukkueTulokset',
-  'materiaalit', 'ryhmaJako', 'tulosteTulokset', 'tulosteAikataulu'
+  'materiaalit', 'rankingTulokset', 'ryhmaJako', 'tulosteTulokset', 'tulosteAikataulu'
 ];
 
 test('suomella ja englannilla on samat avaimet ja ei-tyhjät tekstit', () => {

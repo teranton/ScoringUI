@@ -159,6 +159,19 @@ const TEKSTIT = jaadyta({
       total: 'Kokonaistulos',
       stage: 'Asema'
     },
+    rankingTulokset: {
+      noResults: 'Rankingin tuloksia ei löytynyt.',
+      explanation: 'Kisan pisteet = ampujan tulos / kisan voittajatulos. Avaa ampuja nähdäksesi kisakohtaiset pisteet.',
+      resultsCount: 'tulosta',
+      counted: 'Lasketaan kokonaispisteisiin',
+      sarjaOPEN: 'OPEN (Y)',
+      sarjaSENIORIT: 'Seniorit',
+      sarjaJUNIORIT: 'Juniorit',
+      sarjaNAISET: 'Naiset',
+      tila1: 'Pakolliset SM-tulokset ja vähintään 4 tulosta',
+      tila2: 'Pakolliset SM-tulokset, alle 4 tulosta',
+      tila3: 'Alle 2 SM-tulosta'
+    },
     ilmoittautuneet: {
       title: 'Ilmoittautuneet osallistujat',
       description: 'Tämä lista poistuu näkyvistä automaattisesti, kun kilpailu alkaa.',
@@ -341,6 +354,19 @@ const TEKSTIT = jaadyta({
       sort: 'Sort by',
       total: 'Total score',
       stage: 'Stage'
+    },
+    rankingTulokset: {
+      noResults: 'No ranking results found.',
+      explanation: 'Competition points = shooter score / winning score. Open a shooter to see the points per competition.',
+      resultsCount: 'results',
+      counted: 'Counted in the total',
+      sarjaOPEN: 'OPEN (Y)',
+      sarjaSENIORIT: 'Seniors',
+      sarjaJUNIORIT: 'Juniors',
+      sarjaNAISET: 'Ladies',
+      tila1: 'Required championship results and at least 4 results',
+      tila2: 'Required championship results, fewer than 4 results',
+      tila3: 'Fewer than 2 championship results'
     },
     ilmoittautuneet: {
       title: 'Registered participants',

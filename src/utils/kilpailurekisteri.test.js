@@ -24,7 +24,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       loppuPvm: '7.6.2026',
       apiUrl: 'sheet-2',
       joukkueKisaAsetus: null,
-      piilotettu: true
+      piilotettu: true,
+      onkoRanking: false
     },
     {
       id: 'k1',
@@ -33,7 +34,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       loppuPvm: '5.4.2026',
       apiUrl: 'sheet-1',
       joukkueKisaAsetus: true,
-      piilotettu: false
+      piilotettu: false,
+      onkoRanking: false
     }
   ]);
 });
