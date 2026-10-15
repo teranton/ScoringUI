@@ -10,7 +10,7 @@ import { waitUntil } from '@vercel/functions';
 
 import { normalisoiSheetId, onSallittuSheetId } from './_lib/sheetAllowlist.js';
 import { haeGoogleAsiakas, onKiintioVirhe, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
-import { haeValilehdetCsv, onSallittuValilehti } from './_lib/sheetsData.js';
+import { haeValilehdetCsv, onRankingValilehti, onSallittuValilehti } from './_lib/sheetsData.js';
 import { VANHA_KUVA_OTSIKKO, VARALLA_OTSIKKO, cdnOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
 import { datanVersio, kuvanPolku, lueKuva, onkoKuvatKaytossa, tallennaKuva } from './_lib/kisaKuva.js';
 import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
@@ -150,6 +150,10 @@ export default async function handler(req, res) {
   if (!sallittu) return lahetaVirhe(res, 403, { error: 'Taulukko ei ole kilpailurekisterissä' });
 
   const kisa = onSallittuSheetId.kisa(sheetId);
+  // Rankingin välilehti julkaistaan vain rekisterissä rankingiksi (H = RANKING) merkitystä taulukosta.
+  if (!kisa?.ranking && nimet.some(onRankingValilehti)) {
+    return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: nimet.filter(onRankingValilehti) });
+  }
   const paivaTila = kisanPaivaTila(kisa);
 
   // Rekisterin päivät ovat voineet muuttua tallennuksen jälkeen: lyhyempi tuoreusaika ratkaisee.

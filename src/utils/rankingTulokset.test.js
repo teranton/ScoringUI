@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 
 import {
   parsiRanking,
-  rankingPisteet,
   rankingSarjatAmpujille,
   rankingValilehdenNimi,
   suodataRanking
@@ -25,10 +24,6 @@ const RIVIT = [
 
 test('parsiRanking lukee ampujat, kisat, tilan ja laskettavat tulokset', () => {
   const ranking = parsiRanking(RIVIT);
-  assert.equal(ranking.otsikko, 'SPORTING- JA COMPAK-RANKING 2026');
-  assert.deepEqual(ranking.kisat.map((k) => [k.koodi, k.taso]), [
-    ['CSP_SM', 'SM ★'], ['ESP_SM', 'SM ★'], ['SP_SM', 'SM ★'], ['CSP_HYMA', 'Ranking']
-  ]);
   assert.equal(ranking.ampujat.length, 5);
 
   const [moilanen, , aijala] = ranking.ampujat;
@@ -36,8 +31,9 @@ test('parsiRanking lukee ampujat, kisat, tilan ja laskettavat tulokset', () => {
   assert.equal(moilanen.yhteensa, '396.84%');
   assert.equal(moilanen.tuloksia, '4');
   assert.equal(moilanen.tila, 1);
-  assert.deepEqual(moilanen.tulokset.map((t) => [t.koodi, t.tulos, t.mukana]), [
-    ['CSP_SM', '99.48%', true], ['ESP_SM', '95.56%', false], ['SP_SM', '100.00%', true], ['CSP_HYMA', '98.43%', true]
+  assert.deepEqual(moilanen.tulokset.map((t) => [t.koodi, t.taso, t.tulos, t.mukana]), [
+    ['CSP_SM', 'SM ★', '99.48%', true], ['ESP_SM', 'SM ★', '95.56%', false],
+    ['SP_SM', 'SM ★', '100.00%', true], ['CSP_HYMA', 'Ranking', '98.43%', true]
   ]);
   // Tyhjät tulokset jätetään pois.
   assert.deepEqual(aijala.tulokset.map((t) => t.koodi), ['CSP_SM', 'ESP_SM', 'SP_SM']);
@@ -76,9 +72,6 @@ test('rankingSarjatAmpujille näyttää vain sarjat, joissa on ampujia', () => {
   assert.deepEqual(sarjat.map((s) => s.avain), ['OPEN', 'NAISET']);
 });
 
-test('rankingValilehdenNimi ja rankingPisteet', () => {
+test('rankingValilehdenNimi', () => {
   assert.equal(rankingValilehdenNimi(2026), 'RANKING_2026');
-  assert.equal(rankingPisteet('396.84%'), 396.84);
-  assert.equal(rankingPisteet('396,84 %'), 396.84);
-  assert.equal(rankingPisteet(''), null);
 });

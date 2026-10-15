@@ -30,7 +30,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
 
 The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`, plus any tab named
-`RANKING_` and a four-digit year); any other tab
+`RANKING_` and a four-digit year on sheets marked `RANKING` in the registry); any other tab
 (`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
 
 Access: the sheets and the registry are read only with the service account (`spreadsheets.readonly` scope),
@@ -73,7 +73,8 @@ so column order can change but header names must not.
 A registry row with `RANKING` in column H is a season ranking, not a competition. C is the season's start date and
 D its end date (may be empty). The UI reads the tab `RANKING_<year of C>` and, if it exists, `KISANSPEKSIT`.
 The ranking is "Käynnissä" from C onwards until `KILPAILUNSTATUS` is `FINISHED` (or `PAUSED`) on a `KISANSPEKSIT` tab
-in the ranking sheet; the end date does not end it. Without D the API caches it like a running competition from C on.
+in the ranking sheet; the end date does not end it. The API caches it like a running competition from C on, whatever D says,
+and serves `RANKING_vvvv` tabs only from sheets marked `RANKING` (400 otherwise).
 
 `RANKING_vvvv` is read by header name, not position:
 - Header row: the first row with both `Nimi` and `Sarja`. Columns `Sija`, `Nimi`, `Sarja`, `Seura`, `Yhteensä`,

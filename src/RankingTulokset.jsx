@@ -23,7 +23,9 @@ export default function RankingTulokset({ rawCsv, locale = 'fi' }) {
 
   const ranking = useMemo(() => parsiRanking(parseCsvRows(rawCsv || '')), [rawCsv]);
   const sarjat = useMemo(() => rankingSarjatAmpujille(ranking.ampujat), [ranking.ampujat]);
-  const naytettavat = useMemo(() => suodataRanking(ranking.ampujat, sarjaSuodatin), [ranking.ampujat, sarjaSuodatin]);
+  // Jos valitun sarjan viimeinen ampuja poistuu päivityksessä, näytetään Open.
+  const valittuSarja = sarjat.some((s) => s.avain === sarjaSuodatin) ? sarjaSuodatin : RANKING_KAIKKI;
+  const naytettavat = useMemo(() => suodataRanking(ranking.ampujat, valittuSarja), [ranking.ampujat, valittuSarja]);
 
   if (ranking.ampujat.length === 0) {
     return <div className="py-6 text-center text-sm text-slate-500">{tx.noResults}</div>;
@@ -40,11 +42,11 @@ export default function RankingTulokset({ rawCsv, locale = 'fi' }) {
             type="button"
             size="sm"
             className="shrink-0"
-            variant={sarjaSuodatin === sarja.avain ? 'default' : 'outline'}
+            variant={valittuSarja === sarja.avain ? 'default' : 'outline'}
             title={sarja.sarjat ? sarja.sarjat.join(', ') : undefined}
             onClick={() => { setSarjaSuodatin(sarja.avain); setValittuId(null); }}
           >
-            {tx[`sarja${sarja.avain}`] || sarja.nimi}
+            {tx[`sarja${sarja.avain}`]}
             {sarja.sarjat && <span className="ml-1 font-normal opacity-70">({sarja.sarjat.join(', ')})</span>}
           </Button>
         ))}

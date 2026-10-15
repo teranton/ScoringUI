@@ -19,11 +19,15 @@ export const SALLITUT_VALILEHDET = [
 ];
 const sallitutNormalisoituna = new Set(SALLITUT_VALILEHDET.map(normalisoi));
 // Kauden rankingin välilehti (RANKING_2026 ...), luetaan rekisterissä RANKING-tyyppiseksi merkitystä taulukosta.
+// api/kisa.js antaa sen vain rankingiksi merkitystä taulukosta.
 const RANKING_VALILEHTI = /^ranking_\d{4}$/;
 
+export function onRankingValilehti(nimi) {
+  return RANKING_VALILEHTI.test(normalisoi(nimi));
+}
+
 export function onSallittuValilehti(nimi) {
-  const normalisoitu = normalisoi(nimi);
-  return sallitutNormalisoituna.has(normalisoitu) || RANKING_VALILEHTI.test(normalisoitu);
+  return sallitutNormalisoituna.has(normalisoi(nimi)) || onRankingValilehti(nimi);
 }
 
 function csvKentta(arvo) {

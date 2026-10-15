@@ -294,14 +294,19 @@ export default function App() {
       const haettavat = kisat.filter((kisa) => {
         if (!kisa.apiUrl) return false;
 
-        // Kauden ranking voi päättyä (FINISHED) milloin tahansa alkupäivän jälkeen; vanhojen vuosien rankingeja ei seurata.
-        const paivapohjainenStatus = kisa.onkoRanking
-          ? (haeKisanVuosi(kisa) >= new Date().getFullYear() ? laskeRankingStatus(kisa.alkuPvm, '').status : 'paattynyt')
-          : laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm).status;
-        if (paivapohjainenStatus !== 'kaynnissa') return false;
-
         const cacheData = kisaCacheRef.current[kisa.apiUrl] || null;
         const viimeisinSpeksitHaku = Number(cacheData?.speksitFetchedAt || 0);
+
+        if (kisa.onkoRanking) {
+          // Kauden ranking päättyy vasta, kun KILPAILUNSTATUS on FINISHED: sitä seurataan alkupäivästä siihen asti.
+          // Edellisten vuosien ranking haetaan kerran, jotta sen tila näkyy oikein.
+          if (laskeRankingStatus(kisa.alkuPvm, '').status !== 'kaynnissa') return false;
+          if (laskeRankingStatus(kisa.alkuPvm, cacheData?.speksitCsvRaw || '').status === 'paattynyt') return false;
+          if (haeKisanVuosi(kisa) < new Date().getFullYear() && viimeisinSpeksitHaku) return false;
+        } else if (laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm).status !== 'kaynnissa') {
+          return false;
+        }
+
         const onkoVanhentunut = !viimeisinSpeksitHaku || (nyt - viimeisinSpeksitHaku) >= STATUS_OVERRIDE_REFRESH_MS;
 
         return onkoVanhentunut;

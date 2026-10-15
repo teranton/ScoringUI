@@ -12,10 +12,10 @@ export const RANKING_KAIKKI = 'OPEN';
 
 // Rankingin sarjat: Open sisältää kaikki, muut yhdistävät kisojen sarjoja.
 export const RANKING_SARJAT = [
-  { avain: RANKING_KAIKKI, nimi: 'OPEN (Y)', sarjat: null },
-  { avain: 'SENIORIT', nimi: 'Seniorit', sarjat: ['Y56', 'Y66', 'Y73'] },
-  { avain: 'JUNIORIT', nimi: 'Juniorit', sarjat: ['Y17', 'Y20'] },
-  { avain: 'NAISET', nimi: 'Naiset', sarjat: ['N'] }
+  { avain: RANKING_KAIKKI, sarjat: null },
+  { avain: 'SENIORIT', sarjat: ['Y56', 'Y66', 'Y73'] },
+  { avain: 'JUNIORIT', sarjat: ['Y17', 'Y20'] },
+  { avain: 'NAISET', sarjat: ['N'] }
 ];
 
 // Välilehden nimi rekisterin alkupäivän vuodesta.
@@ -32,16 +32,8 @@ function etsiOtsikkorivi(rivit) {
   });
 }
 
-// "396.84%" tai "396,84 %" -> 396.84. Tyhjä tai muu teksti -> null.
-export function rankingPisteet(arvo) {
-  const teksti = String(arvo ?? '').replace(/\s/g, '').replace('%', '').replace(',', '.');
-  if (!teksti) return null;
-  const luku = Number(teksti);
-  return Number.isFinite(luku) ? luku : null;
-}
-
 export function parsiRanking(rivit) {
-  const tyhja = { otsikko: '', selite: '', kisat: [], ampujat: [] };
+  const tyhja = { ampujat: [] };
   if (!Array.isArray(rivit) || rivit.length === 0) return tyhja;
 
   const otsikkoIdx = etsiOtsikkorivi(rivit);
@@ -95,12 +87,7 @@ export function parsiRanking(rivit) {
     });
   }
 
-  return {
-    otsikko: String(rivit[0]?.[0] ?? '').trim(),
-    selite: otsikkoIdx > 1 ? String(rivit[1]?.[0] ?? '').trim() : '',
-    kisat,
-    ampujat
-  };
+  return { ampujat };
 }
 
 function kuuluuSarjaan(ampuja, rankingSarja) {
@@ -109,7 +96,7 @@ function kuuluuSarjaan(ampuja, rankingSarja) {
   return rankingSarja.sarjat.includes(sarja);
 }
 
-// Sarjat, joissa on ampujia (Open aina).
+// Sarjat, joissa on ampujia (Open aina). Nimet ovat i18n.js:ssä (rankingTulokset.sarja<avain>).
 export function rankingSarjatAmpujille(ampujat) {
   return RANKING_SARJAT.filter((s) => !s.sarjat || ampujat.some((a) => kuuluuSarjaan(a, s)));
 }
