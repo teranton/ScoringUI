@@ -41,6 +41,11 @@ function tulkitseRekisterinTotuusarvo(arvo) {
   return null;
 }
 
+// Rekisterin H-sarake (tyyppi): RANKING merkitsee kauden rankingin. Muut arvot ohitetaan.
+export function onkoRankingTyyppi(arvo) {
+  return String(arvo ?? '').trim().toUpperCase() === 'RANKING';
+}
+
 export function arvioiJoukkuekisaNimesta(kisaNimi) {
   return String(kisaNimi || '').includes('SM');
 }
@@ -64,14 +69,17 @@ export function parsiKilpailurekisteri(raakaRivit) {
         loppuPvm: muotoileIsoPaivamaaraSuomeksi(row[3]),
         apiUrl: row[4] || "",
         joukkueKisaAsetus,
-        piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true
+        piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true,
+        onkoRanking: onkoRankingTyyppi(row[7])
       });
     }
   }
 
+  // Kauden ranking järjestetään loppupäivän mukaan (koko kauden kestävä tapahtuma), kisat alkupäivän mukaan.
+  const jarjestysPvm = (kisa) => (kisa.onkoRanking && kisa.loppuPvm ? kisa.loppuPvm : kisa.alkuPvm);
   parsitutKisat.sort((a, b) => {
-    const aKey = muunnaPaivamaaraJarjestysavaimeksi(a.alkuPvm);
-    const bKey = muunnaPaivamaaraJarjestysavaimeksi(b.alkuPvm);
+    const aKey = muunnaPaivamaaraJarjestysavaimeksi(jarjestysPvm(a));
+    const bKey = muunnaPaivamaaraJarjestysavaimeksi(jarjestysPvm(b));
 
     if (aKey && bKey) return bKey.localeCompare(aKey);
     if (aKey) return -1;

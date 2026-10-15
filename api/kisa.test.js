@@ -9,6 +9,7 @@ process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = mkdtempSync(path.join(tmpdir(), 'ki
 
 const VANHA = '1Ert3n7Fft235Zpoc42NZnGxOOhM1kQzwhef6lRF0geI';
 const KORJATTAVA = '1erSyJGWLU84kNmLVFI50SOiHFfOeNbA81NJG4zr3hbg';
+const RANKING = '1WyCiQ31zLlXd5CpVC0zo52OiCtNtDkGDyCz7bgyPIt8';
 const PAIVA = 24 * 60 * 60 * 1000;
 const iso = (d) => d.toISOString().slice(0, 10);
 const kolmePaivaaSitten = iso(new Date(Date.now() - 3 * PAIVA));
@@ -22,7 +23,7 @@ mock.module('./_lib/googleAuth.js', { namedExports: {
   pyyntoUudelleenyrittaen: (request, opts) => request(opts),
   haeGoogleAsiakas: async () => ({ request: async ({ url }) => {
     if (url.includes('/values/A:Z')) {
-      return { data: { values: [['ID', 'Nimi', 'Alku', 'Loppu', 'Sheet'], ['1', 'Vanha', '2025-07-05', '2025-07-06', VANHA], ['2', 'Korjattava', kolmePaivaaSitten, kolmePaivaaSitten, KORJATTAVA]] } };
+      return { data: { values: [['ID', 'Nimi', 'Alku', 'Loppu', 'Sheet'], ['1', 'Vanha', '2025-07-05', '2025-07-06', VANHA], ['2', 'Korjattava', kolmePaivaaSitten, kolmePaivaaSitten, KORJATTAVA], ['3', 'Ranking', '2026-03-01', '', RANKING, '', '', 'RANKING']] } };
     }
     googleHaut++;
     if (!url.includes('batchGet')) return { data: { sheets: ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako'].map((title) => ({ properties: { title } })) } };
@@ -135,4 +136,15 @@ test('julkaistavat välilehdet annetaan, vaikka mukana olisi muita', async () =>
   await handler({ query: { sheetId: VANHA, sheetNames: ['Tulokset Y', 'KITI_DATA'] }, headers: {} }, r);
   assert.equal(r.s, 200);
   assert.deepEqual(Object.keys(r.b.csvByName), ['Tulokset Y']);
+});
+
+test('rankingin välilehti annetaan vain rankingiksi merkitystä taulukosta', async () => {
+  const kisasta = await hae(VANHA, 'RANKING_2026');
+  assert.equal(kisasta.s, 400);
+  assert.equal((await hae(VANHA, 'KISAT')).s, 400);
+  const rankingista = await hae(RANKING, 'RANKING_2026');
+  assert.equal(rankingista.s, 200);
+  assert.ok(rankingista.b.csvByName.RANKING_2026);
+  assert.match(rankingista.h['Cache-Control'], /s-maxage=15,/);
+  assert.equal((await hae(RANKING, 'KISAT')).s, 200);
 });

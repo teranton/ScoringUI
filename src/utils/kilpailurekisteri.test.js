@@ -24,7 +24,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       loppuPvm: '7.6.2026',
       apiUrl: 'sheet-2',
       joukkueKisaAsetus: null,
-      piilotettu: true
+      piilotettu: true,
+      onkoRanking: false
     },
     {
       id: 'k1',
@@ -33,7 +34,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       loppuPvm: '5.4.2026',
       apiUrl: 'sheet-1',
       joukkueKisaAsetus: true,
-      piilotettu: false
+      piilotettu: false,
+      onkoRanking: false
     }
   ]);
 });
@@ -90,4 +92,14 @@ test('parsiKilpailurekisteri: virheellinen päivämäärä järjestyy kuin päiv
     ['b', 'Bonuskisa', '1.1.2020', '', '', '', '']
   ]);
   assert.deepEqual(kisat.map((k) => k.id), ['b', 'a']);
+});
+
+test('parsiKilpailurekisteri järjestää rankingin loppupäivän mukaan', () => {
+  const kisat = parsiKilpailurekisteri([
+    ['r', 'Ranking 2026', '2026-03-01', '2026-10-31', 'sheet-r', '', '', 'RANKING'],
+    ['s', 'Syyskisa', '2026-09-05', '', 'sheet-s', '', '', ''],
+    ['k', 'Kevätkisa', '2026-04-05', '', 'sheet-k', '', '', 'Nokia']
+  ]);
+  assert.deepEqual(kisat.map((k) => k.id), ['r', 's', 'k']);
+  assert.deepEqual(kisat.map((k) => k.onkoRanking), [true, false, false]);
 });

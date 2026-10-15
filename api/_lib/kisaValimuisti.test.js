@@ -10,6 +10,12 @@ test('välimuistiaika tulee rekisterin päivistä', () => {
   assert.equal(kisanPaivaTila({ alkuPvm: '2026-10-12', loppuPvm: '2026-10-13' }, nyt), 'kaynnissa');
   assert.equal(kisanPaivaTila({ alkuPvm: '2026-11-01', loppuPvm: '' }, nyt), 'tulossa');
   assert.equal(kisanPaivaTila(null, nyt), 'tulossa');
+  // Ranking päättyy loppupäivän mukaan; ilman loppupäivää se on käynnissä alkupäivästä lähtien.
+  assert.equal(kisanPaivaTila({ alkuPvm: '2026-03-01', loppuPvm: '', ranking: true }, nyt), 'kaynnissa');
+  assert.equal(kisanPaivaTila({ alkuPvm: '2026-11-01', loppuPvm: '', ranking: true }, nyt), 'tulossa');
+  assert.equal(kisanPaivaTila({ alkuPvm: '2026-03-01', loppuPvm: '2026-09-30', ranking: true }, nyt), 'paattynyt');
+  assert.equal(kisanPaivaTila({ alkuPvm: '2026-03-01', loppuPvm: '2026-10-31', ranking: true }, nyt), 'kaynnissa');
+  assert.equal(kisanPaivaTila({ alkuPvm: '', loppuPvm: '', ranking: true }, nyt), 'kaynnissa');
   assert.equal(cdnOtsikko('paattynyt'), CDN_OTSIKOT.paattynytKorjausaika);
   assert.equal(cdnOtsikko('tuntematon'), CDN_OTSIKOT.tulossa);
 });

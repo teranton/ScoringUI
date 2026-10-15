@@ -24,11 +24,14 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
+| `RANKING_vvvv` (season ranking sheet, e.g. `RANKING_2026`) | Sheet formulas from the ranking sheet's `TULOKSET` / `KISAT` tabs | `RankingTulokset.jsx`, `utils/rankingTulokset.js` |
+| `KISAT` (season ranking sheet) | Tero | `RankingTulokset.jsx`, `utils/rankingTulokset.js` (competition names) |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition) |
 
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
 
-The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`); any other tab
+The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`, plus any tab named
+`RANKING_` and a four-digit year, and `KISAT`, on sheets marked `RANKING` in the registry); any other tab
 (`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
 
 Access: the sheets and the registry are read only with the service account (`spreadsheets.readonly` scope),
@@ -63,7 +66,30 @@ so column order can change but header names must not.
   in F2:H2 (data F3:I28), which both the UI and ScoringLib match, so new sheets don't depend on the fallback.
 - ScoringLib's `KISANSPEKSIT` fallback cells (see "Keys ScoringLib reads"), used when a key's text is missing.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
-  G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no). Row 1 is a header if B contains "nimi" or A contains "id".
+  G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no), H type (`RANKING` = season ranking,
+  any other value is ignored). Row 1 is a header if B contains "nimi" or A contains "id".
+
+## Season ranking
+
+A registry row with `RANKING` in column H is a season ranking, not a competition. C is the season's start date and
+D its end date. The front page orders it by D (competitions by C). The UI reads the tabs `RANKING_<year of C>`, `KISAT`
+and, if it exists, `KISANSPEKSIT`. The ranking is "Käynnissä" from C to D without any `KILPAILUNSTATUS` and "Päättynyt"
+after D, or earlier when a `KISANSPEKSIT` tab in the ranking sheet has `KILPAILUNSTATUS` = `FINISHED`. Without D it
+runs until `FINISHED`. The API caches it by C and D like a competition (without D: running from C on), and serves
+`RANKING_vvvv` and `KISAT` only from sheets marked `RANKING` (400 otherwise).
+
+`KISAT` is read by header name: the first row with `Koodi`; `Koodi` is the competition code used as a
+`RANKING_vvvv` column header and `Kisa` its name, shown instead of the code.
+
+`RANKING_vvvv` is read by header name, not position:
+- Header row: the first row with both `Nimi` and `Sarja`. Columns `Sija`, `Nimi`, `Sarja`, `Seura`, `Yhteensä`,
+  `Tuloksia`; the competition columns follow the last of these and end at the first empty header.
+- The row above the header: the competition level above each competition column (`SM ★`, `Ranking` ...), and the
+  helper headers `tila (auto)` (1 = required results and at least 4 results, 2 = required results, under 4,
+  3 = under 2 championship results) and `mukana (auto)`, where one column per competition, in the same order,
+  holds `1` when that result counts in the total.
+- Category filters combine the `Sarja` values: Seniorit = `Y56`, `Y66`, `Y73`; Juniorit = `Y17`, `Y20`;
+  Naiset = `N`; Open = everyone. Places inside a filter follow the sheet's order.
 
 ## `KISANSPEKSIT` settings
 
