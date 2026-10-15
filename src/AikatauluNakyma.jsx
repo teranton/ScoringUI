@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { haeTekstit } from './i18n';
-import { extractTitleSuffixFromFirstRow, muodostaRataRivit, toSortValue, tunnistaRataSarakkeet } from './utils/aikatauluRadat';
+import { extractTitleSuffixFromFirstRow, muodostaRataRivit, taukoTyyppi, toSortValue, tunnistaRataSarakkeet } from './utils/aikatauluRadat';
 
 const logPerf = createPerfLogger('AikatauluPerf');
 
@@ -251,7 +251,8 @@ export default function AikatauluNakyma({ rawCsv, locale = 'fi', sponsorLogos = 
           style: hasGroupColor ? getGroupCellStyle(groupIndex) : undefined
         });
 
-        if (!onkoPelkaNumero(cleanedShooter)) {
+        // Tauko ja ratojen vaihto näkyvät listassa, mutta eivät ole ampujia
+        if (!onkoPelkaNumero(cleanedShooter) && !taukoTyyppi(cleanedShooter, slot.number)) {
           visibleCount += 1;
         }
       }

@@ -69,6 +69,7 @@ const TEKSTIT = jaadyta({
       number: 'Nro',
       shooter: 'Ampuja',
       break: 'TAUKO',
+      trajectoryChange: 'RATOJEN VAIHTO',
       refereeSample: 'Nimi',
       refereeLegend: '= aloitustuomarointi'
     },
@@ -243,6 +244,7 @@ const TEKSTIT = jaadyta({
       number: 'No.',
       shooter: 'Shooter',
       break: 'BREAK',
+      trajectoryChange: 'TRAJECTORY CHANGE',
       refereeSample: 'Name',
       refereeLegend: '= starts as referee'
     },

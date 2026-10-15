@@ -9,6 +9,17 @@ export const TULOSTE_RATOJA_SIVULLA = 4;
 const TUOMARIMERKIT = /\u200B/g;
 const ON_TUOMARIMERKKI = /\u200B/;
 
+// Tauon ja ratojen vaihdon rivi: nimen paikalla TAUKO / RATOJEN VAIHTO ilman numeroa (ScoringLib).
+// Kun radat ammutaan kahdesti, seuraava kierros jatkuu samoissa sarakkeissa RATOJEN VAIHTO -rivin alla.
+export const VAIHTO_TEKSTI = 'RATOJEN VAIHTO';
+export function taukoTyyppi(nimi, nro) {
+  if (String(nro || '').trim()) return null;
+  const teksti = String(nimi || '').trim().toUpperCase();
+  if (teksti === 'TAUKO') return 'tauko';
+  if (teksti === VAIHTO_TEKSTI) return 'vaihto';
+  return null;
+}
+
 export function toSortValue(timeText) {
   const cleaned = String(timeText || '').trim();
   const m = cleaned.match(/(\d{1,2})[:.](\d{2})/);
@@ -51,9 +62,8 @@ export function tunnistaRataSarakkeet(rows) {
       startIndex = i - 1;
     }
     const rawLabel = String(laneHeaderRow[i]).trim();
-    // "RATA 1 Jake" / "LANE 1 Jake" -> "1 Jake"
-    const match = rawLabel.toUpperCase().match(/^(?:RATA|LANE)\s*(\d+\s*.*)/i);
-    const cleanLabel = match ? match[1] : rawLabel;
+    // "RATA 1 Jake" / "LANE 1 Jake" -> "1 Jake"; kierrokset allekkain: "RATA1 / RATA3" -> "1 / 3"
+    const cleanLabel = !/^(?:RATA|LANE)\s*\d/i.test(rawLabel) ? rawLabel : rawLabel.toUpperCase().replace(/(^|\/\s*)(?:RATA|LANE)\s*(?=\d)/gi, '$1');
     laneColumns.push({ label: cleanLabel, startIndex });
   }
   return laneColumns;
@@ -86,14 +96,16 @@ function tulosteRuutu(slot) {
   const raaka = String(slot.shooter || '');
   const nimi = raaka.replace(TUOMARIMERKIT, '').trim();
   const nro = String(slot.number || '').trim();
-  if (!nimi && !nro) return { aika: '', nro: '', nimi: '', tuomari: false, tauko: false };
+  if (!nimi && !nro) return { aika: '', nro: '', nimi: '', tuomari: false, tauko: false, vaihto: false };
+  const tyyppi = taukoTyyppi(nimi, nro);
   return {
     aika: slot.time,
     nro,
     // Pelkkä numero nimen paikalla on varattu mutta nimetön paikka: tulostetaan numero ilman nimeä.
     nimi: /^\d+$/.test(nimi) ? '' : nimi,
     tuomari: ON_TUOMARIMERKKI.test(raaka),
-    tauko: nimi.toUpperCase() === 'TAUKO' && !nro
+    tauko: tyyppi !== null,
+    vaihto: tyyppi === 'vaihto'
   };
 }
 
