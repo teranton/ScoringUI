@@ -67,7 +67,16 @@ so column order can change but header names must not.
 - ScoringLib's `KISANSPEKSIT` fallback cells (see "Keys ScoringLib reads"), used when a key's text is missing.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no), H type (`RANKING` = season ranking,
-  any other value is ignored). Row 1 is a header if B contains "nimi" or A contains "id".
+  `TESTI` = permanent test competition, any other value is ignored). Row 1 is a header if B contains "nimi" or A contains "id".
+
+## Permanent test competitions
+
+A registry row with `TESTI` in column H is a test competition that never ends. The UI and the API treat it as being
+on its competition day whatever its C and D dates are: the timetable (all of its days), results and status follow its
+`KISANSPEKSIT` (`KILPAILUNSTATUS`, timetable visibility), and `api/kisa.js` caches it like a running competition
+(never stored as finished). Without `KILPAILUNSTATUS` it shows as "Tulossa" with its registrations; with `RUNNING`
+the results show. The front page lists it at the end of the current year, with its own dates. Combine with G to keep
+it off the public list (visible with `?preview=1`).
 
 ## Season ranking
 

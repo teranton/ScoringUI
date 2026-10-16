@@ -12,7 +12,7 @@ import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
 import { onkoDevTila } from './utils/devTila';
 import {
-  laskeKisanStatusJaTyyli,
+  laskeKisanPaivaStatus,
   laskeOnkoIlmoittautuminenPaattynyt,
   laskeStatusKisalle
 } from './utils/kisaStatus';
@@ -328,7 +328,7 @@ export default function App() {
   }
 
   const renderKisaKortti = (kisa) => {
-    const statusData = kisaStatusById[kisa.id] || laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm);
+    const statusData = kisaStatusById[kisa.id] || laskeKisanPaivaStatus(kisa);
     const onValittavissa = Boolean(kisa.apiUrl);
 
     return (
@@ -612,7 +612,7 @@ export default function App() {
                     sponsorLogos={kisanSponsorit}
                     showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
                     defaultGroupingMode={aikatauluRyhmittelyAsetus}
-                    competitionStartDate={valittuKisa?.alkuPvm || ''}
+                    competitionStartDate={valittuKisa?.onkoTesti ? '' : (valittuKisa?.alkuPvm || '')}
                   />
                 ) : (
                   <AikatauluNakyma
