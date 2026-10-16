@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   haeStatusOverrideSpekseista,
   laskeKisanEfektiivinenStatus,
+  laskeKisanPaivaStatus,
   laskeKisanStatusJaTyyli,
   laskeOnkoIlmoittautuminenPaattynyt,
   laskeRankingStatus,
@@ -104,4 +105,15 @@ test('laskeStatusKisalle valitsee rankingin tai kisan säännön', () => {
   const nyt = hetki(15, 6, 2026);
   assert.equal(laskeStatusKisalle({ onkoRanking: true, alkuPvm: '1.4.2026', loppuPvm: '30.9.2026' }, '', nyt).status, 'kaynnissa');
   assert.equal(laskeStatusKisalle({ alkuPvm: '1.4.2026', loppuPvm: '30.9.2026' }, '', nyt).status, 'tulossa');
+});
+
+test('pysyvä testikisa on kisapäivässään päivistä riippumatta, KISANSPEKSIT ratkaisee tilan', () => {
+  const nyt = hetki(16, 10, 2026);
+  const testi = { alkuPvm: '1.5.2025', loppuPvm: '2.5.2025', onkoTesti: true };
+  assert.equal(laskeKisanPaivaStatus(testi, nyt).status, 'kaynnissa');
+  assert.equal(laskeKisanPaivaStatus({ ...testi, onkoTesti: false }, nyt).status, 'paattynyt');
+  assert.equal(laskeStatusKisalle(testi, [], nyt).status, 'tulossa');
+  assert.equal(laskeStatusKisalle(testi, [['KILPAILUNSTATUS', 'RUNNING']], nyt).status, 'kaynnissa');
+  assert.equal(laskeStatusKisalle(testi, [['KILPAILUNSTATUS', 'PAUSED']], nyt).status, 'tauolla');
+  assert.equal(laskeStatusKisalle(testi, [['KILPAILUNSTATUS', 'FINISHED']], nyt).status, 'paattynyt');
 });

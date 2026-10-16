@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Permanent test competitions: registry column H `TESTI` makes the UI and the API treat the row's dates as today,
-  so a test competition's timetable and results stay visible after its end date. Additive: no tab, header or key changes.
+- Permanent test competitions: registry column H `TESTI` makes the UI and the API treat the competition as being on
+  its competition day whatever its dates, so its timetable and results stay visible after its end date. Additive: no tab, header or key changes.
 - Season ranking: registry column H `RANKING` marks a season ranking, ordered by its end date. The UI reads
   `RANKING_<year>` and `KISAT` (allowed only on ranking sheets) and the optional `KISANSPEKSIT`. The ranking ends
   after its end date or with `KILPAILUNSTATUS` = `FINISHED`. Additive: no existing tab, header or key changes.

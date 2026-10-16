@@ -71,12 +71,12 @@ so column order can change but header names must not.
 
 ## Permanent test competitions
 
-A registry row with `TESTI` in column H is a test competition that never ends. The UI and the API ignore its C and
-D dates and treat both as today, so it is always within its dates: the timetable, results and status follow its
-`KISANSPEKSIT` (`KILPAILUNSTATUS`, timetable visibility) as on a competition day, it is listed under the current year,
-and `api/kisa.js` caches it like a running competition (never stored as finished). Without `KILPAILUNSTATUS` it shows
-as "Tulossa" with its registrations; with `RUNNING` the results show. Combine with G to keep it off the public list
-(visible with `?preview=1`).
+A registry row with `TESTI` in column H is a test competition that never ends. The UI and the API treat it as being
+on its competition day whatever its C and D dates are: the timetable (all of its days), results and status follow its
+`KISANSPEKSIT` (`KILPAILUNSTATUS`, timetable visibility), and `api/kisa.js` caches it like a running competition
+(never stored as finished). Without `KILPAILUNSTATUS` it shows as "Tulossa" with its registrations; with `RUNNING`
+the results show. The front page lists it at the end of the current year, with its own dates. Combine with G to keep
+it off the public list (visible with `?preview=1`).
 
 ## Season ranking
 
