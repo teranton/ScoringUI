@@ -14,10 +14,11 @@ const RIVIT = [
   ['', 'Ampuja F', 'N', 'NU', '88', '46', '42', '23', '23', '21', '21', '21']
 ];
 
-test('ensin OPEN (Y) kaikkine ampujineen, sitten muut sarjat ilman erillistä Y-sarjaa', () => {
+test('ensin Y kaikkine ampujineen, sitten muut sarjat ilman erillistä Y-sarjaa', () => {
   const { sarjat, eraNumerot, naytaPaivat } = muodostaTulosteSarjat(RIVIT, { ratojenMaara: 4, ratkoSija: 3 });
 
   assert.deepEqual(sarjat.map((s) => s.sarja), ['OPEN (Y)', 'N']);
+  assert.deepEqual(sarjat.map((s) => s.nimi), ['Y', 'N']);
   assert.deepEqual(eraNumerot, [1, 2, 3, 4]);
   assert.equal(naytaPaivat, true);
 
@@ -72,4 +73,26 @@ test('ilman tulosta olevalle tulostetaan statuskoodi ratko-sarakkeesta', () => {
   ];
   const { sarjat } = muodostaTulosteSarjat(rivit, { ratojenMaara: 0 });
   assert.deepEqual(sarjat[0].eiTulosta.map((a) => [a.nimi, a.status]), [['B', 'DNS'], ['C', '']]);
+});
+
+test('OPEN_SARJA: avoin kisa tulostaa Y (OPEN), EI tulostaa vain sarjat', () => {
+  const avoin = muodostaTulosteSarjat(RIVIT, { ratojenMaara: 4, openSarja: 'open' });
+  assert.deepEqual(avoin.sarjat.map((s) => s.nimi), ['Y (OPEN)', 'N']);
+
+  const ei = muodostaTulosteSarjat(RIVIT, { ratojenMaara: 4, openSarja: 'ei' });
+  assert.deepEqual(ei.sarjat.map((s) => [s.nimi, s.rivit.length]), [['N', 3], ['Y', 2]]);
+});
+
+test('luokkakilpailu ilman asetusta: ei yhteistä sarjaa', () => {
+  const rivit = [
+    ['Nimi', 'Sarja', 'Seura', 'Tulos'],
+    ['A', 'B', 'S1', '90'],
+    ['B', 'A', 'S2', '95'],
+    ['C', 'a', 'S3', '80']
+  ];
+  const { sarjat } = muodostaTulosteSarjat(rivit, { ratojenMaara: 0 });
+  assert.deepEqual(sarjat.map((s) => [s.nimi, s.rivit.map((r) => r.nimi)]), [
+    ['A', ['B', 'C']],
+    ['B', ['A']]
+  ]);
 });

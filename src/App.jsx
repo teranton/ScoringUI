@@ -16,6 +16,7 @@ import {
   laskeOnkoIlmoittautuminenPaattynyt,
   laskeStatusKisalle
 } from './utils/kisaStatus';
+import { haeOpenSarjaSpekseista } from './utils/openSarja';
 import {
   haeAikatauluMalliSpekseista,
   haeAikatauluNakyvyysSpekseista,
@@ -192,7 +193,10 @@ export default function App() {
   }), [henkilotCsvRaw, joukkueetCsvRaw, speksitCsvRaw]);
 
   const nykyisenKisanSpeksit = useMemo(
-    () => parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
+    () => ({
+      ...parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
+      openSarja: haeOpenSarjaSpekseista(nykyisenKisanParsitutRivit.speksitRows)
+    }),
     [nykyisenKisanParsitutRivit.speksitRows]
   );
 

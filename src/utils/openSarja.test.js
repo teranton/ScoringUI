@@ -1,0 +1,41 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { KAIKKI_SARJAT } from './henkiloTulokset.js';
+import {
+  aktiivinenSarja,
+  haeOpenSarjaSpekseista,
+  onkoLuokkakisa,
+  paatteleOpenSarja,
+  sarjaValinnat,
+  sarjanNimi
+} from './openSarja.js';
+
+test('OPEN_SARJA luetaan avaimen oikealta puolelta', () => {
+  assert.equal(haeOpenSarjaSpekseista([['', 'OPEN_SARJA', 'Y']]), 'y');
+  assert.equal(haeOpenSarjaSpekseista([['Open sarja', '', 'Y (OPEN)']]), 'open');
+  assert.equal(haeOpenSarjaSpekseista('OPEN_SARJA,open\n'), 'open');
+  assert.equal(haeOpenSarjaSpekseista([['OPEN_SARJA', 'Ei']]), 'ei');
+  assert.equal(haeOpenSarjaSpekseista([['OPEN_SARJA', 'jotain']]), null);
+  assert.equal(haeOpenSarjaSpekseista([['LAYOUT/KISA', '8']]), null);
+});
+
+test('luokkakilpailu päätellään, kun asetusta ei ole', () => {
+  assert.equal(onkoLuokkakisa(['A', 'B', 'c', ' ']), true);
+  assert.equal(onkoLuokkakisa(['A', 'N']), false);
+  assert.equal(onkoLuokkakisa([]), false);
+  assert.equal(paatteleOpenSarja(null, ['A', 'B']), 'ei');
+  assert.equal(paatteleOpenSarja(null, ['Y', 'N', 'Y56']), 'y');
+  assert.equal(paatteleOpenSarja('open', ['A', 'B']), 'open');
+});
+
+test('sarjavalinnat ja nimet', () => {
+  assert.deepEqual(sarjaValinnat(new Set(['N', 'Y', 'Y56']), 'y'), [KAIKKI_SARJAT, 'N', 'Y56']);
+  assert.deepEqual(sarjaValinnat(['B', 'A', 'Y'], 'ei'), ['A', 'B', 'Y']);
+  assert.equal(sarjanNimi(KAIKKI_SARJAT, 'y'), 'Y');
+  assert.equal(sarjanNimi(KAIKKI_SARJAT, 'open'), 'Y (OPEN)');
+  assert.equal(sarjanNimi('N', 'open'), 'N');
+  assert.equal(aktiivinenSarja(KAIKKI_SARJAT, ['A', 'B']), 'A');
+  assert.equal(aktiivinenSarja('B', ['A', 'B']), 'B');
+  assert.equal(aktiivinenSarja(KAIKKI_SARJAT, []), KAIKKI_SARJAT);
+});
