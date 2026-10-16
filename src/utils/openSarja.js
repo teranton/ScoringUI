@@ -46,6 +46,13 @@ export function sarjaValinnat(sarjat, openSarja) {
   return [KAIKKI_SARJAT, ...lajitellut.filter((sarja) => sarja.toUpperCase() !== 'Y')];
 }
 
+// Sarjanapit näkymille: { yhteinenSarja: 'y' | 'open' | 'ei', napit: [KAIKKI_SARJAT?, ...sarjat] }.
+// sarjat ilman kirjainkoon kaksoiskappaleita (listaaSarjat).
+export function sarjaNakyma(sarjat, asetus) {
+  const yhteinenSarja = paatteleOpenSarja(asetus, sarjat);
+  return { yhteinenSarja, napit: sarjaValinnat(sarjat, yhteinenSarja) };
+}
+
 // Valittu sarja, jos se on valittavissa; muuten ensimmäinen valinta (luokkakilpailussa ensimmäinen luokka).
 export function aktiivinenSarja(valittu, valinnat) {
   if (valinnat.includes(valittu)) return valittu;

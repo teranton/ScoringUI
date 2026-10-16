@@ -1,7 +1,7 @@
 // Tulostettavat tulokset: kaikki sarjat peräkkäin, sijoitukset samalla logiikalla kuin näytöllä.
 import { KAIKKI_SARJAT, laskeHenkilosijoitukset, laskeNaytettavatRatkoIdt, ratkoPalkintoSijaOletus } from './henkiloTulokset.js';
 import { listaaSarjat, onkoRatkoNakyvissa, parsiTaulukkoAmpujat } from './henkiloTaulukko.js';
-import { paatteleOpenSarja, sarjaValinnat, sarjanNimi } from './openSarja.js';
+import { sarjaNakyma, sarjanNimi } from './openSarja.js';
 
 // Kierrokset/asemat tulostetaan vain, jos niitä on alle tämän verran. Muuten päivät ja yhteistulos riittävät.
 export const TULOSTE_ERIEN_MAKSIMI = 10;
@@ -47,9 +47,8 @@ export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija 
   const naytaPaivat = ampujat.some((a) => a.la !== null)
     && ampujat.some((a) => (parseInt(a.su, 10) || 0) > 0);
 
-  const loydetytSarjat = listaaSarjat(ampujat);
-  const yhteinenSarja = paatteleOpenSarja(openSarja, loydetytSarjat);
-  const sarjaNimet = ampujat.length > 0 ? sarjaValinnat(loydetytSarjat, yhteinenSarja) : [];
+  const { yhteinenSarja, napit } = sarjaNakyma(listaaSarjat(ampujat), openSarja);
+  const sarjaNimet = ampujat.length > 0 ? napit : [];
 
   const sarjat = sarjaNimet.map((sarja) => {
     const sijoitetut = laskeHenkilosijoitukset(ampujat, sarja, ratkoSija);

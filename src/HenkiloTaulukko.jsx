@@ -19,7 +19,7 @@ import {
   parsiTaulukkoAmpujat,
   tunnistaPaivaSarakeNimet
 } from './utils/henkiloTaulukko';
-import { aktiivinenSarja, paatteleOpenSarja, sarjaValinnat, sarjanNimi } from './utils/openSarja';
+import { aktiivinenSarja, haeOpenSarjaSpekseista, sarjaNakyma, sarjanNimi } from './utils/openSarja';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
@@ -94,7 +94,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     const perfStart = perfNow();
     const parsed = (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa)
       ? parsedSpeksit
-      : parseAsemaSpeksitCsv(data?.speksitCsvRaw);
+      : { ...parseAsemaSpeksitCsv(data?.speksitCsvRaw), openSarja: haeOpenSarjaSpekseista(data?.speksitCsvRaw) };
     const result = {
       ...parsed,
       ratojenMaara: laskeRatojenMaara(parsed.asemaMaksimit)
@@ -143,8 +143,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     [ampujat]
   );
   // Kaikkien ampujien sarja on Y tai Y (OPEN), luokkakilpailussa sitä ei ole (KISANSPEKSIT: OPEN_SARJA).
-  const yhteinenSarja = paatteleOpenSarja(speksit.openSarja, loydetytSarjat);
-  const sarjaNapit = useMemo(() => sarjaValinnat(loydetytSarjat, yhteinenSarja), [loydetytSarjat, yhteinenSarja]);
+  const { yhteinenSarja, napit: sarjaNapit } = useMemo(
+    () => sarjaNakyma(loydetytSarjat, speksit.openSarja),
+    [loydetytSarjat, speksit.openSarja]
+  );
   const sarjaSuodatin = aktiivinenSarja(valittuSarja, sarjaNapit);
   
   const sijoitetutAmpujat = useMemo(() => {

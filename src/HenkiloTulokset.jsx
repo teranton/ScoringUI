@@ -13,7 +13,8 @@ import {
   parseAsemaSpeksitCsv,
   ratkoPalkintoSijaOletus
 } from './utils/henkiloTulokset';
-import { aktiivinenSarja, paatteleOpenSarja, sarjaValinnat, sarjanNimi } from './utils/openSarja';
+import { aktiivinenSarja, haeOpenSarjaSpekseista, sarjaNakyma, sarjanNimi } from './utils/openSarja';
+import { listaaSarjat } from './utils/henkiloTaulukko';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
 import { Card, CardContent } from './components/ui/card';
@@ -42,7 +43,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         ratkoPalkintoSija: parsedSpeksit.ratkoPalkintoSija || ratkoPalkintoSijaOletus
       };
     }
-    return parseAsemaSpeksitCsv(speksitCsv);
+    return { ...parseAsemaSpeksitCsv(speksitCsv), openSarja: haeOpenSarjaSpekseista(speksitCsv) };
   }, [parsedSpeksit, speksitCsv]);
 
   const onkoRawVirheellinen = onkoCsvVirheellinen(rawCsv, 10);
@@ -111,9 +112,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
   const idxSija = idxNimi - 1 >= 0 ? idxNimi - 1 : 1;
 
-  const { ampujat, loydetytSarjat } = useMemo(() => {
+  const ampujat = useMemo(() => {
     const parsedAmpujat = [];
-    const sarjatSet = new Set();
 
     for (let i = 1; i < rivit.length; i++) {
       const row = rivit[i];
@@ -151,15 +151,16 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
       };
 
       parsedAmpujat.push(ampuja);
-      if (ampuja.sarja) sarjatSet.add(ampuja.sarja);
     }
 
-    return { ampujat: parsedAmpujat, loydetytSarjat: sarjatSet };
+    return parsedAmpujat;
   }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
 
   // Kaikkien ampujien sarja on Y tai Y (OPEN), luokkakilpailussa sitä ei ole (KISANSPEKSIT: OPEN_SARJA).
-  const yhteinenSarja = paatteleOpenSarja(openSarja, Array.from(loydetytSarjat));
-  const sarjaNapit = useMemo(() => sarjaValinnat(loydetytSarjat, yhteinenSarja), [loydetytSarjat, yhteinenSarja]);
+  const { yhteinenSarja, napit: sarjaNapit } = useMemo(
+    () => sarjaNakyma(listaaSarjat(ampujat), openSarja),
+    [ampujat, openSarja]
+  );
   const sarjaSuodatin = aktiivinenSarja(valittuSarja, sarjaNapit);
 
   const naytettavatAmpujat = useMemo(

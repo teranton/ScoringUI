@@ -6,7 +6,8 @@
   everyone, e.g. SM), `Y (OPEN)` (open to foreign shooters) or none (class competition A, B, C ...). Without the
   key a competition whose categories are all single letters A–F gets none, any other gets `Y`. The UI's all-shooters
   button and printout heading change from `OPEN (Y)` to `Y` on sheets without the key. ScoringLib writes the key on
-  new competitions (form field "Yhteinen sarja") and uses it in the prize list. Additive.
+  new competitions (form field "Yhteinen sarja") and uses it in the prize list. Behaviour change for sheets
+  without the key: class-only competitions lose the all-shooters view (set `OPEN_SARJA` = `Y` to keep it).
 - Season ranking: registry column H `RANKING` marks a season ranking, ordered by its end date. The UI reads
   `RANKING_<year>` and `KISAT` (allowed only on ranking sheets) and the optional `KISANSPEKSIT`. The ranking ends
   after its end date or with `KILPAILUNSTATUS` = `FINISHED`. Additive: no existing tab, header or key changes.

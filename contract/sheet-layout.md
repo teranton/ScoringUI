@@ -18,7 +18,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 
 | Tab | Written by | Read by (UI) |
 |---|---|---|
-| `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js` |
+| `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js`, `utils/kisaAsetukset.js`, `utils/openSarja.js` |
 | `Tulokset Y` | Sheet formulas from the main entry tab | `HenkiloTaulukko.jsx`, `HenkiloTulokset.jsx`, `utils/henkiloTulokset.js` |
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
@@ -139,7 +139,8 @@ uses the fallback cell. Renaming a key therefore makes the library read the fall
 Keys ScoringLib reads with no fallback cell (the feature that needs them is skipped or stops with an error
 when they are missing): `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `Asemien määrä`, `Tyhjän ruudun symboli`.
 `OPEN_SARJA` (prize list, `PrizeModule.js`) has no fallback cell either: without it the library makes the same
-guess as the UI from the categories of `Tulokset sarjoittain`.
+guess as the UI from the categories of `Tulokset Y`. Keep its value in the cell right next to the key, since
+the library reads only that cell.
 
 ## To do
 
