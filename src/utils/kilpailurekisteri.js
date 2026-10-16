@@ -46,12 +46,23 @@ export function onkoRankingTyyppi(arvo) {
   return String(arvo ?? '').trim().toUpperCase() === 'RANKING';
 }
 
+// Rekisterin H-sarake TESTI: pysyvä testikisa, joka on aina käynnissä tänään. Sen C- ja D-sarakkeen
+// päivät ohitetaan, joten aikataulu ja tulokset eivät katoa päättymispäivän jälkeen.
+export function onkoTestiTyyppi(arvo) {
+  return String(arvo ?? '').trim().toUpperCase() === 'TESTI';
+}
+
+function paivaSuomeksi(pvm) {
+  return `${pvm.getDate()}.${pvm.getMonth() + 1}.${pvm.getFullYear()}`;
+}
+
 export function arvioiJoukkuekisaNimesta(kisaNimi) {
   return String(kisaNimi || '').includes('SM');
 }
 
-export function parsiKilpailurekisteri(raakaRivit) {
+export function parsiKilpailurekisteri(raakaRivit, nyt = new Date()) {
   const parsitutKisat = [];
+  const tanaan = paivaSuomeksi(nyt);
 
   for (let i = 0; i < raakaRivit.length; i++) {
     const row = raakaRivit[i];
@@ -62,15 +73,17 @@ export function parsiKilpailurekisteri(raakaRivit) {
 
     if (row[1] || row[0]) {
       const joukkueKisaAsetus = tulkitseRekisterinTotuusarvo(row[5]);
+      const onkoTesti = onkoTestiTyyppi(row[7]);
       parsitutKisat.push({
         id: row[0] || i.toString(),
         nimi: row[1] || "Nimetön kisa",
-        alkuPvm: muotoileIsoPaivamaaraSuomeksi(row[2]),
-        loppuPvm: muotoileIsoPaivamaaraSuomeksi(row[3]),
+        alkuPvm: onkoTesti ? tanaan : muotoileIsoPaivamaaraSuomeksi(row[2]),
+        loppuPvm: onkoTesti ? tanaan : muotoileIsoPaivamaaraSuomeksi(row[3]),
         apiUrl: row[4] || "",
         joukkueKisaAsetus,
         piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true,
-        onkoRanking: onkoRankingTyyppi(row[7])
+        onkoRanking: onkoRankingTyyppi(row[7]),
+        onkoTesti
       });
     }
   }

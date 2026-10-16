@@ -25,7 +25,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       apiUrl: 'sheet-2',
       joukkueKisaAsetus: null,
       piilotettu: true,
-      onkoRanking: false
+      onkoRanking: false,
+      onkoTesti: false
     },
     {
       id: 'k1',
@@ -35,7 +36,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       apiUrl: 'sheet-1',
       joukkueKisaAsetus: true,
       piilotettu: false,
-      onkoRanking: false
+      onkoRanking: false,
+      onkoTesti: false
     }
   ]);
 });
@@ -102,4 +104,17 @@ test('parsiKilpailurekisteri järjestää rankingin loppupäivän mukaan', () =>
   ]);
   assert.deepEqual(kisat.map((k) => k.id), ['r', 's', 'k']);
   assert.deepEqual(kisat.map((k) => k.onkoRanking), [true, false, false]);
+});
+
+test('parsiKilpailurekisteri: TESTI-kisan päivät ovat aina tänään', () => {
+  const nyt = new Date(2026, 9, 16, 12, 0, 0);
+  const kisat = parsiKilpailurekisteri([
+    ['t', 'Testi Compak', '2025-05-01', '2025-05-02', 'sheet-t', '', '1', ' testi '],
+    ['s', 'Syyskisa', '2026-09-05', '', 'sheet-s', '', '', '']
+  ], nyt);
+  assert.deepEqual(kisat.map((k) => [k.id, k.alkuPvm, k.loppuPvm, k.onkoTesti, k.piilotettu]), [
+    ['t', '16.10.2026', '16.10.2026', true, true],
+    ['s', '5.9.2026', '', false, false]
+  ]);
+  assert.equal(haeKisanVuosi(kisat[0]), 2026);
 });
