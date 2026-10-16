@@ -1,12 +1,13 @@
 // Tulostettavat tulokset: kaikki sarjat peräkkäin, sijoitukset samalla logiikalla kuin näytöllä.
-import { laskeHenkilosijoitukset, laskeNaytettavatRatkoIdt, ratkoPalkintoSijaOletus } from './henkiloTulokset.js';
+import { KAIKKI_SARJAT, laskeHenkilosijoitukset, laskeNaytettavatRatkoIdt, ratkoPalkintoSijaOletus } from './henkiloTulokset.js';
 import { listaaSarjat, onkoRatkoNakyvissa, parsiTaulukkoAmpujat } from './henkiloTaulukko.js';
+import { sarjaNakyma, sarjanNimi } from './openSarja.js';
 
 // Kierrokset/asemat tulostetaan vain, jos niitä on alle tämän verran. Muuten päivät ja yhteistulos riittävät.
 export const TULOSTE_ERIEN_MAKSIMI = 10;
 
-// Kaikkien ampujien osio, sama tunniste kuin näytön OPEN (Y) -valinnassa. Sarjaa Y ei tulosteta erikseen.
-export const KAIKKI_SARJAT = 'OPEN (Y)';
+// Kaikkien ampujien osio, sama tunniste kuin näytön Y / Y (OPEN) -valinnassa. Sarjaa Y ei tulosteta erikseen.
+export { KAIKKI_SARJAT };
 
 const onkoTulosta = (ampuja) => (parseInt(ampuja.tulos, 10) || 0) > 0;
 
@@ -28,10 +29,11 @@ function tulosteRivi(ampuja, eraNumerot, ratkoIdt) {
   };
 }
 
-// Palauttaa { sarjat: [{ sarja, rivit, eiTulosta, naytaRatko }], eraNumerot, naytaPaivat }.
-// Ensin OPEN (Y) kaikkine ampujineen, sitten muut sarjat kuten näytöllä.
+// Palauttaa { sarjat: [{ sarja, nimi, rivit, eiTulosta, naytaRatko }], eraNumerot, naytaPaivat }.
+// Ensin Y tai Y (OPEN) kaikkine ampujineen, sitten muut sarjat kuten näytöllä. Luokkakilpailussa
+// (openSarja 'ei') vain luokat. openSarja on KISANSPEKSIT-asetus tai null (päätellään sarjoista).
 // eiTulosta-ampujan status on '', jos taulukossa ei ole statuskoodia.
-export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija = ratkoPalkintoSijaOletus } = {}) {
+export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija = ratkoPalkintoSijaOletus, openSarja = null } = {}) {
   // Sarjan välilyönnit pois, jotta laskeHenkilosijoitukset löytää ampujan sarjan nimellä.
   const ampujat = parsiTaulukkoAmpujat(raakaRivit, ratojenMaara)
     .map((a) => ({ ...a, sarja: String(a.sarja || '').trim() }));
@@ -45,9 +47,8 @@ export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija 
   const naytaPaivat = ampujat.some((a) => a.la !== null)
     && ampujat.some((a) => (parseInt(a.su, 10) || 0) > 0);
 
-  const sarjaNimet = ampujat.length > 0
-    ? [KAIKKI_SARJAT, ...listaaSarjat(ampujat).filter((sarja) => sarja.toUpperCase() !== 'Y')]
-    : [];
+  const { yhteinenSarja, napit } = sarjaNakyma(listaaSarjat(ampujat), openSarja);
+  const sarjaNimet = ampujat.length > 0 ? napit : [];
 
   const sarjat = sarjaNimet.map((sarja) => {
     const sijoitetut = laskeHenkilosijoitukset(ampujat, sarja, ratkoSija);
@@ -61,7 +62,7 @@ export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija 
       seura: a.seura,
       status: (a.ratkoNaytto?.statusEtiketit || []).join('/')
     }));
-    return { sarja, rivit, eiTulosta, naytaRatko: rivit.some((r) => r.ratko) };
+    return { sarja, nimi: sarjanNimi(sarja, yhteinenSarja), rivit, eiTulosta, naytaRatko: rivit.some((r) => r.ratko) };
   });
 
   return { sarjat, eraNumerot, naytaPaivat };

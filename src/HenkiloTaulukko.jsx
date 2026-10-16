@@ -3,6 +3,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { parseCsvRows } from './utils/csv';
 import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import {
+  KAIKKI_SARJAT,
   laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
   laskeRatojenMaara,
@@ -18,6 +19,7 @@ import {
   parsiTaulukkoAmpujat,
   tunnistaPaivaSarakeNimet
 } from './utils/henkiloTaulukko';
+import { aktiivinenSarja, haeOpenSarjaSpekseista, sarjaNakyma, sarjanNimi } from './utils/openSarja';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
@@ -71,7 +73,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);
   // Tulostuksen aloitusaika; tuloste renderöidään vain tulostuksen ajaksi (beforeprint–afterprint).
   const [tulosteenAika, setTulosteenAika] = useState(null);
-  const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
+  const [valittuSarja, setSarjaSuodatin] = useState(KAIKKI_SARJAT);
   const [jarjestysSarake, setJarjestysSarake] = useState('sija');
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
   const sarjaScrollRef = useRef(null);
@@ -92,7 +94,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     const perfStart = perfNow();
     const parsed = (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa)
       ? parsedSpeksit
-      : parseAsemaSpeksitCsv(data?.speksitCsvRaw);
+      : { ...parseAsemaSpeksitCsv(data?.speksitCsvRaw), openSarja: haeOpenSarjaSpekseista(data?.speksitCsvRaw) };
     const result = {
       ...parsed,
       ratojenMaara: laskeRatojenMaara(parsed.asemaMaksimit)
@@ -140,6 +142,12 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     () => listaaSarjat(ampujat),
     [ampujat]
   );
+  // Kaikkien ampujien sarja on Y tai Y (OPEN), luokkakilpailussa sitä ei ole (KISANSPEKSIT: OPEN_SARJA).
+  const { yhteinenSarja, napit: sarjaNapit } = useMemo(
+    () => sarjaNakyma(loydetytSarjat, speksit.openSarja),
+    [loydetytSarjat, speksit.openSarja]
+  );
+  const sarjaSuodatin = aktiivinenSarja(valittuSarja, sarjaNapit);
   
   const sijoitetutAmpujat = useMemo(() => {
     const perfStart = perfNow();
@@ -195,7 +203,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     leveys: taulukkoNakymaLeveys,
     ratojenMaara: radatList.length,
     naytaRatko: naytaRatkoSarake,
-    onkoSarja: sarjaSuodatin === 'OPEN (Y)',
+    onkoSarja: sarjaSuodatin === KAIKKI_SARJAT,
     onkoSeura: onkoSeuroja,
     seuraMerkit,
     paivienMaara: (onkoLaTuloksia ? 1 : 0) + (onkoSuTuloksia ? 1 : 0),
@@ -504,29 +512,18 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             onPointerLeave={onSarjaPointerUp}
             onClickCapture={onSarjaClickCapture}
           >
-            <Button
-              type="button"
-              onClick={() => setSarjaSuodatin('OPEN (Y)')}
-              size="sm"
-              className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
-              variant={sarjaSuodatin === 'OPEN (Y)' ? 'default' : 'outline'}
-            >
-              OPEN (Y)
-            </Button>
-            {loydetytSarjat
-              .filter((sarja) => sarja.toUpperCase() !== 'Y')
-              .map((sarja) => (
-                <Button
-                  key={sarja}
-                  type="button"
-                  onClick={() => setSarjaSuodatin(sarja)}
-                  size="sm"
-                  className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
-                  variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
-                >
-                  {sarja}
-                </Button>
-              ))}
+            {sarjaNapit.map((sarja) => (
+              <Button
+                key={sarja}
+                type="button"
+                onClick={() => setSarjaSuodatin(sarja)}
+                size="sm"
+                className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
+                variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
+              >
+                {sarjanNimi(sarja, yhteinenSarja)}
+              </Button>
+            ))}
           </div>
 
           <div className="flex w-full items-center gap-1.5 self-start overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:w-auto sm:self-auto sm:overflow-visible">
@@ -901,12 +898,12 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
           kisaNimi={kisaNimi}
           kisaPaivat={kisaPaivat}
           kisaStatus={kisaStatus}
-          sarja={sarjaSuodatin}
+          sarja={sarjanNimi(sarjaSuodatin, yhteinenSarja)}
           ampujat={naytettavatAmpujat}
           radat={radatList}
           asemaMaksimit={speksit.asemaMaksimit}
           sarakkeet={{
-            sarja: sarjaSuodatin === 'OPEN (Y)',
+            sarja: sarjaSuodatin === KAIKKI_SARJAT,
             seura: onkoSeuroja,
             la: onkoLaTuloksia,
             su: onkoSuTuloksia,

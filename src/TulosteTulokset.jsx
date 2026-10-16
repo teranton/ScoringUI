@@ -25,9 +25,10 @@ export default function TulosteTulokset({
   const { sarjat, eraNumerot, naytaPaivat } = useMemo(
     () => muodostaTulosteSarjat(rawRows, {
       ratojenMaara,
-      ratkoSija: parsedSpeksit?.ratkoPalkintoSija
+      ratkoSija: parsedSpeksit?.ratkoPalkintoSija,
+      openSarja: parsedSpeksit?.openSarja
     }),
-    [rawRows, ratojenMaara, parsedSpeksit?.ratkoPalkintoSija]
+    [rawRows, ratojenMaara, parsedSpeksit?.ratkoPalkintoSija, parsedSpeksit?.openSarja]
   );
   const { laLabel, suLabel } = useMemo(() => tunnistaPaivaSarakeNimet(rawRows, locale), [rawRows, locale]);
   // Samat sarakkeet ja leveydet kaikissa sarjoissa, jotta nimet ja tulokset ovat samoissa kohdissa.
@@ -65,10 +66,10 @@ export default function TulosteTulokset({
 
       {sarjat.length === 0 && <p>{tx.empty}</p>}
 
-      {sarjat.map(({ sarja, rivit, eiTulosta }) => (
+      {sarjat.map(({ sarja, nimi, rivit, eiTulosta }) => (
         <section key={sarja} className="tuloste-sarja">
           <h2>
-            {sarja}{' '}
+            {nimi}{' '}
             <span>
               {rivit.length} {tx.shooters}{eiTulosta.length > 0 ? `, ${eiTulosta.length} ${tx.noResult.toLowerCase()}` : ''}
             </span>
