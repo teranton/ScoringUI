@@ -339,13 +339,16 @@ function RataNakyma({ koodi, onVaihda }) {
   }
 
   const otsikko = (
-    <header className="flex items-center gap-2 bg-[#1e3a5f] px-3 py-2 text-white">
+    <header className="flex shrink-0 items-center gap-2 bg-[#1e3a5f] px-3 py-1 text-white sm:py-2">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-lg font-bold">Rata {avaus.sarake}{avaus.rataNimi ? ` · ${avaus.rataNimi}` : ''}</div>
-        <div className="truncate text-xs opacity-80">{avaus.kisa}{ohjelmaTeksti ? ` · ohjelma ${ohjelmaTeksti}` : ''}</div>
+        <div className="truncate font-bold sm:text-lg">
+          Rata {avaus.sarake}{avaus.rataNimi ? ` · ${avaus.rataNimi}` : ''}
+          {ohjelmaTeksti && <span className="font-normal opacity-80 sm:hidden"> · {ohjelmaTeksti}</span>}
+        </div>
+        <div className="hidden truncate text-xs opacity-80 sm:block">{avaus.kisa}{ohjelmaTeksti ? ` · ohjelma ${ohjelmaTeksti}` : ''}</div>
       </div>
       <SynkMerkki lahettamatta={lahettamatta} virhe={synk.virhe} />
-      <button type="button" aria-label="Valikko" className="rounded px-3 py-2 text-xl" onClick={() => setValikko((v) => !v)}>☰</button>
+      <button type="button" aria-label="Valikko" className="rounded px-3 py-1 text-xl sm:py-2" onClick={() => setValikko((v) => !v)}>☰</button>
     </header>
   );
 
@@ -415,6 +418,7 @@ function RataNakyma({ koodi, onVaihda }) {
   );
   const linja = tilanne?.linja || [];
   const naytettavatValmiit = kaikkiValmiit ? valmiit : valmiit.slice(0, 3);
+  const viimeisinValmis = valmiit[0] ?? null;
   const seuraava = tulevat[0];
   const sarja = vuorossa ? vuorossa.loppu - vuorossa.alku : 0;
 
@@ -432,23 +436,54 @@ function RataNakyma({ koodi, onVaihda }) {
       )}
       <div className="max-h-[50dvh] shrink-0 overflow-y-auto">{valikkoNakyma}</div>
 
-      <section className="grid shrink-0 grid-cols-5 gap-1 px-2 pt-2">
+      {/* Asemat 1–5 ja viimeksi valmistunut, jotta ampuja näkee tuloksensa heti. */}
+      <section className="grid shrink-0 grid-cols-6 gap-1 px-2 pt-2">
         {Array.from({ length: ASEMIA }, (_, a) => {
           const ampuja = linja.find((l) => l.asema === a);
           const aktiivinen = vuorossa && ampuja?.nro === vuorossa.nro;
           const merkit = ampuja ? merkitOf(tila.kortit, ampuja.nro).slice(a * ASEMAN_KOHTEET, (a + 1) * ASEMAN_KOHTEET) : '';
           return (
-            <div key={a} className={`rounded-lg border-2 p-1 text-center ${aktiivinen ? 'border-blue-700 bg-blue-50' : 'border-transparent bg-white'}`}>
-              <div className="text-[10px] uppercase text-slate-500">Asema {a + 1}</div>
-              <div className="text-xl font-bold leading-tight">{ampuja ? ampuja.nro : '–'}</div>
+            <div key={a} className={`min-w-0 rounded-lg border-2 p-0.5 text-center sm:p-1 ${aktiivinen ? 'border-blue-700 bg-blue-50' : 'border-transparent bg-white'}`}>
+              <div className="whitespace-nowrap text-[10px] uppercase text-slate-500"><span className="sm:hidden">As.</span><span className="hidden sm:inline">Asema</span> {a + 1}</div>
+              <div className="text-lg font-bold leading-tight sm:text-xl">{ampuja ? ampuja.nro : '–'}</div>
               <div className="truncate text-[11px]">{ampuja ? nimi(ampuja.nro).split(' ')[0] : ''}</div>
-              {ampuja && <div className="font-mono text-xs">{[...merkit].map((m) => (m === 'X' ? 'X' : m === 'O' ? '0' : '·')).join('')}</div>}
+              {ampuja && <div className="hidden font-mono text-xs sm:block">{[...merkit].map((m) => (m === 'X' ? 'X' : m === 'O' ? '0' : '·')).join('')}</div>}
             </div>
           );
         })}
+        <div className="min-w-0 rounded-lg border-2 border-transparent bg-slate-700 p-0.5 text-center text-white sm:p-1">
+          <div className="whitespace-nowrap text-[10px] uppercase opacity-80">Valmis</div>
+          <div className="whitespace-nowrap text-base leading-7 font-bold sm:text-xl">
+            {viimeisinValmis === null ? '–' : tila.keskeyttaneet.includes(viimeisinValmis) ? 'kesk.' : `${osumat(merkitOf(tila.kortit, viimeisinValmis))}/${KOHTEITA}`}
+          </div>
+          <div className="truncate text-[11px]">{viimeisinValmis ? `${viimeisinValmis} ${nimi(viimeisinValmis).split(' ')[0]}` : ''}</div>
+        </div>
       </section>
 
-      <section ref={setLista} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-2">
+      {/* Seuraava pysyy paikallaan listan yllä, ettei se vierity pois näkyvistä. */}
+      {seuraava && (
+        <div className="mx-2 mt-1.5 shrink-0 rounded-lg bg-white px-2 py-1 text-sm sm:mx-3">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-xs font-semibold text-slate-500">Seuraava</span>
+            <span className="min-w-8 rounded bg-slate-200 px-1 text-center">{seuraava.nro}</span>
+            <span className="min-w-0 flex-1 truncate">{seuraava.nimi || '(ei nimeä)'}{seuraava.aika ? ` · ${seuraava.aika}` : ''}</span>
+            <button type="button" className={`rounded px-2 py-0.5 sm:py-1 ${seuraava.taukoEnnen ? 'bg-amber-600 text-white' : 'border border-slate-400'}`} onClick={() => vaihdaTauko(seuraava.nro)}>
+              {seuraava.taukoEnnen ? 'Tauko ✓' : 'Tauko'}
+            </button>
+            <button type="button" className="rounded border border-slate-400 px-2 py-0.5 sm:py-1" onClick={() => ohita(seuraava.nro)}>Ohita</button>
+          </div>
+          {tulevat.length > 1 && (
+            <div className="hidden truncate text-xs text-slate-500 sm:block">
+              Sitten {tulevat.slice(1, 4).map((a) => `${a.nro} ${(a.nimi || '').split(' ')[0]}`.trim()).join(', ')}{tulevat.length > 4 ? ' …' : ''}
+            </div>
+          )}
+          {seuraava.taukoEnnen && linja.length > 0 && (
+            <p className="text-xs text-amber-800">Tauko: linja tyhjennetään ennen ampujaa {seuraava.nro}.</p>
+          )}
+        </div>
+      )}
+
+      <section ref={setLista} className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
         {naytetty !== null && (
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between text-sm font-semibold">
@@ -460,30 +495,6 @@ function RataNakyma({ koodi, onVaihda }) {
         )}
         {!tilanne && jono.length === 0 && <p className="rounded bg-white p-4">Radan aikataulusta ei löytynyt ampujia. Lisää ampuja numerolla valikosta.</p>}
         {!tilanne && jono.length > 0 && <p className="rounded bg-white p-4 font-semibold text-green-800">Kaikki jonon ampujat ovat ampuneet radan.</p>}
-        {seuraava && (
-          <div className="rounded-lg bg-white p-2 text-sm">
-            <div className="mb-1 font-semibold">Seuraavaksi linjaan</div>
-            {tulevat.slice(0, 3).map((a, k) => (
-              <div key={a.nro} className="flex items-center gap-2 border-t border-slate-100 py-1">
-                <span className="min-w-8 rounded bg-slate-200 px-1 text-center">{a.nro}</span>
-                <span className="min-w-0 flex-1 truncate">{a.nimi || '(ei nimeä)'}{a.aika ? ` · ${a.aika}` : ''}</span>
-                {k === 0 && (
-                  <>
-                    <button type="button" className={`rounded px-2 py-1 ${a.taukoEnnen ? 'bg-amber-600 text-white' : 'border border-slate-400'}`} onClick={() => vaihdaTauko(a.nro)}>
-                      {a.taukoEnnen ? 'Tauko ✓' : 'Tauko'}
-                    </button>
-                    <button type="button" className="rounded border border-slate-400 px-2 py-1" onClick={() => ohita(a.nro)}>Ohita</button>
-                  </>
-                )}
-              </div>
-            ))}
-            {seuraava.taukoEnnen && linja.length > 0 && (
-              <p className="mt-1 text-amber-800">Tauko: linja tyhjennetään ennen ampujaa {seuraava.nro}.</p>
-            )}
-          </div>
-        )}
-
-        {linja.length > 0 && (seuraava || valmiit.length > 0) && <div className="mt-1 text-sm font-semibold">Linjalla</div>}
         {/* Uusin ylimpänä: asemalla 1 oleva ensin, asemalla 5 oleva alimpana. */}
         {linja.filter((l) => l.nro !== naytetty).map((l) => kortti(l.nro))}
 
@@ -502,8 +513,8 @@ function RataNakyma({ koodi, onVaihda }) {
         )}
       </section>
 
-      <footer className="shrink-0 border-t border-slate-300 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-2px_8px_rgba(0,0,0,0.1)]">
-        <div className="mb-2 h-6 truncate text-center text-sm">
+      <footer className="shrink-0 border-t border-slate-300 bg-white px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:pt-3 sm:pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-2px_8px_rgba(0,0,0,0.1)]">
+        <div className="mb-1 h-5 truncate text-center text-sm sm:mb-2 sm:h-6">
           {vuorossa && (
             <>
               Vuorossa <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b> · asema {vuorossa.asema + 1} ·{' '}
@@ -513,13 +524,13 @@ function RataNakyma({ koodi, onVaihda }) {
           {valinta && <>Korjaus: <b>{valinta.nro} {nimi(valinta.nro)}</b> · asema {Math.floor(valinta.i / ASEMAN_KOHTEET) + 1}, kiekko {(valinta.i % ASEMAN_KOHTEET) + 1}</>}
         </div>
         <div className="grid grid-cols-[1fr_2fr_2fr] gap-2">
-          <button type="button" className="h-20 rounded-lg border-2 border-slate-400 text-lg font-semibold active:bg-slate-200 disabled:opacity-30" disabled={tila.historia.length === 0} onClick={peruViimeisin}>
+          <button type="button" className="h-14 rounded-lg sm:h-20 border-2 border-slate-400 text-lg font-semibold active:bg-slate-200 disabled:opacity-30" disabled={tila.historia.length === 0} onClick={peruViimeisin}>
             PERU
           </button>
-          <button type="button" className="h-20 rounded-lg bg-red-700 text-2xl font-bold text-white active:bg-red-900 disabled:opacity-30" disabled={!kohta} onClick={() => merkitseKohta('O')}>
+          <button type="button" className="h-14 rounded-lg sm:h-20 bg-red-700 text-2xl font-bold text-white active:bg-red-900 disabled:opacity-30" disabled={!kohta} onClick={() => merkitseKohta('O')}>
             NOLLA
           </button>
-          <button type="button" className="h-20 rounded-lg bg-green-700 text-2xl font-bold text-white active:bg-green-900 disabled:opacity-30" disabled={!kohta} onClick={() => merkitseKohta('X')}>
+          <button type="button" className="h-14 rounded-lg sm:h-20 bg-green-700 text-2xl font-bold text-white active:bg-green-900 disabled:opacity-30" disabled={!kohta} onClick={() => merkitseKohta('X')}>
             OSUMA
           </button>
         </div>
@@ -553,21 +564,21 @@ function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, keskeyttanyt, 
   const asemat = Array.from({ length: KOHTEITA / ASEMAN_KOHTEET }, (_, a) => a);
   const reuna = korostus === 'korjaus' ? 'border-amber-600' : aktiivinen ? 'border-blue-700' : 'border-transparent';
   return (
-    <div data-nro={ampuja.nro} className={`rounded-lg border-2 bg-white p-2 ${reuna}`}>
-      <div className="flex w-full items-baseline justify-between gap-2 text-left">
-        <span className="truncate font-semibold">
+    <div data-nro={ampuja.nro} className={`shrink-0 rounded-lg border-2 bg-white px-1.5 py-0.5 sm:p-2 ${reuna}`}>
+      <div className="flex w-full items-center justify-between gap-2 text-left">
+        <span className="min-w-0 truncate text-sm font-semibold sm:text-base">
           <span className="mr-2 inline-block min-w-8 rounded bg-slate-200 px-1 text-center">{ampuja.nro}</span>
           {ampuja.nimi || '(ei nimeä)'}
         </span>
-        <button type="button" className={`shrink-0 rounded px-2 py-0.5 text-xs ${keskeyttanyt ? 'bg-slate-700 text-white' : 'border border-slate-300 text-slate-600'}`} onClick={onKeskeyta}>
+        <button type="button" className={`shrink-0 rounded px-2 text-[11px] leading-5 sm:py-0.5 sm:text-xs ${keskeyttanyt ? 'bg-slate-700 text-white' : 'border border-slate-300 text-slate-600'}`} onClick={onKeskeyta}>
           {keskeyttanyt ? 'Keskeytti · peru' : 'Keskeytti'}
         </button>
-        <span className="shrink-0 text-xl font-bold">
+        <span className="shrink-0 text-lg leading-tight font-bold sm:text-xl">
           {osumat(merkit)}
           <span className="text-sm font-normal text-slate-500"> / {taytetyt(merkit)}{lahetetty ? '' : ' •'}</span>
         </span>
       </div>
-      <div className="mt-2 grid grid-cols-5 gap-2">
+      <div className="mt-1 grid grid-cols-5 gap-1.5 sm:mt-2 sm:gap-2">
         {asemat.map((a) => (
           <div key={a} className="grid grid-cols-5 gap-0.5">
             {Array.from({ length: ASEMAN_KOHTEET }, (_, k) => {
@@ -579,7 +590,7 @@ function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, keskeyttanyt, 
                   key={i}
                   type="button"
                   aria-label={`Asema ${a + 1}, kiekko ${k + 1}`}
-                  className={`flex h-8 items-center justify-center rounded-sm text-xs font-bold ${vari} ${kohta === i ? 'ring-2 ring-blue-700 ring-offset-1' : ''}`}
+                  className={`flex h-5 items-center justify-center rounded-sm text-xs font-bold sm:h-8 ${vari} ${kohta === i ? 'ring-2 ring-blue-700 ring-offset-1' : ''}`}
                   onClick={() => onValitse(i)}
                 >
                   {m === 'X' ? 'X' : m === 'O' ? '0' : ''}
