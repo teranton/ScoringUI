@@ -210,10 +210,10 @@ function RataNakyma({ koodi, onVaihda }) {
     const alussa = odottaa ? jono.filter((a) => a.nro === tulija.nro) : [];
     return [...alussa, ...tulevatAmpujat(jono, vuorot, tilanne.vuoro.kierros)];
   }, [jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
-  // Radan ampuneet (tai keskeyttäneet) ampumisjärjestyksessä kuten paperilla: ampuja voi tarkistaa tuloksensa näytöltä.
+  // Radan ampuneet (tai keskeyttäneet), uusin ensin: ampuja voi tarkistaa tuloksensa näytöltä.
   const valmiit = useMemo(() => {
     const linjalla = new Set((tilanne?.linja || []).map((l) => l.nro));
-    // Järjestys linjaan tulon mukaan (ensimmäinen vuoro), kuten nimet paperilla.
+    // Järjestys linjaan tulon mukaan (ensimmäinen vuoro), viimeksi tullut ensin.
     const tulo = new Map();
     vuorot.forEach((v, i) => {
       if (!tulo.has(v.nro)) tulo.set(v.nro, i);
@@ -221,7 +221,7 @@ function RataNakyma({ koodi, onVaihda }) {
     return [...tulo.entries()]
       .filter(([nro]) => !linjalla.has(nro)
         && (taytetyt(merkitOf(tila.kortit, nro)) === KOHTEITA || tila.keskeyttaneet.includes(nro)))
-      .sort((a, b) => a[1] - b[1])
+      .sort((a, b) => b[1] - a[1])
       .map(([nro]) => nro);
   }, [vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
   const kohta = valinta || tilanne?.kohta || null;
@@ -414,7 +414,7 @@ function RataNakyma({ koodi, onVaihda }) {
     />
   );
   const linja = tilanne?.linja || [];
-  const naytettavatValmiit = kaikkiValmiit ? valmiit : valmiit.slice(-3);
+  const naytettavatValmiit = kaikkiValmiit ? valmiit : valmiit.slice(0, 3);
   const seuraava = tulevat[0];
   const sarja = vuorossa ? vuorossa.loppu - vuorossa.alku : 0;
 
@@ -460,24 +460,6 @@ function RataNakyma({ koodi, onVaihda }) {
         )}
         {!tilanne && jono.length === 0 && <p className="rounded bg-white p-4">Radan aikataulusta ei löytynyt ampujia. Lisää ampuja numerolla valikosta.</p>}
         {!tilanne && jono.length > 0 && <p className="rounded bg-white p-4 font-semibold text-green-800">Kaikki jonon ampujat ovat ampuneet radan.</p>}
-        {valmiit.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2 text-sm font-semibold">
-              Ampuneet ({valmiit.length})
-              {valmiit.length > 3 && (
-                <button type="button" className="rounded border border-slate-400 bg-white px-3 py-1 font-normal" onClick={() => setKaikkiValmiit((v) => !v)}>
-                  {kaikkiValmiit ? 'Näytä vain viimeisimmät' : `Näytä kaikki (${valmiit.length})`}
-                </button>
-              )}
-            </div>
-            {naytettavatValmiit.filter((nro) => nro !== naytetty).map((nro) => kortti(nro))}
-          </div>
-        )}
-
-        {linja.length > 0 && valmiit.length > 0 && <div className="mt-1 text-sm font-semibold">Linjalla</div>}
-        {/* Linja ylhäältä alas tulojärjestyksessä: asemalla 5 oleva ensin, uusin (asema 1) alimpana. */}
-        {[...linja].reverse().filter((l) => l.nro !== naytetty).map((l) => kortti(l.nro))}
-
         {seuraava && (
           <div className="rounded-lg bg-white p-2 text-sm">
             <div className="mb-1 font-semibold">Seuraavaksi linjaan</div>
@@ -498,6 +480,24 @@ function RataNakyma({ koodi, onVaihda }) {
             {seuraava.taukoEnnen && linja.length > 0 && (
               <p className="mt-1 text-amber-800">Tauko: linja tyhjennetään ennen ampujaa {seuraava.nro}.</p>
             )}
+          </div>
+        )}
+
+        {linja.length > 0 && (seuraava || valmiit.length > 0) && <div className="mt-1 text-sm font-semibold">Linjalla</div>}
+        {/* Uusin ylimpänä: asemalla 1 oleva ensin, asemalla 5 oleva alimpana. */}
+        {linja.filter((l) => l.nro !== naytetty).map((l) => kortti(l.nro))}
+
+        {valmiit.length > 0 && (
+          <div className="mt-1 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2 text-sm font-semibold">
+              Ampuneet ({valmiit.length})
+              {valmiit.length > 3 && (
+                <button type="button" className="rounded border border-slate-400 bg-white px-3 py-1 font-normal" onClick={() => setKaikkiValmiit((v) => !v)}>
+                  {kaikkiValmiit ? 'Näytä vain viimeisimmät' : `Näytä kaikki (${valmiit.length})`}
+                </button>
+              )}
+            </div>
+            {naytettavatValmiit.filter((nro) => nro !== naytetty).map((nro) => kortti(nro))}
           </div>
         )}
       </section>
