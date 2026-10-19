@@ -16,6 +16,9 @@ const AANET = {
   osuma: { aalto: 'square', savelet: [[1320, 0, 0.09]] },
   // Nolla: matala, karhea summeri, joka laskee (kaksi hieman eri taajuutta värisee keskenään).
   nolla: { aalto: 'sawtooth', savelet: [[190, 0, 0.38, 110], [197, 0, 0.38, 115]] },
+  // Tuplan toinen kiekko kuulostaa eri tavalla, ettei kahta peräkkäistä merkintää sekoita yhdeksi.
+  osuma2: { aalto: 'square', savelet: [[1320, 0, 0.06], [1760, 0.08, 0.08]] },
+  nolla2: { aalto: 'sawtooth', savelet: [[150, 0, 0.12, 120], [157, 0, 0.12, 125], [150, 0.17, 0.2, 90], [157, 0.17, 0.2, 95]] },
   peru: { aalto: 'triangle', savelet: [[660, 0, 0.08], [440, 0.1, 0.12]] },
   korjaus: { aalto: 'triangle', savelet: [[523, 0, 0.08], [784, 0.1, 0.12]] }
 };

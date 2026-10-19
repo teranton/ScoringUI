@@ -298,7 +298,8 @@ function RataNakyma({ koodi, onVaihda }) {
     const { nro, asema, alku, loppu } = tilanne.vuoro;
     setValahdys({ nro, asema, alku, loppu, aika: Date.now() });
     setKuittaus(null);
-    if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : 'nolla');
+    const toinen = tilanne.kohta.i > alku;
+    if (tila.aanet !== false) soita(`${merkki === 'X' ? 'osuma' : 'nolla'}${toinen ? '2' : ''}`);
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
   };
 

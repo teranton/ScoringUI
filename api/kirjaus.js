@@ -132,7 +132,7 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, laite, res) {
 }
 
 const onJoOlemassa = (error) => googleStatus(error) === 400 && /already exists/i.test(googleViesti(error));
-const onPuuttuvaValilehti = (error) => googleStatus(error) === 400 && /grid|sheet|parse range/i.test(googleViesti(error));
+const onPuuttuvaValilehti = (error) => googleStatus(error) === 400 && /no grid with id|unable to parse range/i.test(googleViesti(error));
 const uusiId = () => 100000000 + Math.floor(Math.random() * 1900000000);
 
 // Luo puuttuvat MOBIILI-välilehdet otsikkoriveineen yhdellä kutsulla (välilehti ja otsikko syntyvät yhdessä).
