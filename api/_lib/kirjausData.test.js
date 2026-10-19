@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, tarkistaTallennus,
-  viimeisinMuuLaite
+  aikaArvo, viimeisinMuuLaite
 } from './kirjausData.js';
 
 const MERKIT = 'XXXXO' + 'XOXXX' + '-'.repeat(15);
@@ -126,9 +126,18 @@ test('tallennuksen tarkistus', () => {
   assert.ok(tarkistaTallennus(null).virhe);
 });
 
-test('viimeisin muu laite: uusimman kortin laite, jos se ei ole tämä', () => {
-  const kortit = [{ versio: 5, laite: 'a', aika: 'x' }, { versio: 9, laite: 'b', aika: 'klo 10.42' }];
-  assert.deepEqual(viimeisinMuuLaite(kortit, 'a'), { laite: 'b', aika: 'klo 10.42' });
-  assert.equal(viimeisinMuuLaite(kortit, 'b'), null);
-  assert.equal(viimeisinMuuLaite([], 'a'), null);
+test('viimeisin muu laite: palvelimen aikaleiman mukaan, tuore toinen laite aina', () => {
+  const nyt = aikaArvo('19.10.2026 klo 12.00.00');
+  const kortit = [
+    { versio: 999, laite: 'a', aika: '19.10.2026 klo 10.00.00' },
+    { versio: 5, laite: 'b', aika: '19.10.2026 klo 10.42.00' }
+  ];
+  // b tallensi myöhemmin (vaikka a:n kello antoi suuremman version).
+  assert.deepEqual(viimeisinMuuLaite(kortit, 'a', nyt), { laite: 'b', aika: '19.10.2026 klo 10.42.00' });
+  assert.equal(viimeisinMuuLaite(kortit, 'b', nyt), null);
+  // a tallensi juuri: b tallensi silti alle 10 min sitten, joten a:ta varoitetaan.
+  const tuore = [{ laite: 'a', aika: '19.10.2026 klo 11.59.00' }, { laite: 'b', aika: '19.10.2026 klo 11.55.00' }];
+  assert.equal(viimeisinMuuLaite(tuore, 'a', nyt).laite, 'b');
+  assert.equal(viimeisinMuuLaite([], 'a', nyt), null);
+  assert.equal(aikaArvo('roskaa'), 0);
 });

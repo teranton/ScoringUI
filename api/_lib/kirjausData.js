@@ -174,12 +174,24 @@ export function lueKorttiRivi(rivi) {
   return { nro, merkit, versio: Number.isFinite(versio) ? versio : 0, laite: String(rivi[4] ?? ''), aika: String(rivi[3] ?? '') };
 }
 
-// Onko rataa viimeksi kirjannut toinen laite: uusimman kortin (suurin versio) laite, jos se ei ole tämä laite.
-// Palauttaa { laite, aika } tai null.
-export function viimeisinMuuLaite(kortit, laite) {
-  const uusin = kortit.reduce((paras, k) => (k.versio > (paras?.versio ?? 0) ? k : paras), null);
-  if (!uusin || !uusin.laite || uusin.laite === laite) return null;
-  return { laite: uusin.laite, aika: uusin.aika };
+// PÄIVITETTY-aikaleima ("19.10.2026 klo 19.47.26", palvelimen kello) vertailtavaksi luvuksi; 0 jos ei aikaleima.
+export function aikaArvo(aika) {
+  const m = String(aika || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})\D+(\d{1,2})[.:](\d{2})[.:](\d{2})/);
+  return m ? Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6])) : 0;
+}
+
+const TUORE_MS = 10 * 60 * 1000;
+
+// Kirjaako rataa toinen laite: toisen laitteen uusin tallennus (palvelimen aikaleiman mukaan, ei laitteen kellon)
+// on tämän laitteen uusinta myöhäisempi tai alle 10 minuutin takaa. Palauttaa { laite, aika } tai null.
+export function viimeisinMuuLaite(kortit, laite, nyt = aikaArvo(aikaleima())) {
+  const uusin = (lista) => lista.reduce((paras, k) => (aikaArvo(k.aika) > aikaArvo(paras?.aika) ? k : paras), null);
+  const muu = uusin(kortit.filter((k) => k.laite && k.laite !== laite));
+  if (!muu) return null;
+  const oma = uusin(kortit.filter((k) => k.laite === laite));
+  const muuAika = aikaArvo(muu.aika);
+  if (oma && muuAika <= aikaArvo(oma.aika) && nyt - muuAika >= TUORE_MS) return null;
+  return { laite: muu.laite, aika: muu.aika };
 }
 
 // Tarkistaa tallennuspyynnön rungon. Palauttaa { laite, kortit } tai { virhe }.

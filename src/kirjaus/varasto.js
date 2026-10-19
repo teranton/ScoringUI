@@ -25,12 +25,16 @@ function kirjoita(avain, arvo) {
 export const lueKoodi = () => lue(KOODI);
 export const tallennaKoodi = (koodi) => kirjoita(KOODI, koodi);
 
+// Tunnus pidetään myös muistissa, ettei se vaihdu sivun aikana, vaikka selain ei sallisi tallennusta.
+let muistissa = null;
 export function laitteenTunnus() {
+  if (muistissa) return muistissa;
   let tunnus = lue(LAITE);
   if (!tunnus) {
     tunnus = (crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`).replace(/[^A-Za-z0-9-]/g, '').slice(0, 36);
     kirjoita(LAITE, tunnus);
   }
+  muistissa = tunnus;
   return tunnus;
 }
 

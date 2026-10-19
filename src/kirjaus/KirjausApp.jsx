@@ -137,6 +137,9 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const laheta = useCallback(async () => {
     if (lahettaaRef.current) return;
+    // Toisen laitteen varoitus kuittaamatta: ei kirjoiteta toisen laitteen tulosten päälle.
+    const { avaus: avattu, hyvaksyttyMuu } = tilaRef.current;
+    if (avattu?.muuLaite && hyvaksyttyMuu !== muuLaiteAvain(avattu.muuLaite)) return;
     const lahetetyt = lahettamattomat(tilaRef.current.kortit);
     if (lahetetyt.length === 0) return;
     lahettaaRef.current = true;
@@ -210,8 +213,11 @@ function RataNakyma({ koodi, onVaihda }) {
   // Radan ampuneet (tai keskeyttäneet), uusin ensin: ampuja voi tarkistaa tuloksensa näytöltä.
   const valmiit = useMemo(() => {
     const linjalla = new Set((tilanne?.linja || []).map((l) => l.nro));
+    // Järjestys viimeisen ammutun vuoron mukaan (keskeyttäneellä se, jossa hän lopetti).
     const viimeinen = new Map();
-    vuorot.forEach((v, i) => viimeinen.set(v.nro, i));
+    vuorot.forEach((v, i) => {
+      if (merkitOf(tila.kortit, v.nro)[v.alku] !== '-') viimeinen.set(v.nro, i);
+    });
     return [...viimeinen.entries()]
       .filter(([nro]) => !linjalla.has(nro)
         && (taytetyt(merkitOf(tila.kortit, nro)) === KOHTEITA || tila.keskeyttaneet.includes(nro)))
@@ -336,7 +342,7 @@ function RataNakyma({ koodi, onVaihda }) {
 
   // Toinen laite on tallentanut radalle viimeksi: kysytään ennen kuin tämä laite otetaan käyttöön.
   const muuLaite = avaus.muuLaite;
-  if (muuLaite && tila.hyvaksyttyMuu !== `${muuLaite.laite}|${muuLaite.aika}`) {
+  if (muuLaite && tila.hyvaksyttyMuu !== muuLaiteAvain(muuLaite)) {
     return (
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">
         {otsikko}
@@ -347,10 +353,10 @@ function RataNakyma({ koodi, onVaihda }) {
             Kirjaa rataa vain yhdellä laitteella kerrallaan: lopeta kirjaus toisella laitteella ennen kuin jatkat tällä.
           </p>
           <p className="text-sm text-slate-600">Tämä laite jatkaa taulukkoon jo tallennetuista tuloksista.</p>
-          <button type="button" className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white" onClick={() => setTila((t) => ({ ...t, hyvaksyttyMuu: `${muuLaite.laite}|${muuLaite.aika}` }))}>
+          <button type="button" className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white" onClick={() => setTila((t) => ({ ...t, hyvaksyttyMuu: muuLaiteAvain(muuLaite) }))}>
             Ota tämä laite käyttöön
           </button>
-          <button type="button" className="rounded border border-slate-400 px-4 py-2" onClick={onVaihda}>Vaihda ratakoodi</button>
+          <button type="button" className="rounded border border-slate-400 px-4 py-2" onClick={vaihdaRata}>Vaihda ratakoodi</button>
         </section>
       </main>
     );
@@ -392,11 +398,14 @@ function RataNakyma({ koodi, onVaihda }) {
   const sarja = vuorossa ? vuorossa.loppu - vuorossa.alku : 0;
 
   return (
-    <main className="flex h-[100dvh] flex-col overflow-hidden bg-slate-100 text-slate-900 select-none">
+    <main className="flex h-screen supports-[height:100dvh]:h-[100dvh] flex-col overflow-hidden bg-slate-100 text-slate-900 select-none">
       {otsikko}
       {toinenLaite && (
         <div className="flex shrink-0 items-center gap-2 bg-amber-100 px-3 py-2 text-sm text-amber-900">
-          <span className="min-w-0 flex-1">Toinen laite kirjaa tälle radalle{toinenLaite.aika ? ` (${toinenLaite.aika})` : ''}. Käytä yhtä laitetta per rata.</span>
+          <span className="min-w-0 flex-1">
+            Toinen laite kirjaa tälle radalle{toinenLaite.aika ? ` (${toinenLaite.aika})` : ''}: ampujan {toinenLaite.nro} kortti
+            korvattiin toisen laitteen tuloksilla. Käytä yhtä laitetta per rata.
+          </span>
           <button type="button" className="rounded border border-amber-700 px-2 py-1" onClick={() => setToinenLaite(null)}>OK</button>
         </div>
       )}
@@ -493,6 +502,8 @@ function RataNakyma({ koodi, onVaihda }) {
     </main>
   );
 }
+
+const muuLaiteAvain = (muu) => `${muu.laite}|${muu.aika}`;
 
 // Laitteelle tallennettu tila; vanhan version lisätyt (pelkät numerot) menevät jonon loppuun.
 function alkutila(tallessa) {
