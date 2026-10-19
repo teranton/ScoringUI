@@ -213,30 +213,43 @@ function RataNakyma({ koodi, onVaihda }) {
   // Radan ampuneet (tai keskeyttäneet) ampumisjärjestyksessä kuten paperilla: ampuja voi tarkistaa tuloksensa näytöltä.
   const valmiit = useMemo(() => {
     const linjalla = new Set((tilanne?.linja || []).map((l) => l.nro));
-    // Järjestys viimeisen ammutun vuoron mukaan (keskeyttäneellä se, jossa hän lopetti).
-    const viimeinen = new Map();
+    // Järjestys linjaan tulon mukaan (ensimmäinen vuoro), kuten nimet paperilla.
+    const tulo = new Map();
     vuorot.forEach((v, i) => {
-      if (merkitOf(tila.kortit, v.nro)[v.alku] !== '-') viimeinen.set(v.nro, i);
+      if (!tulo.has(v.nro)) tulo.set(v.nro, i);
     });
-    return [...viimeinen.entries()]
+    return [...tulo.entries()]
       .filter(([nro]) => !linjalla.has(nro)
         && (taytetyt(merkitOf(tila.kortit, nro)) === KOHTEITA || tila.keskeyttaneet.includes(nro)))
       .sort((a, b) => a[1] - b[1])
       .map(([nro]) => nro);
   }, [vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
   const kohta = valinta || tilanne?.kohta || null;
-  const listaRef = useRef(null);
-  const vuorossaNro = tilanne && !valinta ? tilanne.vuoro.nro : null;
-  const vuorossaKohde = tilanne && !valinta ? tilanne.kohta.i : null;
-  // Vuorossa olevan kortti pidetään näkyvissä joka merkinnän jälkeen, kun lista on pidempi kuin näyttö.
-  useEffect(() => {
-    if (vuorossaNro === null) return;
-    listaRef.current?.querySelector(`[data-nro="${vuorossaNro}"]`)?.scrollIntoView({ block: 'nearest' });
-  }, [vuorossaNro, vuorossaKohde]);
   const vuorossa = tilanne && !valinta ? tilanne.vuoro : null;
+
+  // Vuorossa olevan kortti pidetään näkyvissä joka merkinnän jälkeen, kun lista on pidempi kuin näyttö.
+  // Ei vieritetä korjauksen aikana eikä heti korjausmerkinnän jälkeen, ettei korjattava kortti katoa.
+  const [lista, setLista] = useState(null);
+  const korjattiinRef = useRef(false);
+  const vuorossaNro = vuorossa?.nro ?? null;
+  const vuorossaKohde = vuorossa ? kohta.i : null;
+  useEffect(() => {
+    if (korjattiinRef.current) {
+      korjattiinRef.current = false;
+      return;
+    }
+    if (!lista || vuorossaNro === null || naytetty !== null) return;
+    const kortti = lista.querySelector(`[data-nro="${vuorossaNro}"]`);
+    if (!kortti) return;
+    const k = kortti.getBoundingClientRect();
+    const l = lista.getBoundingClientRect();
+    if (k.bottom > l.bottom) lista.scrollTop += k.bottom - l.bottom + 8;
+    else if (k.top < l.top) lista.scrollTop -= l.top - k.top + 8;
+  }, [lista, vuorossaNro, vuorossaKohde, naytetty]);
 
   const merkitseKohta = (merkki) => {
     if (!kohta) return;
+    korjattiinRef.current = valinta !== null;
     setTila((t) => ({ ...t, ...merkitse(t, kohta, merkki) }));
     setValinta(null);
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
@@ -435,7 +448,7 @@ function RataNakyma({ koodi, onVaihda }) {
         })}
       </section>
 
-      <section ref={listaRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-2">
+      <section ref={setLista} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-2">
         {naytetty !== null && (
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between text-sm font-semibold">
