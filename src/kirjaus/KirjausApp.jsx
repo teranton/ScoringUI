@@ -210,7 +210,7 @@ function RataNakyma({ koodi, onVaihda }) {
     const alussa = odottaa ? jono.filter((a) => a.nro === tulija.nro) : [];
     return [...alussa, ...tulevatAmpujat(jono, vuorot, tilanne.vuoro.kierros)];
   }, [jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
-  // Radan ampuneet (tai keskeyttäneet), uusin ensin: ampuja voi tarkistaa tuloksensa näytöltä.
+  // Radan ampuneet (tai keskeyttäneet) ampumisjärjestyksessä kuten paperilla: ampuja voi tarkistaa tuloksensa näytöltä.
   const valmiit = useMemo(() => {
     const linjalla = new Set((tilanne?.linja || []).map((l) => l.nro));
     // Järjestys viimeisen ammutun vuoron mukaan (keskeyttäneellä se, jossa hän lopetti).
@@ -221,10 +221,18 @@ function RataNakyma({ koodi, onVaihda }) {
     return [...viimeinen.entries()]
       .filter(([nro]) => !linjalla.has(nro)
         && (taytetyt(merkitOf(tila.kortit, nro)) === KOHTEITA || tila.keskeyttaneet.includes(nro)))
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => a[1] - b[1])
       .map(([nro]) => nro);
   }, [vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
   const kohta = valinta || tilanne?.kohta || null;
+  const listaRef = useRef(null);
+  const vuorossaNro = tilanne && !valinta ? tilanne.vuoro.nro : null;
+  const vuorossaKohde = tilanne && !valinta ? tilanne.kohta.i : null;
+  // Vuorossa olevan kortti pidetään näkyvissä joka merkinnän jälkeen, kun lista on pidempi kuin näyttö.
+  useEffect(() => {
+    if (vuorossaNro === null) return;
+    listaRef.current?.querySelector(`[data-nro="${vuorossaNro}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [vuorossaNro, vuorossaKohde]);
   const vuorossa = tilanne && !valinta ? tilanne.vuoro : null;
 
   const merkitseKohta = (merkki) => {
@@ -393,7 +401,7 @@ function RataNakyma({ koodi, onVaihda }) {
     />
   );
   const linja = tilanne?.linja || [];
-  const naytettavatValmiit = kaikkiValmiit ? valmiit : valmiit.slice(0, 3);
+  const naytettavatValmiit = kaikkiValmiit ? valmiit : valmiit.slice(-3);
   const seuraava = tulevat[0];
   const sarja = vuorossa ? vuorossa.loppu - vuorossa.alku : 0;
 
@@ -427,7 +435,7 @@ function RataNakyma({ koodi, onVaihda }) {
         })}
       </section>
 
-      <section className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-2">
+      <section ref={listaRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-2">
         {naytetty !== null && (
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between text-sm font-semibold">
@@ -439,19 +447,23 @@ function RataNakyma({ koodi, onVaihda }) {
         )}
         {!tilanne && jono.length === 0 && <p className="rounded bg-white p-4">Radan aikataulusta ei löytynyt ampujia. Lisää ampuja numerolla valikosta.</p>}
         {!tilanne && jono.length > 0 && <p className="rounded bg-white p-4 font-semibold text-green-800">Kaikki jonon ampujat ovat ampuneet radan.</p>}
-        {[...linja].reverse().filter((l) => l.nro !== naytetty).map((l) => kortti(l.nro))}
-
         {valmiit.length > 0 && (
           <div className="flex flex-col gap-2">
-            <div className="mt-1 text-sm font-semibold">Ampuneet ({valmiit.length})</div>
+            <div className="flex items-center justify-between gap-2 text-sm font-semibold">
+              Ampuneet ({valmiit.length})
+              {valmiit.length > 3 && (
+                <button type="button" className="rounded border border-slate-400 bg-white px-3 py-1 font-normal" onClick={() => setKaikkiValmiit((v) => !v)}>
+                  {kaikkiValmiit ? 'Näytä vain viimeisimmät' : `Näytä kaikki (${valmiit.length})`}
+                </button>
+              )}
+            </div>
             {naytettavatValmiit.filter((nro) => nro !== naytetty).map((nro) => kortti(nro))}
-            {valmiit.length > 3 && (
-              <button type="button" className="self-start rounded border border-slate-400 bg-white px-3 py-1 text-sm" onClick={() => setKaikkiValmiit((v) => !v)}>
-                {kaikkiValmiit ? 'Näytä vain viimeisimmät' : `Näytä kaikki (${valmiit.length})`}
-              </button>
-            )}
           </div>
         )}
+
+        {linja.length > 0 && valmiit.length > 0 && <div className="mt-1 text-sm font-semibold">Linjalla</div>}
+        {/* Linja ylhäältä alas tulojärjestyksessä: asemalla 5 oleva ensin, uusin (asema 1) alimpana. */}
+        {[...linja].reverse().filter((l) => l.nro !== naytetty).map((l) => kortti(l.nro))}
 
         {seuraava && (
           <div className="rounded-lg bg-white p-2 text-sm">
@@ -528,7 +540,7 @@ function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, keskeyttanyt, 
   const asemat = Array.from({ length: KOHTEITA / ASEMAN_KOHTEET }, (_, a) => a);
   const reuna = korostus === 'korjaus' ? 'border-amber-600' : aktiivinen ? 'border-blue-700' : 'border-transparent';
   return (
-    <div className={`rounded-lg border-2 bg-white p-2 ${reuna}`}>
+    <div data-nro={ampuja.nro} className={`rounded-lg border-2 bg-white p-2 ${reuna}`}>
       <div className="flex w-full items-baseline justify-between gap-2 text-left">
         <span className="truncate font-semibold">
           <span className="mr-2 inline-block min-w-8 rounded bg-slate-200 px-1 text-center">{ampuja.nro}</span>
