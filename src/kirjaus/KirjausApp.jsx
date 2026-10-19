@@ -298,8 +298,9 @@ function RataNakyma({ koodi, onVaihda }) {
     const { nro, asema, alku, loppu } = tilanne.vuoro;
     setValahdys({ nro, asema, alku, loppu, aika: Date.now() });
     setKuittaus(null);
-    const toinen = tilanne.kohta.i > alku;
-    if (tila.aanet !== false) soita(`${merkki === 'X' ? 'osuma' : 'nolla'}${toinen ? '2' : ''}`);
+    // Tuplan toinen nolla, kun ensimmäinenkin meni ohi, kuulostaa eri tavalla (nouseva).
+    const molemmatOhi = merkki === 'O' && tilanne.kohta.i > alku && merkitOf(tila.kortit, nro)[alku] === 'O';
+    if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : molemmatOhi ? 'nolla2' : 'nolla');
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
   };
 
