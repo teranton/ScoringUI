@@ -30,6 +30,9 @@ function alkuKoodi() {
   return lueKoodinSisalto(tallessa) ? tallessa : '';
 }
 
+// Testityökalut vain esikatselussa ja kehityksessä, ei tuotannossa (vite.config.js asettaa Vercelin ympäristöstä).
+const TESTIVERSIO = __KIRJAUS_TESTIVERSIO__;
+
 export default function KirjausApp() {
   const [koodi, setKoodi] = useState(alkuKoodi);
 
@@ -95,9 +98,12 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const tilaRef = useRef(tila);
   const lahettaaRef = useRef(false);
+  // Testiversion "Tyhjennä rata laitteelta": ei enää tallenneta eikä lähetetä ennen sivun uudelleenlatausta.
+  const tyhjennettyRef = useRef(false);
 
   useEffect(() => {
     tilaRef.current = tila;
+    if (tyhjennettyRef.current) return;
     tallennaRata(info.sheetId, info.sarake, tila);
   }, [tila, info]);
 
@@ -136,7 +142,7 @@ function RataNakyma({ koodi, onVaihda }) {
   useEffect(() => { nimiRef.current = nimi; }, [nimi]);
 
   const laheta = useCallback(async () => {
-    if (lahettaaRef.current) return;
+    if (lahettaaRef.current || tyhjennettyRef.current) return;
     // Toisen laitteen varoitus kuittaamatta: ei kirjoiteta toisen laitteen tulosten päälle.
     const { avaus: avattu, hyvaksyttyMuu } = tilaRef.current;
     if (avattu?.muuLaite && hyvaksyttyMuu !== muuLaiteAvain(avattu.muuLaite)) return;
@@ -188,6 +194,7 @@ function RataNakyma({ koodi, onVaihda }) {
   useEffect(() => {
     if (lahettamatta === 0) return undefined;
     const kysy = (e) => {
+      if (tyhjennettyRef.current) return;
       e.preventDefault();
       e.returnValue = '';
     };
@@ -314,6 +321,14 @@ function RataNakyma({ koodi, onVaihda }) {
     setValinta(null);
   };
 
+  const tyhjennaRata = () => {
+    const varoitus = lahettamatta > 0 ? ` ${lahettamatta} lähettämätöntä korttia häviää.` : '';
+    if (!window.confirm(`Tyhjennetäänkö radan ${info.sarake} tiedot tältä laitteelta?${varoitus} Taulukkoon tallennetut tulokset eivät muutu.`)) return;
+    tyhjennettyRef.current = true;
+    tallennaRata(info.sheetId, info.sarake, null);
+    window.location.reload();
+  };
+
   const vaihdaRata = () => {
     if (lahettamatta > 0 && !window.confirm(`${lahettamatta} korttia on lähettämättä. Ne jäävät laitteelle ja lähtevät, kun avaat radan uudelleen. Vaihdetaanko rata?`)) return;
     onVaihda();
@@ -358,6 +373,7 @@ function RataNakyma({ koodi, onVaihda }) {
       onMuokkaaOhjelmaa={() => { setMuokkaaOhjelmaa(true); setValikko(false); }}
       onHaeNumero={haeNumero}
       onVaihdaRata={vaihdaRata}
+      onTyhjenna={TESTIVERSIO ? tyhjennaRata : null}
       hereilla={hereilla}
       lataus={lataus}
       viimeksi={synk.viimeksi}
@@ -403,7 +419,7 @@ function RataNakyma({ koodi, onVaihda }) {
     );
   }
 
-  const kortti = (nro, korostus) => (
+  const kortti = (nro, korostus, valmis = false) => (
     <AmpujaRivi
       key={nro}
       ampuja={{ nro, nimi: nimi(nro) }}
@@ -411,6 +427,7 @@ function RataNakyma({ koodi, onVaihda }) {
       lahetetty={tila.kortit[nro]?.lahetetty !== false}
       kohta={kohta?.nro === nro ? kohta.i : null}
       korostus={korostus}
+      valmis={valmis}
       keskeyttanyt={tila.keskeyttaneet.includes(nro)}
       onKeskeyta={() => vaihdaKeskeytys(nro)}
       onValitse={(i) => setValinta({ nro, i })}
@@ -508,7 +525,7 @@ function RataNakyma({ koodi, onVaihda }) {
                 </button>
               )}
             </div>
-            {naytettavatValmiit.filter((nro) => nro !== naytetty).map((nro) => kortti(nro))}
+            {naytettavatValmiit.filter((nro) => nro !== naytetty).map((nro) => kortti(nro, undefined, true))}
           </div>
         )}
       </section>
@@ -559,12 +576,12 @@ function SynkMerkki({ lahettamatta, virhe }) {
   );
 }
 
-function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, keskeyttanyt, onKeskeyta, onValitse }) {
+function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, valmis, keskeyttanyt, onKeskeyta, onValitse }) {
   const aktiivinen = kohta !== null;
   const asemat = Array.from({ length: KOHTEITA / ASEMAN_KOHTEET }, (_, a) => a);
   const reuna = korostus === 'korjaus' ? 'border-amber-600' : aktiivinen ? 'border-blue-700' : 'border-transparent';
   return (
-    <div data-nro={ampuja.nro} className={`shrink-0 rounded-lg border-2 bg-white px-1.5 py-0.5 sm:p-2 ${reuna}`}>
+    <div data-nro={ampuja.nro} className={`shrink-0 rounded-lg border-2 px-1.5 py-0.5 sm:p-2 ${valmis ? 'bg-slate-300' : 'bg-white'} ${reuna}`}>
       <div className="flex w-full items-center justify-between gap-2 text-left">
         <span className="min-w-0 truncate text-sm font-semibold sm:text-base">
           <span className="mr-2 inline-block min-w-8 rounded bg-slate-200 px-1 text-center">{ampuja.nro}</span>
@@ -635,7 +652,7 @@ function OhjelmaEditori({ alku, kisanArvo, kisanOhjelma, sarake, onTallenna, onP
   );
 }
 
-function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, hereilla, lataus, viimeksi }) {
+function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onTyhjenna, hereilla, lataus, viimeksi }) {
   const [nro, setNro] = useState('');
   return (
     <div className="flex flex-col gap-3 border-b border-slate-300 bg-white p-3 text-sm">
@@ -667,6 +684,11 @@ function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, hereil
         {viimeksi ? ` Viimeksi lähetetty klo ${new Date(viimeksi).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}.` : ''}
       </p>
       <button type="button" className="self-start rounded border border-slate-400 px-3 py-2" onClick={onVaihdaRata}>Vaihda ratakoodi</button>
+      {onTyhjenna && (
+        <button type="button" className="self-start rounded border border-red-700 px-3 py-2 text-red-800" onClick={onTyhjenna}>
+          Tyhjennä rata laitteelta (testiversio)
+        </button>
+      )}
     </div>
   );
 }
