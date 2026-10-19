@@ -29,6 +29,8 @@ async function request({ url, method = 'GET', data }) {
     const muotoiltu = u.searchParams.get('valueRenderOption') === 'FORMATTED_VALUE';
     return { data: { valueRanges: u.searchParams.getAll('ranges').map((alue) => {
       const { tab, alku, loppu } = alueenTiedot(alue);
+      // Kuten Sheets API: puuttuva välilehti kaataa koko luvun.
+      if (!taulukko[tab]) throw Object.assign(new Error('x'), { response: { status: 400, data: { error: { message: `Unable to parse range: ${tab}` } } } });
       const rivit = (taulukko[tab]?.rivit || []).slice(alku - 1, loppu ?? undefined)
         .map((r) => (r || []).map((v) => (muotoiltu && typeof v === 'number' && v > 1e11 ? v.toExponential(5) : v)));
       return { values: rivit };
@@ -196,6 +198,17 @@ test('tallenna: toinen rata ehti luoda yhteisen lokin', async () => {
   assert.deepEqual(res.body.tallennetut, [1]);
   assert.equal(taulukko['MOBIILI Rata 2'].rivit[0][0], 'NRO');
   assert.equal(taulukko['MOBIILI Rata 2'].rivit[1][0], 1);
+});
+
+test('tallenna: välilehti poistettiin taulukosta, luodaan uudelleen', async () => {
+  alusta();
+  const body = (nro) => ({ laite: 'laite-1', kortit: [{ nro, merkit: MERKIT, versio: 5 }] });
+  assert.equal((await kutsu({ method: 'POST', toiminto: 'tallenna', body: body(1) })).statusCode, 200);
+  delete taulukko['MOBIILI Rata 2'];
+  const res = await kutsu({ method: 'POST', toiminto: 'tallenna', body: body(2) });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.tallennetut, [2]);
+  assert.equal(taulukko['MOBIILI Rata 2'].rivit[2][0], 2);
 });
 
 test('tallenna torjuu virheellisen rungon', async () => {
