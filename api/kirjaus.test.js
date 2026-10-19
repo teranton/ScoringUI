@@ -36,9 +36,12 @@ async function request({ url, method = 'GET', data }) {
   }
   if (u.pathname.endsWith(':batchUpdate')) {
     kirjoitukset++;
+    // Kuten Sheets API: yksikin olemassa oleva välilehti kaataa koko pyynnön.
+    if (data.requests.some((r) => r.addSheet && taulukko[r.addSheet.properties.title])) {
+      throw Object.assign(new Error('x'), { response: { status: 400, data: { error: { message: 'already exists' } } } });
+    }
     for (const r of data.requests) {
       if (r.addSheet) {
-        if (taulukko[r.addSheet.properties.title]) throw Object.assign(new Error('x'), { response: { status: 400, data: { error: { message: 'already exists' } } } });
         taulukko[r.addSheet.properties.title] = { id: r.addSheet.properties.sheetId, rivit: [] };
       } else if (r.updateCells) {
         tabIdlla(r.updateCells.start.sheetId).rivit[r.updateCells.start.rowIndex] = r.updateCells.rows[0].values.map(soluArvo);
@@ -137,7 +140,7 @@ test('tallenna: välilehdet otsikkoineen, kortti ja loki yhdellä kirjoituksella
   const res = await kutsu({ method: 'POST', toiminto: 'tallenna', body });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { tallennetut: [3], uudemmat: [] });
-  assert.equal(kirjoitukset, 2, 'välilehtien luonti + kortit ja loki');
+  assert.equal(kirjoitukset, 3, 'kahden välilehden luonti + kortit ja loki');
   const tab = taulukko['MOBIILI Rata 2'].rivit;
   assert.equal(tab[0][0], 'NRO');
   assert.deepEqual(tab[3].slice(0, 3), [3, 'Cederberg C', 4]);
@@ -181,6 +184,17 @@ test('tallenna: toinen laite ehti luoda välilehdet', async () => {
   const res = await kutsu({ method: 'POST', toiminto: 'tallenna', body: { laite: 'laite-1', kortit: [{ nro: 1, merkit: MERKIT, versio: 5 }] } });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.tallennetut, [1]);
+  assert.equal(taulukko['MOBIILI Rata 2'].rivit[1][0], 1);
+});
+
+test('tallenna: toinen rata ehti luoda yhteisen lokin', async () => {
+  alusta();
+  await kutsu();
+  taulukko.MOBIILI_LOKI = { id: 78, rivit: [['AIKA']] };
+  const res = await kutsu({ method: 'POST', toiminto: 'tallenna', body: { laite: 'laite-1', kortit: [{ nro: 1, merkit: MERKIT, versio: 5 }] } });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.tallennetut, [1]);
+  assert.equal(taulukko['MOBIILI Rata 2'].rivit[0][0], 'NRO');
   assert.equal(taulukko['MOBIILI Rata 2'].rivit[1][0], 1);
 });
 

@@ -142,17 +142,17 @@ async function varmistaValilehdet(request, sheetId, sarake) {
     { nimi: LOKI_VALILEHTI, otsikko: LOKI_OTSIKKO, rivit: 1000 }
   ].filter((t) => !etsiValilehti(meta, t.nimi));
   if (tarvittavat.length > 0) {
-    const requests = tarvittavat.flatMap((t) => {
+    // Yksi välilehti kerrallaan: jos toinen laite ehti luoda toisen (esim. yhteisen lokin), tämä ei kaada omaa.
+    for (const t of tarvittavat) {
       const id = uusiId();
-      return [
-        { addSheet: { properties: { sheetId: id, title: t.nimi, gridProperties: { rowCount: t.rivit, columnCount: t.otsikko.length, frozenRowCount: 1 } } } },
-        { updateCells: { start: { sheetId: id, rowIndex: 0, columnIndex: 0 }, rows: [riviSoluiksi(t.otsikko)], fields: 'userEnteredValue' } }
-      ];
-    });
-    try {
-      await batchUpdate(request, sheetId, requests);
-    } catch (error) {
-      if (!onJoOlemassa(error)) throw error;
+      try {
+        await batchUpdate(request, sheetId, [
+          { addSheet: { properties: { sheetId: id, title: t.nimi, gridProperties: { rowCount: t.rivit, columnCount: t.otsikko.length, frozenRowCount: 1 } } } },
+          { updateCells: { start: { sheetId: id, rowIndex: 0, columnIndex: 0 }, rows: [riviSoluiksi(t.otsikko)], fields: 'userEnteredValue' } }
+        ]);
+      } catch (error) {
+        if (!onJoOlemassa(error)) throw error;
+      }
     }
     meta = await metatiedot(request, sheetId, { tuore: true });
   }
