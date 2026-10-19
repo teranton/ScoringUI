@@ -11,10 +11,11 @@ function kontekstiKayttoon() {
   return konteksti;
 }
 
-// Äänet: [taajuus Hz, alku s, kesto s] samalla aaltomuodolla.
+// Äänet: [taajuus Hz, alku s, kesto s, lopputaajuus Hz (valinnainen liuku)] samalla aaltomuodolla.
 const AANET = {
   osuma: { aalto: 'square', savelet: [[1320, 0, 0.09]] },
-  nolla: { aalto: 'sawtooth', savelet: [[220, 0, 0.13], [220, 0.18, 0.13]] },
+  // Nolla: matala, karhea summeri, joka laskee (kaksi hieman eri taajuutta värisee keskenään).
+  nolla: { aalto: 'sawtooth', savelet: [[190, 0, 0.38, 110], [197, 0, 0.38, 115]] },
   peru: { aalto: 'triangle', savelet: [[660, 0, 0.08], [440, 0.1, 0.12]] },
   korjaus: { aalto: 'triangle', savelet: [[523, 0, 0.08], [784, 0.1, 0.12]] }
 };
@@ -24,14 +25,16 @@ export function soita(nimi) {
   const ctx = aani && kontekstiKayttoon();
   if (!ctx) return;
   const nyt = ctx.currentTime;
-  for (const [taajuus, alku, kesto] of aani.savelet) {
+  for (const [taajuus, alku, kesto, loppuTaajuus] of aani.savelet) {
     const oskillaattori = ctx.createOscillator();
     const voimakkuus = ctx.createGain();
     oskillaattori.type = aani.aalto;
-    oskillaattori.frequency.value = taajuus;
+    oskillaattori.frequency.setValueAtTime(taajuus, nyt + alku);
+    if (loppuTaajuus) oskillaattori.frequency.exponentialRampToValueAtTime(loppuTaajuus, nyt + alku + kesto);
     // Nopea nousu ja lasku, ettei ääni naksahda.
     voimakkuus.gain.setValueAtTime(0.0001, nyt + alku);
     voimakkuus.gain.exponentialRampToValueAtTime(0.8, nyt + alku + 0.005);
+    if (kesto > 0.2) voimakkuus.gain.setValueAtTime(0.8, nyt + alku + kesto - 0.08);
     voimakkuus.gain.exponentialRampToValueAtTime(0.0001, nyt + alku + kesto);
     oskillaattori.connect(voimakkuus).connect(ctx.destination);
     oskillaattori.start(nyt + alku);

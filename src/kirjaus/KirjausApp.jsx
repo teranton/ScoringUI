@@ -20,6 +20,7 @@ const LAHETYS_VIIVE_MS = 1500;
 const KESKEN_VIIVE_MS = 10000;
 const NAPAUTUSVALI_MS = 150;
 const KUITTAUS_MS = 6000;
+const VALAHDYS_MS = 2500;
 
 function alkuKoodi() {
   const k = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('k');
@@ -103,6 +104,13 @@ function RataNakyma({ koodi, onVaihda }) {
     setNaytetty(null);
   };
   const viimeNapautusRef = useRef(0);
+  // Juuri ammuttu sarja näkyy hetken isona asemaruudussa (yksi ruutu yksittäiselle, kaksi tuplalle).
+  const [valahdys, setValahdys] = useState(null);
+  useEffect(() => {
+    if (!valahdys) return undefined;
+    const ajastin = setTimeout(() => setValahdys(null), VALAHDYS_MS);
+    return () => clearTimeout(ajastin);
+  }, [valahdys]);
   const [valikko, setValikko] = useState(false);
   const [muokkaaOhjelmaa, setMuokkaaOhjelmaa] = useState(false);
   const [latausKierros, setLatausKierros] = useState(0);
@@ -287,6 +295,8 @@ function RataNakyma({ koodi, onVaihda }) {
   const merkitseKohta = (merkki) => {
     if (korjaustila || valinta || !tilanne || liianPian()) return;
     setTila((t) => ({ ...t, ...merkitse(t, tilanne.kohta, merkki) }));
+    const { nro, asema, alku, loppu } = tilanne.vuoro;
+    setValahdys({ nro, asema, alku, loppu, aika: Date.now() });
     setKuittaus(null);
     if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : 'nolla');
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
@@ -525,11 +535,20 @@ function RataNakyma({ koodi, onVaihda }) {
           const aktiivinen = vuorossa && ampuja?.nro === vuorossa.nro;
           const merkit = ampuja ? merkitOf(tila.kortit, ampuja.nro).slice(a * ASEMAN_KOHTEET, (a + 1) * ASEMAN_KOHTEET) : '';
           return (
-            <div key={a} className={`min-w-0 rounded-lg border-2 p-0.5 text-center sm:p-1 ${aktiivinen ? 'border-blue-700 bg-blue-50' : 'border-transparent bg-white'}`}>
+            <div key={a} className={`relative min-w-0 rounded-lg border-2 p-0.5 text-center sm:p-1 ${aktiivinen ? 'border-blue-700 bg-blue-50' : 'border-transparent bg-white'}`}>
               <div className="whitespace-nowrap text-[10px] uppercase text-slate-500"><span className="sm:hidden">As.</span><span className="hidden sm:inline">Asema</span> {a + 1}</div>
               <div className="text-lg font-bold leading-tight sm:text-xl">{ampuja ? ampuja.nro : '–'}</div>
               <div className="truncate text-[11px]">{ampuja ? nimi(ampuja.nro).split(' ')[0] : ''}</div>
               {ampuja && <div className="hidden font-mono text-xs sm:block">{[...merkit].map((m) => (m === 'X' ? 'X' : m === 'O' ? '0' : '·')).join('')}</div>}
+              {valahdys?.asema === a && (
+                <div className="absolute inset-0 flex gap-0.5 rounded-md bg-white p-0.5" aria-live="polite">
+                  {[...merkitOf(tila.kortit, valahdys.nro).slice(valahdys.alku, valahdys.loppu)].map((m, k) => (
+                    <div key={k} className={`flex flex-1 items-center justify-center rounded text-2xl font-bold text-white ${m === 'X' ? 'bg-green-600' : m === 'O' ? 'bg-red-600' : 'bg-slate-200'}`}>
+                      {m === 'X' ? 'X' : m === 'O' ? '0' : ''}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
