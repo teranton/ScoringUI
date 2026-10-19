@@ -88,7 +88,7 @@ function alusta() {
   lukuja = 0;
   tyhjennaKirjausMuisti();
   taulukko = {
-    KISANSPEKSIT: { id: 1, rivit: [['RATA2_NIMI', 'Kakkonen'], ['LAYOUT/PÄIVÄ', '2']] },
+    KISANSPEKSIT: { id: 1, rivit: [['RATA2_NIMI', 'Kakkonen'], ['RATA2_OHJELMA', 'SSSD | SDD | SSSD | SDD | SDD'], ['LAYOUT/PÄIVÄ', '2']] },
     'Aikataulu La': { id: 2, rivit: [
       ['AIKATAULU | 11.7.2026'],
       ['RATA1', '', '', 'RATA2'],
@@ -117,6 +117,7 @@ test('avaa: radan jono, nimi ja tyhjät kortit', async () => {
   assert.equal(res.headers['Cache-Control'], 'no-store');
   assert.equal(res.body.kisa, 'Testikisa');
   assert.equal(res.body.rataNimi, 'Kakkonen');
+  assert.equal(res.body.ohjelma, 'SSSD | SDD | SSSD | SDD | SDD');
   assert.deepEqual(res.body.jono.map((a) => a.nro), [3, 4, 1, 2]);
   assert.deepEqual(res.body.kortit, []);
 });

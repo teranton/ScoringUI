@@ -55,7 +55,7 @@ function puhdasNimi(nimi) {
   return String(nimi || '').replace(/\u200B/g, '').trim();
 }
 
-// Aikataulun rata-ruudukko: [{ radat: [1, 3], kierrokset: [[{ nro, nimi, aika }], ...] }] tai [] jos ei ruudukko.
+// Aikataulun rata-ruudukko: [{ radat: [1, 3], kierrokset: [[{ nro, nimi, aika, taukoEnnen? }], ...] }] tai [] jos ei ruudukko.
 export function jasennaRataruudukko(rivit) {
   if (!Array.isArray(rivit) || rivit.length < 2) return [];
   const kaistat = tunnistaRataSarakkeet(rivit);
@@ -73,18 +73,29 @@ export function jasennaRataruudukko(rivit) {
   return kaistat.map((kaista) => {
     const startIndex = alku(kaista);
     const kierrokset = [[]];
+    let tauko = false;
     data.forEach((rivi) => {
       const aika = String(rivi[startIndex] ?? '').trim();
       const nro = String(rivi[startIndex + 1] ?? '').trim();
       const nimi = puhdasNimi(rivi[startIndex + 2]);
-      if (taukoTyyppi(nimi, nro) === 'vaihto') {
+      const tyyppi = taukoTyyppi(nimi, nro);
+      if (tyyppi === 'vaihto') {
         kierrokset.push([]);
+        tauko = false;
+        return;
+      }
+      // TAUKO-rivi: linja tyhjennetään ennen seuraavaa ampujaa (mobiilikirjauksen inline-linja).
+      if (tyyppi === 'tauko') {
+        tauko = kierrokset[kierrokset.length - 1].length > 0;
         return;
       }
       if (!/^\d+$/.test(nro)) return;
       // Pelkkä numero nimen paikalla on varattu mutta tyhjä paikka.
       if (!nimi || /^\d+$/.test(nimi)) return;
-      kierrokset[kierrokset.length - 1].push({ nro: Number(nro), nimi, aika: isTimeLike(aika) ? aika : '' });
+      kierrokset[kierrokset.length - 1].push({
+        nro: Number(nro), nimi, aika: isTimeLike(aika) ? aika : '', ...(tauko ? { taukoEnnen: true } : {})
+      });
+      tauko = false;
     });
     return { radat: otsikonRadat(kaista.label), kierrokset };
   });

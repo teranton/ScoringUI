@@ -160,7 +160,14 @@ Reads (with the writer account):
   the first tab in the order above, n+1.. on the next). On that tab the lane is the one whose header names `RATA N`
   (in `RATA1 / RATA3` the part after the `RATOJEN VAIHTO` row), otherwise the tab's ((N - 1) mod n) + 1th lane.
   The layout's queue is its own starters, then the previous lane's starters, and so on.
-- `KISANSPEKSIT` keys `RATAn_NIMI` (layout name shown on the device) and `LAYOUT/PÄIVÄ`.
+  A `TAUKO` row in the lane (empty number) marks a break before the next shooter: the device empties the line first.
+- `KISANSPEKSIT` keys `RATAn_NIMI` (layout name shown on the device), `LAYOUT/PÄIVÄ` and the optional
+  `RATAn_OHJELMA`: the layout's menu, one entry per stand 1..5 such as `SSSD | SDD | SSSD | SDD | SDD`
+  (`S` single, `D` double, 5 targets per stand; one entry applies to every stand). Without it the menu is set on the device.
+
+The device runs the Compak inline line: shooters enter stand 1 in queue order, the shooters on the line shoot one
+single or double each in stand order 1 → 5 until each has shot the 5 targets of their stand, then everyone moves one
+stand on. The card format does not depend on this; marks are still written per target.
 
 Writes (created on the first save if missing):
 - `MOBIILI Rata N` (N = result column `1`..`N` of `OSALLISTUJAT+TULOKSET`): header row

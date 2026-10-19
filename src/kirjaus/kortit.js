@@ -13,18 +13,6 @@ export const onValmis = (merkit) => taytetyt(merkit) === KOHTEITA;
 // Versio kasvaa aina, vaikka kello olisi jäljessä: millisekunnit, vähintään edellinen + 1.
 export const uusiVersio = (edellinen, nyt = Date.now()) => Math.max(nyt, (edellinen || 0) + 1);
 
-// Compakissa ryhmän ampujat ampuvat vuorotellen aseman (5 kiekkoa) kerrallaan. Seuraava kohde:
-// kesken aseman oleva ampuja, muuten se, jolla on vähiten ammuttu (tasatilanteessa ryhmän järjestys).
-export function seuraavaKohta(ryhma, kortit) {
-  const tilat = ryhma.map(({ nro }) => ({ nro, merkit: merkitOf(kortit, nro) }))
-    .map((a) => ({ ...a, n: taytetyt(a.merkit) }))
-    .filter((a) => a.n < KOHTEITA);
-  if (tilat.length === 0) return null;
-  const kesken = tilat.find((a) => a.n % ASEMAN_KOHTEET !== 0);
-  const valittu = kesken || tilat.reduce((pienin, a) => (a.n < pienin.n ? a : pienin));
-  return { nro: valittu.nro, i: valittu.merkit.indexOf('-') };
-}
-
 // Asettaa merkin; palauttaa { kortit, historia } uusina olioina.
 export function merkitse({ kortit, historia }, { nro, i }, merkki, nyt = Date.now()) {
   const vanha = kortit[nro];
@@ -80,12 +68,6 @@ export function kuittaa(kortit, lahetetyt, { tallennetut = [], uudemmat = [] }) 
     if (oma && oma.versio === versiot.get(nro)) tulos = { ...tulos, [nro]: { ...oma, lahetetty: true } };
   }
   return yhdistaPalvelimelta(tulos, uudemmat);
-}
-
-export function jaaRyhmiin(jono, koko) {
-  const ryhmat = [];
-  for (let i = 0; i < jono.length; i += koko) ryhmat.push(jono.slice(i, i + koko));
-  return ryhmat;
 }
 
 // Ratakoodin sisältö ilman tarkistusta (tarkistus tehdään palvelimella): { sheetId, sarake, voimassaAsti } tai null.

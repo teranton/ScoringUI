@@ -47,6 +47,9 @@ test('rata-ruudukko: otsikko nimen yllä, tyhjät paikat ja tauot ohitetaan, tuo
   assert.deepEqual(kaistat.map((k) => k.radat), [[1], [2]]);
   assert.deepEqual(kaistat[0].kierrokset[0].map((a) => a.nimi), ['Saastamoinen Juho', 'Luukkonen Juha', 'Koivunen Raimo', 'Tölli Jukka']);
   assert.deepEqual(kaistat[1].kierrokset[0].map((a) => a.nro), [36, 39]);
+  // TAUKO-rivi merkitään seuraavalle ampujalle (linja tyhjennetään ennen häntä).
+  assert.deepEqual(kaistat[1].kierrokset[0].map((a) => Boolean(a.taukoEnnen)), [false, true]);
+  assert.ok(kaistat[0].kierrokset[0].every((a) => !a.taukoEnnen));
   assert.equal(kaistat[0].kierrokset[0][0].aika, '9.00');
 });
 
