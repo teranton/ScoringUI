@@ -90,7 +90,9 @@ const batchUpdate = (request, sheetId, requests) => request({
 const riviSoluiksi = (rivi) => ({ values: rivi.map(solu) });
 
 async function avaa(request, { sheetId, sarake, voimassaAsti }, laite, res) {
-  const meta = await metatiedot(request, sheetId);
+  // Aina tuoreet välilehdet: toisen palvelinilmentymän muisti ei tiedä toisen laitteen luomasta tai
+  // poistetusta MOBIILI-välilehdestä, ja vaihtolaite saisi tyhjät kortit (tai luku kaatuisi).
+  const meta = await metatiedot(request, sheetId, { tuore: true });
   const nimet = meta.valilehdet.map((v) => v.nimi);
   const kohteet = kohdistaValilehdet([...AIKATAULU_VALILEHDET, 'KISANSPEKSIT'], nimet).loydetyt;
   const mobiili = etsiValilehti(meta, mobiiliValilehti(sarake));

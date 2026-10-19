@@ -152,6 +152,8 @@ function RataNakyma({ koodi, onVaihda }) {
     try {
       const res = await fetch('/api/kirjaus?toiminto=tallenna', {
         method: 'POST',
+        // keepalive: lähetys ehtii perille, vaikka sivu suljettaisiin tai laite lukittaisiin heti merkinnän jälkeen.
+        keepalive: true,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${koodi}` },
         body: JSON.stringify({ laite, kortit: lahetetyt.map((k) => ({ ...k, nimi: nimiRef.current(k.nro) })) })
       });
@@ -173,7 +175,8 @@ function RataNakyma({ koodi, onVaihda }) {
   const lahettamatta = odottavat.length;
   const asemaValmis = odottavat.some((k) => taytetyt(k.merkit) % ASEMAN_KOHTEET === 0);
 
-  // Lähetys pian muutoksen jälkeen, varmuuden vuoksi määrävälein ja kun yhteys palaa.
+  // Lähetys pian muutoksen jälkeen, varmuuden vuoksi määrävälein, kun yhteys palaa ja kun sivu jää taustalle
+  // (laitteen vaihto: viimeisetkin merkinnät taulukkoon ennen kuin toinen laite avaa radan).
   useEffect(() => {
     if (lahettamatta === 0) return undefined;
     const ajastin = setTimeout(laheta, asemaValmis ? LAHETYS_VIIVE_MS : KESKEN_VIIVE_MS);
@@ -182,10 +185,15 @@ function RataNakyma({ koodi, onVaihda }) {
 
   useEffect(() => {
     const vali = setInterval(laheta, SYNKRONOINTI_VALI_MS);
+    const piilossa = () => {
+      if (document.visibilityState === 'hidden') laheta();
+    };
     window.addEventListener('online', laheta);
+    document.addEventListener('visibilitychange', piilossa);
     return () => {
       clearInterval(vali);
       window.removeEventListener('online', laheta);
+      document.removeEventListener('visibilitychange', piilossa);
     };
   }, [laheta]);
 

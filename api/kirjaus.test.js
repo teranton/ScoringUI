@@ -211,6 +211,22 @@ test('tallenna: välilehti poistettiin taulukosta, luodaan uudelleen', async () 
   assert.equal(taulukko['MOBIILI Rata 2'].rivit[2][0], 2);
 });
 
+test('avaa: toisen laitteen tallentamat kortit, vaikka välilehteä ei ollut muistissa', async () => {
+  alusta();
+  await kutsu({ laite: 'laite-2' });
+  // Toinen palvelinilmentymä loi välilehden ja tallensi kortin; tämän muisti ei tiedä siitä.
+  taulukko['MOBIILI Rata 2'] = { id: 77, rivit: [['NRO'], [3, 'Cederberg C', 4, '19.10.2026 klo 20.30.00', 'laite-1', VERSIO, 'X', 'X', 'X', 'X', 'O']] };
+  const res = await kutsu({ laite: 'laite-2' });
+  assert.deepEqual(res.body.kortit, [{ nro: 3, merkit: MERKIT, versio: VERSIO }]);
+  assert.equal(res.body.muuLaite.laite, 'laite-1');
+
+  // Välilehti poistettiin: avaus ei kaadu.
+  delete taulukko['MOBIILI Rata 2'];
+  const poistettu = await kutsu({ laite: 'laite-2' });
+  assert.equal(poistettu.statusCode, 200);
+  assert.deepEqual(poistettu.body.kortit, []);
+});
+
 test('tallenna torjuu virheellisen rungon', async () => {
   alusta();
   const res = await kutsu({ method: 'POST', toiminto: 'tallenna', body: { laite: 'laite-1', kortit: [{ nro: 3, merkit: 'XX', versio: 1 }] } });
