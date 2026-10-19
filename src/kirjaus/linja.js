@@ -1,85 +1,95 @@
 // Compak inline -linja: ampujat tulevat radalle aikataulun järjestyksessä ja etenevät asemat 1–5.
 // Kierros: linjalla olevat ampujat ampuvat vuorotellen yhden sarjan (yksittäinen = 1 kiekko, tupla = 2)
-// aseman ohjelman mukaan, asemajärjestyksessä 1 → 5, kunnes kaikki ovat ampuneet asemansa 5 kiekkoa.
+// radan ohjelman mukaan, asemajärjestyksessä 1 → 5, kunnes kaikki ovat ampuneet asemansa 5 kiekkoa.
 // Sitten kaikki siirtyvät asemaa eteenpäin, asemalta 5 poistutaan ja jonon seuraava tulee asemalle 1.
 // Tauko (laitteelta tai aikataulun TAUKO-rivi): seuraava ei tule linjaan ennen kuin linja on tyhjä.
-// Koko päivän vuorot lasketaan jonosta ja ohjelmasta, joten seuraava vuoro selviää pelkistä merkinnöistä
-// (myös uudelleenlatauksen, perumisen ja toisen laitteen merkintöjen jälkeen).
+// Koko päivän vuorot lasketaan jonosta, ohjelmasta ja laitteen muutoksista (lisätyt, ohitetut, tauot,
+// keskeyttäneet), joten seuraava vuoro selviää merkinnöistä myös uudelleenlatauksen ja perumisen jälkeen.
+// Laitteen muutokset ovat vain tällä laitteella; laitteen vaihto on oma vaiheensa (design-dokumentin vaihe 4).
 import { ASEMAN_KOHTEET, KOHTEITA, merkitOf } from './kortit.js';
 
 export const ASEMIA = KOHTEITA / ASEMAN_KOHTEET;
 const SARJAT = { S: 1, Y: 1, D: 2, T: 2 };
 
-// Valmiit asemaohjelmat (yksittäiset ensin): 5 yksittäistä, 3 + tupla, 1 + 2 tuplaa.
-export const ASEMAVAIHTOEHDOT = [[1, 1, 1, 1, 1], [1, 1, 1, 2], [1, 2, 2]];
+// Radan ohjelma on sama kaikilla asemilla, yksittäiset aina ennen tuplia: 3 + tupla, 1 + 2 tuplaa tai 5 yksittäistä.
+export const OHJELMAT = [[1, 1, 1, 2], [1, 2, 2], [1, 1, 1, 1, 1]];
 
-const asemaKelpaa = (sarjat) => sarjat.length > 0 && sarjat.reduce((s, n) => s + n, 0) === ASEMAN_KOHTEET;
+export const ohjelmaTekstiksi = (sarjat) => sarjat.map((n) => (n === 2 ? 'D' : 'S')).join('');
 
-// "SSD | SDD | SSSD | SDD | SSSSS" (S/Y yksittäinen, D/T tupla; erottimena | , ; / tai välilyönti asemien välissä).
-// Yksi asema käy kaikille asemille. Palauttaa [[1, 1, ...], ...] (ASEMIA asemaa) tai null.
+// "SSSD", "S S S D", "SDD", "YTT" (S/Y yksittäinen, D/T tupla) → [1, 1, 1, 2] tai null.
 export function jasennaOhjelma(teksti) {
-  const puhdas = String(teksti || '').toUpperCase().trim();
-  if (!puhdas) return null;
-  let osat = puhdas.split(/[|,;/]+/).map((o) => o.trim()).filter(Boolean);
-  if (osat.length === 1 && osat[0].split(/\s+/).length === ASEMIA) osat = osat[0].split(/\s+/);
-  const asemat = osat.map((osa) => [...osa.replace(/[\s+]/g, '')].map((m) => SARJAT[m] || 0));
-  if (!asemat.every((a) => a.every((n) => n > 0) && asemaKelpaa(a))) return null;
-  if (asemat.length === 1) return Array.from({ length: ASEMIA }, () => [...asemat[0]]);
-  return asemat.length === ASEMIA ? asemat : null;
+  const sarjat = [...String(teksti || '').toUpperCase().replace(/[\s+]/g, '')].map((m) => SARJAT[m] || 0);
+  const tunnettu = OHJELMAT.find((o) => o.length === sarjat.length && o.every((n, i) => n === sarjat[i]));
+  return tunnettu || null;
 }
 
-export const asemaTekstiksi = (sarjat) => sarjat.map((n) => (n === 2 ? 'D' : 'S')).join('');
-export const ohjelmaTekstiksi = (ohjelma) => ohjelma.map(asemaTekstiksi).join(' | ');
-
-// Radan jono lisäysten ja ohitusten jälkeen. lisatyt: [{ nro, nimi, jalkeen }] lisätään jalkeen-numeron perään
-// (samaan kohtaan lisätyt lisäysjärjestyksessä); jalkeen null = alkuun, puuttuva = loppuun.
+// Radan jono lisäysten ja ohitusten jälkeen.
+// lisatyt: [{ nro, nimi, jalkeen, kierroksesta }] lisätään jalkeen-numeron perään (samaan kohtaan lisätyt
+// lisäysjärjestyksessä; jalkeen null = alkuun, puuttuva tai jonosta puuttuva = loppuun). kierroksesta: lisätty
+// tulee linjaan aikaisintaan sillä kierroksella, ettei jo ammuttu kierros muutu.
+// Jonosta poistetun (ohitettu tai siirretty) aikataulun tauko siirtyy seuraavalle.
 export function radanLinjajono(jono, { lisatyt = [], ohitetut = [] } = {}) {
   const lisatytNrot = new Set(lisatyt.map((l) => l.nro));
   const ohi = new Set(ohitetut);
-  const tulos = jono.filter((a) => !lisatytNrot.has(a.nro));
-  const samaanKohtaan = new Map();
-  lisatyt.forEach((l) => {
-    // Jonosta siirretty (esim. ohitettu, joka saapui myöhemmin) pitää nimensä.
-    const jonossa = jono.find((a) => a.nro === l.nro);
-    const ampuja = { nro: l.nro, nimi: jonossa?.nimi || l.nimi || '', aika: '' };
-    const ankkuri = l.jalkeen === null ? 0 : tulos.findIndex((a) => a.nro === l.jalkeen) + 1;
-    if (l.jalkeen === undefined || ankkuri === 0 && l.jalkeen !== null) {
-      tulos.push(ampuja);
+  const tulos = [];
+  let tauko = false;
+  jono.forEach((a) => {
+    if (lisatytNrot.has(a.nro) || ohi.has(a.nro)) {
+      tauko = tauko || Boolean(a.taukoEnnen);
       return;
     }
-    const aiemmat = samaanKohtaan.get(l.jalkeen) || new Set();
-    let paikka = ankkuri;
-    while (paikka < tulos.length && aiemmat.has(tulos[paikka].nro)) paikka++;
-    tulos.splice(paikka, 0, ampuja);
-    samaanKohtaan.set(l.jalkeen, aiemmat.add(l.nro));
+    tulos.push(tauko ? { ...a, taukoEnnen: true } : a);
+    tauko = false;
   });
-  return tulos.filter((a) => !ohi.has(a.nro));
+
+  const samaanKohtaan = new Map();
+  let odottavat = lisatyt.filter((l) => !ohi.has(l.nro));
+  // Ankkuri voi olla myöhemmin lisätty: kierretään, kunnes mikään ei enää löydä paikkaansa.
+  for (let edistyi = true; edistyi && odottavat.length > 0;) {
+    edistyi = false;
+    odottavat = odottavat.filter((l) => {
+      const ankkuri = l.jalkeen === null ? 0 : tulos.findIndex((a) => a.nro === l.jalkeen) + 1;
+      if (l.jalkeen === undefined || (l.jalkeen !== null && ankkuri === 0)) return true;
+      const aiemmat = samaanKohtaan.get(l.jalkeen) || new Set();
+      let paikka = ankkuri;
+      while (paikka < tulos.length && aiemmat.has(tulos[paikka].nro)) paikka++;
+      tulos.splice(paikka, 0, lisattava(jono, l));
+      samaanKohtaan.set(l.jalkeen, aiemmat.add(l.nro));
+      edistyi = true;
+      return false;
+    });
+  }
+  odottavat.forEach((l) => tulos.push(lisattava(jono, l)));
+  return tulos;
+}
+
+// Jonosta siirretty (esim. ohitettu, joka saapui myöhemmin) pitää nimensä.
+function lisattava(jono, l) {
+  const jonossa = jono.find((a) => a.nro === l.nro);
+  return { nro: l.nro, nimi: jonossa?.nimi || l.nimi || '', aika: '', aikaisintaan: l.kierroksesta || 0 };
 }
 
 // Koko päivän vuorot: [{ nro, asema (0..4), kierros, alku, loppu }] (kohteet alku..loppu-1 kortilla).
-// tauot: numerot, joiden edellä linja tyhjennetään (lisäksi jonon taukoEnnen-merkinnät).
-export function laskeVuorot(jono, ohjelma, tauot = []) {
-  const tauko = new Set(tauot);
+// ohjelma: aseman sarjat, esim. [1, 1, 1, 2]. Jonon taukoEnnen tyhjentää linjan ennen ampujaa.
+export function laskeVuorot(jono, ohjelma) {
   const vuorot = [];
   let linja = [];
   let seuraava = 0;
   let kierros = 0;
   while (seuraava < jono.length || linja.length > 0) {
     const tulija = jono[seuraava];
-    if (tulija && !(linja.length > 0 && (tauko.has(tulija.nro) || tulija.taukoEnnen))) {
+    if (tulija && (linja.length === 0 || (!tulija.taukoEnnen && (tulija.aikaisintaan || 0) <= kierros))) {
       linja.push({ nro: tulija.nro, asema: 0 });
       seuraava++;
     }
     const jarjestys = [...linja].sort((a, b) => a.asema - b.asema);
-    const pisin = Math.max(...jarjestys.map((a) => ohjelma[a.asema].length));
-    for (let sarja = 0; sarja < pisin; sarja++) {
+    ohjelma.forEach((kiekkoja, sarja) => {
+      const alku = ohjelma.slice(0, sarja).reduce((s, n) => s + n, 0);
       jarjestys.forEach(({ nro, asema }) => {
-        const sarjat = ohjelma[asema];
-        if (sarja >= sarjat.length) return;
-        const alku = asema * ASEMAN_KOHTEET + sarjat.slice(0, sarja).reduce((s, n) => s + n, 0);
-        vuorot.push({ nro, asema, kierros, alku, loppu: alku + sarjat[sarja] });
+        const kohde = asema * ASEMAN_KOHTEET + alku;
+        vuorot.push({ nro, asema, kierros, alku: kohde, loppu: kohde + kiekkoja });
       });
-    }
+    });
     kierros++;
     linja = linja.map((a) => ({ ...a, asema: a.asema + 1 })).filter((a) => a.asema < ASEMIA);
   }
@@ -92,10 +102,11 @@ const vuoroValmis = (vuoro, kortit) => {
   return true;
 };
 
-// Tilanne merkinnöistä: ensimmäinen vuoro, jonka kiekot eivät ole kaikki merkitty.
+// Tilanne merkinnöistä: ensimmäinen vuoro, jonka kiekot eivät ole kaikki merkitty (keskeyttäneiden vuorot ohitetaan).
 // Palauttaa { vuoro, kohta: { nro, i }, linja: [{ nro, asema }] } tai null (kaikki ammuttu).
-export function linjanTilanne(vuorot, kortit) {
-  const indeksi = vuorot.findIndex((v) => !vuoroValmis(v, kortit));
+export function linjanTilanne(vuorot, kortit, keskeyttaneet = []) {
+  const pois = new Set(keskeyttaneet);
+  const indeksi = vuorot.findIndex((v) => !pois.has(v.nro) && !vuoroValmis(v, kortit));
   if (indeksi === -1) return null;
   const vuoro = vuorot[indeksi];
   const merkit = merkitOf(kortit, vuoro.nro);

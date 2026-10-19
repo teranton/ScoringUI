@@ -7,8 +7,7 @@ import {
   osumat, peru, taytetyt, yhdistaPalvelimelta
 } from './kortit.js';
 import {
-  ASEMAVAIHTOEHDOT, ASEMIA, asemaTekstiksi, jasennaOhjelma, laskeVuorot, linjanTilanne, ohjelmaTekstiksi,
-  radanLinjajono, tulevatAmpujat
+  ASEMIA, OHJELMAT, jasennaOhjelma, laskeVuorot, linjanTilanne, ohjelmaTekstiksi, radanLinjajono, tulevatAmpujat
 } from './linja.js';
 import { laitteenTunnus, lueKoodi, lueRata, tallennaKoodi, tallennaRata } from './varasto.js';
 import { useHereilla } from './useHereilla.js';
@@ -131,20 +130,19 @@ function RataNakyma({ koodi, onVaihda }) {
     }));
   }, [avaus, tila.lisatyt, tila.ohitetut, tila.tauot, tila.tauotPois]);
   const nimi = useCallback((nro) => jono.find((a) => a.nro === nro)?.nimi || avaus?.nimet?.[nro] || '', [jono, avaus]);
+  const nimiRef = useRef(nimi);
+  useEffect(() => { nimiRef.current = nimi; }, [nimi]);
 
   const laheta = useCallback(async () => {
     if (lahettaaRef.current) return;
-    const { kortit, avaus: avattu, lisatyt } = tilaRef.current;
-    const lahetetyt = lahettamattomat(kortit);
+    const lahetetyt = lahettamattomat(tilaRef.current.kortit);
     if (lahetetyt.length === 0) return;
-    const nimiNrolle = (nro) => avattu?.jono?.find((a) => a.nro === nro)?.nimi || avattu?.nimet?.[nro]
-      || lisatyt.find((l) => l.nro === nro)?.nimi || '';
     lahettaaRef.current = true;
     try {
       const res = await fetch('/api/kirjaus?toiminto=tallenna', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${koodi}` },
-        body: JSON.stringify({ laite, kortit: lahetetyt.map((k) => ({ ...k, nimi: nimiNrolle(k.nro) })) })
+        body: JSON.stringify({ laite, kortit: lahetetyt.map((k) => ({ ...k, nimi: nimiRef.current(k.nro) })) })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
@@ -190,16 +188,20 @@ function RataNakyma({ koodi, onVaihda }) {
   }, [lahettamatta]);
 
   // Ohjelma: laitteella asetettu, muuten kisan asetuksista (KISANSPEKSIT RATAn_OHJELMA).
-  const ohjelma = useMemo(() => jasennaOhjelma(tila.ohjelma) || jasennaOhjelma(avaus?.ohjelma), [tila.ohjelma, avaus]);
+  // jasennaOhjelma palauttaa OHJELMAT-taulukon jäsenen, joten viite pysyy samana renderöinnistä toiseen.
+  const kisanOhjelma = jasennaOhjelma(avaus?.ohjelma);
+  const ohjelma = jasennaOhjelma(tila.ohjelma) || kisanOhjelma;
+  const ohjelmaTeksti = ohjelma ? ohjelmaTekstiksi(ohjelma) : '';
   const vuorot = useMemo(() => (ohjelma ? laskeVuorot(jono, ohjelma) : []), [jono, ohjelma]);
-  const tilanne = useMemo(() => linjanTilanne(vuorot, tila.kortit), [vuorot, tila.kortit]);
+  const tilanne = useMemo(() => linjanTilanne(vuorot, tila.kortit, tila.keskeyttaneet), [vuorot, tila.kortit, tila.keskeyttaneet]);
   // Seuraavaksi: kierroksen uusi tulija asemalla 1, jos hän ei ole vielä ampunut (voi ohittaa tai pitää tauon), ja jono.
   const tulevat = useMemo(() => {
     if (!tilanne) return [];
     const tulija = tilanne.linja.find((l) => l.asema === 0);
-    const alussa = tulija && taytetyt(merkitOf(tila.kortit, tulija.nro)) === 0 ? jono.filter((a) => a.nro === tulija.nro) : [];
+    const odottaa = tulija && taytetyt(merkitOf(tila.kortit, tulija.nro)) === 0 && !tila.keskeyttaneet.includes(tulija.nro);
+    const alussa = odottaa ? jono.filter((a) => a.nro === tulija.nro) : [];
     return [...alussa, ...tulevatAmpujat(jono, vuorot, tilanne.vuoro.kierros)];
-  }, [jono, vuorot, tilanne, tila.kortit]);
+  }, [jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
   const kohta = valinta || tilanne?.kohta || null;
   const vuorossa = tilanne && !valinta ? tilanne.vuoro : null;
 
@@ -229,25 +231,42 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const ohita = (nro) => setTila((t) => ({ ...t, ohitetut: [...t.ohitetut.filter((n) => n !== nro), nro] }));
 
+  // Linjalla oleva lopettaa kesken: hänen loput vuoronsa ohitetaan, muiden paikat linjalla eivät muutu.
+  const vaihdaKeskeytys = (nro) => {
+    const keskeytetty = tila.keskeyttaneet.includes(nro);
+    if (!keskeytetty && !window.confirm(`Keskeyttääkö ${nro} ${nimi(nro)}? Hänen loput vuoronsa ohitetaan.`)) return;
+    setTila((t) => ({
+      ...t,
+      keskeyttaneet: keskeytetty ? t.keskeyttaneet.filter((n) => n !== nro) : [...t.keskeyttaneet, nro]
+    }));
+    setValinta(null);
+  };
+
   // Numerolla: jonossa oleva näytetään (korjausta varten), muu lisätään linjaan seuraavaksi.
   const haeNumero = (nro) => {
     if (!Number.isInteger(nro) || nro < 1 || nro > 999) return;
     if (jono.some((a) => a.nro === nro)) {
       setNaytetty(nro);
     } else {
-      // Linjan uusin (asemalla pienin) on viimeksi tullut; lisätty tulee hänen jälkeensä.
-      const jalkeen = tilanne?.linja[0]?.nro;
+      // Lisätty tulee viimeksi linjaan tulleen perään, aikaisintaan seuraavalla kierroksella (ammuttu ei muutu).
+      const tulleet = new Set(tilanne ? vuorot.filter((v) => v.kierros <= tilanne.vuoro.kierros).map((v) => v.nro) : []);
+      const viimeisin = [...jono].reverse().find((a) => tulleet.has(a.nro));
+      const lisatty = tilanne
+        ? { nro, nimi: avaus?.nimet?.[nro] || '', jalkeen: viimeisin ? viimeisin.nro : null, kierroksesta: tilanne.vuoro.kierros + 1 }
+        : { nro, nimi: avaus?.nimet?.[nro] || '' };
       setTila((t) => ({
         ...t,
         ohitetut: t.ohitetut.filter((n) => n !== nro),
-        lisatyt: [...t.lisatyt.filter((l) => l.nro !== nro), { nro, nimi: avaus?.nimet?.[nro] || '', jalkeen }]
+        lisatyt: [...t.lisatyt.filter((l) => l.nro !== nro), lisatty]
       }));
     }
     setValikko(false);
   };
 
+  // Kisan asetuksen mukainen ohjelma ei jää laitteelle, joten taulukon korjaus tulee voimaan.
   const asetaOhjelma = (teksti) => {
-    setTila((t) => ({ ...t, ohjelma: teksti }));
+    const kisan = kisanOhjelma && ohjelmaTekstiksi(kisanOhjelma) === teksti;
+    setTila((t) => ({ ...t, ohjelma: teksti && !kisan ? teksti : null }));
     setMuokkaaOhjelmaa(false);
     setValinta(null);
   };
@@ -280,7 +299,7 @@ function RataNakyma({ koodi, onVaihda }) {
     <header className="flex items-center gap-2 bg-[#1e3a5f] px-3 py-2 text-white">
       <div className="min-w-0 flex-1">
         <div className="truncate text-lg font-bold">Rata {avaus.sarake}{avaus.rataNimi ? ` · ${avaus.rataNimi}` : ''}</div>
-        <div className="truncate text-xs opacity-80">{avaus.kisa}</div>
+        <div className="truncate text-xs opacity-80">{avaus.kisa}{ohjelmaTeksti ? ` · ohjelma ${ohjelmaTeksti}` : ''}</div>
       </div>
       <SynkMerkki lahettamatta={lahettamatta} virhe={synk.virhe} />
       <button type="button" aria-label="Valikko" className="rounded px-3 py-2 text-xl" onClick={() => setValikko((v) => !v)}>☰</button>
@@ -289,7 +308,7 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const valikkoNakyma = valikko && (
     <Valikko
-      ohjelma={ohjelma}
+      ohjelma={ohjelmaTeksti}
       onMuokkaaOhjelmaa={() => { setMuokkaaOhjelmaa(true); setValikko(false); }}
       onHaeNumero={haeNumero}
       onVaihdaRata={vaihdaRata}
@@ -305,8 +324,9 @@ function RataNakyma({ koodi, onVaihda }) {
         {otsikko}
         {valikkoNakyma}
         <OhjelmaEditori
-          alku={ohjelma}
-          kisanOhjelma={avaus.ohjelma}
+          alku={ohjelmaTeksti}
+          kisanArvo={avaus.ohjelma}
+          kisanOhjelma={kisanOhjelma ? ohjelmaTekstiksi(kisanOhjelma) : ''}
           sarake={avaus.sarake}
           onTallenna={asetaOhjelma}
           onPeru={ohjelma ? () => setMuokkaaOhjelmaa(false) : null}
@@ -323,6 +343,8 @@ function RataNakyma({ koodi, onVaihda }) {
       lahetetty={tila.kortit[nro]?.lahetetty !== false}
       kohta={kohta?.nro === nro ? kohta.i : null}
       korostus={korostus}
+      keskeyttanyt={tila.keskeyttaneet.includes(nro)}
+      onKeskeyta={() => vaihdaKeskeytys(nro)}
       onValitse={(i) => setValinta({ nro, i })}
     />
   );
@@ -345,7 +367,6 @@ function RataNakyma({ koodi, onVaihda }) {
               <div className="text-[10px] uppercase text-slate-500">Asema {a + 1}</div>
               <div className="text-xl font-bold leading-tight">{ampuja ? ampuja.nro : '–'}</div>
               <div className="truncate text-[11px]">{ampuja ? nimi(ampuja.nro).split(' ')[0] : ''}</div>
-              <div className="text-[10px] tracking-tighter text-slate-500">{asemaTekstiksi(ohjelma[a])}</div>
               {ampuja && <div className="font-mono text-xs">{[...merkit].map((m) => (m === 'X' ? 'X' : m === 'O' ? '0' : '·')).join('')}</div>}
             </div>
           );
@@ -418,7 +439,10 @@ function RataNakyma({ koodi, onVaihda }) {
 
 // Laitteelle tallennettu tila; vanhan version lisätyt (pelkät numerot) menevät jonon loppuun.
 function alkutila(tallessa) {
-  const t = { kortit: {}, historia: [], lisatyt: [], ohitetut: [], tauot: [], tauotPois: [], ohjelma: null, avaus: null, ...tallessa };
+  const t = {
+    kortit: {}, historia: [], lisatyt: [], ohitetut: [], tauot: [], tauotPois: [], keskeyttaneet: [], ohjelma: null, avaus: null,
+    ...tallessa
+  };
   return { ...t, lisatyt: t.lisatyt.map((l) => (typeof l === 'number' ? { nro: l } : l)) };
 }
 
@@ -431,7 +455,7 @@ function SynkMerkki({ lahettamatta, virhe }) {
   );
 }
 
-function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, onValitse }) {
+function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, keskeyttanyt, onKeskeyta, onValitse }) {
   const aktiivinen = kohta !== null;
   const asemat = Array.from({ length: KOHTEITA / ASEMAN_KOHTEET }, (_, a) => a);
   const reuna = korostus === 'korjaus' ? 'border-amber-600' : aktiivinen ? 'border-blue-700' : 'border-transparent';
@@ -442,6 +466,9 @@ function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, onValitse }) {
           <span className="mr-2 inline-block min-w-8 rounded bg-slate-200 px-1 text-center">{ampuja.nro}</span>
           {ampuja.nimi || '(ei nimeä)'}
         </span>
+        <button type="button" className={`shrink-0 rounded px-2 py-0.5 text-xs ${keskeyttanyt ? 'bg-slate-700 text-white' : 'border border-slate-300 text-slate-600'}`} onClick={onKeskeyta}>
+          {keskeyttanyt ? 'Keskeytti · peru' : 'Keskeytti'}
+        </button>
         <span className="shrink-0 text-xl font-bold">
           {osumat(merkit)}
           <span className="text-sm font-normal text-slate-500"> / {taytetyt(merkit)}{lahetetty ? '' : ' •'}</span>
@@ -473,35 +500,32 @@ function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, onValitse }) {
   );
 }
 
-const ASEMAN_NIMET = { SSSSS: '5 yksittäistä', SSSD: '3 yksittäistä + tupla', SDD: 'yksittäinen + 2 tuplaa' };
+const OHJELMAN_NIMET = { SSSD: '3 yksittäistä + tupla', SDD: 'yksittäinen + 2 tuplaa', SSSSS: '5 yksittäistä' };
 
-function OhjelmaEditori({ alku, kisanOhjelma, sarake, onTallenna, onPeru }) {
-  const [asemat, setAsemat] = useState(() => (alku || Array.from({ length: ASEMIA }, () => ASEMAVAIHTOEHDOT[1])).map(asemaTekstiksi));
+function OhjelmaEditori({ alku, kisanArvo, kisanOhjelma, sarake, onTallenna, onPeru }) {
+  const [valittu, setValittu] = useState(alku || ohjelmaTekstiksi(OHJELMAT[0]));
+  const selitys = kisanArvo && !kisanOhjelma
+    ? `Kisan asetuksen RATA${sarake}_OHJELMA arvoa "${kisanArvo}" ei voitu lukea (käy SSSD, SDD tai SSSSS).`
+    : kisanOhjelma
+      ? `Kisan asetuksissa ohjelma on ${kisanOhjelma}. Muu valinta koskee vain tätä laitetta.`
+      : `Kisan asetuksissa (KISANSPEKSIT, RATA${sarake}_OHJELMA) ei ole ohjelmaa. Valitse radan ohjelma menukortin mukaan.`;
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-3 p-4">
       <h2 className="text-lg font-bold">Radan ammuntaohjelma</h2>
-      <p className="text-sm text-slate-700">
-        {kisanOhjelma && !jasennaOhjelma(kisanOhjelma)
-          ? `Kisan asetuksen RATA${sarake}_OHJELMA arvoa "${kisanOhjelma}" ei voitu lukea. Valitse ohjelma asemittain.`
-          : alku
-            ? 'Muutos koskee vain tätä laitetta.'
-            : `Kisan asetuksissa (KISANSPEKSIT, RATA${sarake}_OHJELMA) ei ole ohjelmaa. Valitse jokaisen aseman sarjat menukortin mukaan.`}
-      </p>
-      {asemat.map((teksti, a) => (
-        <label key={a} className="flex items-center justify-between gap-2">
-          <span className="font-semibold">Asema {a + 1}</span>
-          <select
-            className="rounded border border-slate-400 bg-white p-2"
-            value={teksti}
-            onChange={(e) => setAsemat((v) => v.map((x, k) => (k === a ? e.target.value : x)))}
-          >
-            {ASEMAVAIHTOEHDOT.map(asemaTekstiksi).map((t) => <option key={t} value={t}>{t} · {ASEMAN_NIMET[t]}</option>)}
-          </select>
+      <p className="text-sm text-slate-700">{selitys} Ohjelma on sama kaikilla asemilla.</p>
+      {OHJELMAT.map(ohjelmaTekstiksi).map((t) => (
+        <label key={t} className={`flex items-center gap-3 rounded-lg border-2 bg-white p-3 ${valittu === t ? 'border-blue-700' : 'border-transparent'}`}>
+          <input type="radio" name="ohjelma" checked={valittu === t} onChange={() => setValittu(t)} />
+          <span className="font-mono text-lg font-bold">{t}</span>
+          <span className="text-sm text-slate-600">{OHJELMAN_NIMET[t]}</span>
         </label>
       ))}
-      <button type="button" className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white" onClick={() => onTallenna(asemat.join(' | '))}>
+      <button type="button" className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white" onClick={() => onTallenna(valittu)}>
         Käytä tätä ohjelmaa
       </button>
+      {kisanOhjelma && kisanOhjelma !== alku && (
+        <button type="button" className="rounded border border-slate-400 px-4 py-2" onClick={() => onTallenna(null)}>Käytä kisan asetusta ({kisanOhjelma})</button>
+      )}
       {onPeru && <button type="button" className="rounded border border-slate-400 px-4 py-2" onClick={onPeru}>Peruuta</button>}
     </section>
   );
@@ -530,7 +554,7 @@ function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, hereil
       </form>
       <p className="text-slate-600">Jonossa oleva ampuja avataan korjattavaksi; muu numero lisätään linjaan seuraavaksi.</p>
       <div className="flex items-center justify-between gap-2">
-        <span>Ohjelma: <b>{ohjelma ? ohjelmaTekstiksi(ohjelma) : '–'}</b></span>
+        <span>Ohjelma: <b>{ohjelma || '–'}</b></span>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onMuokkaaOhjelmaa}>Muuta</button>
       </div>
       <p className="text-slate-600">

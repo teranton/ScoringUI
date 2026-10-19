@@ -162,8 +162,8 @@ Reads (with the writer account):
   The layout's queue is its own starters, then the previous lane's starters, and so on.
   A `TAUKO` row in the lane (empty number) marks a break before the next shooter: the device empties the line first.
 - `KISANSPEKSIT` keys `RATAn_NIMI` (layout name shown on the device), `LAYOUT/PÄIVÄ` and the optional
-  `RATAn_OHJELMA`: the layout's menu, one entry per stand 1..5 such as `SSSD | SDD | SSSD | SDD | SDD`
-  (`S` single, `D` double, 5 targets per stand; one entry applies to every stand). Without it the menu is set on the device.
+  `RATAn_OHJELMA`: the layout's program, the same on every stand: `SSSD`, `SDD` or `SSSSS` (`S` single, `D` double,
+  singles first, 5 targets per stand). Without it the program is set on the device.
 
 The device runs the Compak inline line: shooters enter stand 1 in queue order, the shooters on the line shoot one
 single or double each in stand order 1 → 5 until each has shot the 5 targets of their stand, then everyone moves one

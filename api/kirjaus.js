@@ -114,7 +114,7 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, res) {
     kisa: meta.otsikko,
     sarake,
     rataNimi: speksiArvo(speksit, `RATA${sarake}_NIMI`),
-    // Asemien ammuntaohjelma, esim. "SSSD | SDD | SSSD | SDD | SDD" (laite jäsentää; puuttuessa asetetaan laitteella).
+    // Radan ammuntaohjelma, sama kaikilla asemilla: SSSD, SDD tai SSSSS (laite jäsentää; puuttuessa asetetaan laitteella).
     ohjelma: speksiArvo(speksit, `RATA${sarake}_OHJELMA`),
     aikataulu: tiedot.aikataulu,
     kaista: tiedot.kaista,
