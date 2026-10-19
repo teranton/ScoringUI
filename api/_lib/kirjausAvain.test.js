@@ -33,3 +33,10 @@ test('virheellinen sarake torjutaan', () => {
     assert.ok(tarkistaAvain(avain, SALAISUUS, 1000).virhe, String(sarake));
   }
 });
+
+// Sama kiinteä koodi on ScoringLibin testissä (tests/mobiilikirjaus.test.js): muoto pysyy samana molemmissa.
+test('kiinteä koodi vastaa ScoringLibin tekemää', () => {
+  const koodi = 'v1.eyJzIjoiMXJzX1p3Q2NsWVV4ckR1ZUJJYzY1TS00OVpBaDRYcHhTRkdPUE5xRVUzaVUiLCJjIjozLCJlIjoxODAwMDAwMDAwfQ.gzZrQLuOGGSenXbIBG1pDTvE0biEa-_nwsYFRWRKbwE';
+  assert.equal(luoAvain({ sheetId: ID, sarake: 3, voimassaAsti: 1800000000 }, SALAISUUS), koodi);
+  assert.deepEqual(tarkistaAvain(koodi, SALAISUUS, 1000), { sheetId: ID, sarake: 3, voimassaAsti: 1800000000 });
+});
