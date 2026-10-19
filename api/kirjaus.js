@@ -3,7 +3,9 @@
 // POST ?toiminto=tallenna kirjoittaa kortit kisan MOBIILI Rata N -välilehdelle ja lokin MOBIILI_LOKI-välilehdelle.
 // Pääsy ratakoodilla (Authorization: Bearer <koodi>, api/_lib/kirjausAvain.js). Kirjoittaa erillisellä
 // kirjuripalvelutilillä, joka on jaettu muokkaajaksi vain kisoihin, joissa mobiilikirjaus on käytössä.
-// Ei välimuistia: jokainen pyyntö menee Googleen.
+// Google-kiintiö on 60 lukua ja 60 kirjoitusta minuutissa per tili, joten tallennus tekee yhden luvun
+// (korttirivit) ja yhden kirjoituksen (kortit ja lokirivit samassa batchUpdate-kutsussa, eli joko molemmat tai ei kumpaakaan);
+// välilehtien tunnukset pidetään muistissa.
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -13,10 +15,12 @@ import { kohdistaValilehdet, valilehtiAlue } from './_lib/sheetsData.js';
 import { tarkistaAvain } from './_lib/kirjausAvain.js';
 import {
   AIKATAULU_VALILEHDET, KOHTEITA, KORTTI_OTSIKKO, LOKI_OTSIKKO, LOKI_VALILEHTI, MAKS_NRO, VIIMEINEN_SARAKE,
-  aikaleima, korttiRivi, lueKorttiRivi, mobiiliValilehti, radanJono, speksiArvo, tarkistaTallennus
+  aikaleima, korttiRivi, lueKorttiRivi, mobiiliValilehti, radanJono, solu, speksiArvo, tarkistaTallennus
 } from './_lib/kirjausData.js';
 
 const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
+const META_TTL_MS = 5 * 60 * 1000;
+const metaMuisti = new Map();
 
 function laheta(res, status, body) {
   res.setHeader('Content-Type', 'application/json');
@@ -25,15 +29,17 @@ function laheta(res, status, body) {
 }
 
 const googleStatus = (error) => Number(error?.response?.status || error?.status || error?.code);
+const googleViesti = (error) => JSON.stringify(error?.response?.data || error?.message || '');
 
-function lahetaGoogleVirhe(res, error) {
+function lahetaGoogleVirhe(res, error, vaihe) {
   const status = googleStatus(error);
-  if (status === 403 || status === 404) {
+  if (onKiintioVirhe(error)) return laheta(res, 503, { error: 'Palvelu on ruuhkautunut, yritä hetken päästä' });
+  if (vaihe === 'meta' && (status === 403 || status === 404)) {
     return laheta(res, 403, { error: 'Mobiilikirjaus ei ole käytössä tässä kisassa (taulukkoa ei ole jaettu kirjaajalle)' });
   }
-  if (onKiintioVirhe(error)) return laheta(res, 503, { error: 'Palvelu on ruuhkautunut, yritä hetken päästä' });
-  console.error('[KIRJAUS] Google-virhe:', error?.message);
-  return laheta(res, 502, { error: 'Taulukkoa ei saatu luettua' });
+  if (status === 403) return laheta(res, 403, { error: 'Taulukko esti kirjoituksen (suojattu alue tai kirjaajalla ei ole muokkausoikeutta)' });
+  console.error('[KIRJAUS] Google-virhe:', status, googleViesti(error).slice(0, 500));
+  return laheta(res, 502, { error: 'Taulukkoa ei saatu luettua tai kirjoitettua' });
 }
 
 function bearer(req) {
@@ -41,58 +47,73 @@ function bearer(req) {
   return otsikko.toLowerCase().startsWith('bearer ') ? otsikko.slice(7).trim() : '';
 }
 
-async function metatiedot(request, sheetId) {
-  const res = await request({ url: `${SHEETS}/${sheetId}?fields=properties(title),sheets(properties(title))` });
-  return {
+// Taulukon nimi ja välilehdet [{ nimi, id }], muistissa META_TTL_MS (välilehtiä vain lisätään).
+async function metatiedot(request, sheetId, { tuore = false } = {}) {
+  const muistissa = metaMuisti.get(sheetId);
+  if (!tuore && muistissa && Date.now() - muistissa.aika < META_TTL_MS) return muistissa.arvo;
+  let res;
+  try {
+    res = await request({ url: `${SHEETS}/${sheetId}?fields=properties(title),sheets(properties(title,sheetId))` });
+  } catch (error) {
+    error.kirjausVaihe = 'meta';
+    throw error;
+  }
+  const arvo = {
     otsikko: res.data.properties?.title || '',
-    valilehdet: (res.data.sheets || []).map((s) => s.properties?.title).filter(Boolean)
+    valilehdet: (res.data.sheets || []).map((s) => ({ nimi: s.properties?.title, id: s.properties?.sheetId })).filter((v) => v.nimi)
   };
+  metaMuisti.set(sheetId, { arvo, aika: Date.now() });
+  return arvo;
 }
 
-async function batchGet(request, sheetId, alueet) {
+function etsiValilehti(meta, nimi) {
+  const osuma = kohdistaValilehdet([nimi], meta.valilehdet.map((v) => v.nimi)).loydetyt[0];
+  return osuma ? meta.valilehdet.find((v) => v.nimi === osuma.todellinen) : null;
+}
+
+async function batchGet(request, sheetId, alueet, valueRenderOption) {
   if (alueet.length === 0) return [];
   const params = new URLSearchParams();
   alueet.forEach((alue) => params.append('ranges', alue));
-  params.append('valueRenderOption', 'FORMATTED_VALUE');
+  params.append('valueRenderOption', valueRenderOption);
   const res = await request({ url: `${SHEETS}/${sheetId}/values:batchGet?${params.toString()}` });
   return (res.data.valueRanges || []).map((v) => v.values || []);
 }
 
-// Aikataulut ja KISANSPEKSIT, joista radan jono ja nimi luetaan.
-function aikatauluKohteet(valilehdet) {
-  return kohdistaValilehdet([...AIKATAULU_VALILEHDET, 'KISANSPEKSIT'], valilehdet).loydetyt;
-}
+const batchUpdate = (request, sheetId, requests) => request({
+  url: `${SHEETS}/${sheetId}:batchUpdate`,
+  method: 'POST',
+  data: { requests }
+});
 
-function radanTiedot(kohteet, arvot, sarake) {
+const riviSoluiksi = (rivi) => ({ values: rivi.map(solu) });
+
+async function avaa(request, { sheetId, sarake, voimassaAsti }, res) {
+  const meta = await metatiedot(request, sheetId);
+  const nimet = meta.valilehdet.map((v) => v.nimi);
+  const kohteet = kohdistaValilehdet([...AIKATAULU_VALILEHDET, 'KISANSPEKSIT'], nimet).loydetyt;
+  const mobiili = etsiValilehti(meta, mobiiliValilehti(sarake));
+
+  const [arvot, korttiRivit] = await Promise.all([
+    batchGet(request, sheetId, kohteet.map((k) => valilehtiAlue(k.todellinen)), 'FORMATTED_VALUE'),
+    // Korttirivit muotoilemattomina: 13-numeroinen VERSIO ei saa tulla tieteellisenä merkintänä.
+    mobiili
+      ? batchGet(request, sheetId, [`${valilehtiAlue(mobiili.nimi)}!A2:${VIIMEINEN_SARAKE}${MAKS_NRO + 1}`], 'UNFORMATTED_VALUE')
+      : Promise.resolve([[]])
+  ]);
+
   const speksit = arvot[kohteet.findIndex((k) => k.pyydetty === 'KISANSPEKSIT')] || [];
   const aikataulut = kohteet
     .map((k, i) => ({ nimi: k.todellinen, rivit: arvot[i], pyydetty: k.pyydetty }))
     .filter((k) => k.pyydetty !== 'KISANSPEKSIT');
   const ratojaPaivassa = Number.parseInt(speksiArvo(speksit, 'LAYOUT/PÄIVÄ'), 10) || 0;
-  return {
-    rataNimi: speksiArvo(speksit, `RATA${sarake}_NIMI`),
-    ...radanJono({ aikataulut, sarake, ratojaPaivassa })
-  };
-}
-
-async function avaa(request, { sheetId, sarake, voimassaAsti }, res) {
-  const { otsikko, valilehdet } = await metatiedot(request, sheetId);
-  const kohteet = aikatauluKohteet(valilehdet);
-  const mobiili = kohdistaValilehdet([mobiiliValilehti(sarake)], valilehdet).loydetyt[0];
-  const alueet = [
-    ...kohteet.map((k) => valilehtiAlue(k.todellinen)),
-    ...(mobiili ? [`${valilehtiAlue(mobiili.todellinen)}!A2:${VIIMEINEN_SARAKE}${MAKS_NRO + 1}`] : [])
-  ];
-  const arvot = await batchGet(request, sheetId, alueet);
-  const tiedot = radanTiedot(kohteet, arvot, sarake);
-  const kortit = mobiili
-    ? (arvot[kohteet.length] || []).map(lueKorttiRivi).filter((k) => k && k.versio > 0)
-    : [];
+  const tiedot = radanJono({ aikataulut, sarake, ratojaPaivassa });
+  const kortit = (korttiRivit[0] || []).map(lueKorttiRivi).filter((k) => k && k.versio > 0);
 
   return laheta(res, 200, {
-    kisa: otsikko,
+    kisa: meta.otsikko,
     sarake,
-    rataNimi: tiedot.rataNimi,
+    rataNimi: speksiArvo(speksit, `RATA${sarake}_NIMI`),
     aikataulu: tiedot.aikataulu,
     kaista: tiedot.kaista,
     kohteita: KOHTEITA,
@@ -103,94 +124,86 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, res) {
   });
 }
 
-const onJoOlemassa = (error) => googleStatus(error) === 400 && /already exists/i.test(JSON.stringify(error?.response?.data || error?.message || ''));
+const onJoOlemassa = (error) => googleStatus(error) === 400 && /already exists/i.test(googleViesti(error));
+const onPuuttuvaValilehti = (error) => googleStatus(error) === 400 && /grid|sheet/i.test(googleViesti(error));
+const uusiId = () => 100000000 + Math.floor(Math.random() * 1900000000);
 
-// Luo puuttuvat MOBIILI-välilehdet otsikkoriveineen. Kaksi laitetta voi yrittää samaan aikaan: jo luotu kelpaa.
-async function varmistaValilehdet(request, sheetId, valilehdet, sarake) {
+// Luo puuttuvat MOBIILI-välilehdet otsikkoriveineen yhdellä kutsulla (välilehti ja otsikko syntyvät yhdessä).
+// Kaksi laitetta voi yrittää samaan aikaan: silloin toinen saa "already exists" ja lukee välilehdet uudelleen.
+async function varmistaValilehdet(request, sheetId, sarake) {
+  let meta = await metatiedot(request, sheetId);
   const tarvittavat = [
     { nimi: mobiiliValilehti(sarake), otsikko: KORTTI_OTSIKKO, rivit: MAKS_NRO + 1 },
     { nimi: LOKI_VALILEHTI, otsikko: LOKI_OTSIKKO, rivit: 1000 }
-  ];
-  const { puuttuvat } = kohdistaValilehdet(tarvittavat.map((t) => t.nimi), valilehdet);
-  for (const nimi of puuttuvat) {
-    const t = tarvittavat.find((x) => x.nimi === nimi);
+  ].filter((t) => !etsiValilehti(meta, t.nimi));
+  if (tarvittavat.length > 0) {
+    const requests = tarvittavat.flatMap((t) => {
+      const id = uusiId();
+      return [
+        { addSheet: { properties: { sheetId: id, title: t.nimi, gridProperties: { rowCount: t.rivit, columnCount: t.otsikko.length, frozenRowCount: 1 } } } },
+        { updateCells: { start: { sheetId: id, rowIndex: 0, columnIndex: 0 }, rows: [riviSoluiksi(t.otsikko)], fields: 'userEnteredValue' } }
+      ];
+    });
     try {
-      await request({
-        url: `${SHEETS}/${sheetId}:batchUpdate`,
-        method: 'POST',
-        data: { requests: [{ addSheet: { properties: {
-          title: nimi,
-          gridProperties: { rowCount: t.rivit, columnCount: t.otsikko.length, frozenRowCount: 1 }
-        } } }] }
-      });
-      await request({
-        url: `${SHEETS}/${sheetId}/values/${encodeURIComponent(`${valilehtiAlue(nimi)}!A1`)}?valueInputOption=RAW`,
-        method: 'PUT',
-        data: { values: [t.otsikko] }
-      });
+      await batchUpdate(request, sheetId, requests);
     } catch (error) {
       if (!onJoOlemassa(error)) throw error;
     }
+    meta = await metatiedot(request, sheetId, { tuore: true });
   }
-  return valilehdet.concat(puuttuvat);
+  return { kortit: etsiValilehti(meta, mobiiliValilehti(sarake)), loki: etsiValilehti(meta, LOKI_VALILEHTI) };
 }
 
-async function tallenna(request, { sheetId, sarake }, req, res) {
+async function tallennaKerran(request, { sheetId, sarake }, { laite, kortit }) {
+  const tabit = await varmistaValilehdet(request, sheetId, sarake);
+  const korttiAlue = (nro) => `${valilehtiAlue(tabit.kortit.nimi)}!A${nro + 1}:${VIIMEINEN_SARAKE}${nro + 1}`;
+  const tallessa = await batchGet(request, sheetId, kortit.map((k) => korttiAlue(k.nro)), 'UNFORMATTED_VALUE');
+
+  const aika = aikaleima();
+  const tallennetut = [];
+  const uudemmat = [];
+  const requests = [];
+  const lokirivit = [];
+  kortit.forEach((kortti, i) => {
+    const vanha = lueKorttiRivi((tallessa[i] || [])[0]);
+    if (vanha && vanha.versio >= kortti.versio) {
+      // Sama versio on jo tallessa (uudelleenlähetys) tai taulukossa on uudempi: ei kirjoiteta.
+      if (vanha.versio === kortti.versio && vanha.merkit === kortti.merkit) tallennetut.push(kortti.nro);
+      else uudemmat.push({ nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio });
+      return;
+    }
+    requests.push({ updateCells: {
+      start: { sheetId: tabit.kortit.id, rowIndex: kortti.nro, columnIndex: 0 },
+      rows: [riviSoluiksi(korttiRivi({ ...kortti, laite, aika }))],
+      fields: 'userEnteredValue'
+    } });
+    lokirivit.push([aika, sarake, kortti.nro, laite, kortti.versio, vanha?.merkit || '', kortti.merkit]);
+    tallennetut.push(kortti.nro);
+  });
+
+  if (requests.length > 0) {
+    requests.push({ appendCells: { sheetId: tabit.loki.id, rows: lokirivit.map(riviSoluiksi), fields: 'userEnteredValue' } });
+    await batchUpdate(request, sheetId, requests);
+  }
+  return { tallennetut, uudemmat };
+}
+
+async function tallenna(request, avain, req, res) {
   let runko = req.body;
   if (typeof runko === 'string') {
     try { runko = JSON.parse(runko); } catch { runko = null; }
   }
   const tarkistettu = tarkistaTallennus(runko);
   if (tarkistettu.virhe) return laheta(res, 400, { error: tarkistettu.virhe });
-  const { laite, kortit } = tarkistettu;
 
-  const { valilehdet: alussa } = await metatiedot(request, sheetId);
-  const valilehdet = await varmistaValilehdet(request, sheetId, alussa, sarake);
-  const tab = kohdistaValilehdet([mobiiliValilehti(sarake)], valilehdet).loydetyt[0].todellinen;
-  const loki = kohdistaValilehdet([LOKI_VALILEHTI], valilehdet).loydetyt[0].todellinen;
-  const korttiAlue = (nro) => `${valilehtiAlue(tab)}!A${nro + 1}:${VIIMEINEN_SARAKE}${nro + 1}`;
-
-  const kohteet = aikatauluKohteet(valilehdet);
-  const arvot = await batchGet(request, sheetId, [
-    ...kohteet.map((k) => valilehtiAlue(k.todellinen)),
-    ...kortit.map((k) => korttiAlue(k.nro))
-  ]);
-  const { nimet } = radanTiedot(kohteet, arvot, sarake);
-
-  const aika = aikaleima();
-  const tallennetut = [];
-  const uudemmat = [];
-  const kirjoitukset = [];
-  const lokirivit = [];
-  kortit.forEach((kortti, i) => {
-    const tallessa = lueKorttiRivi((arvot[kohteet.length + i] || [])[0]);
-    if (tallessa && tallessa.versio >= kortti.versio) {
-      // Sama versio on jo tallessa (uudelleenlähetys) tai taulukossa on uudempi: ei kirjoiteta.
-      if (tallessa.versio === kortti.versio && tallessa.merkit === kortti.merkit) tallennetut.push(kortti.nro);
-      else uudemmat.push({ nro: kortti.nro, merkit: tallessa.merkit, versio: tallessa.versio });
-      return;
-    }
-    kirjoitukset.push({
-      range: korttiAlue(kortti.nro),
-      values: [korttiRivi({ ...kortti, nimi: nimet[kortti.nro], laite, aika })]
-    });
-    lokirivit.push([aika, sarake, kortti.nro, laite, kortti.versio, tallessa?.merkit || '', kortti.merkit]);
-    tallennetut.push(kortti.nro);
-  });
-
-  if (kirjoitukset.length > 0) {
-    await request({
-      url: `${SHEETS}/${sheetId}/values:batchUpdate`,
-      method: 'POST',
-      data: { valueInputOption: 'RAW', data: kirjoitukset }
-    });
-    await request({
-      url: `${SHEETS}/${sheetId}/values/${encodeURIComponent(`${valilehtiAlue(loki)}!A:G`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
-      method: 'POST',
-      data: { values: lokirivit }
-    });
+  try {
+    return laheta(res, 200, await tallennaKerran(request, avain, tarkistettu));
+  } catch (error) {
+    // Muistissa ollut välilehti on poistettu tai nimetty uudelleen: luetaan välilehdet ja yritetään kerran uudelleen.
+    if (!onPuuttuvaValilehti(error) || onJoOlemassa(error)) throw error;
+    metaMuisti.delete(avain.sheetId);
+    return laheta(res, 200, await tallennaKerran(request, avain, tarkistettu));
   }
-  return laheta(res, 200, { tallennetut, uudemmat });
 }
 
 export default async function handler(req, res) {
@@ -210,6 +223,11 @@ export default async function handler(req, res) {
     if (toiminto === 'avaa') return await avaa(request, avain, res);
     return await tallenna(request, avain, req, res);
   } catch (error) {
-    return lahetaGoogleVirhe(res, error);
+    return lahetaGoogleVirhe(res, error, error?.kirjausVaihe);
   }
+}
+
+// Testejä varten.
+export function tyhjennaKirjausMuisti() {
+  metaMuisti.clear();
 }

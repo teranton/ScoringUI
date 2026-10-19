@@ -11,7 +11,10 @@ import { useHereilla } from './useHereilla.js';
 
 const RYHMAKOOT = [1, 2, 3, 4, 5, 6];
 const SYNKRONOINTI_VALI_MS = 15000;
+// Valmis asema (5 kiekkoa) lähetetään heti; kesken olevat merkinnät kootaan, koska kirjuritilillä on
+// Googlen kiintiö (60 kirjoitusta minuutissa kaikille radoille yhteensä).
 const LAHETYS_VIIVE_MS = 1500;
+const KESKEN_VIIVE_MS = 10000;
 
 function alkuKoodi() {
   const k = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('k');
@@ -103,7 +106,7 @@ function RataNakyma({ koodi, onVaihda }) {
         const data = await res.json().catch(() => ({}));
         if (peruttu) return;
         if (!res.ok) {
-          setLataus({ tila: 'virhe', viesti: data.error || `Virhe ${res.status}`, pysyva: res.status === 401 || res.status === 403 });
+          setLataus({ tila: 'virhe', viesti: data.error || `Virhe ${res.status}`, pysyva: res.status === 401 });
           return;
         }
         setTila((t) => ({ ...t, avaus: data, kortit: yhdistaPalvelimelta(t.kortit, data.kortit) }));
@@ -117,14 +120,16 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const laheta = useCallback(async () => {
     if (lahettaaRef.current) return;
-    const lahetetyt = lahettamattomat(tilaRef.current.kortit);
+    const { kortit, avaus: avattu } = tilaRef.current;
+    const lahetetyt = lahettamattomat(kortit);
     if (lahetetyt.length === 0) return;
+    const nimi = (nro) => avattu?.jono?.find((a) => a.nro === nro)?.nimi || avattu?.nimet?.[nro] || '';
     lahettaaRef.current = true;
     try {
       const res = await fetch('/api/kirjaus?toiminto=tallenna', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${koodi}` },
-        body: JSON.stringify({ laite, kortit: lahetetyt })
+        body: JSON.stringify({ laite, kortit: lahetetyt.map((k) => ({ ...k, nimi: nimi(k.nro) })) })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
@@ -137,14 +142,16 @@ function RataNakyma({ koodi, onVaihda }) {
     }
   }, [koodi, laite]);
 
-  const lahettamatta = useMemo(() => lahettamattomat(tila.kortit, Infinity).length, [tila.kortit]);
+  const odottavat = useMemo(() => lahettamattomat(tila.kortit, Infinity), [tila.kortit]);
+  const lahettamatta = odottavat.length;
+  const asemaValmis = odottavat.some((k) => taytetyt(k.merkit) % ASEMAN_KOHTEET === 0);
 
   // Lähetys pian muutoksen jälkeen, varmuuden vuoksi määrävälein ja kun yhteys palaa.
   useEffect(() => {
     if (lahettamatta === 0) return undefined;
-    const ajastin = setTimeout(laheta, LAHETYS_VIIVE_MS);
+    const ajastin = setTimeout(laheta, asemaValmis ? LAHETYS_VIIVE_MS : KESKEN_VIIVE_MS);
     return () => clearTimeout(ajastin);
-  }, [tila.kortit, lahettamatta, laheta]);
+  }, [tila.kortit, lahettamatta, asemaValmis, laheta]);
 
   useEffect(() => {
     const vali = setInterval(laheta, SYNKRONOINTI_VALI_MS);
@@ -183,7 +190,8 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const merkitseKohta = (merkki) => {
     if (!kohta) return;
-    setTila((t) => ({ ...t, ...merkitse(t, kohta, merkki) }));
+    // Ryhmä lukitaan näkyviin, ettei näkymä hyppää seuraavaan ryhmään viimeisen kiekon jälkeen.
+    setTila((t) => ({ ...t, ...merkitse(t, kohta, merkki), ryhmaIndeksi }));
     setValinta(null);
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
   };
@@ -191,7 +199,9 @@ function RataNakyma({ koodi, onVaihda }) {
   const peruViimeisin = () => {
     const p = peru(tila);
     if (!p) return;
-    setTila((t) => ({ ...t, kortit: p.kortit, historia: p.historia }));
+    const paikka = jono.findIndex((a) => a.nro === p.kohta.nro);
+    const indeksi = paikka === -1 ? ryhmaIndeksi : Math.floor(paikka / tila.ryhmaKoko);
+    setTila((t) => ({ ...t, kortit: p.kortit, historia: p.historia, ryhmaIndeksi: indeksi }));
     setValinta(p.kohta);
   };
 

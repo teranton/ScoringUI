@@ -3,52 +3,49 @@ import assert from 'node:assert/strict';
 
 const ID = '1rs_ZwCclYUxrDueBIc65M-49ZAh4XpxSFGOPNqEU3iU';
 process.env.KIRJAUS_SALAISUUS = 'testisalaisuus-joka-on-pitka';
-process.env.KIRJURI_CLIENT_EMAIL = 'kirjuri@example.com';
-process.env.KIRJURI_PRIVATE_KEY = 'avain';
 
-// Yksinkertainen taulukko muistissa: välilehti → rivit.
+// Taulukko muistissa: välilehti → { id, rivit }. Muotoilematon luku palautetaan lukuna, muotoiltu tekstinä.
 let taulukko;
 let jaettu = true;
-const pyynnot = [];
+let kirjoitukset = 0;
+let lukuja = 0;
 
 function alueenTiedot(alue) {
   const m = decodeURIComponent(alue).match(/^'((?:[^']|'')+)'(?:!A(\d+)(?::[A-Z]+(\d+))?)?/);
   return { tab: m[1].replace(/''/g, "'"), alku: m[2] ? Number(m[2]) : 1, loppu: m[3] ? Number(m[3]) : null };
 }
+const tabIdlla = (id) => Object.values(taulukko).find((t) => t.id === id);
+const soluArvo = (s) => s.userEnteredValue?.numberValue ?? s.userEnteredValue?.stringValue ?? '';
 
 async function request({ url, method = 'GET', data }) {
-  pyynnot.push({ url, method });
   if (!jaettu) throw Object.assign(new Error('forbidden'), { response: { status: 403 } });
   const u = new URL(url);
   if (method === 'GET' && u.pathname.endsWith(ID)) {
-    return { data: { properties: { title: 'Testikisa' }, sheets: Object.keys(taulukko).map((title) => ({ properties: { title } })) } };
+    lukuja++;
+    return { data: { properties: { title: 'Testikisa' }, sheets: Object.entries(taulukko).map(([title, t]) => ({ properties: { title, sheetId: t.id } })) } };
   }
   if (u.pathname.endsWith('values:batchGet')) {
+    lukuja++;
+    const muotoiltu = u.searchParams.get('valueRenderOption') === 'FORMATTED_VALUE';
     return { data: { valueRanges: u.searchParams.getAll('ranges').map((alue) => {
       const { tab, alku, loppu } = alueenTiedot(alue);
-      const rivit = taulukko[tab] || [];
-      return { values: rivit.slice(alku - 1, loppu ?? rivit.length) };
+      const rivit = (taulukko[tab]?.rivit || []).slice(alku - 1, loppu ?? undefined)
+        .map((r) => (r || []).map((v) => (muotoiltu && typeof v === 'number' && v > 1e11 ? v.toExponential(5) : v)));
+      return { values: rivit };
     }) } };
   }
-  if (u.pathname.endsWith(':batchUpdate') && data.requests) {
-    data.requests.forEach((r) => { taulukko[r.addSheet.properties.title] = []; });
-    return { data: {} };
-  }
-  if (u.pathname.endsWith('values:batchUpdate')) {
-    data.data.forEach(({ range, values }) => {
-      const { tab, alku } = alueenTiedot(range);
-      taulukko[tab][alku - 1] = values[0].map(String);
-    });
-    return { data: {} };
-  }
-  if (method === 'PUT') {
-    const { tab } = alueenTiedot(u.pathname.split('/values/')[1]);
-    taulukko[tab][0] = data.values[0];
-    return { data: {} };
-  }
-  if (u.pathname.endsWith(':append')) {
-    const { tab } = alueenTiedot(u.pathname.split('/values/')[1].replace(/:append$/, ''));
-    taulukko[tab].push(...data.values.map((r) => r.map(String)));
+  if (u.pathname.endsWith(':batchUpdate')) {
+    kirjoitukset++;
+    for (const r of data.requests) {
+      if (r.addSheet) {
+        if (taulukko[r.addSheet.properties.title]) throw Object.assign(new Error('x'), { response: { status: 400, data: { error: { message: 'already exists' } } } });
+        taulukko[r.addSheet.properties.title] = { id: r.addSheet.properties.sheetId, rivit: [] };
+      } else if (r.updateCells) {
+        tabIdlla(r.updateCells.start.sheetId).rivit[r.updateCells.start.rowIndex] = r.updateCells.rows[0].values.map(soluArvo);
+      } else if (r.appendCells) {
+        tabIdlla(r.appendCells.sheetId).rivit.push(...r.appendCells.rows.map((row) => row.values.map(soluArvo)));
+      }
+    }
     return { data: {} };
   }
   throw new Error(`odottamaton pyyntö ${method} ${url}`);
@@ -68,7 +65,7 @@ mock.module('./_lib/sheetAllowlist.js', { namedExports: {
   }
 } });
 
-const { default: handler } = await import('./kirjaus.js');
+const { default: handler, tyhjennaKirjausMuisti } = await import('./kirjaus.js');
 const { luoAvain } = await import('./_lib/kirjausAvain.js');
 
 const avain = (sarake = 2, sheetId = ID) => luoAvain({ sheetId, sarake, voimassaAsti: Math.floor(Date.now() / 1000) + 3600 }, process.env.KIRJAUS_SALAISUUS);
@@ -87,19 +84,22 @@ function kutsu({ method = 'GET', toiminto = 'avaa', token = avain(), body } = {}
 
 function alusta() {
   jaettu = true;
-  pyynnot.length = 0;
+  kirjoitukset = 0;
+  lukuja = 0;
+  tyhjennaKirjausMuisti();
   taulukko = {
-    KISANSPEKSIT: [['RATA2_NIMI', 'Kakkonen'], ['LAYOUT/PÄIVÄ', '2']],
-    'Aikataulu La': [
+    KISANSPEKSIT: { id: 1, rivit: [['RATA2_NIMI', 'Kakkonen'], ['LAYOUT/PÄIVÄ', '2']] },
+    'Aikataulu La': { id: 2, rivit: [
       ['AIKATAULU | 11.7.2026'],
       ['RATA1', '', '', 'RATA2'],
       ['09:00', '1', 'Aaltonen A', '09:00', '3', 'Cederberg C'],
       ['09:04', '2', 'Berg B', '09:04', '4', 'Dahl D']
-    ]
+    ] }
   };
 }
 
 const MERKIT = 'XXXXO' + '-'.repeat(20);
+const VERSIO = 1760012345678;
 
 test('ilman koodia tai väärällä koodilla ei pääse', async () => {
   alusta();
@@ -129,30 +129,51 @@ test('jakamaton taulukko: kirjaus ei ole käytössä', async () => {
   assert.match(res.body.error, /ei ole käytössä/);
 });
 
-test('tallenna luo välilehdet, kirjoittaa kortin ja lokin; vanha versio ei kirjoita', async () => {
+test('tallenna: välilehdet otsikkoineen, kortti ja loki yhdellä kirjoituksella; vanha versio ei kirjoita', async () => {
   alusta();
-  const body = { laite: 'laite-1', kortit: [{ nro: 3, merkit: MERKIT, versio: 10 }] };
+  const body = { laite: 'laite-1', kortit: [{ nro: 3, nimi: 'Cederberg C', merkit: MERKIT, versio: VERSIO }] };
   const res = await kutsu({ method: 'POST', toiminto: 'tallenna', body });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { tallennetut: [3], uudemmat: [] });
-  const rivi = taulukko['MOBIILI Rata 2'][3];
-  assert.deepEqual(rivi.slice(0, 3), ['3', 'Cederberg C', '4']);
-  assert.equal(rivi[5], '10');
-  assert.equal(taulukko['MOBIILI Rata 2'][0][0], 'NRO');
-  assert.equal(taulukko.MOBIILI_LOKI.length, 2);
+  assert.equal(kirjoitukset, 2, 'välilehtien luonti + kortit ja loki');
+  const tab = taulukko['MOBIILI Rata 2'].rivit;
+  assert.equal(tab[0][0], 'NRO');
+  assert.deepEqual(tab[3].slice(0, 3), [3, 'Cederberg C', 4]);
+  assert.equal(tab[3][5], VERSIO);
+  assert.equal(taulukko.MOBIILI_LOKI.rivit[0][0], 'AIKA');
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.length, 2);
+
+  // Seuraava tallennus: välilehdet muistissa, yksi luku ja yksi kirjoitus.
+  lukuja = 0;
+  kirjoitukset = 0;
+  const toinen = await kutsu({ method: 'POST', toiminto: 'tallenna', body: { laite: 'laite-1', kortit: [{ nro: 4, merkit: MERKIT, versio: VERSIO }] } });
+  assert.deepEqual(toinen.body.tallennetut, [4]);
+  assert.equal(lukuja, 1);
+  assert.equal(kirjoitukset, 1);
 
   // Sama lähetys uudelleen: kuitataan, ei kirjoiteta eikä lokiteta.
   const uudelleen = await kutsu({ method: 'POST', toiminto: 'tallenna', body: JSON.stringify(body) });
   assert.deepEqual(uudelleen.body, { tallennetut: [3], uudemmat: [] });
-  assert.equal(taulukko.MOBIILI_LOKI.length, 2);
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.length, 3);
 
   // Vanhempi versio: palautetaan taulukon kortti.
-  const vanha = await kutsu({ method: 'POST', toiminto: 'tallenna', body: { laite: 'laite-2', kortit: [{ nro: 3, merkit: 'O'.repeat(25), versio: 9 }] } });
-  assert.deepEqual(vanha.body, { tallennetut: [], uudemmat: [{ nro: 3, merkit: MERKIT, versio: 10 }] });
+  const vanha = await kutsu({ method: 'POST', toiminto: 'tallenna', body: { laite: 'laite-2', kortit: [{ nro: 3, merkit: 'O'.repeat(25), versio: VERSIO - 1 }] } });
+  assert.deepEqual(vanha.body, { tallennetut: [], uudemmat: [{ nro: 3, merkit: MERKIT, versio: VERSIO }] });
 
-  // Avaus palauttaa tallennetun kortin.
+  // Avaus palauttaa tallennetut kortit, versio tarkkana lukuna.
   const avattu = await kutsu();
-  assert.deepEqual(avattu.body.kortit, [{ nro: 3, merkit: MERKIT, versio: 10 }]);
+  assert.deepEqual(avattu.body.kortit, [{ nro: 3, merkit: MERKIT, versio: VERSIO }, { nro: 4, merkit: MERKIT, versio: VERSIO }]);
+});
+
+test('tallenna: toinen laite ehti luoda välilehdet', async () => {
+  alusta();
+  await kutsu();
+  taulukko['MOBIILI Rata 2'] = { id: 77, rivit: [['NRO']] };
+  taulukko.MOBIILI_LOKI = { id: 78, rivit: [['AIKA']] };
+  const res = await kutsu({ method: 'POST', toiminto: 'tallenna', body: { laite: 'laite-1', kortit: [{ nro: 1, merkit: MERKIT, versio: 5 }] } });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.tallennetut, [1]);
+  assert.equal(taulukko['MOBIILI Rata 2'].rivit[1][0], 1);
 });
 
 test('tallenna torjuu virheellisen rungon', async () => {

@@ -1,7 +1,7 @@
 // Mobiilikirjauksen puhtaat apufunktiot: radan ampujajono aikataulusta ja korttirivit MOBIILI-välilehdillä.
 // Ei Google-kutsuja, joten kaikki on testattu (kirjausData.test.js).
-import { normalisoiOtsikko } from '../../src/utils/henkiloTulokset.js';
-import { isTimeLike, taukoTyyppi, tunnistaRataSarakkeet } from '../../src/utils/aikatauluRadat.js';
+import { asetusJoukko, haeAsetusSpekseista } from '../../src/utils/kisaAsetukset.js';
+import { isLaneHeader, isTimeLike, taukoTyyppi, tunnistaRataSarakkeet } from '../../src/utils/aikatauluRadat.js';
 
 export const KOHTEITA = 25;
 export const AIKATAULU_VALILEHDET = ['Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
@@ -36,16 +36,14 @@ export const VIIMEINEN_SARAKE = sarakeKirjain(META_SARAKKEITA + KOHTEITA - 1);
 
 // KISANSPEKSIT-avaimen arvo: avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu (kuten UI:n asetukset).
 export function speksiArvo(rivit, avain) {
-  const haettava = normalisoiOtsikko(avain);
-  for (const rivi of rivit || []) {
-    if (!Array.isArray(rivi)) continue;
-    for (let i = 0; i < rivi.length; i++) {
-      if (normalisoiOtsikko(rivi[i]) !== haettava) continue;
-      const arvo = rivi.slice(i + 1).map((s) => String(s ?? '').trim()).find(Boolean);
-      if (arvo) return arvo;
-    }
-  }
-  return '';
+  return haeAsetusSpekseista(rivit, asetusJoukko([avain]), (arvo) => arvo) || '';
+}
+
+// Sheets API:n solu: luku numerona, tyhjä tyhjentää solun, muu tekstinä (ei kaavoja).
+export function solu(arvo) {
+  if (typeof arvo === 'number' && Number.isFinite(arvo)) return { userEnteredValue: { numberValue: arvo } };
+  if (arvo === '' || arvo === null || arvo === undefined) return {};
+  return { userEnteredValue: { stringValue: String(arvo) } };
 }
 
 // Radan numerot otsikosta: "Rata 1" → [1], "RATA1 / RATA3" → [1, 3] (kierrokset allekkain), "1 Jake" → [1].
@@ -62,7 +60,7 @@ export function jasennaRataruudukko(rivit) {
   if (!Array.isArray(rivit) || rivit.length < 2) return [];
   const kaistat = tunnistaRataSarakkeet(rivit);
   if (kaistat.length === 0) return [];
-  const otsikkoRivi = rivit.findIndex((rivi) => Array.isArray(rivi) && rivi.some((s) => /^(?:RATA|LANE)\s*\d+|^\d+\s+\S+/i.test(String(s || '').trim())));
+  const otsikkoRivi = rivit.findIndex((rivi) => Array.isArray(rivi) && rivi.some(isLaneHeader));
 
   const data = rivit.slice(otsikkoRivi + 1).filter(Array.isArray);
   // Otsikko voi olla aika- tai nimisarakkeen päällä (vanhoissa välilehdissä "Rata 1" nimen yllä):
@@ -94,32 +92,35 @@ export function jasennaRataruudukko(rivit) {
 
 // Tulossarakkeen (Compak-rata) paikka aikataulussa ja radan ampujajono.
 // aikataulut: [{ nimi, rivit }] järjestyksessä (Aikataulu, Aikataulu La, Aikataulu Su).
-// 1) Kaista, jonka otsikossa on sarakkeen numero (RATA3, RATA1 / RATA3 → toinen kierros).
-// 2) Muuten LAYOUT/PÄIVÄ: sarakkeet 1..n ensimmäisen päivän kaistoilla, n+1.. seuraavan (kehitystaulukossa
-//    sunnuntain RATA1 on tulossarake 5).
+// Päivä: monen päivän aikataulussa LAYOUT/PÄIVÄ (sarakkeet 1..n ensimmäisenä päivänä, n+1.. seuraavana;
+// kehitystaulukossa sunnuntain RATA1 on tulossarake 5). Kaista: se, jonka otsikossa on sarakkeen numero
+// (RATA3, RATA1 / RATA3 → toinen kierros), muuten päivän n:s kaista.
 // Jono: radan omat aloittajat, sitten edellisen radan aloittajat (jotka siirtyvät tälle radalle) jne.
 // Palauttaa { aikataulu, kaista, kierros, jono, nimet } tai null, jos rataa ei löydy.
 export function radanJono({ aikataulut, sarake, ratojaPaivassa }) {
-  const paivat = aikataulut
-    .map(({ nimi, rivit }) => ({ nimi, kaistat: jasennaRataruudukko(rivit) }))
-    .filter((p) => p.kaistat.length > 0);
+  // Kaikki olemassa olevat aikataulut, myös ne, joissa ei (vielä) ole ruudukkoa: LAYOUT/PÄIVÄ laskee päivät niistä.
+  const paivat = aikataulut.map(({ nimi, rivit }) => ({ nimi, kaistat: jasennaRataruudukko(rivit) }));
 
   const nimet = {};
   paivat.forEach((p) => p.kaistat.forEach((k) => k.kierrokset.flat().forEach((a) => {
     if (!nimet[a.nro]) nimet[a.nro] = a.nimi;
   })));
 
+  // Monen päivän aikataulussa LAYOUT/PÄIVÄ ratkaisee päivän (päivät voivat käyttää samoja kaistanumeroita);
+  // muuten haetaan kaistaa otsikon numerolla kaikista.
+  const perPaiva = ratojaPaivassa > 0 ? ratojaPaivassa : (paivat.find((p) => p.kaistat.length > 0)?.kaistat.length || 0);
+  const paivaKiintea = ratojaPaivassa > 0 && paivat.length > 1;
+  const ehdokkaat = paivaKiintea ? [paivat[Math.floor((sarake - 1) / ratojaPaivassa)]].filter(Boolean) : paivat;
   let paikka = null;
-  for (const paiva of paivat) {
+  for (const paiva of ehdokkaat) {
     const kaista = paiva.kaistat.findIndex((k) => k.radat.includes(sarake));
     if (kaista !== -1) {
       paikka = { paiva, kaista, kierros: paiva.kaistat[kaista].radat.indexOf(sarake) };
       break;
     }
   }
-  if (!paikka && paivat.length > 0) {
-    const perPaiva = ratojaPaivassa > 0 ? ratojaPaivassa : paivat[0].kaistat.length;
-    const paiva = paivat[Math.floor((sarake - 1) / perPaiva)];
+  if (!paikka && perPaiva > 0) {
+    const paiva = paivaKiintea ? ehdokkaat[0] : paivat[Math.floor((sarake - 1) / perPaiva)];
     const kaista = (sarake - 1) % perPaiva;
     if (paiva && kaista < paiva.kaistat.length) paikka = { paiva, kaista, kierros: 0 };
   }
@@ -164,6 +165,7 @@ export function lueKorttiRivi(rivi) {
 
 // Tarkistaa tallennuspyynnön rungon. Palauttaa { laite, kortit } tai { virhe }.
 export const MAKS_KORTTEJA = 30;
+const MAKS_NIMI = 80;
 export function tarkistaTallennus(runko) {
   const laite = typeof runko?.laite === 'string' ? runko.laite : '';
   if (!/^[A-Za-z0-9_-]{4,64}$/.test(laite)) return { virhe: 'Laitteen tunnus puuttuu' };
@@ -177,6 +179,9 @@ export function tarkistaTallennus(runko) {
     nahty.add(k.nro);
     if (!onkoMerkit(k.merkit)) return { virhe: 'Virheelliset merkinnät' };
     if (!Number.isSafeInteger(k.versio) || k.versio < 1) return { virhe: 'Virheellinen versio' };
+    if (k.nimi !== undefined && typeof k.nimi !== 'string') return { virhe: 'Virheellinen nimi' };
   }
-  return { laite, kortit: kortit.map(({ nro, merkit, versio }) => ({ nro, merkit, versio })) };
+  // Nimi on vain näyttöä varten (laite tuntee sen aikataulusta): ohjausmerkit pois ja pituus rajattu.
+  const nimi = (n) => [...String(n || '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, MAKS_NIMI);
+  return { laite, kortit: kortit.map((k) => ({ nro: k.nro, nimi: nimi(k.nimi), merkit: k.merkit, versio: k.versio })) };
 }

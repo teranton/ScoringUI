@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, speksiArvo, tarkistaTallennus
+  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, tarkistaTallennus
 } from './kirjausData.js';
 
 const MERKIT = 'XXXXO' + 'XOXXX' + '-'.repeat(15);
@@ -68,6 +68,16 @@ test('radan jono: LAYOUT/PÄIVÄ vie sarakkeet seuraavalle päivälle', () => {
   assert.deepEqual(r.jono.map((a) => a.nro), [19, 20, 55, 56]);
   assert.equal(r.nimet[1], 'Saastamoinen Juho');
   assert.equal(radanJono({ aikataulut, sarake: 9, ratojaPaivassa: 2 }).jono.length, 0);
+  // Lauantain välilehti ilman ruudukkoa: sunnuntai pysyy toisena päivänä.
+  const tyhjaLa = [{ nimi: 'Aikataulu La', rivit: [['AIKATAULU']] }, { nimi: 'Aikataulu Su', rivit: SUNNUNTAI }];
+  assert.equal(radanJono({ aikataulut: tyhjaLa, sarake: 1, ratojaPaivassa: 2 }).jono.length, 0);
+  assert.deepEqual(radanJono({ aikataulut: tyhjaLa, sarake: 3, ratojaPaivassa: 2 }).jono.map((a) => a.nro), [19, 20, 55, 56]);
+});
+
+test('solu: luku, teksti ja tyhjä', () => {
+  assert.deepEqual(solu(5), { userEnteredValue: { numberValue: 5 } });
+  assert.deepEqual(solu('=A1'), { userEnteredValue: { stringValue: '=A1' } });
+  assert.deepEqual(solu(''), {});
 });
 
 test('radan jono: toinen kierros otsikosta RATA1 / RATA3', () => {
@@ -91,13 +101,18 @@ test('korttirivi menee ja tulee samana', () => {
   assert.equal(rivi[2], 8);
   assert.equal(rivi[6 + 24], '');
   assert.deepEqual(lueKorttiRivi(rivi.map(String)), { nro: 12, merkit: MERKIT, versio: 5, laite: 'abcd' });
+  // Muotoilemattomat arvot (UNFORMATTED_VALUE): numerot lukuina.
+  assert.equal(lueKorttiRivi([12, 'A', 8, 'nyt', 'abcd', 1760012345678, 'X']).versio, 1760012345678);
   assert.equal(lueKorttiRivi(['NRO', 'NIMI']), null);
   assert.equal(lueKorttiRivi([]), null);
 });
 
 test('tallennuksen tarkistus', () => {
   const ok = { laite: 'laite-1234', kortit: [{ nro: 1, merkit: MERKIT, versio: 1, ylim: 1 }] };
-  assert.deepEqual(tarkistaTallennus(ok), { laite: 'laite-1234', kortit: [{ nro: 1, merkit: MERKIT, versio: 1 }] });
+  assert.deepEqual(tarkistaTallennus(ok), { laite: 'laite-1234', kortit: [{ nro: 1, nimi: '', merkit: MERKIT, versio: 1 }] });
+  const nimella = tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], nimi: ' Aho\u0007 Antti ' }] });
+  assert.equal(nimella.kortit[0].nimi, 'Aho Antti');
+  assert.ok(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], nimi: 5 }] }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, laite: 'x' }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, kortit: [] }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ nro: 0, merkit: MERKIT, versio: 1 }] }).virhe);

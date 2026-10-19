@@ -156,15 +156,17 @@ not shared with it answers "Mobiilikirjaus ei ole käytössä". Access is a layo
 
 Reads (with the writer account):
 - `Aikataulu`, `Aikataulu La`, `Aikataulu Su` lane grids, as above. The lane header may sit above the time or the
-  name column. Result column N is the lane whose header names `RATA N` (in `RATA1 / RATA3` the part after the
-  `RATOJEN VAIHTO` row); otherwise the Nth lane counting `LAYOUT/PÄIVÄ` lanes per timetable tab in the order above.
+  name column. With more than one timetable tab, `LAYOUT/PÄIVÄ` picks the tab for result column N (columns 1..n on
+  the first tab in the order above, n+1.. on the next). On that tab the lane is the one whose header names `RATA N`
+  (in `RATA1 / RATA3` the part after the `RATOJEN VAIHTO` row), otherwise the tab's ((N - 1) mod n) + 1th lane.
   The layout's queue is its own starters, then the previous lane's starters, and so on.
 - `KISANSPEKSIT` keys `RATAn_NIMI` (layout name shown on the device) and `LAYOUT/PÄIVÄ`.
 
 Writes (created on the first save if missing):
 - `MOBIILI Rata N` (N = result column `1`..`N` of `OSALLISTUJAT+TULOKSET`): header row
   `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, 1..25`; the shooter with number n is on row n + 1. Marks `X` hit,
-  `O` miss, empty not shot; `TULOS` counts the `X`s. A save with a version not newer than `VERSIO` writes nothing.
+  `O` miss, empty not shot; `TULOS` counts the `X`s; `NIMI` is the name the device showed. A save with a version not
+  newer than `VERSIO` writes nothing. The card row and its log row are written in one request.
 - `MOBIILI_LOKI`: one appended row per accepted save: `AIKA, RATA, NRO, LAITE, VERSIO, ENNEN, JÄLKEEN`.
 
 Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
