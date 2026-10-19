@@ -2,7 +2,7 @@
 // avatun kisan haku ja live-päivitys sekä esihaku, kun osoitin pysähtyy kisakortille.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onkoCsvVirheellinen } from '../utils/csv';
-import { laskeKisanStatusJaTyyli, laskeRankingStatus, laskeStatusKisalle } from '../utils/kisaStatus';
+import { laskeKisanPaivaStatus, laskeRankingStatus, laskeStatusKisalle } from '../utils/kisaStatus';
 import { haeKisanVuosi } from '../utils/kilpailurekisteri';
 import { rankingValilehdenNimi } from '../utils/rankingTulokset';
 import { lueKisat, tallennaKisa } from '../utils/paikallinenValimuisti';
@@ -83,7 +83,7 @@ export function useKisaData({ kisat, valittuKisa }) {
           if (laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, '').status !== 'kaynnissa') return false;
           if (laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, cacheData?.speksitCsvRaw || '').status === 'paattynyt') return false;
           if (haeKisanVuosi(kisa) < new Date().getFullYear() && viimeisinSpeksitHaku) return false;
-        } else if (laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm).status !== 'kaynnissa') {
+        } else if (laskeKisanPaivaStatus(kisa).status !== 'kaynnissa') {
           return false;
         }
 
