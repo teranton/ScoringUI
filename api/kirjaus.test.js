@@ -70,7 +70,7 @@ const { luoAvain } = await import('./_lib/kirjausAvain.js');
 
 const avain = (sarake = 2, sheetId = ID) => luoAvain({ sheetId, sarake, voimassaAsti: Math.floor(Date.now() / 1000) + 3600 }, process.env.KIRJAUS_SALAISUUS);
 
-function kutsu({ method = 'GET', toiminto = 'avaa', token = avain(), body } = {}) {
+function kutsu({ method = 'GET', toiminto = 'avaa', token = avain(), body, laite } = {}) {
   const res = {
     statusCode: 0, body: null, headers: {},
     setHeader(k, v) { this.headers[k] = v; },
@@ -78,7 +78,8 @@ function kutsu({ method = 'GET', toiminto = 'avaa', token = avain(), body } = {}
     json(b) { this.body = b; return this; },
     end() { return this; }
   };
-  const req = { method, query: { toiminto }, headers: token ? { authorization: `Bearer ${token}` } : {}, body };
+  const headers = { ...(token ? { authorization: `Bearer ${token}` } : {}), ...(laite ? { 'x-kirjaus-laite': laite } : {}) };
+  const req = { method, query: { toiminto }, headers, body };
   return handler(req, res).then(() => res);
 }
 
@@ -159,11 +160,17 @@ test('tallenna: välilehdet otsikkoineen, kortti ja loki yhdellä kirjoituksella
 
   // Vanhempi versio: palautetaan taulukon kortti.
   const vanha = await kutsu({ method: 'POST', toiminto: 'tallenna', body: { laite: 'laite-2', kortit: [{ nro: 3, merkit: 'O'.repeat(25), versio: VERSIO - 1 }] } });
-  assert.deepEqual(vanha.body, { tallennetut: [], uudemmat: [{ nro: 3, merkit: MERKIT, versio: VERSIO }] });
+  assert.deepEqual(vanha.body.tallennetut, []);
+  assert.deepEqual(vanha.body.uudemmat.map(({ nro, merkit, versio, laite }) => ({ nro, merkit, versio, laite })),
+    [{ nro: 3, merkit: MERKIT, versio: VERSIO, laite: 'laite-1' }]);
+  assert.match(vanha.body.uudemmat[0].aika, /\d/);
 
-  // Avaus palauttaa tallennetut kortit, versio tarkkana lukuna.
-  const avattu = await kutsu();
+  // Avaus palauttaa tallennetut kortit, versio tarkkana lukuna, ja varoittaa toiselle laitteelle.
+  const avattu = await kutsu({ laite: 'laite-1' });
   assert.deepEqual(avattu.body.kortit, [{ nro: 3, merkit: MERKIT, versio: VERSIO }, { nro: 4, merkit: MERKIT, versio: VERSIO }]);
+  assert.equal(avattu.body.muuLaite, null);
+  const toisella = await kutsu({ laite: 'laite-2' });
+  assert.equal(toisella.body.muuLaite.laite, 'laite-1');
 });
 
 test('tallenna: toinen laite ehti luoda välilehdet', async () => {

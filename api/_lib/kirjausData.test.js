@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, tarkistaTallennus
+  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, tarkistaTallennus,
+  viimeisinMuuLaite
 } from './kirjausData.js';
 
 const MERKIT = 'XXXXO' + 'XOXXX' + '-'.repeat(15);
@@ -103,7 +104,7 @@ test('korttirivi menee ja tulee samana', () => {
   assert.equal(rivi.length, 31);
   assert.equal(rivi[2], 8);
   assert.equal(rivi[6 + 24], '');
-  assert.deepEqual(lueKorttiRivi(rivi.map(String)), { nro: 12, merkit: MERKIT, versio: 5, laite: 'abcd' });
+  assert.deepEqual(lueKorttiRivi(rivi.map(String)), { nro: 12, merkit: MERKIT, versio: 5, laite: 'abcd', aika: String(rivi[3]) });
   // Muotoilemattomat arvot (UNFORMATTED_VALUE): numerot lukuina.
   assert.equal(lueKorttiRivi([12, 'A', 8, 'nyt', 'abcd', 1760012345678, 'X']).versio, 1760012345678);
   assert.equal(lueKorttiRivi(['NRO', 'NIMI']), null);
@@ -123,4 +124,11 @@ test('tallennuksen tarkistus', () => {
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ nro: 1, merkit: MERKIT, versio: 0 }] }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, kortit: [ok.kortit[0], ok.kortit[0]] }).virhe);
   assert.ok(tarkistaTallennus(null).virhe);
+});
+
+test('viimeisin muu laite: uusimman kortin laite, jos se ei ole tämä', () => {
+  const kortit = [{ versio: 5, laite: 'a', aika: 'x' }, { versio: 9, laite: 'b', aika: 'klo 10.42' }];
+  assert.deepEqual(viimeisinMuuLaite(kortit, 'a'), { laite: 'b', aika: 'klo 10.42' });
+  assert.equal(viimeisinMuuLaite(kortit, 'b'), null);
+  assert.equal(viimeisinMuuLaite([], 'a'), null);
 });

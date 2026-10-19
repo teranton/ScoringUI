@@ -15,7 +15,8 @@ import { kohdistaValilehdet, valilehtiAlue } from './_lib/sheetsData.js';
 import { tarkistaAvain } from './_lib/kirjausAvain.js';
 import {
   AIKATAULU_VALILEHDET, KOHTEITA, KORTTI_OTSIKKO, LOKI_OTSIKKO, LOKI_VALILEHTI, MAKS_NRO, VIIMEINEN_SARAKE,
-  aikaleima, korttiRivi, lueKorttiRivi, mobiiliValilehti, radanJono, solu, speksiArvo, tarkistaTallennus
+  aikaleima, korttiRivi, lueKorttiRivi, mobiiliValilehti, onLaitetunnus, radanJono, solu, speksiArvo, tarkistaTallennus,
+  viimeisinMuuLaite
 } from './_lib/kirjausData.js';
 
 const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -88,7 +89,7 @@ const batchUpdate = (request, sheetId, requests) => request({
 
 const riviSoluiksi = (rivi) => ({ values: rivi.map(solu) });
 
-async function avaa(request, { sheetId, sarake, voimassaAsti }, res) {
+async function avaa(request, { sheetId, sarake, voimassaAsti }, laite, res) {
   const meta = await metatiedot(request, sheetId);
   const nimet = meta.valilehdet.map((v) => v.nimi);
   const kohteet = kohdistaValilehdet([...AIKATAULU_VALILEHDET, 'KISANSPEKSIT'], nimet).loydetyt;
@@ -122,6 +123,8 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, res) {
     jono: tiedot.jono,
     nimet: tiedot.nimet,
     kortit: kortit.map(({ nro, merkit, versio }) => ({ nro, merkit, versio })),
+    // Toinen laite on tallentanut radalle viimeksi: laite varoittaa ennen käyttöönottoa (yksi laite per rata).
+    muuLaite: viimeisinMuuLaite(kortit, laite),
     voimassaAsti
   });
 }
@@ -171,7 +174,7 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, kortit }) {
     if (vanha && vanha.versio >= kortti.versio) {
       // Sama versio on jo tallessa (uudelleenlähetys) tai taulukossa on uudempi: ei kirjoiteta.
       if (vanha.versio === kortti.versio && vanha.merkit === kortti.merkit) tallennetut.push(kortti.nro);
-      else uudemmat.push({ nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio });
+      else uudemmat.push({ nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio, laite: vanha.laite, aika: vanha.aika });
       return;
     }
     requests.push({ updateCells: {
@@ -222,7 +225,10 @@ export default async function handler(req, res) {
   try {
     const asiakas = await haeKirjuriAsiakas();
     const request = (opts) => pyyntoUudelleenyrittaen((o) => asiakas.request(o), opts);
-    if (toiminto === 'avaa') return await avaa(request, avain, res);
+    if (toiminto === 'avaa') {
+      const laite = String(req.headers?.['x-kirjaus-laite'] || '');
+      return await avaa(request, avain, onLaitetunnus(laite) ? laite : '', res);
+    }
     return await tallenna(request, avain, req, res);
   } catch (error) {
     return lahetaGoogleVirhe(res, error, error?.kirjausVaihe);

@@ -161,7 +161,7 @@ export function korttiRivi({ nro, nimi, merkit, versio, laite, aika }) {
     ...[...merkit].map((m) => (m === '-' ? '' : m))];
 }
 
-// MOBIILI-välilehden rivi → { nro, merkit, versio, laite } tai null (tyhjä rivi).
+// MOBIILI-välilehden rivi → { nro, merkit, versio, laite, aika } tai null (tyhjä rivi).
 export function lueKorttiRivi(rivi) {
   if (!Array.isArray(rivi)) return null;
   const nro = Number.parseInt(rivi[0], 10);
@@ -171,15 +171,25 @@ export function lueKorttiRivi(rivi) {
     return m === 'X' || m === 'O' ? m : '-';
   }).join('');
   const versio = Number(rivi[5]);
-  return { nro, merkit, versio: Number.isFinite(versio) ? versio : 0, laite: String(rivi[4] ?? '') };
+  return { nro, merkit, versio: Number.isFinite(versio) ? versio : 0, laite: String(rivi[4] ?? ''), aika: String(rivi[3] ?? '') };
+}
+
+// Onko rataa viimeksi kirjannut toinen laite: uusimman kortin (suurin versio) laite, jos se ei ole tämä laite.
+// Palauttaa { laite, aika } tai null.
+export function viimeisinMuuLaite(kortit, laite) {
+  const uusin = kortit.reduce((paras, k) => (k.versio > (paras?.versio ?? 0) ? k : paras), null);
+  if (!uusin || !uusin.laite || uusin.laite === laite) return null;
+  return { laite: uusin.laite, aika: uusin.aika };
 }
 
 // Tarkistaa tallennuspyynnön rungon. Palauttaa { laite, kortit } tai { virhe }.
 export const MAKS_KORTTEJA = 30;
 const MAKS_NIMI = 80;
+export const onLaitetunnus = (laite) => typeof laite === 'string' && /^[A-Za-z0-9_-]{4,64}$/.test(laite);
+
 export function tarkistaTallennus(runko) {
   const laite = typeof runko?.laite === 'string' ? runko.laite : '';
-  if (!/^[A-Za-z0-9_-]{4,64}$/.test(laite)) return { virhe: 'Laitteen tunnus puuttuu' };
+  if (!onLaitetunnus(laite)) return { virhe: 'Laitteen tunnus puuttuu' };
   const kortit = runko?.kortit;
   if (!Array.isArray(kortit) || kortit.length === 0) return { virhe: 'Ei kortteja' };
   if (kortit.length > MAKS_KORTTEJA) return { virhe: `Enintään ${MAKS_KORTTEJA} korttia kerralla` };

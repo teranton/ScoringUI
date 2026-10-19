@@ -90,6 +90,8 @@ function RataNakyma({ koodi, onVaihda }) {
   const [valikko, setValikko] = useState(false);
   const [muokkaaOhjelmaa, setMuokkaaOhjelmaa] = useState(false);
   const [latausKierros, setLatausKierros] = useState(0);
+  const [kaikkiValmiit, setKaikkiValmiit] = useState(false);
+  const [toinenLaite, setToinenLaite] = useState(null);
 
   const tilaRef = useRef(tila);
   const lahettaaRef = useRef(false);
@@ -102,7 +104,7 @@ function RataNakyma({ koodi, onVaihda }) {
   // Radan tiedot ja taulukossa jo olevat kortit.
   useEffect(() => {
     let peruttu = false;
-    fetch('/api/kirjaus?toiminto=avaa', { headers: { Authorization: `Bearer ${koodi}` }, cache: 'no-store' })
+    fetch('/api/kirjaus?toiminto=avaa', { headers: { Authorization: `Bearer ${koodi}`, 'X-Kirjaus-Laite': laite }, cache: 'no-store' })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (peruttu) return;
@@ -117,7 +119,7 @@ function RataNakyma({ koodi, onVaihda }) {
         if (!peruttu) setLataus({ tila: 'virhe', viesti: 'Ei yhteyttä', pysyva: false });
       });
     return () => { peruttu = true; };
-  }, [koodi, latausKierros]);
+  }, [koodi, laite, latausKierros]);
 
   const avaus = tila.avaus;
   const jono = useMemo(() => {
@@ -148,6 +150,9 @@ function RataNakyma({ koodi, onVaihda }) {
       if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
       setTila((t) => ({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }));
       setSynk({ virhe: '', viimeksi: Date.now() });
+      // Taulukossa oli toisen laitteen uudempi kortti: kaksi laitetta kirjaa samaa rataa.
+      const muu = (data.uudemmat || []).find((k) => k.laite && k.laite !== laite);
+      if (muu) setToinenLaite({ aika: muu.aika, nro: muu.nro });
     } catch (error) {
       setSynk((s) => ({ ...s, virhe: error instanceof TypeError ? 'Ei yhteyttä' : error.message }));
     } finally {
@@ -202,6 +207,17 @@ function RataNakyma({ koodi, onVaihda }) {
     const alussa = odottaa ? jono.filter((a) => a.nro === tulija.nro) : [];
     return [...alussa, ...tulevatAmpujat(jono, vuorot, tilanne.vuoro.kierros)];
   }, [jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
+  // Radan ampuneet (tai keskeyttäneet), uusin ensin: ampuja voi tarkistaa tuloksensa näytöltä.
+  const valmiit = useMemo(() => {
+    const linjalla = new Set((tilanne?.linja || []).map((l) => l.nro));
+    const viimeinen = new Map();
+    vuorot.forEach((v, i) => viimeinen.set(v.nro, i));
+    return [...viimeinen.entries()]
+      .filter(([nro]) => !linjalla.has(nro)
+        && (taytetyt(merkitOf(tila.kortit, nro)) === KOHTEITA || tila.keskeyttaneet.includes(nro)))
+      .sort((a, b) => b[1] - a[1])
+      .map(([nro]) => nro);
+  }, [vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
   const kohta = valinta || tilanne?.kohta || null;
   const vuorossa = tilanne && !valinta ? tilanne.vuoro : null;
 
@@ -318,6 +334,28 @@ function RataNakyma({ koodi, onVaihda }) {
     />
   );
 
+  // Toinen laite on tallentanut radalle viimeksi: kysytään ennen kuin tämä laite otetaan käyttöön.
+  const muuLaite = avaus.muuLaite;
+  if (muuLaite && tila.hyvaksyttyMuu !== `${muuLaite.laite}|${muuLaite.aika}`) {
+    return (
+      <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">
+        {otsikko}
+        <section className="mx-auto flex w-full max-w-md flex-col gap-3 p-4">
+          <h2 className="text-lg font-bold text-amber-800">Rata on käytössä toisella laitteella</h2>
+          <p>
+            Toinen laite on tallentanut tämän radan tuloksia{muuLaite.aika ? ` viimeksi ${muuLaite.aika}` : ''}.
+            Kirjaa rataa vain yhdellä laitteella kerrallaan: lopeta kirjaus toisella laitteella ennen kuin jatkat tällä.
+          </p>
+          <p className="text-sm text-slate-600">Tämä laite jatkaa taulukkoon jo tallennetuista tuloksista.</p>
+          <button type="button" className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white" onClick={() => setTila((t) => ({ ...t, hyvaksyttyMuu: `${muuLaite.laite}|${muuLaite.aika}` }))}>
+            Ota tämä laite käyttöön
+          </button>
+          <button type="button" className="rounded border border-slate-400 px-4 py-2" onClick={onVaihda}>Vaihda ratakoodi</button>
+        </section>
+      </main>
+    );
+  }
+
   if (!ohjelma || muokkaaOhjelmaa) {
     return (
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">
@@ -349,15 +387,22 @@ function RataNakyma({ koodi, onVaihda }) {
     />
   );
   const linja = tilanne?.linja || [];
+  const naytettavatValmiit = kaikkiValmiit ? valmiit : valmiit.slice(0, 3);
   const seuraava = tulevat[0];
   const sarja = vuorossa ? vuorossa.loppu - vuorossa.alku : 0;
 
   return (
-    <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900 select-none">
+    <main className="flex h-[100dvh] flex-col overflow-hidden bg-slate-100 text-slate-900 select-none">
       {otsikko}
-      {valikkoNakyma}
+      {toinenLaite && (
+        <div className="flex shrink-0 items-center gap-2 bg-amber-100 px-3 py-2 text-sm text-amber-900">
+          <span className="min-w-0 flex-1">Toinen laite kirjaa tälle radalle{toinenLaite.aika ? ` (${toinenLaite.aika})` : ''}. Käytä yhtä laitetta per rata.</span>
+          <button type="button" className="rounded border border-amber-700 px-2 py-1" onClick={() => setToinenLaite(null)}>OK</button>
+        </div>
+      )}
+      <div className="max-h-[50dvh] shrink-0 overflow-y-auto">{valikkoNakyma}</div>
 
-      <section className="grid grid-cols-5 gap-1 px-2 pt-2">
+      <section className="grid shrink-0 grid-cols-5 gap-1 px-2 pt-2">
         {Array.from({ length: ASEMIA }, (_, a) => {
           const ampuja = linja.find((l) => l.asema === a);
           const aktiivinen = vuorossa && ampuja?.nro === vuorossa.nro;
@@ -373,7 +418,7 @@ function RataNakyma({ koodi, onVaihda }) {
         })}
       </section>
 
-      <section className="flex flex-1 flex-col gap-2 px-3 pt-2 pb-48">
+      <section className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-2">
         {naytetty !== null && (
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between text-sm font-semibold">
@@ -386,6 +431,18 @@ function RataNakyma({ koodi, onVaihda }) {
         {!tilanne && jono.length === 0 && <p className="rounded bg-white p-4">Radan aikataulusta ei löytynyt ampujia. Lisää ampuja numerolla valikosta.</p>}
         {!tilanne && jono.length > 0 && <p className="rounded bg-white p-4 font-semibold text-green-800">Kaikki jonon ampujat ovat ampuneet radan.</p>}
         {[...linja].reverse().filter((l) => l.nro !== naytetty).map((l) => kortti(l.nro))}
+
+        {valmiit.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="mt-1 text-sm font-semibold">Ampuneet ({valmiit.length})</div>
+            {naytettavatValmiit.filter((nro) => nro !== naytetty).map((nro) => kortti(nro))}
+            {valmiit.length > 3 && (
+              <button type="button" className="self-start rounded border border-slate-400 bg-white px-3 py-1 text-sm" onClick={() => setKaikkiValmiit((v) => !v)}>
+                {kaikkiValmiit ? 'Näytä vain viimeisimmät' : `Näytä kaikki (${valmiit.length})`}
+              </button>
+            )}
+          </div>
+        )}
 
         {seuraava && (
           <div className="rounded-lg bg-white p-2 text-sm">
@@ -411,7 +468,7 @@ function RataNakyma({ koodi, onVaihda }) {
         )}
       </section>
 
-      <footer className="fixed inset-x-0 bottom-0 border-t border-slate-300 bg-white p-3 shadow-[0_-2px_8px_rgba(0,0,0,0.1)]">
+      <footer className="shrink-0 border-t border-slate-300 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-2px_8px_rgba(0,0,0,0.1)]">
         <div className="mb-2 h-6 truncate text-center text-sm">
           {vuorossa && (
             <>
