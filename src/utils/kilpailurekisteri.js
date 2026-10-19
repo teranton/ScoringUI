@@ -47,7 +47,7 @@ export function onkoRankingTyyppi(arvo) {
 }
 
 // Rekisterin H-sarake TESTI: pysyvä testikisa. Sen tila lasketaan kuin kisapäivänä (kisaStatus.js),
-// joten aikataulu ja tulokset eivät katoa päättymispäivän jälkeen. Etusivulla se on kuluvan vuoden lopussa.
+// joten aikataulu ja tulokset eivät katoa päättymispäivän jälkeen. Etusivulla se on kuluvan vuoden alussa.
 export function onkoTestiTyyppi(arvo) {
   return String(arvo ?? '').trim().toUpperCase() === 'TESTI';
 }
@@ -84,9 +84,9 @@ export function parsiKilpailurekisteri(raakaRivit) {
 
   // Kauden ranking järjestetään loppupäivän mukaan (koko kauden kestävä tapahtuma), kisat alkupäivän mukaan.
   const jarjestysPvm = (kisa) => (kisa.onkoRanking && kisa.loppuPvm ? kisa.loppuPvm : kisa.alkuPvm);
-  // Testikisat ovat oikeiden kisojen jälkeen.
+  // Testikisat ovat ennen oikeita kisoja.
   parsitutKisat.sort((a, b) => {
-    if (a.onkoTesti !== b.onkoTesti) return a.onkoTesti ? 1 : -1;
+    if (a.onkoTesti !== b.onkoTesti) return a.onkoTesti ? -1 : 1;
     const aKey = muunnaPaivamaaraJarjestysavaimeksi(jarjestysPvm(a));
     const bKey = muunnaPaivamaaraJarjestysavaimeksi(jarjestysPvm(b));
 

@@ -106,18 +106,18 @@ test('parsiKilpailurekisteri järjestää rankingin loppupäivän mukaan', () =>
   assert.deepEqual(kisat.map((k) => k.onkoRanking), [true, false, false]);
 });
 
-test('parsiKilpailurekisteri: TESTI-kisa säilyttää päivänsä, on oikeiden kisojen jälkeen ja kuluvassa vuodessa', () => {
+test('parsiKilpailurekisteri: TESTI-kisa säilyttää päivänsä, on ennen oikeita kisoja ja kuluvassa vuodessa', () => {
   const kisat = parsiKilpailurekisteri([
     ['t', 'Testi Compak', '2025-05-01', '2025-05-02', 'sheet-t', '', '1', ' testi '],
     ['s', 'Syyskisa', '2026-09-05', '', 'sheet-s', '', '', ''],
     ['v', 'Vanha kisa', '2024-09-05', '', 'sheet-v', '', '', '']
   ]);
   assert.deepEqual(kisat.map((k) => [k.id, k.alkuPvm, k.onkoTesti, k.piilotettu]), [
+    ['t', '1.5.2025', true, true],
     ['s', '5.9.2026', false, false],
-    ['v', '5.9.2024', false, false],
-    ['t', '1.5.2025', true, true]
+    ['v', '5.9.2024', false, false]
   ]);
   const { aktiiviset, vanhat } = ryhmitteleKisatVuosittain(kisat, 2026);
-  assert.deepEqual(aktiiviset.map((r) => [r.vuosi, r.kisat.map((k) => k.id)]), [[2026, ['s', 't']]]);
+  assert.deepEqual(aktiiviset.map((r) => [r.vuosi, r.kisat.map((k) => k.id)]), [[2026, ['t', 's']]]);
   assert.deepEqual(vanhat.map((r) => r.vuosi), [2024]);
 });

@@ -75,7 +75,7 @@ A registry row with `TESTI` in column H is a test competition that never ends. T
 on its competition day whatever its C and D dates are: the timetable (all of its days), results and status follow its
 `KISANSPEKSIT` (`KILPAILUNSTATUS`, timetable visibility), and `api/kisa.js` caches it like a running competition
 (never stored as finished). Without `KILPAILUNSTATUS` it shows as "Tulossa" with its registrations; with `RUNNING`
-the results show. The front page lists it at the end of the current year, with its own dates. Combine with G to keep
+the results show. The front page lists it first in the current year, before the real competitions, with its own dates. Combine with G to keep
 it off the public list (visible with `?preview=1`).
 
 ## Season ranking
