@@ -11,12 +11,15 @@ import {
 } from './linja.js';
 import { laitteenTunnus, lueKoodi, lueRata, tallennaKoodi, tallennaRata } from './varasto.js';
 import { useHereilla } from './useHereilla.js';
+import { soita } from './aanet.js';
 
 const SYNKRONOINTI_VALI_MS = 15000;
 // Valmis asema (5 kiekkoa) lähetetään heti; kesken olevat merkinnät kootaan, koska kirjuritilillä on
 // Googlen kiintiö (60 kirjoitusta minuutissa kaikille radoille yhteensä).
 const LAHETYS_VIIVE_MS = 1500;
 const KESKEN_VIIVE_MS = 10000;
+const NAPAUTUSVALI_MS = 150;
+const KUITTAUS_MS = 6000;
 
 function alkuKoodi() {
   const k = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('k');
@@ -90,6 +93,16 @@ function RataNakyma({ koodi, onVaihda }) {
   const [synk, setSynk] = useState({ virhe: '', viimeksi: null });
   const [valinta, setValinta] = useState(null);
   const [naytetty, setNaytetty] = useState(null);
+  // Korjauksen tai perumisen kuittaus hetken näytöllä: mitä muutettiin ja mistä jatketaan.
+  const [kuittaus, setKuittaus] = useState(null);
+  // Korjaustila valikosta: vasta silloin kortin kiekkoja ja keskeytystä voi napauttaa.
+  const [korjaustila, setKorjaustila] = useState(false);
+  const lopetaKorjaus = () => {
+    setKorjaustila(false);
+    setValinta(null);
+    setNaytetty(null);
+  };
+  const viimeNapautusRef = useRef(0);
   const [valikko, setValikko] = useState(false);
   const [muokkaaOhjelmaa, setMuokkaaOhjelmaa] = useState(false);
   const [latausKierros, setLatausKierros] = useState(0);
@@ -262,20 +275,50 @@ function RataNakyma({ koodi, onVaihda }) {
     else if (k.top < l.top) lista.scrollTop -= l.top - k.top + 8;
   }, [lista, vuorossaNro, vuorossaKohde, naytetty]);
 
+  // Vahingossa tullut tuplanapautus ei merkitse kahta kiekkoa.
+  const liianPian = () => {
+    const nyt = Date.now();
+    if (nyt - viimeNapautusRef.current < NAPAUTUSVALI_MS) return true;
+    viimeNapautusRef.current = nyt;
+    return false;
+  };
+  const kohdeTeksti = ({ nro, i }) => `${nro} ${nimi(nro)}, asema ${Math.floor(i / ASEMAN_KOHTEET) + 1}, kiekko ${(i % ASEMAN_KOHTEET) + 1}`;
+
   const merkitseKohta = (merkki) => {
-    if (!kohta) return;
-    korjattiinRef.current = valinta !== null;
-    setTila((t) => ({ ...t, ...merkitse(t, kohta, merkki) }));
-    setValinta(null);
+    if (korjaustila || valinta || !tilanne || liianPian()) return;
+    setTila((t) => ({ ...t, ...merkitse(t, tilanne.kohta, merkki) }));
+    setKuittaus(null);
+    if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : 'nolla');
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
   };
 
+  // Korjaus vaihtaa jo merkityn kiekon osumasta nollaksi tai päinvastoin; ampumattomaan ei voi merkitä.
+  const korjaa = () => {
+    if (!valinta || liianPian()) return;
+    const uusi = merkitOf(tila.kortit, valinta.nro)[valinta.i] === 'X' ? 'O' : 'X';
+    korjattiinRef.current = true;
+    setTila((t) => ({ ...t, ...merkitse(t, valinta, uusi) }));
+    setKuittaus(`Korjattu: ${kohdeTeksti(valinta)} → ${uusi === 'X' ? 'OSUMA' : 'NOLLA'}.`);
+    if (tila.aanet !== false) soita('korjaus');
+    setValinta(null);
+    navigator.vibrate?.(30);
+  };
+
   const peruViimeisin = () => {
+    if (liianPian()) return;
     const p = peru(tila);
     if (!p) return;
     setTila((t) => ({ ...t, kortit: p.kortit, historia: p.historia }));
+    setKuittaus(`Peruttu: ${kohdeTeksti(p.kohta)}.`);
+    if (tila.aanet !== false) soita('peru');
     setValinta(null);
   };
+
+  useEffect(() => {
+    if (!kuittaus) return undefined;
+    const ajastin = setTimeout(() => setKuittaus(null), KUITTAUS_MS);
+    return () => clearTimeout(ajastin);
+  }, [kuittaus]);
 
   // Seuraavan linjaan tulijan tauko päälle tai pois.
   const vaihdaTauko = (nro) => {
@@ -287,7 +330,10 @@ function RataNakyma({ koodi, onVaihda }) {
     });
   };
 
-  const ohita = (nro) => setTila((t) => ({ ...t, ohitetut: [...t.ohitetut.filter((n) => n !== nro), nro] }));
+  const ohita = (nro) => {
+    if (!window.confirm(`Ohitetaanko ${nro} ${nimi(nro)}? Hän ei tule nyt linjaan (lisää myöhemmin numerolla valikosta).`)) return;
+    setTila((t) => ({ ...t, ohitetut: [...t.ohitetut.filter((n) => n !== nro), nro] }));
+  };
 
   // Linjalla oleva lopettaa kesken: hänen loput vuoronsa ohitetaan, muiden paikat linjalla eivät muutu.
   const vaihdaKeskeytys = (nro) => {
@@ -305,6 +351,7 @@ function RataNakyma({ koodi, onVaihda }) {
     if (!Number.isInteger(nro) || nro < 1 || nro > 999) return;
     if (jono.some((a) => a.nro === nro)) {
       setNaytetty(nro);
+      setKorjaustila(true);
     } else {
       // Lisätty tulee viimeksi linjaan tulleen perään, aikaisintaan seuraavalla kierroksella (ammuttu ei muutu).
       const tulleet = new Set(tilanne ? vuorot.filter((v) => v.kierros <= tilanne.vuoro.kierros).map((v) => v.nro) : []);
@@ -381,6 +428,13 @@ function RataNakyma({ koodi, onVaihda }) {
       onMuokkaaOhjelmaa={() => { setMuokkaaOhjelmaa(true); setValikko(false); }}
       onHaeNumero={haeNumero}
       onVaihdaRata={vaihdaRata}
+      onKorjaa={() => { setKorjaustila(true); setValikko(false); }}
+      aanet={tila.aanet !== false}
+      onAanet={() => {
+        const paalle = tila.aanet === false;
+        if (paalle) soita('osuma');
+        setTila((t) => ({ ...t, aanet: paalle }));
+      }}
       onTyhjenna={TESTIVERSIO ? tyhjennaRata : null}
       hereilla={hereilla}
       lataus={lataus}
@@ -437,13 +491,16 @@ function RataNakyma({ koodi, onVaihda }) {
       korostus={korostus}
       valmis={valmis}
       keskeyttanyt={tila.keskeyttaneet.includes(nro)}
-      onKeskeyta={() => vaihdaKeskeytys(nro)}
-      onValitse={(i) => setValinta({ nro, i })}
+      onKeskeyta={korjaustila ? () => vaihdaKeskeytys(nro) : null}
+      onValitse={korjaustila ? (i) => setValinta({ nro, i }) : null}
     />
   );
   const linja = tilanne?.linja || [];
   const naytettavatValmiit = kaikkiValmiit ? valmiit : valmiit.slice(0, 3);
   const viimeisinValmis = valmiit[0] ?? null;
+  // Viimeisin merkintä PERU-napissa: näkee heti, mitä peruminen koskee.
+  const viimeHistoria = tila.historia[tila.historia.length - 1];
+  const edellinen = viimeHistoria ? { nro: viimeHistoria.nro, merkki: merkitOf(tila.kortit, viimeHistoria.nro)[viimeHistoria.i] } : null;
   const seuraava = tulevat[0];
   const sarja = vuorossa ? vuorossa.loppu - vuorossa.alku : 0;
 
@@ -508,12 +565,12 @@ function RataNakyma({ koodi, onVaihda }) {
         </div>
       )}
 
-      <section ref={setLista} className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
+      <section ref={setLista} className={`${korjaustila ? 'bg-amber-50' : ''} flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2`}>
         {naytetty !== null && (
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between text-sm font-semibold">
               Korjaus
-              <button type="button" className="rounded border border-slate-400 bg-white px-2 py-1" onClick={() => { setNaytetty(null); setValinta(null); }}>Sulje</button>
+              <button type="button" className="rounded border border-slate-400 bg-white px-2 py-1" onClick={lopetaKorjaus}>Sulje</button>
             </div>
             {kortti(naytetty, 'korjaus')}
           </div>
@@ -539,26 +596,64 @@ function RataNakyma({ koodi, onVaihda }) {
       </section>
 
       <footer className="shrink-0 border-t border-slate-300 bg-white px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:pt-3 sm:pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-2px_8px_rgba(0,0,0,0.1)]">
-        <div className="mb-1 h-5 truncate text-center text-sm sm:mb-2 sm:h-6">
-          {vuorossa && (
-            <>
-              Vuorossa <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b> · asema {vuorossa.asema + 1} ·{' '}
-              {sarja === 2 ? <b>tupla, kiekko {kohta.i - vuorossa.alku + 1}/2</b> : 'yksittäinen'}
-            </>
-          )}
-          {valinta && <>Korjaus: <b>{valinta.nro} {nimi(valinta.nro)}</b> · asema {Math.floor(valinta.i / ASEMAN_KOHTEET) + 1}, kiekko {(valinta.i % ASEMAN_KOHTEET) + 1}</>}
-        </div>
-        <div className="grid grid-cols-[1fr_2fr_2fr] gap-2">
-          <button type="button" className="h-14 rounded-lg sm:h-20 border-2 border-slate-400 text-lg font-semibold active:bg-slate-200 disabled:opacity-30" disabled={tila.historia.length === 0} onClick={peruViimeisin}>
-            PERU
-          </button>
-          <button type="button" className="h-14 rounded-lg sm:h-20 bg-red-700 text-2xl font-bold text-white active:bg-red-900 disabled:opacity-30" disabled={!kohta} onClick={() => merkitseKohta('O')}>
-            NOLLA
-          </button>
-          <button type="button" className="h-14 rounded-lg sm:h-20 bg-green-700 text-2xl font-bold text-white active:bg-green-900 disabled:opacity-30" disabled={!kohta} onClick={() => merkitseKohta('X')}>
-            OSUMA
-          </button>
-        </div>
+        {valinta ? (
+          <>
+            <div className="mb-1 text-center text-sm leading-tight">
+              <div className="truncate font-bold text-amber-800">
+                Korjaus: {kohdeTeksti(valinta)} · nyt {merkitOf(tila.kortit, valinta.nro)[valinta.i] === 'X' ? 'OSUMA' : 'NOLLA'}
+              </div>
+              <div className="truncate text-xs text-slate-600">
+                {tilanne ? `Sen jälkeen jatketaan: vuorossa ${tilanne.vuoro.nro} ${nimi(tilanne.vuoro.nro)}, asema ${tilanne.vuoro.asema + 1}` : 'Kaikki on ammuttu.'}
+              </div>
+            </div>
+            <div className="grid grid-cols-[1fr_2fr] gap-2">
+              <button type="button" className="h-14 rounded-lg border-2 border-slate-400 text-lg font-semibold active:bg-slate-200 sm:h-20" onClick={() => setValinta(null)}>
+                Peruuta
+              </button>
+              {merkitOf(tila.kortit, valinta.nro)[valinta.i] === 'X' ? (
+                <button type="button" className="h-14 rounded-lg bg-red-700 text-xl font-bold text-white active:bg-red-900 sm:h-20" onClick={korjaa}>Muuta NOLLAKSI</button>
+              ) : (
+                <button type="button" className="h-14 rounded-lg bg-green-700 text-xl font-bold text-white active:bg-green-900 sm:h-20" onClick={korjaa}>Muuta OSUMAKSI</button>
+              )}
+            </div>
+          </>
+        ) : korjaustila ? (
+          <>
+            <div className="mb-1 text-center text-sm leading-tight">
+              <div className="truncate font-bold text-amber-800">Korjaustila: napauta korjattavaa kiekkoa kortilla</div>
+              <div className="truncate text-xs text-slate-600">{kuittaus || 'Merkittyjä kiekkoja ja keskeytystä voi nyt muuttaa.'}</div>
+            </div>
+            <button type="button" className="flex h-14 w-full flex-col items-center justify-center rounded-lg bg-blue-800 text-white active:bg-blue-950 sm:h-20" onClick={lopetaKorjaus}>
+              <span className="text-lg font-bold leading-tight">Lopeta korjaus</span>
+              {tilanne && <span className="max-w-full truncate px-2 text-xs leading-tight">jatketaan: vuorossa {tilanne.vuoro.nro} {nimi(tilanne.vuoro.nro)}, asema {tilanne.vuoro.asema + 1}</span>}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className={`mb-1 h-5 truncate text-center text-sm sm:mb-2 sm:h-6 ${kuittaus ? 'rounded bg-amber-100 text-amber-900' : ''}`}>
+              {kuittaus ? (
+                <>{kuittaus} {vuorossa ? <>Jatka: <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b>, asema {vuorossa.asema + 1}</> : ''}</>
+              ) : vuorossa && (
+                <>
+                  Vuorossa <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b> · asema {vuorossa.asema + 1} ·{' '}
+                  {sarja === 2 ? <b>tupla, kiekko {kohta.i - vuorossa.alku + 1}/2</b> : 'yksittäinen'}
+                </>
+              )}
+            </div>
+            <div className="grid grid-cols-[1fr_2fr_2fr] gap-2">
+              <button type="button" className="flex h-14 flex-col items-center justify-center rounded-lg border-2 border-slate-400 font-semibold active:bg-slate-200 disabled:opacity-30 sm:h-20" disabled={!edellinen} onClick={peruViimeisin}>
+                <span className="text-lg leading-tight">PERU</span>
+                {edellinen && <span className="text-[11px] font-normal leading-tight text-slate-600">{edellinen.nro}: {edellinen.merkki === 'X' ? 'osuma' : edellinen.merkki === 'O' ? 'nolla' : 'tyhjä'}</span>}
+              </button>
+              <button type="button" className="h-14 rounded-lg bg-red-700 text-2xl font-bold text-white active:bg-red-900 disabled:opacity-30 sm:h-20" disabled={!tilanne} onClick={() => merkitseKohta('O')}>
+                NOLLA
+              </button>
+              <button type="button" className="h-14 rounded-lg bg-green-700 text-2xl font-bold text-white active:bg-green-900 disabled:opacity-30 sm:h-20" disabled={!tilanne} onClick={() => merkitseKohta('X')}>
+                OSUMA
+              </button>
+            </div>
+          </>
+        )}
       </footer>
     </main>
   );
@@ -595,9 +690,14 @@ function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, valmis, keskey
           <span className="mr-2 inline-block min-w-8 rounded bg-slate-200 px-1 text-center">{ampuja.nro}</span>
           {ampuja.nimi || '(ei nimeä)'}
         </span>
-        <button type="button" className={`shrink-0 rounded px-2 text-[11px] leading-5 sm:py-0.5 sm:text-xs ${keskeyttanyt ? 'bg-slate-700 text-white' : 'border border-slate-300 text-slate-600'}`} onClick={onKeskeyta}>
-          {keskeyttanyt ? 'Keskeytti · peru' : 'Keskeytti'}
-        </button>
+        {/* Keskeytys vain korjaustilassa, ettei sitä paineta vahingossa kesken kirjauksen. */}
+        {onKeskeyta ? (
+          <button type="button" className={`shrink-0 rounded px-2 text-[11px] leading-5 sm:py-0.5 sm:text-xs ${keskeyttanyt ? 'bg-slate-700 text-white' : 'border border-slate-300 text-slate-600'}`} onClick={onKeskeyta}>
+            {keskeyttanyt ? 'Keskeytti · peru' : 'Keskeytti'}
+          </button>
+        ) : keskeyttanyt && (
+          <span className="shrink-0 rounded bg-slate-700 px-2 text-[11px] leading-5 text-white sm:text-xs">Keskeytti</span>
+        )}
         <span className="shrink-0 text-lg leading-tight font-bold sm:text-xl">
           {osumat(merkit)}
           <span className="text-sm font-normal text-slate-500"> / {taytetyt(merkit)}{lahetetty ? '' : ' •'}</span>
@@ -610,16 +710,15 @@ function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, valmis, keskey
               const i = a * ASEMAN_KOHTEET + k;
               const m = merkit[i];
               const vari = m === 'X' ? 'bg-green-700 text-white' : m === 'O' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-400';
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  aria-label={`Asema ${a + 1}, kiekko ${k + 1}`}
-                  className={`flex h-5 items-center justify-center rounded-sm text-xs font-bold sm:h-8 ${vari} ${kohta === i ? 'ring-2 ring-blue-700 ring-offset-1' : ''}`}
-                  onClick={() => onValitse(i)}
-                >
-                  {m === 'X' ? 'X' : m === 'O' ? '0' : ''}
+              const luokat = `flex h-5 items-center justify-center rounded-sm text-xs font-bold sm:h-8 ${vari} ${kohta === i ? 'ring-2 ring-blue-700 ring-offset-1' : ''}`;
+              const teksti = m === 'X' ? 'X' : m === 'O' ? '0' : '';
+              // Kiekkoa voi napauttaa vain korjaustilassa ja vain, jos se on jo merkitty.
+              return onValitse && m !== '-' ? (
+                <button key={i} type="button" aria-label={`Korjaa asema ${a + 1}, kiekko ${k + 1}`} className={`${luokat} ring-1 ring-amber-500`} onClick={() => onValitse(i)}>
+                  {teksti}
                 </button>
+              ) : (
+                <div key={i} className={luokat}>{teksti}</div>
               );
             })}
           </div>
@@ -660,7 +759,7 @@ function OhjelmaEditori({ alku, kisanArvo, kisanOhjelma, sarake, onTallenna, onP
   );
 }
 
-function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onTyhjenna, hereilla, lataus, viimeksi }) {
+function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorjaa, aanet, onAanet, onTyhjenna, hereilla, lataus, viimeksi }) {
   const [nro, setNro] = useState('');
   return (
     <div className="flex flex-col gap-3 border-b border-slate-300 bg-white p-3 text-sm">
@@ -682,6 +781,13 @@ function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onTyhj
         <button type="submit" className="rounded bg-blue-800 px-3 py-2 text-white">Hae / lisää</button>
       </form>
       <p className="text-slate-600">Jonossa oleva ampuja avataan korjattavaksi; muu numero lisätään linjaan seuraavaksi.</p>
+      <button type="button" className="rounded border border-amber-600 bg-amber-50 px-3 py-2 text-left" onClick={onKorjaa}>
+        <b>Korjaa merkintöjä</b> · muuta kiekko osumaksi tai nollaksi tai merkitse keskeytys
+      </button>
+      <div className="flex items-center justify-between gap-2">
+        <span>Äänet osumalle ja nollalle: <b>{aanet ? 'päällä' : 'pois'}</b></span>
+        <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onAanet}>{aanet ? 'Pois' : 'Päälle'}</button>
+      </div>
       <div className="flex items-center justify-between gap-2">
         <span>Ohjelma: <b>{ohjelma || '–'}</b></span>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onMuokkaaOhjelmaa}>Muuta</button>
