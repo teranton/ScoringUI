@@ -11,7 +11,7 @@ import {
 } from './linja.js';
 import { laitteenTunnus, lueKoodi, lueRata, tallennaKoodi, tallennaRata } from './varasto.js';
 import { useHereilla } from './useHereilla.js';
-import { soita } from './aanet.js';
+import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
 
 const SYNKRONOINTI_VALI_MS = 15000;
 // Valmis asema (5 kiekkoa) lähetetään heti; kesken olevat merkinnät kootaan, koska kirjuritilillä on
@@ -300,7 +300,7 @@ function RataNakyma({ koodi, onVaihda }) {
     setKuittaus(null);
     // Tuplan toinen nolla, kun ensimmäinenkin meni ohi, kuulostaa eri tavalla (nouseva).
     const molemmatOhi = merkki === 'O' && tilanne.kohta.i > alku && merkitOf(tila.kortit, nro)[alku] === 'O';
-    if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : molemmatOhi ? 'nolla2' : 'nolla');
+    if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : molemmatOhi ? 'nolla2' : 'nolla', tila.nollaAani);
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
   };
 
@@ -442,6 +442,12 @@ function RataNakyma({ koodi, onVaihda }) {
       onVaihdaRata={vaihdaRata}
       onKorjaa={() => { setKorjaustila(true); setValikko(false); }}
       aanet={tila.aanet !== false}
+      nollaAani={tila.nollaAani || OLETUS_NOLLA_AANI}
+      onNollaAani={(avain) => {
+        soita('nolla', avain);
+        setTimeout(() => soita('nolla2', avain), 600);
+        setTila((t) => ({ ...t, nollaAani: avain }));
+      }}
       onAanet={() => {
         const paalle = tila.aanet === false;
         if (paalle) soita('osuma');
@@ -780,7 +786,7 @@ function OhjelmaEditori({ alku, kisanArvo, kisanOhjelma, sarake, onTallenna, onP
   );
 }
 
-function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorjaa, aanet, onAanet, onTyhjenna, hereilla, lataus, viimeksi }) {
+function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorjaa, aanet, onAanet, nollaAani, onNollaAani, onTyhjenna, hereilla, lataus, viimeksi }) {
   const [nro, setNro] = useState('');
   return (
     <div className="flex flex-col gap-3 border-b border-slate-300 bg-white p-3 text-sm">
@@ -809,6 +815,16 @@ function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorj
         <span>Äänet osumalle ja nollalle: <b>{aanet ? 'päällä' : 'pois'}</b></span>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onAanet}>{aanet ? 'Pois' : 'Päälle'}</button>
       </div>
+      {aanet && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span>Nollan ääni:</span>
+          {Object.entries(NOLLA_AANET).map(([avain, v]) => (
+            <button key={avain} type="button" className={`rounded border px-3 py-2 ${nollaAani === avain ? 'border-blue-800 bg-blue-800 text-white' : 'border-slate-400'}`} onClick={() => onNollaAani(avain)}>
+              {v.nimi}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <span>Ohjelma: <b>{ohjelma || '–'}</b></span>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onMuokkaaOhjelmaa}>Muuta</button>

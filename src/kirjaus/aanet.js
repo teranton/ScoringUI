@@ -12,18 +12,36 @@ function kontekstiKayttoon() {
 }
 
 // Äänet: [taajuus Hz, alku s, kesto s, lopputaajuus Hz (valinnainen liuku)] samalla aaltomuodolla.
+// voimakkuus: huippu 0–1 (pehmeämmät äänet hiljempaa, ettei kuulosta säröltä).
 const AANET = {
-  osuma: { aalto: 'square', savelet: [[1320, 0, 0.09]] },
-  // Nolla: matala, karhea summeri, joka laskee (kaksi hieman eri taajuutta värisee keskenään).
-  nolla: { aalto: 'sawtooth', savelet: [[190, 0, 0.38, 110], [197, 0, 0.38, 115]] },
-  // Tuplan molemmat ohi: toinen nolla nousee, ettei kahta peräkkäistä nollaa kuule yhtenä.
-  nolla2: { aalto: 'sawtooth', savelet: [[110, 0, 0.38, 190], [115, 0, 0.38, 197]] },
-  peru: { aalto: 'triangle', savelet: [[660, 0, 0.08], [440, 0.1, 0.12]] },
-  korjaus: { aalto: 'triangle', savelet: [[523, 0, 0.08], [784, 0.1, 0.12]] }
+  osuma: { aalto: 'square', voimakkuus: 0.8, savelet: [[1320, 0, 0.09]] },
+  peru: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[660, 0, 0.08], [440, 0.1, 0.12]] },
+  korjaus: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[523, 0, 0.08], [784, 0.1, 0.12]] }
 };
 
-export function soita(nimi) {
-  const aani = AANET[nimi];
+// Nollan äänivaihtoehdot (valitaan laitteella). nolla laskee; nolla2 (tuplan molemmat ohi, toinen) nousee.
+export const NOLLA_AANET = {
+  kaksisavel: {
+    nimi: 'Kaksisävel',
+    nolla: { aalto: 'triangle', voimakkuus: 0.9, savelet: [[392, 0, 0.14], [262, 0.16, 0.2]] },
+    nolla2: { aalto: 'triangle', voimakkuus: 0.9, savelet: [[262, 0, 0.14], [392, 0.16, 0.2]] }
+  },
+  pehmea: {
+    nimi: 'Pehmeä summeri',
+    nolla: { aalto: 'square', voimakkuus: 0.35, savelet: [[320, 0, 0.28, 200]] },
+    nolla2: { aalto: 'square', voimakkuus: 0.35, savelet: [[200, 0, 0.28, 320]] }
+  },
+  kopautus: {
+    nimi: 'Kaksi kopausta',
+    nolla: { aalto: 'sine', voimakkuus: 1, savelet: [[240, 0, 0.13], [170, 0.17, 0.16]] },
+    nolla2: { aalto: 'sine', voimakkuus: 1, savelet: [[170, 0, 0.13], [240, 0.17, 0.16]] }
+  }
+};
+export const OLETUS_NOLLA_AANI = 'kaksisavel';
+
+export function soita(nimi, nollaAani = OLETUS_NOLLA_AANI) {
+  const vaihtoehto = NOLLA_AANET[nollaAani] || NOLLA_AANET[OLETUS_NOLLA_AANI];
+  const aani = AANET[nimi] || vaihtoehto[nimi];
   const ctx = aani && kontekstiKayttoon();
   if (!ctx) return;
   const nyt = ctx.currentTime;
@@ -35,8 +53,7 @@ export function soita(nimi) {
     if (loppuTaajuus) oskillaattori.frequency.exponentialRampToValueAtTime(loppuTaajuus, nyt + alku + kesto);
     // Nopea nousu ja lasku, ettei ääni naksahda.
     voimakkuus.gain.setValueAtTime(0.0001, nyt + alku);
-    voimakkuus.gain.exponentialRampToValueAtTime(0.8, nyt + alku + 0.005);
-    if (kesto > 0.2) voimakkuus.gain.setValueAtTime(0.8, nyt + alku + kesto - 0.08);
+    voimakkuus.gain.exponentialRampToValueAtTime(aani.voimakkuus, nyt + alku + 0.005);
     voimakkuus.gain.exponentialRampToValueAtTime(0.0001, nyt + alku + kesto);
     oskillaattori.connect(voimakkuus).connect(ctx.destination);
     oskillaattori.start(nyt + alku);

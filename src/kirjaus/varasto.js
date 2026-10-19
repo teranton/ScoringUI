@@ -38,6 +38,6 @@ export function laitteenTunnus() {
   return tunnus;
 }
 
-// { kortit, historia, lisatyt, ohitetut, tauot, tauotPois, keskeyttaneet, ohjelma, aanet, avaus }
+// { kortit, historia, lisatyt, ohitetut, tauot, tauotPois, keskeyttaneet, ohjelma, aanet, nollaAani, avaus }
 export const lueRata = (sheetId, sarake) => lue(radanAvain(sheetId, sarake)) || {};
 export const tallennaRata = (sheetId, sarake, tila) => kirjoita(radanAvain(sheetId, sarake), tila);
