@@ -11,6 +11,9 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   `contract/sheet-layout.md`. That file is the contract with ScoringLib (`teranton/ScoringLib`) and the
   sheet template.
 - Result tabs are filled by sheet formulas, not by ScoringLib code.
+- The one write path is mobile score entry (`kirjaus.html`, `src/kirjaus/`, `api/kirjaus.js`): a layout code signed with
+  `KIRJAUS_SALAISUUS` lets a device write `MOBIILI Rata N` / `MOBIILI_LOKI` with a separate writer service account
+  (`KIRJURI_CLIENT_EMAIL`, `KIRJURI_PRIVATE_KEY`), Editor only on sheets that use it. The reader account stays read-only.
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
   time follows the registry dates (finished 1 h, served stale up to 1 day in the 14-day correction window and 30 days after it; running 15 s; upcoming 60 s).
   With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.

@@ -1,0 +1,182 @@
+// Mobiilikirjauksen puhtaat apufunktiot: radan ampujajono aikataulusta ja korttirivit MOBIILI-välilehdillä.
+// Ei Google-kutsuja, joten kaikki on testattu (kirjausData.test.js).
+import { normalisoiOtsikko } from '../../src/utils/henkiloTulokset.js';
+import { isTimeLike, taukoTyyppi, tunnistaRataSarakkeet } from '../../src/utils/aikatauluRadat.js';
+
+export const KOHTEITA = 25;
+export const AIKATAULU_VALILEHDET = ['Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
+export const LOKI_VALILEHTI = 'MOBIILI_LOKI';
+export const mobiiliValilehti = (sarake) => `MOBIILI Rata ${sarake}`;
+// Rivi = ampujan numero + 1 (rivi 1 on otsikko), joten jokaisella kortilla on kiinteä osoite.
+export const MAKS_NRO = 999;
+export const META_SARAKKEITA = 6;
+
+export const KORTTI_OTSIKKO = ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO',
+  ...Array.from({ length: KOHTEITA }, (_, i) => String(i + 1))];
+export const LOKI_OTSIKKO = ['AIKA', 'RATA', 'NRO', 'LAITE', 'VERSIO', 'ENNEN', 'JÄLKEEN'];
+
+// Merkit: X osuma, O ohi, - ampumatta. Aina KOHTEITA merkkiä.
+const MERKIT = new RegExp(`^[XO-]{${KOHTEITA}}$`);
+export const onkoMerkit = (merkit) => typeof merkit === 'string' && MERKIT.test(merkit);
+export const tyhjatMerkit = () => '-'.repeat(KOHTEITA);
+export const laskeTulos = (merkit) => [...merkit].filter((m) => m === 'X').length;
+
+// Sarakkeen kirjain (0 = A).
+export function sarakeKirjain(indeksi) {
+  let n = indeksi + 1;
+  let s = '';
+  while (n > 0) {
+    const j = (n - 1) % 26;
+    s = String.fromCharCode(65 + j) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+export const VIIMEINEN_SARAKE = sarakeKirjain(META_SARAKKEITA + KOHTEITA - 1);
+
+// KISANSPEKSIT-avaimen arvo: avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu (kuten UI:n asetukset).
+export function speksiArvo(rivit, avain) {
+  const haettava = normalisoiOtsikko(avain);
+  for (const rivi of rivit || []) {
+    if (!Array.isArray(rivi)) continue;
+    for (let i = 0; i < rivi.length; i++) {
+      if (normalisoiOtsikko(rivi[i]) !== haettava) continue;
+      const arvo = rivi.slice(i + 1).map((s) => String(s ?? '').trim()).find(Boolean);
+      if (arvo) return arvo;
+    }
+  }
+  return '';
+}
+
+// Radan numerot otsikosta: "Rata 1" → [1], "RATA1 / RATA3" → [1, 3] (kierrokset allekkain), "1 Jake" → [1].
+function otsikonRadat(label) {
+  return String(label).split('/').map((osa) => Number.parseInt(osa.trim(), 10)).filter((n) => Number.isInteger(n));
+}
+
+function puhdasNimi(nimi) {
+  return String(nimi || '').replace(/\u200B/g, '').trim();
+}
+
+// Aikataulun rata-ruudukko: [{ radat: [1, 3], kierrokset: [[{ nro, nimi, aika }], ...] }] tai [] jos ei ruudukko.
+export function jasennaRataruudukko(rivit) {
+  if (!Array.isArray(rivit) || rivit.length < 2) return [];
+  const kaistat = tunnistaRataSarakkeet(rivit);
+  if (kaistat.length === 0) return [];
+  const otsikkoRivi = rivit.findIndex((rivi) => Array.isArray(rivi) && rivi.some((s) => /^(?:RATA|LANE)\s*\d+|^\d+\s+\S+/i.test(String(s || '').trim())));
+
+  const data = rivit.slice(otsikkoRivi + 1).filter(Array.isArray);
+  // Otsikko voi olla aika- tai nimisarakkeen päällä (vanhoissa välilehdissä "Rata 1" nimen yllä):
+  // kaistan alku on se sarake, jossa on aikoja ja jonka oikealla puolella numeroita.
+  const osumia = (s) => data.filter((r) => isTimeLike(r[s]) && /^\d+$/.test(String(r[s + 1] ?? '').trim())).length;
+  const alku = (kaista) => [kaista.startIndex, kaista.startIndex - 1, kaista.startIndex + 1]
+    .filter((s) => s >= 0)
+    .reduce((paras, s) => (osumia(s) > osumia(paras) ? s : paras), kaista.startIndex);
+
+  return kaistat.map((kaista) => {
+    const startIndex = alku(kaista);
+    const kierrokset = [[]];
+    data.forEach((rivi) => {
+      const aika = String(rivi[startIndex] ?? '').trim();
+      const nro = String(rivi[startIndex + 1] ?? '').trim();
+      const nimi = puhdasNimi(rivi[startIndex + 2]);
+      if (taukoTyyppi(nimi, nro) === 'vaihto') {
+        kierrokset.push([]);
+        return;
+      }
+      if (!/^\d+$/.test(nro)) return;
+      // Pelkkä numero nimen paikalla on varattu mutta tyhjä paikka.
+      if (!nimi || /^\d+$/.test(nimi)) return;
+      kierrokset[kierrokset.length - 1].push({ nro: Number(nro), nimi, aika: isTimeLike(aika) ? aika : '' });
+    });
+    return { radat: otsikonRadat(kaista.label), kierrokset };
+  });
+}
+
+// Tulossarakkeen (Compak-rata) paikka aikataulussa ja radan ampujajono.
+// aikataulut: [{ nimi, rivit }] järjestyksessä (Aikataulu, Aikataulu La, Aikataulu Su).
+// 1) Kaista, jonka otsikossa on sarakkeen numero (RATA3, RATA1 / RATA3 → toinen kierros).
+// 2) Muuten LAYOUT/PÄIVÄ: sarakkeet 1..n ensimmäisen päivän kaistoilla, n+1.. seuraavan (kehitystaulukossa
+//    sunnuntain RATA1 on tulossarake 5).
+// Jono: radan omat aloittajat, sitten edellisen radan aloittajat (jotka siirtyvät tälle radalle) jne.
+// Palauttaa { aikataulu, kaista, kierros, jono, nimet } tai null, jos rataa ei löydy.
+export function radanJono({ aikataulut, sarake, ratojaPaivassa }) {
+  const paivat = aikataulut
+    .map(({ nimi, rivit }) => ({ nimi, kaistat: jasennaRataruudukko(rivit) }))
+    .filter((p) => p.kaistat.length > 0);
+
+  const nimet = {};
+  paivat.forEach((p) => p.kaistat.forEach((k) => k.kierrokset.flat().forEach((a) => {
+    if (!nimet[a.nro]) nimet[a.nro] = a.nimi;
+  })));
+
+  let paikka = null;
+  for (const paiva of paivat) {
+    const kaista = paiva.kaistat.findIndex((k) => k.radat.includes(sarake));
+    if (kaista !== -1) {
+      paikka = { paiva, kaista, kierros: paiva.kaistat[kaista].radat.indexOf(sarake) };
+      break;
+    }
+  }
+  if (!paikka && paivat.length > 0) {
+    const perPaiva = ratojaPaivassa > 0 ? ratojaPaivassa : paivat[0].kaistat.length;
+    const paiva = paivat[Math.floor((sarake - 1) / perPaiva)];
+    const kaista = (sarake - 1) % perPaiva;
+    if (paiva && kaista < paiva.kaistat.length) paikka = { paiva, kaista, kierros: 0 };
+  }
+  if (!paikka) return { aikataulu: null, kaista: null, kierros: null, jono: [], nimet };
+
+  const { paiva, kaista, kierros } = paikka;
+  const n = paiva.kaistat.length;
+  const nahty = new Set();
+  const jono = [];
+  for (let askel = 0; askel < n; askel++) {
+    const k = (kaista - askel + n) % n;
+    (paiva.kaistat[k].kierrokset[kierros] || []).forEach((a) => {
+      if (nahty.has(a.nro)) return;
+      nahty.add(a.nro);
+      jono.push({ ...a, lahtoRata: k + 1 });
+    });
+  }
+  return { aikataulu: paiva.nimi, kaista: kaista + 1, kierros, jono, nimet };
+}
+
+export function aikaleima(ms = Date.now()) {
+  return new Date(ms).toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' });
+}
+
+export function korttiRivi({ nro, nimi, merkit, versio, laite, aika }) {
+  return [nro, nimi || '', laskeTulos(merkit), aika, laite, versio,
+    ...[...merkit].map((m) => (m === '-' ? '' : m))];
+}
+
+// MOBIILI-välilehden rivi → { nro, merkit, versio, laite } tai null (tyhjä rivi).
+export function lueKorttiRivi(rivi) {
+  if (!Array.isArray(rivi)) return null;
+  const nro = Number.parseInt(rivi[0], 10);
+  if (!Number.isInteger(nro)) return null;
+  const merkit = Array.from({ length: KOHTEITA }, (_, i) => {
+    const m = String(rivi[META_SARAKKEITA + i] ?? '').trim().toUpperCase();
+    return m === 'X' || m === 'O' ? m : '-';
+  }).join('');
+  const versio = Number(rivi[5]);
+  return { nro, merkit, versio: Number.isFinite(versio) ? versio : 0, laite: String(rivi[4] ?? '') };
+}
+
+// Tarkistaa tallennuspyynnön rungon. Palauttaa { laite, kortit } tai { virhe }.
+export const MAKS_KORTTEJA = 30;
+export function tarkistaTallennus(runko) {
+  const laite = typeof runko?.laite === 'string' ? runko.laite : '';
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(laite)) return { virhe: 'Laitteen tunnus puuttuu' };
+  const kortit = runko?.kortit;
+  if (!Array.isArray(kortit) || kortit.length === 0) return { virhe: 'Ei kortteja' };
+  if (kortit.length > MAKS_KORTTEJA) return { virhe: `Enintään ${MAKS_KORTTEJA} korttia kerralla` };
+  const nahty = new Set();
+  for (const k of kortit) {
+    if (!Number.isInteger(k?.nro) || k.nro < 1 || k.nro > MAKS_NRO) return { virhe: 'Virheellinen ampujan numero' };
+    if (nahty.has(k.nro)) return { virhe: 'Sama ampuja kahdesti' };
+    nahty.add(k.nro);
+    if (!onkoMerkit(k.merkit)) return { virhe: 'Virheelliset merkinnät' };
+    if (!Number.isSafeInteger(k.versio) || k.versio < 1) return { virhe: 'Virheellinen versio' };
+  }
+  return { laite, kortit: kortit.map(({ nro, merkit, versio }) => ({ nro, merkit, versio })) };
+}

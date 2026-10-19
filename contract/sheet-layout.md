@@ -147,6 +147,28 @@ uses the fallback cell. Renaming a key therefore makes the library read the fall
 Keys ScoringLib reads with no fallback cell (the feature that needs them is skipped or stops with an error
 when they are missing): `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `Asemien määrä`, `Tyhjän ruudun symboli`.
 
+## Mobile score entry (`api/kirjaus.js`)
+
+The only part of ScoringUI that writes to a sheet. It uses a second service account (`KIRJURI_CLIENT_EMAIL`,
+`KIRJURI_PRIVATE_KEY`, scope `spreadsheets`) that is Editor only on the competitions that use mobile entry; a sheet
+not shared with it answers "Mobiilikirjaus ei ole käytössä". Access is a layout code signed with `KIRJAUS_SALAISUUS`
+(ScoringLib makes the same codes). Design: `design/mobile-score-entry.md` in the project files.
+
+Reads (with the writer account):
+- `Aikataulu`, `Aikataulu La`, `Aikataulu Su` lane grids, as above. The lane header may sit above the time or the
+  name column. Result column N is the lane whose header names `RATA N` (in `RATA1 / RATA3` the part after the
+  `RATOJEN VAIHTO` row); otherwise the Nth lane counting `LAYOUT/PÄIVÄ` lanes per timetable tab in the order above.
+  The layout's queue is its own starters, then the previous lane's starters, and so on.
+- `KISANSPEKSIT` keys `RATAn_NIMI` (layout name shown on the device) and `LAYOUT/PÄIVÄ`.
+
+Writes (created on the first save if missing):
+- `MOBIILI Rata N` (N = result column `1`..`N` of `OSALLISTUJAT+TULOKSET`): header row
+  `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, 1..25`; the shooter with number n is on row n + 1. Marks `X` hit,
+  `O` miss, empty not shot; `TULOS` counts the `X`s. A save with a version not newer than `VERSIO` writes nothing.
+- `MOBIILI_LOKI`: one appended row per accepted save: `AIKA, RATA, NRO, LAITE, VERSIO, ENNEN, JÄLKEEN`.
+
+Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
+
 ## To do
 
 - Add CSV fixtures exported from the dev sheet under `contract/fixtures/` and use them in tests.
