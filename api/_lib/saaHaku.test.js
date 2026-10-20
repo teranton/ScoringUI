@@ -76,17 +76,29 @@ test('tuntematon paikka palauttaa tyhjän ja muistetaan', async () => {
 test('hakuvirheessä tai tyhjässä vastauksessa käytetään vanhaa ennustetta, ilman sitä virhe heitetään', async () => {
   let aika = NYT;
   let vastaus = paivaXml('2026-10-15', 8, 1);
-  const { kisanSaa } = luo({ vastaa: () => vastaus, nyt: () => aika });
+  const { kisanSaa, haut: oulaisenHaut } = luo({ vastaa: () => vastaus, nyt: () => aika });
   const kisa = { paikka: 'Oulainen', alkuPvm: '2026-10-15', loppuPvm: '' };
   await kisanSaa(kisa);
 
   aika = NYT + ENNUSTE_TUORE_MS + 1;
   vastaus = new Error('verkko');
   assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+  // Vanha ennuste muistetaan virheen jälkeen hetken: seuraava pyyntö ei kysy uudelleen.
+  assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+  assert.equal(oulaisenHaut.length, 2);
+  aika += 6 * 60 * 1000;
   vastaus = '<wfs:FeatureCollection></wfs:FeatureCollection>';
   assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+  assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+  assert.equal(oulaisenHaut.length, 3);
+  aika += 61 * 60 * 1000;
   vastaus = [503, 'Service Unavailable'];
   assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+  aika += 6 * 60 * 1000;
+  // Tilapäinen 400 ei pyyhi vanhaa ennustetta.
+  vastaus = [400, EI_PAIKKAA];
+  assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+  assert.equal(oulaisenHaut.length, 5);
 
   const { kisanSaa: tyhjaHaku, haut } = luo({ vastaa: () => new Error('verkko') });
   await assert.rejects(tyhjaHaku(kisa), /verkko/);
@@ -98,6 +110,8 @@ test('hakuvirheessä tai tyhjässä vastauksessa käytetään vanhaa ennustetta,
 test('nimellä löytynyt paikka Suomen ulkopuolella ei kelpaa; vajaa päivä muistetaan tyhjänä', async () => {
   const { kisanSaa } = luo({ vastaa: () => paivaXml('2026-10-15', 20, 1, '43.65 -79.38') });
   assert.deepEqual(await kisanSaa({ paikka: 'Toronto', alkuPvm: '2026-10-15', loppuPvm: '' }), { paikka: '', paivat: [] });
+  const { kisanSaa: tallinnaHaku } = luo({ vastaa: () => paivaXml('2026-10-15', 20, 1, '59.44 24.75') });
+  assert.deepEqual(await tallinnaHaku({ paikka: 'Tallinna', alkuPvm: '2026-10-15', loppuPvm: '' }), { paikka: '', paivat: [] });
 
   const { kisanSaa: reunaHaku, haut } = luo({ vastaa: () => '<wfs:FeatureCollection></wfs:FeatureCollection>' });
   const kisa = { paikka: 'Oulainen', alkuPvm: '2026-10-23', loppuPvm: '' };

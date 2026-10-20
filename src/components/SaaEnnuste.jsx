@@ -79,7 +79,7 @@ export default function SaaEnnuste({ kisa, status, locale, className = '' }) {
             <span>{muotoilePaiva(p.pvm, locale)}</span>
             {Ikoni && <Ikoni className="h-4 w-4 text-[hsl(var(--foreground))]" aria-label={tx[tyyppi]} />}
             <span className="font-medium text-[hsl(var(--foreground))]">
-              {asteet(p.maks)}{p.min !== null && <span className="font-normal text-[hsl(var(--muted-foreground))]"> / {asteet(p.min)}</span>}
+              {asteet(p.maks)}<span className="font-normal text-[hsl(var(--muted-foreground))]"> / {asteet(p.min)}</span>
             </span>
             {p.sade >= 0.1 && <span title={tx.rain}>☂ {p.sade.toLocaleString(locale === 'en' ? 'en-GB' : 'fi-FI', { maximumFractionDigits: 1 })} mm</span>}
             {p.tuuli !== null && <span title={tx.wind}>{Math.round(p.tuuli)} m/s</span>}

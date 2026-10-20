@@ -14,7 +14,8 @@ const PAIKKA_EI_LOYDY_MS = 24 * TUNTI_MS;
 const TYHJA_MS = TUNTI_MS;
 const VIRHE_MS = 5 * 60 * 1000;
 // Nimellä haetun paikan pitää olla Suomessa (Ilmatieteen laitoksen paikkahaku kattaa koko maailman).
-const SUOMI = { latMin: 59.4, latMax: 70.2, lonMin: 19.0, lonMax: 31.7 };
+// Etelärajana 59.7 (Hanko 59.8), jottei Tallinna (59.4) mene läpi.
+const SUOMI = { latMin: 59.7, latMax: 70.2, lonMin: 19.0, lonMax: 31.7 };
 const AIKARAJA_MS = 5000;
 
 const FMI_WFS = 'https://opendata.fmi.fi/wfs';
@@ -69,21 +70,28 @@ export function luoSaaHaku({ hae = fetch, nyt = Date.now, valimuisti = luoValimu
       return tallessa.arvo.paivat;
     }
     const vanhaEnnuste = tallessa?.arvo?.paivat?.length && ika < ENNUSTE_VARALLA_MS ? tallessa.arvo.paivat : null;
+    // Vanha ennuste otetaan käyttöön ja muistetaan vielä odotusajan, ettei Ilmatieteen laitosta kysytä joka pyynnöllä.
+    // Tallennusaika pysyy alkuperäisenä, joten vanhaa ei käytetä ENNUSTE_VARALLA_MS pidempään.
+    const kaytaVanhaa = async (odotus) => {
+      const kesto = Math.min(ika + odotus, ENNUSTE_VARALLA_MS);
+      await valimuisti.aseta(avain, { paivat: vanhaEnnuste, kesto }, tallessa.tallennettu);
+      return vanhaEnnuste;
+    };
 
     return yhdista(avain, async () => {
       try {
         const paivat = (await haeFmi(paikka, pvm)).filter((p) => p.pvm === pvm);
-        if (!paivat.length && vanhaEnnuste) return vanhaEnnuste;
+        if (!paivat.length && vanhaEnnuste) return kaytaVanhaa(TYHJA_MS);
         await valimuisti.aseta(avain, { paivat, kesto: paivat.length ? ENNUSTE_TUORE_MS : TYHJA_MS }, nyt());
         return paivat;
       } catch (error) {
-        if (error instanceof PaikkaEiLoydyError) {
+        if (error instanceof PaikkaEiLoydyError && !vanhaEnnuste) {
           await valimuisti.aseta(avain, { paivat: [], kesto: PAIKKA_EI_LOYDY_MS }, nyt());
           return [];
         }
         if (vanhaEnnuste) {
           console.error('[SAA] Ennusteen haku epäonnistui, käytetään tallessa olevaa:', error?.message);
-          return vanhaEnnuste;
+          return kaytaVanhaa(VIRHE_MS);
         }
         await valimuisti.aseta(avain, { paivat: [], kesto: VIRHE_MS, virhe: true }, nyt());
         throw error;

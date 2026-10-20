@@ -109,3 +109,9 @@ test('päivän yhteenveto kisa-ajalta (klo 8–20 Suomen aikaa)', () => {
   ]);
   assert.deepEqual(paivaYhteenvedot(null), []);
 });
+
+test('pienet tuntisateet lasketaan yhteen ennen pyöristystä', () => {
+  // Klo 9–20 (06Z–17Z) 0,04 mm tunnissa = 0,48 mm.
+  const rivit = Array.from({ length: 12 }, (_, i) => tunti(`2026-10-15T${String(6 + i).padStart(2, '0')}:00:00Z`, 5, { sade: 0.04 }));
+  assert.equal(paivaYhteenvedot(rivit)[0].sade, 0.5);
+});

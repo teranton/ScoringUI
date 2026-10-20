@@ -122,7 +122,7 @@ export function paivaYhteenvedot(rivit) {
       riveja.set(pvm, (riveja.get(pvm) || 0) + 1);
     }
     if (rivi.tuuli !== null) paiva.tuuli = Math.max(paiva.tuuli ?? 0, rivi.tuuli);
-    if (rivi.sade !== null && tunti > ALKU_TUNTI) paiva.sade = Math.round((paiva.sade + rivi.sade) * 10) / 10;
+    if (rivi.sade !== null && tunti > ALKU_TUNTI) paiva.sade += rivi.sade;
     // Päivän symboliksi keskipäivää lähin.
     const ero = Math.abs(tunti - SYMBOLI_TUNTI);
     if (rivi.symboli !== null && ero < (symboliEro.get(pvm) ?? Infinity)) {
@@ -131,5 +131,8 @@ export function paivaYhteenvedot(rivit) {
     }
     paivat.set(pvm, paiva);
   }
-  return [...paivat.values()].filter((p) => (riveja.get(p.pvm) || 0) >= MIN_RIVEJA);
+  // Sade pyöristetään vasta summasta, jotta pienet tuntisateet eivät katoa.
+  return [...paivat.values()]
+    .filter((p) => (riveja.get(p.pvm) || 0) >= MIN_RIVEJA)
+    .map((p) => ({ ...p, sade: Math.round(p.sade * 10) / 10 }));
 }
