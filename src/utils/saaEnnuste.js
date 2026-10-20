@@ -1,14 +1,17 @@
 // src/utils/saaEnnuste.js
 // Sääennusteen apufunktiot, joita käyttävät sekä kisakortti että api/saa.js.
-// Ennuste tulee yr.no:sta (MET Norwayn Locationforecast, ei avainta) kisan paikan mukaan (rekisterin sarake H).
+// Ennuste tulee Ilmatieteen laitoksen avoimesta datasta (meteorologin muokkaama ennuste, ei avainta)
+// kisan paikan mukaan (rekisterin sarake H).
 import { isoPaiva, parsiPaivamaara } from './kisaStatus.js';
 
-// MET Norwayn ennuste ulottuu noin 9 päivän päähän (tämä päivä mukaan lukien).
-export const ENNUSTE_PAIVIA = 9;
+// Ilmatieteen laitoksen muokattu ennuste ulottuu 10 päivän (240 h) päähän.
+export const ENNUSTE_PAIVIA = 10;
 // Päivän yhteenveto lasketaan kisa-ajalta (Suomen aikaa, tunnit ALKU_TUNTI..LOPPU_TUNTI).
 const ALKU_TUNTI = 8;
 const LOPPU_TUNTI = 20;
 const SYMBOLI_TUNTI = 12;
+// Päivästä pitää olla kisa-ajalta vähintään näin monta lämpötilaa (ennusteen viimeinen päivä voi olla vajaa).
+const MIN_RIVEJA = 2;
 
 const SUOMEN_AIKA = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Helsinki', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23'
@@ -66,79 +69,67 @@ export function naytetaankoSaa(kisa, status, nyt = new Date()) {
   return Boolean(ennustePaiva(kisa.alkuPvm, kisa.loppuPvm, nyt));
 }
 
-// yr.no:n symbolikoodi (esim. "lightrainshowers_day") → näytettävä tyyppi.
-export function saaTyyppi(symboli) {
-  const s = String(symboli || '').replace(/_(day|night|polartwilight)$/, '');
-  if (s.includes('thunder')) return 'ukkonen';
-  if (s.includes('sleet')) return 'ranta';
-  if (s.includes('snow')) return 'lumi';
-  if (s === 'lightrain' || s === 'lightrainshowers') return 'tihku';
-  if (s.includes('rain')) return 'sade';
-  if (s === 'fog') return 'sumu';
-  if (s === 'clearsky') return 'selkea';
-  if (s === 'fair' || s === 'partlycloudy') return 'puolipilvinen';
+// Ilmatieteen laitoksen WeatherSymbol3-koodi → näytettävä tyyppi.
+export function saaTyyppi(koodi) {
+  const k = typeof koodi === 'number' ? koodi : NaN;
+  if (k === 1) return 'selkea';
+  if (k === 2) return 'puolipilvinen';
+  if (k === 21 || k === 31) return 'tihku';
+  if ((k >= 22 && k <= 23) || (k >= 32 && k <= 33)) return 'sade';
+  if (k >= 41 && k <= 53) return 'lumi';
+  if (k >= 61 && k <= 64) return 'ukkonen';
+  if (k >= 71 && k <= 83) return 'ranta';
+  if (k === 91 || k === 92) return 'sumu';
   return 'pilvinen';
 }
 
-const luku = (arvo) => (Number.isFinite(arvo) ? arvo : null);
+const NIMET = { Temperature: 'lampo', WindSpeedMS: 'tuuli', Precipitation1h: 'sade', WeatherSymbol3: 'symboli' };
 
-// Jakson [alku, alku + pituus) päällekkäisyys kisa-ajan [ALKU_TUNTI, LOPPU_TUNTI) kanssa tunteina.
-function paallekkain(alku, pituus) {
-  return Math.max(0, Math.min(alku + pituus, LOPPU_TUNTI) - Math.max(alku, ALKU_TUNTI));
+// Ilmatieteen laitoksen WFS-vastaus (stored query ...::point::simple) → [{ aika, lampo, tuuli, sade, symboli }]
+// tunneittain. Puuttuva arvo (NaN) on null.
+export function parsiFmiVastaus(xml) {
+  const rivit = new Map();
+  for (const [, elementti] of String(xml || '').matchAll(/<BsWfs:BsWfsElement\b[^>]*>([\s\S]*?)<\/BsWfs:BsWfsElement>/g)) {
+    const aika = elementti.match(/<BsWfs:Time>([^<]+)<\/BsWfs:Time>/)?.[1]?.trim();
+    const nimi = NIMET[elementti.match(/<BsWfs:ParameterName>([^<]+)<\/BsWfs:ParameterName>/)?.[1]?.trim()];
+    if (!aika || !nimi) continue;
+    const arvo = Number(elementti.match(/<BsWfs:ParameterValue>([^<]*)<\/BsWfs:ParameterValue>/)?.[1]);
+    const rivi = rivit.get(aika) || { aika, lampo: null, tuuli: null, sade: null, symboli: null };
+    rivi[nimi] = Number.isFinite(arvo) ? arvo : null;
+    rivit.set(aika, rivi);
+  }
+  return [...rivit.values()].sort((a, b) => a.aika.localeCompare(b.aika));
 }
 
-// Locationforecastin aikasarja → päivittäiset yhteenvedot kisa-ajalta (klo 8–20 Suomen aikaa):
+// Tuntirivit → päivittäiset yhteenvedot kisa-ajalta (klo 8–20 Suomen aikaa):
 // [{ pvm, symboli, maks, min, sade (mm), tuuli (suurin keskituuli m/s) }].
-// Lähipäivinä rivit ovat tunnin välein, kauempana kuuden tunnin välein. Jakso lasketaan mukaan, jos
-// vähintään puolet siitä osuu kisa-aikaan. Päivä jätetään pois, jos kisa-ajalta on alle kaksi riviä
-// (sarjan viimeinen, vajaa päivä).
-export function paivaYhteenvedot(aikasarja) {
+// Lämpötila, tuuli ja symboli ovat hetkiarvoja klo 8–20; Precipitation1h on edeltävän tunnin sade, joten
+// sade lasketaan riveiltä klo 9–20 (jakso 8–20).
+export function paivaYhteenvedot(rivit) {
   const paivat = new Map();
   const symboliEro = new Map();
   const riveja = new Map();
-  for (const rivi of Array.isArray(aikasarja) ? aikasarja : []) {
-    const hetki = new Date(rivi?.time);
+  for (const rivi of Array.isArray(rivit) ? rivit : []) {
+    const hetki = new Date(rivi?.aika);
     if (Number.isNaN(hetki.getTime())) continue;
     const { pvm, tunti } = suomenAika(hetki);
-    const data = rivi.data || {};
-    const tunnin = data.next_1_hours;
-    const kuusi = data.next_6_hours;
-    // Tuntiennusteessa käytetään tunnin jaksoa, kauempana kuuden tunnin jaksoa.
-    const [jakso, pituus] = tunnin ? [tunnin, 1] : [kuusi, 6];
-    const jaksoMukana = Boolean(jakso) && paallekkain(tunti, pituus) * 2 >= pituus;
-    const hetkiMukana = tunti >= ALKU_TUNTI && tunti <= LOPPU_TUNTI;
-    if (!jaksoMukana && !hetkiMukana) continue;
+    if (tunti < ALKU_TUNTI || tunti > LOPPU_TUNTI) continue;
 
-    const paiva = paivat.get(pvm) || { pvm, symboli: '', maks: -Infinity, min: Infinity, sade: 0, tuuli: null };
-    if (hetkiMukana) {
-      const lampo = luku(data.instant?.details?.air_temperature);
-      if (lampo !== null) {
-        paiva.maks = Math.max(paiva.maks, lampo);
-        paiva.min = Math.min(paiva.min, lampo);
-        riveja.set(pvm, (riveja.get(pvm) || 0) + 1);
-      }
-      const tuuli = luku(data.instant?.details?.wind_speed);
-      if (tuuli !== null) paiva.tuuli = Math.max(paiva.tuuli ?? 0, tuuli);
+    const paiva = paivat.get(pvm) || { pvm, symboli: null, maks: -Infinity, min: Infinity, sade: 0, tuuli: null };
+    if (rivi.lampo !== null) {
+      paiva.maks = Math.max(paiva.maks, rivi.lampo);
+      paiva.min = Math.min(paiva.min, rivi.lampo);
+      riveja.set(pvm, (riveja.get(pvm) || 0) + 1);
     }
-    if (jaksoMukana) {
-      const sade = luku(jakso.details?.precipitation_amount);
-      if (sade !== null) paiva.sade = Math.round((paiva.sade + sade) * 10) / 10;
-      // Kuuden tunnin jakson ääriarvot vain, kun koko jakso on kisa-ajalla (muuten mukana olisi yön lämpötiloja).
-      if (pituus === 6 && paallekkain(tunti, 6) === 6) {
-        const maks = luku(jakso.details?.air_temperature_max);
-        const min = luku(jakso.details?.air_temperature_min);
-        if (maks !== null) paiva.maks = Math.max(paiva.maks, maks);
-        if (min !== null) paiva.min = Math.min(paiva.min, min);
-      }
-      // Päivän symboliksi se, jonka jakso on lähimpänä keskipäivää.
-      const symboli = jakso.summary?.symbol_code;
-      const ero = Math.abs(tunti + pituus / 2 - SYMBOLI_TUNTI);
-      if (symboli && ero < (symboliEro.get(pvm) ?? Infinity)) {
-        paiva.symboli = symboli;
-        symboliEro.set(pvm, ero);
-      }
+    if (rivi.tuuli !== null) paiva.tuuli = Math.max(paiva.tuuli ?? 0, rivi.tuuli);
+    if (rivi.sade !== null && tunti > ALKU_TUNTI) paiva.sade = Math.round((paiva.sade + rivi.sade) * 10) / 10;
+    // Päivän symboliksi keskipäivää lähin.
+    const ero = Math.abs(tunti - SYMBOLI_TUNTI);
+    if (rivi.symboli !== null && ero < (symboliEro.get(pvm) ?? Infinity)) {
+      paiva.symboli = rivi.symboli;
+      symboliEro.set(pvm, ero);
     }
     paivat.set(pvm, paiva);
   }
-  return [...paivat.values()].filter((p) => (riveja.get(p.pvm) || 0) >= 2);
+  return [...paivat.values()].filter((p) => (riveja.get(p.pvm) || 0) >= MIN_RIVEJA);
 }

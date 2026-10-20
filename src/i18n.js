@@ -172,7 +172,7 @@ const TEKSTIT = jaadyta({
     },
     saa: {
       title: 'Sääennuste',
-      source: 'Sää: yr.no (MET Norway)',
+      source: 'Sää: Ilmatieteen laitos',
       rain: 'Sademäärä klo 8–20',
       wind: 'Tuuli (suurin keskituuli klo 8–20)',
       selkea: 'Selkeää',
@@ -349,7 +349,7 @@ const TEKSTIT = jaadyta({
     },
     saa: {
       title: 'Weather forecast',
-      source: 'Weather: yr.no (MET Norway)',
+      source: 'Weather: Finnish Meteorological Institute',
       rain: 'Precipitation 8–20',
       wind: 'Wind (max mean speed 8–20)',
       selkea: 'Clear',

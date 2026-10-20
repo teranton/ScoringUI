@@ -1,4 +1,4 @@
-// Pieni sääennuste kisakorttiin (yr.no): yhden kisapäivän sää, ylin/alin lämpötila, sademäärä ja tuuli kisa-ajalta.
+// Pieni sääennuste kisakorttiin (Ilmatieteen laitos): yhden kisapäivän sää, ylin/alin lämpötila, sademäärä ja tuuli kisa-ajalta.
 // Tulevasta kisasta näytetään aloituspäivä, käynnissä olevasta seuraava kisapäivä.
 // Näytetään vain tulevalle tai käynnissä olevalle kisalle, jolla on paikka rekisterissä ja ennuste saatavilla.
 import { useEffect, useState } from 'react';

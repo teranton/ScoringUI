@@ -22,8 +22,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   (`api/_lib/valimuisti.js`), so `vercel dev`, where every request runs in a new process, doesn't hit Google
   on every request. Google 429s are retried once, then old data is served if there is any.
   The browser keeps the registry and the last 20 opened competitions in `localStorage`.
-- `api/saa.js` serves the weather forecast for a competition's place (registry column H) from yr.no
-  (MET Norway Locationforecast, free, no key, needs a User-Agent with contact; names geocoded with Open-Meteo). Geocoding and forecasts are kept in `api/_lib/valimuisti.js` (forecast 1 h, CDN 30 min).
+- `api/saa.js` serves the weather forecast for a competition's place (registry column H) from the
+  Finnish Meteorological Institute open data (WFS, edited 10-day forecast, free, no key, CC BY 4.0; place names resolved by FMI). Forecasts are kept in `api/_lib/valimuisti.js` (1 h, CDN 30 min).
 
 ## Commands
 

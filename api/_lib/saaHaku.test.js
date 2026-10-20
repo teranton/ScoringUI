@@ -10,103 +10,84 @@ import { luoValimuisti } from './valimuisti.js';
 // Ke 14.10.2026 klo 12 Suomen aikaa.
 const NYT = new Date('2026-10-14T09:00:00Z').getTime();
 
-const rivi = (time, lampo, symboli) => ({
-  time,
-  data: {
-    instant: { details: { air_temperature: lampo, wind_speed: 4 } },
-    next_6_hours: { summary: { symbol_code: symboli }, details: { precipitation_amount: 0.4 } }
+const elementti = (aika, nimi, arvo) => `<wfs:member><BsWfs:BsWfsElement gml:id="x"><BsWfs:Time>${aika}</BsWfs:Time>`
+  + `<BsWfs:ParameterName>${nimi}</BsWfs:ParameterName><BsWfs:ParameterValue>${arvo}</BsWfs:ParameterValue></BsWfs:BsWfsElement></wfs:member>`;
+// Päivän tunnit klo 8–20 Suomen aikaa (UTC+3) samalla säällä.
+function paivaXml(pvm, lampo, symboli) {
+  const osat = [];
+  for (let h = 5; h <= 17; h++) {
+    const aika = `${pvm}T${String(h).padStart(2, '0')}:00:00Z`;
+    osat.push(elementti(aika, 'Temperature', lampo + (h === 11 ? 2 : 0)), elementti(aika, 'WindSpeedMS', 4),
+      elementti(aika, 'Precipitation1h', 0.1), elementti(aika, 'WeatherSymbol3', symboli));
   }
-});
-const YR = { properties: { timeseries: [
-  rivi('2026-10-14T06:00:00Z', 10, 'clearsky_day'),
-  rivi('2026-10-14T12:00:00Z', 11, 'clearsky_day'),
-  rivi('2026-10-15T06:00:00Z', 8, 'cloudy'),
-  rivi('2026-10-15T12:00:00Z', 9, 'rain'),
-  rivi('2026-10-16T06:00:00Z', 6, 'rain'),
-  rivi('2026-10-16T12:00:00Z', 7, 'rain')
-] } };
+  return `<wfs:FeatureCollection>${osat.join('')}</wfs:FeatureCollection>`;
+}
+const EI_PAIKKAA = '<ExceptionReport><Exception><ExceptionText>No locations found for the place with the requested language!</ExceptionText></Exception></ExceptionReport>';
 
-function luo({ vastaukset = {}, nyt = () => NYT } = {}) {
+function luo({ vastaa, nyt = () => NYT } = {}) {
   const haut = [];
-  const hae = async (url, opts) => {
-    haut.push(url);
-    const isanta = new URL(url).hostname;
-    assert.match(opts?.headers?.['User-Agent'] || '', /tulospalvelu/i);
-    const vastaus = vastaukset[isanta];
-    if (vastaus instanceof Error) throw vastaus;
-    return { ok: true, status: 200, json: async () => vastaus };
+  const hae = async (url) => {
+    haut.push(new URL(url));
+    const tulos = await vastaa(new URL(url));
+    if (tulos instanceof Error) throw tulos;
+    const [status, body] = typeof tulos === 'string' ? [200, tulos] : tulos;
+    return { ok: status >= 200 && status < 300, status, text: async () => body };
   };
   const valimuisti = luoValimuisti('saa', { hakemisto: mkdtempSync(path.join(tmpdir(), 'saa-test-')) });
   return { kisanSaa: luoSaaHaku({ hae, nyt, valimuisti }), haut };
 }
 
-const GEO = { results: [
-  { name: 'Jakobstad', latitude: 63.0, longitude: 10.0, country_code: 'SE' },
-  { name: 'Pietarsaari', latitude: 63.67, longitude: 22.7, country_code: 'FI' }
-] };
-
-test('paikan nimi geokoodataan (suomalainen osuma) ja tulevasta kisasta näytetään aloituspäivä', async () => {
-  const { kisanSaa, haut } = luo({ vastaukset: { 'geocoding-api.open-meteo.com': GEO, 'api.met.no': YR } });
+test('paikan nimellä haetaan näytettävän päivän ennuste, toinen haku välimuistista', async () => {
+  const { kisanSaa, haut } = luo({ vastaa: (url) => paivaXml(url.searchParams.get('starttime').slice(0, 10), 8, 31) });
   const tulos = await kisanSaa({ paikka: 'Pietarsaari', alkuPvm: '2026-10-15', loppuPvm: '2026-10-16' });
-  assert.equal(tulos.paikka, 'Pietarsaari');
-  assert.deepEqual(tulos.paivat, [{ pvm: '2026-10-15', symboli: 'cloudy', maks: 9, min: 8, sade: 0.8, tuuli: 4 }]);
-  const ennusteUrl = new URL(haut[1]);
-  assert.equal(ennusteUrl.pathname, '/weatherapi/locationforecast/2.0/compact');
-  assert.equal(ennusteUrl.searchParams.get('lat'), '63.67');
-  assert.equal(ennusteUrl.searchParams.get('lon'), '22.70');
+  assert.deepEqual(tulos, { paikka: 'Pietarsaari', paivat: [{ pvm: '2026-10-15', symboli: 31, maks: 10, min: 8, sade: 1.2, tuuli: 4 }] });
 
-  // Toinen haku tulee välimuistista.
-  await kisanSaa({ paikka: 'pietarsaari ', alkuPvm: '2026-10-15', loppuPvm: '' });
-  assert.equal(haut.length, 2);
+  const url = haut[0];
+  assert.equal(url.origin + url.pathname, 'https://opendata.fmi.fi/wfs');
+  assert.equal(url.searchParams.get('storedquery_id'), 'fmi::forecast::edited::weather::scandinavia::point::simple');
+  assert.equal(url.searchParams.get('place'), 'Pietarsaari');
+  assert.equal(url.searchParams.get('starttime'), '2026-10-15T00:00:00Z');
+  assert.equal(url.searchParams.get('endtime'), '2026-10-15T23:00:00Z');
+
+  await kisanSaa({ paikka: 'pietarsaari', alkuPvm: '2026-10-15', loppuPvm: '' });
+  assert.equal(haut.length, 1);
 });
 
-test('koordinaatit käytetään suoraan, kaukainen tai puuttuva kisa ei hae mitään', async () => {
-  const { kisanSaa, haut } = luo({ vastaukset: { 'api.met.no': YR } });
-  // Käynnissä olevasta kisasta seuraava kisapäivä.
-  const tulos = await kisanSaa({ paikka: '64.1, 24.5', alkuPvm: '13.10.2026', loppuPvm: '16.10.2026' });
+test('koordinaatit latlon-parametrina; käynnissä olevasta kisasta seuraava päivä; kaukainen kisa ei hae', async () => {
+  const { kisanSaa, haut } = luo({ vastaa: (url) => paivaXml(url.searchParams.get('starttime').slice(0, 10), 5, 1) });
+  const tulos = await kisanSaa({ paikka: '64,1 24,5', alkuPvm: '13.10.2026', loppuPvm: '16.10.2026' });
   assert.deepEqual(tulos.paivat.map((p) => p.pvm), ['2026-10-15']);
-  assert.equal(haut.length, 1);
+  assert.equal(haut[0].searchParams.get('latlon'), '64.1,24.5');
+  assert.equal(haut[0].searchParams.has('place'), false);
 
-  assert.deepEqual(await kisanSaa({ paikka: '64.1, 24.5', alkuPvm: '2026-12-01', loppuPvm: '' }), { paikka: '', paivat: [] });
+  assert.deepEqual(await kisanSaa({ paikka: 'Oulainen', alkuPvm: '2026-12-01', loppuPvm: '' }), { paikka: '', paivat: [] });
   assert.deepEqual(await kisanSaa({ paikka: '', alkuPvm: '2026-10-15', loppuPvm: '' }), { paikka: '', paivat: [] });
   assert.equal(haut.length, 1);
 });
 
-test('vain ulkomainen osuma ei kelpaa', async () => {
-  const { kisanSaa } = luo({ vastaukset: { 'geocoding-api.open-meteo.com': { results: [GEO.results[0]] } } });
-  assert.deepEqual(await kisanSaa({ paikka: 'Jakobstad', alkuPvm: '2026-10-15', loppuPvm: '' }), { paikka: '', paivat: [] });
-});
-
 test('tuntematon paikka palauttaa tyhjän ja muistetaan', async () => {
-  const { kisanSaa, haut } = luo({ vastaukset: { 'geocoding-api.open-meteo.com': {} } });
-  assert.deepEqual(await kisanSaa({ paikka: 'Eioleolemassa', alkuPvm: '2026-10-15', loppuPvm: '' }), { paikka: '', paivat: [] });
-  await kisanSaa({ paikka: 'Eioleolemassa', alkuPvm: '2026-10-15', loppuPvm: '' });
+  const { kisanSaa, haut } = luo({ vastaa: () => [400, EI_PAIKKAA] });
+  const kisa = { paikka: 'Eioleolemassa', alkuPvm: '2026-10-15', loppuPvm: '' };
+  assert.deepEqual(await kisanSaa(kisa), { paikka: '', paivat: [] });
+  await kisanSaa(kisa);
   assert.equal(haut.length, 1);
 });
 
-test('hakuvirheessä käytetään vanhaa ennustetta, ilman sitä virhe heitetään', async () => {
+test('hakuvirheessä tai tyhjässä vastauksessa käytetään vanhaa ennustetta, ilman sitä virhe heitetään', async () => {
   let aika = NYT;
-  const vastaukset = { 'api.met.no': YR };
-  const { kisanSaa } = luo({ vastaukset, nyt: () => aika });
-  const kisa = { paikka: '64.1, 24.5', alkuPvm: '2026-10-15', loppuPvm: '' };
+  let vastaus = paivaXml('2026-10-15', 8, 1);
+  const { kisanSaa } = luo({ vastaa: () => vastaus, nyt: () => aika });
+  const kisa = { paikka: 'Oulainen', alkuPvm: '2026-10-15', loppuPvm: '' };
   await kisanSaa(kisa);
 
-  vastaukset['api.met.no'] = new Error('verkko');
   aika = NYT + ENNUSTE_TUORE_MS + 1;
+  vastaus = new Error('verkko');
+  assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+  vastaus = '<wfs:FeatureCollection></wfs:FeatureCollection>';
+  assert.equal((await kisanSaa(kisa)).paivat.length, 1);
+  vastaus = [503, 'Service Unavailable'];
   assert.equal((await kisanSaa(kisa)).paivat.length, 1);
 
-  const { kisanSaa: tyhjaHaku } = luo({ vastaukset });
+  const { kisanSaa: tyhjaHaku } = luo({ vastaa: () => new Error('verkko') });
   await assert.rejects(tyhjaHaku(kisa), /verkko/);
-});
-
-test('vastaus ilman aikasarjaa on virhe eikä korvaa vanhaa', async () => {
-  let aika = NYT;
-  const vastaukset = { 'api.met.no': YR };
-  const { kisanSaa } = luo({ vastaukset, nyt: () => aika });
-  const kisa = { paikka: '64.1, 24.5', alkuPvm: '2026-10-15', loppuPvm: '' };
-  await kisanSaa(kisa);
-
-  vastaukset['api.met.no'] = { properties: {} };
-  aika = NYT + ENNUSTE_TUORE_MS + 1;
-  assert.equal((await kisanSaa(kisa)).paivat.length, 1);
 });
