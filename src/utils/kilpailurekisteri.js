@@ -38,6 +38,17 @@ function tulkitseRekisterinTotuusarvo(arvo) {
   return null;
 }
 
+// Rekisterin H-sarake (tyyppi): RANKING merkitsee kauden rankingin. Muut arvot ohitetaan.
+export function onkoRankingTyyppi(arvo) {
+  return String(arvo ?? '').trim().toUpperCase() === 'RANKING';
+}
+
+// Rekisterin H-sarake TESTI: pysyvä testikisa. Sen tila lasketaan kuin kisapäivänä (kisaStatus.js),
+// joten aikataulu ja tulokset eivät katoa päättymispäivän jälkeen. Etusivulla se on kuluvan vuoden alussa.
+export function onkoTestiTyyppi(arvo) {
+  return String(arvo ?? '').trim().toUpperCase() === 'TESTI';
+}
+
 export function arvioiJoukkuekisaNimesta(kisaNimi) {
   return String(kisaNimi || '').includes('SM');
 }
@@ -62,14 +73,20 @@ export function parsiKilpailurekisteri(raakaRivit) {
         apiUrl: row[4] || "",
         joukkueKisaAsetus,
         piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true,
-        paikka: String(row[7] || '').trim()
+        onkoRanking: onkoRankingTyyppi(row[7]),
+        onkoTesti: onkoTestiTyyppi(row[7]),
+        paikka: String(row[8] || '').trim()
       });
     }
   }
 
+  // Kauden ranking järjestetään loppupäivän mukaan (koko kauden kestävä tapahtuma), kisat alkupäivän mukaan.
+  const jarjestysPvm = (kisa) => (kisa.onkoRanking && kisa.loppuPvm ? kisa.loppuPvm : kisa.alkuPvm);
+  // Testikisat ovat ennen oikeita kisoja.
   parsitutKisat.sort((a, b) => {
-    const aKey = muunnaPaivamaaraJarjestysavaimeksi(a.alkuPvm);
-    const bKey = muunnaPaivamaaraJarjestysavaimeksi(b.alkuPvm);
+    if (a.onkoTesti !== b.onkoTesti) return a.onkoTesti ? -1 : 1;
+    const aKey = muunnaPaivamaaraJarjestysavaimeksi(jarjestysPvm(a));
+    const bKey = muunnaPaivamaaraJarjestysavaimeksi(jarjestysPvm(b));
 
     if (aKey && bKey) return bKey.localeCompare(aKey);
     if (aKey) return -1;
@@ -85,7 +102,7 @@ export function ryhmitteleKisatVuosittain(kisat, kuluvaVuosi) {
   const ilmanVuotta = [];
 
   for (const kisa of kisat) {
-    const vuosi = haeKisanVuosi(kisa);
+    const vuosi = kisa.onkoTesti ? kuluvaVuosi : haeKisanVuosi(kisa);
     if (!Number.isInteger(vuosi)) {
       ilmanVuotta.push(kisa);
       continue;

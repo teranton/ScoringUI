@@ -296,17 +296,17 @@ body {
   }
 }
 
-/* Tulostettava tulosluettelo (TulosteTulokset.jsx): piilossa näytöllä, tulostuksessa ainoa sisältö. */
+/* Tulosteet (TulosteTulokset.jsx, TulosteAikataulu.jsx): piilossa näytöllä, tulostuksessa ainoa sisältö. */
 .tuloste-root {
   display: none;
 }
 
 @media print {
-  .app-tulostetaan-tulokset > :not(.tuloste-root) {
+  .app-tulostetaan > :not(.tuloste-root) {
     display: none !important;
   }
 
-  .app-tulostetaan-tulokset > .tuloste-root {
+  .app-tulostetaan > .tuloste-root {
     display: block;
     font: 9pt/1.25 "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: #000;
@@ -427,5 +427,92 @@ body {
   .tuloste-root .tuloste-ei-tulosta td {
     color: #555;
     font-style: italic;
+  }
+}
+
+/* Compak-aikataulu (TulosteAikataulu.jsx): radat rinnakkain, aika + numero + ampuja. */
+@media print {
+  .tuloste-aikataulu .tuloste-aikataulu-osa + .tuloste-aikataulu-osa {
+    break-before: page;
+  }
+
+  .tuloste-aikataulu .tuloste-col-aika { width: 4.2em; }
+  .tuloste-aikataulu .tuloste-col-nro { width: 2.8em; }
+
+  .tuloste-aikataulu td {
+    padding-top: 1.3pt;
+    padding-bottom: 1.3pt;
+  }
+
+  .tuloste-aikataulu .tuloste-ratarivi th {
+    font-size: 9pt;
+    text-transform: none;
+    border-bottom: 0.6pt solid #000;
+  }
+
+  /* Pystyviiva jokaisen radan alkuun. Vähintään 1pt, ettei se katoa pyöristyksessä. */
+  .tuloste-aikataulu .tuloste-raja {
+    border-left: 1pt solid #555;
+  }
+
+  .tuloste-aikataulu .tuloste-aika {
+    font-weight: 700;
+  }
+
+  .tuloste-aikataulu .tuloste-tauko {
+    font-style: italic;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .tuloste-aikataulu .tuloste-tuomari {
+    font-weight: 700;
+    text-decoration: underline;
+  }
+}
+
+/* Tulostaulukko (TulosteTaulukko.jsx): kaikki radat rinnakkain. Yli 16 radalla pienempi teksti, jotta 24 rataa
+   mahtuu vaaka-A4:lle (sarakkeet em-yksiköissä, joten ne kapenevat tekstin mukana). */
+@media print {
+  .tuloste-taulukko-tiivis {
+    font-size: 7.5pt;
+  }
+
+  .tuloste-taulukko-tiivis th {
+    font-size: 6.5pt;
+  }
+
+  .tuloste-taulukko .tuloste-col-era { width: 2.2em; }
+  .tuloste-taulukko .tuloste-col-seura { width: 9em; }
+
+  /* Pystyviiva ennen ratoja. Vähintään 1pt, ettei se katoa pyöristyksessä. */
+  .tuloste-taulukko .tuloste-raja {
+    border-left: 1pt solid #555;
+  }
+
+  .tuloste-taulukko .tuloste-maksimi {
+    font-weight: 700;
+  }
+
+  /* Koko nimet ja kaikki ratko-merkinnät rivitetään katkaisun sijaan. Seura katkaistaan, ettei pitkän seuran
+     nimi kahdenna jokaisen jäsenensä rivikorkeutta. */
+  .tuloste-taulukko .tuloste-nimi,
+  .tuloste-taulukko .tuloste-ratko {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .tuloste-taulukko .tuloste-ratko {
+    text-align: center;
+  }
+
+  .tuloste-taulukko .tuloste-analyysi td {
+    font-size: 0.8em;
+    font-style: italic;
+  }
+
+  .tuloste-taulukko .tuloste-analyysi .tuloste-num {
+    padding-left: 1pt;
+    padding-right: 1pt;
   }
 }

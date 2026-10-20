@@ -1,6 +1,6 @@
 // api/saa.js
 // Kisan sääennuste: /api/saa?sheetId=<rekisterin sarake E> → { paikka, paivat }.
-// Paikka luetaan rekisterin sarakkeesta H; päättyneelle kisalle tai ilman paikkaa paivat on tyhjä.
+// Paikka luetaan rekisterin sarakkeesta I; päättyneelle kisalle tai ilman paikkaa paivat on tyhjä.
 // CDN pitää vastauksen tuoreena puoli tuntia (Ilmatieteen laitoksen muokattu ennuste päivittyy muutaman kerran päivässä).
 import dotenv from 'dotenv';
 dotenv.config();
@@ -10,7 +10,7 @@ import { luoSaaHaku } from './_lib/saaHaku.js';
 
 export const SAA_OTSIKOT = {
   ennuste: 'public, s-maxage=1800, stale-while-revalidate=3600',
-  // Lyhyt, jotta sarakkeen H täyttäminen tai kisan tulo ennusteikkunaan näkyy pian.
+  // Lyhyt, jotta sarakkeen I täyttäminen tai kisan tulo ennusteikkunaan näkyy pian.
   tyhja: 'public, s-maxage=600, stale-while-revalidate=3600',
   virhe: 'public, s-maxage=60'
 };

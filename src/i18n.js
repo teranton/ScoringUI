@@ -26,7 +26,11 @@ const TEKSTIT = jaadyta({
       themeDefault: 'Oletus',
       themeOcean: 'Meri',
       themeForest: 'Metsa',
-      fetchingCompetitionData: 'Haetaan kilpailun tietoja...'
+      fetchingCompetitionData: 'Haetaan kilpailun tietoja...',
+      loadingView: 'Ladataan näkymää...',
+      viewLoadFailed: 'Näkymän lataus epäonnistui.',
+      viewLoadFailedOffline: 'Näkymää ei voi ladata ilman verkkoyhteyttä.',
+      reloadPage: 'Lataa sivu uudelleen'
     },
     kisaStatus: {
       kaynnissa: 'Käynnissä',
@@ -59,6 +63,19 @@ const TEKSTIT = jaadyta({
     },
     aikatauluTulostus: {
       button: 'Tulosta / PDF'
+    },
+    tulosteAikataulu: {
+      title: 'Aikataulu',
+      empty: 'Aikataulussa ei ole tulostettavia rivejä.',
+      printed: 'Tulostettu',
+      lane: 'Rata',
+      time: 'Aika',
+      number: 'Nro',
+      shooter: 'Ampuja',
+      break: 'TAUKO',
+      trajectoryChange: 'RATOJEN VAIHTO',
+      refereeSample: 'Nimi',
+      refereeLegend: '= aloitustuomarointi'
     },
     aikatauluRyhma: {
       title: 'Eräluettelo',
@@ -108,8 +125,10 @@ const TEKSTIT = jaadyta({
     henkiloTaulukko: {
       loading: 'Ladataan taulukkodataa...',
       title: 'Kaikki tulokset taulukkona',
-      normal: 'Normaali',
-      compact: 'Kompakti',
+      allColumns: 'Kaikki sarakkeet',
+      fewerColumns: 'Tiivistä',
+      landscape: 'Vaakanäkymä',
+      rotateHint: 'Käännä puhelin vaakatasoon, niin ratoja mahtuu enemmän näkyviin.',
       fullscreen: 'Koko näyttö',
       exitFullscreen: 'Poistu koko näytöstä',
       rank: 'Sija',
@@ -121,11 +140,17 @@ const TEKSTIT = jaadyta({
       total: 'Yht',
       allStagesReady: 'Kaikki alitulokset valmiit',
       stagesMissing: 'Alituloksia puuttuu',
-      zoomReset: 'Nollaa zoom',
       showStageAnalytics: 'Rata-analyysi',
       hideStageAnalytics: 'Piilota analyysi',
       analyticsAvg: 'KA (n)',
-      analyticsDetails: 'Md / Max%'
+      analyticsDetails: 'Md / Max%',
+      print: 'Tulosta / PDF',
+      printed: 'Tulostettu',
+      unofficial: 'Epäviralliset tulokset',
+      printEmpty: 'Ei tuloksia tulostettavaksi.',
+      printAvg: 'Keskiarvo',
+      printMedian: 'Mediaani',
+      printMaxPct: 'Täysiä tuloksia (%)'
     },
     henkiloTulokset: {
       noResults: 'Ei henkilökohtaisia tuloksia saatavilla tai välilehteä ei löydy.',
@@ -137,6 +162,19 @@ const TEKSTIT = jaadyta({
       sort: 'Järjestä',
       total: 'Kokonaistulos',
       stage: 'Asema'
+    },
+    rankingTulokset: {
+      noResults: 'Rankingin tuloksia ei löytynyt.',
+      explanation: 'Kisan pisteet = ampujan tulos / kisan voittajatulos. Avaa ampuja nähdäksesi kisakohtaiset pisteet.',
+      resultsCount: 'tulosta',
+      counted: 'Lasketaan kokonaispisteisiin',
+      sarjaOPEN: 'OPEN (Y)',
+      sarjaSENIORIT: 'Seniorit',
+      sarjaJUNIORIT: 'Juniorit',
+      sarjaNAISET: 'Naiset',
+      tila1: 'Pakolliset SM-tulokset ja vähintään 4 tulosta',
+      tila2: 'Pakolliset SM-tulokset, alle 4 tulosta',
+      tila3: 'Alle 2 SM-tulosta'
     },
     ilmoittautuneet: {
       title: 'Ilmoittautuneet osallistujat',
@@ -203,7 +241,11 @@ const TEKSTIT = jaadyta({
       themeDefault: 'Default',
       themeOcean: 'Ocean',
       themeForest: 'Forest',
-      fetchingCompetitionData: 'Fetching competition data...'
+      fetchingCompetitionData: 'Fetching competition data...',
+      loadingView: 'Loading view...',
+      viewLoadFailed: 'Loading the view failed.',
+      viewLoadFailedOffline: 'The view cannot be loaded without a network connection.',
+      reloadPage: 'Reload page'
     },
     kisaStatus: {
       kaynnissa: 'Ongoing',
@@ -236,6 +278,19 @@ const TEKSTIT = jaadyta({
     },
     aikatauluTulostus: {
       button: 'Print / PDF'
+    },
+    tulosteAikataulu: {
+      title: 'Timetable',
+      empty: 'No timetable rows to print.',
+      printed: 'Printed',
+      lane: 'Lane',
+      time: 'Time',
+      number: 'No.',
+      shooter: 'Shooter',
+      break: 'BREAK',
+      trajectoryChange: 'TRAJECTORY CHANGE',
+      refereeSample: 'Name',
+      refereeLegend: '= starts as referee'
     },
     aikatauluRyhma: {
       title: 'Heat Schedule',
@@ -285,8 +340,10 @@ const TEKSTIT = jaadyta({
     henkiloTaulukko: {
       loading: 'Loading table data...',
       title: 'All Results (Table)',
-      normal: 'Normal',
-      compact: 'Compact',
+      allColumns: 'All columns',
+      fewerColumns: 'Compact',
+      landscape: 'Landscape',
+      rotateHint: 'Turn your phone sideways to see more stages.',
       fullscreen: 'Fullscreen Sheet',
       exitFullscreen: 'Exit Fullscreen',
       rank: 'Rank',
@@ -298,11 +355,17 @@ const TEKSTIT = jaadyta({
       total: 'Total',
       allStagesReady: 'All stage scores are complete',
       stagesMissing: 'Some stage scores are missing',
-      zoomReset: 'Reset Zoom',
       showStageAnalytics: 'Stage Analytics',
       hideStageAnalytics: 'Hide Analytics',
       analyticsAvg: 'Avg (n)',
-      analyticsDetails: 'Md / Max%'
+      analyticsDetails: 'Md / Max%',
+      print: 'Print / PDF',
+      printed: 'Printed',
+      unofficial: 'Unofficial results',
+      printEmpty: 'No results to print.',
+      printAvg: 'Average',
+      printMedian: 'Median',
+      printMaxPct: 'Perfect scores (%)'
     },
     henkiloTulokset: {
       noResults: 'No individual results available or sheet not found.',
@@ -314,6 +377,19 @@ const TEKSTIT = jaadyta({
       sort: 'Sort by',
       total: 'Total score',
       stage: 'Stage'
+    },
+    rankingTulokset: {
+      noResults: 'No ranking results found.',
+      explanation: 'Competition points = shooter score / winning score. Open a shooter to see the points per competition.',
+      resultsCount: 'results',
+      counted: 'Counted in the total',
+      sarjaOPEN: 'OPEN (Y)',
+      sarjaSENIORIT: 'Seniors',
+      sarjaJUNIORIT: 'Juniors',
+      sarjaNAISET: 'Ladies',
+      tila1: 'Required championship results and at least 4 results',
+      tila2: 'Required championship results, fewer than 4 results',
+      tila3: 'Fewer than 2 championship results'
     },
     ilmoittautuneet: {
       title: 'Registered participants',

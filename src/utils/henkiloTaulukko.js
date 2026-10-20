@@ -269,3 +269,102 @@ export function onkoAliTulosPuuttuu(arvo) {
   const teksti = String(arvo ?? '').trim().toUpperCase();
   return teksti === '' || teksti === '-' || teksti === '—' || teksti === 'N/A';
 }
+
+// Sarakeleveydet (px) tasoittain. Taso valitaan sen mukaan, mitä taulukon leveyteen mahtuu.
+const TASOT = {
+  desktop: { sija: 35, nimi: 200, sarja: 50, seura: 140, paiva: 35, yht: 35, ratko: 52, rata: 30, rataMax: 40 },
+  mobile: { sija: 24, nimi: 154, sarja: 32, seura: 70, paiva: 24, yht: 24, ratko: 42, rata: 24, rataMax: 32 },
+  compact: { sija: 24, nimi: 90, sarja: 32, seura: 70, paiva: 24, yht: 24, ratko: 30, rata: 18, rataMax: 26 }
+};
+
+// Vierityspalkin ja reunojen varaus, ettei taulukko mene juuri ja juuri yli.
+const LEVEYS_VARA = 8;
+
+// Seura-sarakkeen leveys pisimmän seuran nimen mukaan, enintään tason maksimi (pidemmät katkaistaan).
+// Mobiilin maksimi 70 px mahduttaa "Trapp-73":n (text-xs ~52 px + px-2).
+// Merkin leveys on arvio Interin keskileveydestä; desktopilla text-sm ja px-3, muuten text-xs ja px-2.
+const SEURA_MIN = 40;
+const SEURA_MERKKI = { desktop: 7.7, mobile: 6.6, compact: 6.6 };
+const SEURA_PADDING = { desktop: 24, mobile: 16, compact: 16 };
+
+function laskeSeuraLeveys(taso, seuraMerkit) {
+  const maksimi = TASOT[taso].seura;
+  if (!(seuraMerkit > 0)) return maksimi;
+  const tarve = Math.ceil(seuraMerkit * SEURA_MERKKI[taso]) + SEURA_PADDING[taso];
+  return Math.max(SEURA_MIN, Math.min(maksimi, tarve));
+}
+
+// Valitsee taulukon asettelun käytettävissä olevan leveyden mukaan. Leveä Seura pudotetaan ensin, jotta
+// isompi teksti säilyy; sitten kavennetaan sarakkeita, pudotetaan La/Su ja Sarja ja lopuksi tiivistetään
+// nimet. Jos mikään ei mahdu, palautetaan tiivein asettelu (taulukkoa vieritetään sivusuunnassa).
+// Ylimääräinen tila jaetaan rata-sarakkeille. Leveys 0 (ei vielä mitattu) = väljin asettelu.
+export function laskeTaulukkoAsettelu({
+  leveys = 0,
+  ratojenMaara = 0,
+  naytaRatko = false,
+  onkoSarja = false,
+  onkoSeura = true,
+  seuraMerkit = 0,
+  paivienMaara = 0,
+  kaikkiSarakkeet = false
+} = {}) {
+  const kaikki = { sarja: onkoSarja, seura: onkoSeura, paivat: paivienMaara > 0 };
+  const ilman = (...pois) => ({ ...kaikki, ...Object.fromEntries(pois.map((avain) => [avain, false])) });
+
+  const vaihtoehdot = kaikkiSarakkeet
+    ? [['desktop', kaikki], ['mobile', kaikki], ['compact', kaikki]]
+    : [
+      ['desktop', kaikki],
+      ['desktop', ilman('seura')],
+      ['mobile', kaikki],
+      ['mobile', ilman('seura')],
+      ['mobile', ilman('seura', 'paivat')],
+      ['mobile', ilman('seura', 'paivat', 'sarja')],
+      ['compact', ilman('seura', 'paivat', 'sarja')]
+    ];
+
+  const tasonLeveydet = (taso) => ({ ...TASOT[taso], seura: laskeSeuraLeveys(taso, seuraMerkit) });
+  const laskeLeveys = (l, sarakkeet, rata) => l.sija + l.nimi + l.yht
+    + (sarakkeet.sarja ? l.sarja : 0)
+    + (sarakkeet.seura ? l.seura : 0)
+    + (sarakkeet.paivat ? l.paiva * paivienMaara : 0)
+    + (naytaRatko ? l.ratko : 0)
+    + rata * ratojenMaara;
+
+  const kaytettavissa = leveys - LEVEYS_VARA;
+  const valittu = (leveys > 0
+    && vaihtoehdot.find(([taso, sarakkeet]) => laskeLeveys(tasonLeveydet(taso), sarakkeet, TASOT[taso].rata) <= kaytettavissa))
+    || (leveys > 0 ? vaihtoehdot[vaihtoehdot.length - 1] : vaihtoehdot[0]);
+  const [taso, sarakkeet] = valittu;
+  const l = tasonLeveydet(taso);
+  const perusLeveys = laskeLeveys(l, sarakkeet, l.rata);
+  const mahtuu = leveys <= 0 || perusLeveys <= kaytettavissa;
+
+  let rata = l.rata;
+  if (leveys > 0 && mahtuu && ratojenMaara > 0) {
+    const ylimaarainen = Math.floor((kaytettavissa - perusLeveys) / ratojenMaara);
+    rata = Math.min(l.rataMax, l.rata + Math.max(0, ylimaarainen));
+  }
+
+  return {
+    taso,
+    sarakkeet,
+    leveydet: { sija: l.sija, nimi: l.nimi, sarja: l.sarja, seura: l.seura, paiva: l.paiva, yht: l.yht, ratko: l.ratko, rata },
+    lyhennaNimet: taso === 'compact',
+    mahtuu,
+    piilotettuja: Object.keys(kaikki).some((avain) => kaikki[avain] && !sarakkeet[avain])
+  };
+}
+
+// Taulukon A4-tuloste (TulosteTaulukko.jsx): yli 8 rataa ei mahdu pystysivulle, yli 16 vaakasivullekaan
+// tavallisella tekstikoolla. Leveydet: index.css .tuloste-taulukko.
+export function laskeTulosteTaulukonKoko(ratojenMaara = 0) {
+  return { vaaka: ratojenMaara > 8, tiivis: ratojenMaara > 16 };
+}
+
+// Ratko-solun teksti tulosteeseen: statusmerkinnät ja tasatuloksen ratko, kuten näytön taulukossa.
+export function muodostaTulosteRatko(ampuja, ratkoIdt) {
+  const statukset = ampuja?.ratkoNaytto?.statusEtiketit || [];
+  const teksti = ratkoIdt?.has(ampuja?.id) ? (ampuja?.ratkoNaytto?.teksti || '') : '';
+  return [...statukset, teksti].filter(Boolean).join(' ');
+}

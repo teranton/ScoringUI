@@ -12,7 +12,7 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
   const kisat = parsiKilpailurekisteri([
     ['ID', 'Nimi', 'Alku', 'Loppu', 'SheetId', 'Joukkue', 'Piilotettu'],
     ['k1', 'Kevätkisa', '2026-04-05', '2026-04-05', 'sheet-1', 'true', ''],
-    ['k2', 'SM 2026', '2026-06-06', '2026-06-07', 'sheet-2', '', '1', ' Oulainen '],
+    ['k2', 'SM 2026', '2026-06-06', '2026-06-07', 'sheet-2', '', '1', '', ' Oulainen '],
     ['', '', '', '', '', '', '']
   ]);
 
@@ -25,6 +25,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       apiUrl: 'sheet-2',
       joukkueKisaAsetus: null,
       piilotettu: true,
+      onkoRanking: false,
+      onkoTesti: false,
       paikka: 'Oulainen'
     },
     {
@@ -35,6 +37,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       apiUrl: 'sheet-1',
       joukkueKisaAsetus: true,
       piilotettu: false,
+      onkoRanking: false,
+      onkoTesti: false,
       paikka: ''
     }
   ]);
@@ -92,4 +96,30 @@ test('parsiKilpailurekisteri: virheellinen päivämäärä järjestyy kuin päiv
     ['b', 'Bonuskisa', '1.1.2020', '', '', '', '']
   ]);
   assert.deepEqual(kisat.map((k) => k.id), ['b', 'a']);
+});
+
+test('parsiKilpailurekisteri järjestää rankingin loppupäivän mukaan', () => {
+  const kisat = parsiKilpailurekisteri([
+    ['r', 'Ranking 2026', '2026-03-01', '2026-10-31', 'sheet-r', '', '', 'RANKING'],
+    ['s', 'Syyskisa', '2026-09-05', '', 'sheet-s', '', '', ''],
+    ['k', 'Kevätkisa', '2026-04-05', '', 'sheet-k', '', '', 'Nokia']
+  ]);
+  assert.deepEqual(kisat.map((k) => k.id), ['r', 's', 'k']);
+  assert.deepEqual(kisat.map((k) => k.onkoRanking), [true, false, false]);
+});
+
+test('parsiKilpailurekisteri: TESTI-kisa säilyttää päivänsä, on ennen oikeita kisoja ja kuluvassa vuodessa', () => {
+  const kisat = parsiKilpailurekisteri([
+    ['t', 'Testi Compak', '2025-05-01', '2025-05-02', 'sheet-t', '', '1', ' testi '],
+    ['s', 'Syyskisa', '2026-09-05', '', 'sheet-s', '', '', ''],
+    ['v', 'Vanha kisa', '2024-09-05', '', 'sheet-v', '', '', '']
+  ]);
+  assert.deepEqual(kisat.map((k) => [k.id, k.alkuPvm, k.onkoTesti, k.piilotettu]), [
+    ['t', '1.5.2025', true, true],
+    ['s', '5.9.2026', false, false],
+    ['v', '5.9.2024', false, false]
+  ]);
+  const { aktiiviset, vanhat } = ryhmitteleKisatVuosittain(kisat, 2026);
+  assert.deepEqual(aktiiviset.map((r) => [r.vuosi, r.kisat.map((k) => k.id)]), [[2026, ['t', 's']]]);
+  assert.deepEqual(vanhat.map((r) => r.vuosi), [2024]);
 });

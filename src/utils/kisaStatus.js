@@ -2,6 +2,14 @@
 // Kilpailun tilan (tulossa/käynnissä/tauolla/päättynyt) laskenta päivämääristä ja KISANSPEKSIT-ohituksesta.
 import { asetusJoukko, asetusTulkitsija, haeAsetusSpekseista } from './kisaAsetukset.js';
 
+// Tilat ja niiden tyylit. Jaettuja olioita ei muokata.
+const STATUS_TYYLIT = {
+  kaynnissa: { teksti: 'Käynnissä', tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' },
+  tauolla: { teksti: 'Tauolla', tyyli: { background: '#fff4e5', color: '#8a4b00' }, status: 'tauolla' },
+  paattynyt: { teksti: 'Päättynyt', tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' },
+  tulossa: { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' }
+};
+
 // Hyväksyy muodot p.k.vvvv ja vvvv-kk-pp. Palauttaa paikallisen keskiyön tai null.
 export function parsiPaivamaara(pvmStr) {
   const teksti = String(pvmStr || '').trim();
@@ -58,7 +66,7 @@ export function laskeOnkoIlmoittautuminenPaattynyt(alkuStr, nykyhetki = new Date
 }
 
 export function laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt = new Date()) {
-  if (!alkuStr) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+  if (!alkuStr) return { ...STATUS_TYYLIT.tulossa };
 
   const nollatunnit = (d) => {
     d.setHours(0, 0, 0, 0);
@@ -70,12 +78,12 @@ export function laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt = new Date()) {
   const loppuDate = loppuStr ? parsiPaivamaara(loppuStr) : alkuDate;
 
   if (!alkuDate || !loppuDate) {
-    return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+    return { ...STATUS_TYYLIT.tulossa };
   }
 
-  if (tanaandDate < alkuDate) return { teksti: "Tulossa", tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
-  if (tanaandDate > loppuDate) return { teksti: "Päättynyt", tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
-  return { teksti: "Käynnissä", tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
+  if (tanaandDate < alkuDate) return { ...STATUS_TYYLIT.tulossa };
+  if (tanaandDate > loppuDate) return { ...STATUS_TYYLIT.paattynyt };
+  return { ...STATUS_TYYLIT.kaynnissa };
 }
 
 // Hyväksytyt avaimet ja arvot ovat ne, joita kilpailutiedostot käyttävät.
@@ -92,25 +100,54 @@ export function haeStatusOverrideSpekseista(speksitData) {
   return haeAsetusSpekseista(speksitData, STATUS_AVAIMET, tulkitseStatusArvo);
 }
 
-export function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData, nyt = new Date()) {
-  const oletus = laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt);
+// Kisan tila rekisterin päivistä. Pysyvä testikisa (rekisterin H = TESTI) on aina kisapäivässään.
+export function laskeKisanPaivaStatus(kisa, nyt = new Date()) {
+  if (kisa?.onkoTesti) return { ...STATUS_TYYLIT.kaynnissa };
+  return laskeKisanStatusJaTyyli(kisa?.alkuPvm, kisa?.loppuPvm, nyt);
+}
 
+export function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData, nyt = new Date()) {
+  return efektiivinenStatus(laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt), speksitData);
+}
+
+function efektiivinenStatus(oletus, speksitData) {
   // Date-active competitions are controlled by sheet status flag.
   const override = haeStatusOverrideSpekseista(speksitData);
   if (override === 'paattynyt') {
-    return { teksti: 'Päättynyt', tyyli: { background: '#f1f3f4', color: '#3c4043' }, status: 'paattynyt' };
+    return { ...STATUS_TYYLIT.paattynyt };
   }
 
   if (oletus.status !== 'kaynnissa') return oletus;
 
   if (!override) {
-    return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+    return { ...STATUS_TYYLIT.tulossa };
   }
   if (override === 'kaynnissa') {
-    return { teksti: 'Käynnissä', tyyli: { background: '#e6f4ea', color: '#137333' }, status: 'kaynnissa' };
+    return { ...STATUS_TYYLIT.kaynnissa };
   }
   if (override === 'tauolla') {
-    return { teksti: 'Tauolla', tyyli: { background: '#fff4e5', color: '#8a4b00' }, status: 'tauolla' };
+    return { ...STATUS_TYYLIT.tauolla };
   }
-  return { teksti: 'Tulossa', tyyli: { background: '#e8f0fe', color: '#1a73e8' }, status: 'tulossa' };
+  return { ...STATUS_TYYLIT.tulossa };
+}
+
+// Kauden ranking on käynnissä koko kauden alkupäivästä loppupäivään ilman KILPAILUNSTATUS-asetusta.
+// Se päättyy loppupäivän jälkeen tai aiemmin, jos KISANSPEKSIT-välilehdellä on KILPAILUNSTATUS = FINISHED.
+// Ilman alkupäivää ranking on käynnissä, ilman loppupäivää se ei pääty päivämäärän mukaan.
+export function laskeRankingStatus(alkuStr, loppuStr, speksitData, nyt = new Date()) {
+  const override = haeStatusOverrideSpekseista(speksitData);
+  if (override === 'paattynyt' || override === 'tauolla') return { ...STATUS_TYYLIT[override] };
+  const alku = parsiPaivamaara(alkuStr);
+  const loppu = parsiPaivamaara(loppuStr);
+  const tanaan = new Date(nyt.getTime());
+  tanaan.setHours(0, 0, 0, 0);
+  if (alku && tanaan < alku) return { ...STATUS_TYYLIT.tulossa };
+  if (loppu && tanaan > loppu) return { ...STATUS_TYYLIT.paattynyt };
+  return { ...STATUS_TYYLIT.kaynnissa };
+}
+
+// Kisan tai rankingin näkyvä tila.
+export function laskeStatusKisalle(kisa, speksitData, nyt = new Date()) {
+  if (kisa?.onkoRanking) return laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, speksitData, nyt);
+  return efektiivinenStatus(laskeKisanPaivaStatus(kisa, nyt), speksitData);
 }

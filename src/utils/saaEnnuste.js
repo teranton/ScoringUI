@@ -1,7 +1,7 @@
 // src/utils/saaEnnuste.js
 // Sääennusteen apufunktiot, joita käyttävät sekä kisakortti että api/saa.js.
 // Ennuste tulee Ilmatieteen laitoksen avoimesta datasta (meteorologin muokkaama ennuste, ei avainta)
-// kisan paikan mukaan (rekisterin sarake H).
+// kisan paikan mukaan (rekisterin sarake I).
 import { isoPaiva, parsiPaivamaara } from './kisaStatus.js';
 
 // Ilmatieteen laitoksen muokattu ennuste ulottuu 10 päivän (240 h) päähän.
