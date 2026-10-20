@@ -36,6 +36,6 @@ export default async function handler(req, res) {
     return laheta(res, 200, tulos.paivat.length ? SAA_OTSIKOT.ennuste : SAA_OTSIKOT.tyhja, tulos);
   } catch (error) {
     console.error('[SAA] Ennusteen haku epäonnistui:', error?.message);
-    return laheta(res, 200, SAA_OTSIKOT.virhe, { paikka: '', paivat: [] });
+    return laheta(res, 200, SAA_OTSIKOT.virhe, { paikka: '', paivat: [], virhe: true });
   }
 }

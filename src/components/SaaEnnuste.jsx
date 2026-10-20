@@ -29,8 +29,8 @@ function haeSaa(sheetId) {
     .then((vastaus) => (vastaus.ok ? vastaus.json() : null))
     .catch(() => null)
     .then((data) => {
-      // Epäonnistunutta hakua ei muisteta: seuraava näkymä yrittää uudelleen.
-      if (Array.isArray(data?.paivat)) return data;
+      // Epäonnistunutta hakua (myös palvelimen virhevastausta) ei muisteta: seuraava näkymä yrittää uudelleen.
+      if (Array.isArray(data?.paivat) && !data.virhe) return data;
       haut.delete(sheetId);
       return null;
     });
@@ -70,13 +70,14 @@ export default function SaaEnnuste({ kisa, status, locale, className = '' }) {
   return (
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs print:hidden text-[hsl(var(--muted-foreground))] ${className}`} aria-label={`${tx.title}${ennuste.paikka ? `, ${ennuste.paikka}` : ''}`}>
       {paivat.map((p) => {
-        const tyyppi = saaTyyppi(p.symboli);
-        const Ikoni = IKONIT[tyyppi];
-        const kuvaus = tx[tyyppi];
+        // Ilman säätilaa ei näytetä ikonia (muuten tuntematon sää näyttäisi pilviseltä).
+        const tyyppi = p.symboli === null ? null : saaTyyppi(p.symboli);
+        const Ikoni = tyyppi ? IKONIT[tyyppi] : null;
+        const kuvaus = tyyppi ? `${tx[tyyppi]} · ${tx.source}` : tx.source;
         return (
-          <span key={p.pvm} className="inline-flex items-center gap-1 whitespace-nowrap" title={`${kuvaus} · ${tx.source}`}>
+          <span key={p.pvm} className="inline-flex items-center gap-1 whitespace-nowrap" title={kuvaus}>
             <span>{muotoilePaiva(p.pvm, locale)}</span>
-            <Ikoni className="h-4 w-4 text-[hsl(var(--foreground))]" aria-label={kuvaus} />
+            {Ikoni && <Ikoni className="h-4 w-4 text-[hsl(var(--foreground))]" aria-label={tx[tyyppi]} />}
             <span className="font-medium text-[hsl(var(--foreground))]">
               {asteet(p.maks)}{p.min !== null && <span className="font-normal text-[hsl(var(--muted-foreground))]"> / {asteet(p.min)}</span>}
             </span>

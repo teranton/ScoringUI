@@ -58,7 +58,7 @@ so column order can change but header names must not.
 - ScoringLib's `KISANSPEKSIT` fallback cells (see "Keys ScoringLib reads"), used when a key's text is missing.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no).
-  H place (optional): a place name (`Oulainen`, looked up by the Finnish Meteorological Institute) or
+  H place (optional): a place name in Finland (`Oulainen`, looked up by the Finnish Meteorological Institute) or
   coordinates with decimals (`64.27, 24.81` or `64,27 24,81`). With a place, upcoming and running competitions show a
   weather forecast from the Finnish Meteorological Institute for one day (the start day of an upcoming competition, the next competition day of a
   running one) when it is within the next 10 days; empty means no forecast. Row 1 is a header if B contains "nimi" or A contains "id".

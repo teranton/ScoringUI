@@ -13,8 +13,8 @@ const NYT = new Date('2026-10-14T09:00:00Z').getTime();
 const elementti = (aika, nimi, arvo) => `<wfs:member><BsWfs:BsWfsElement gml:id="x"><BsWfs:Time>${aika}</BsWfs:Time>`
   + `<BsWfs:ParameterName>${nimi}</BsWfs:ParameterName><BsWfs:ParameterValue>${arvo}</BsWfs:ParameterValue></BsWfs:BsWfsElement></wfs:member>`;
 // Päivän tunnit klo 8–20 Suomen aikaa (UTC+3) samalla säällä.
-function paivaXml(pvm, lampo, symboli) {
-  const osat = [];
+function paivaXml(pvm, lampo, symboli, pos = '64.26 24.81') {
+  const osat = [`<gml:pos>${pos} </gml:pos>`];
   for (let h = 5; h <= 17; h++) {
     const aika = `${pvm}T${String(h).padStart(2, '0')}:00:00Z`;
     osat.push(elementti(aika, 'Temperature', lampo + (h === 11 ? 2 : 0)), elementti(aika, 'WindSpeedMS', 4),
@@ -88,6 +88,20 @@ test('hakuvirheessä tai tyhjässä vastauksessa käytetään vanhaa ennustetta,
   vastaus = [503, 'Service Unavailable'];
   assert.equal((await kisanSaa(kisa)).paivat.length, 1);
 
-  const { kisanSaa: tyhjaHaku } = luo({ vastaa: () => new Error('verkko') });
+  const { kisanSaa: tyhjaHaku, haut } = luo({ vastaa: () => new Error('verkko') });
   await assert.rejects(tyhjaHaku(kisa), /verkko/);
+  // Virhe muistetaan hetken: uusi pyyntö ei kysy Ilmatieteen laitokselta heti uudelleen.
+  await assert.rejects(tyhjaHaku(kisa), /hetki sitten/);
+  assert.equal(haut.length, 1);
+});
+
+test('nimellä löytynyt paikka Suomen ulkopuolella ei kelpaa; vajaa päivä muistetaan tyhjänä', async () => {
+  const { kisanSaa } = luo({ vastaa: () => paivaXml('2026-10-15', 20, 1, '43.65 -79.38') });
+  assert.deepEqual(await kisanSaa({ paikka: 'Toronto', alkuPvm: '2026-10-15', loppuPvm: '' }), { paikka: '', paivat: [] });
+
+  const { kisanSaa: reunaHaku, haut } = luo({ vastaa: () => '<wfs:FeatureCollection></wfs:FeatureCollection>' });
+  const kisa = { paikka: 'Oulainen', alkuPvm: '2026-10-23', loppuPvm: '' };
+  assert.deepEqual(await reunaHaku(kisa), { paikka: '', paivat: [] });
+  await reunaHaku(kisa);
+  assert.equal(haut.length, 1);
 });

@@ -49,7 +49,7 @@ test('virhe palauttaa tyhjän lyhyellä välimuistilla, tuntematon tai puuttuva 
   saaTulos = new Error('verkko');
   const r = await kutsu({ sheetId: ID });
   assert.equal(r.statusCode, 200);
-  assert.deepEqual(r.body, { paikka: '', paivat: [] });
+  assert.deepEqual(r.body, { paikka: '', paivat: [], virhe: true });
   assert.equal(r.headers['Cache-Control'], SAA_OTSIKOT.virhe);
 
   assert.equal((await kutsu({ sheetId: 'x'.repeat(30) })).statusCode, 403);
