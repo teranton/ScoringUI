@@ -218,22 +218,27 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return laskeRataTilastot(naytettavatAmpujat, radatList, speksit.asemaMaksimit);
   }, [naytettavatAmpujat, radatList, speksit.asemaMaksimit]);
 
-  // Kaikki sarjat -tulosteen sarjat samassa järjestyksessä kuin sarjapainikkeet.
+  // Sarjapainikkeet ja Kaikki sarjat -tulosteen sarjat.
   const tulosteSarjat = useMemo(
     () => ['OPEN (Y)', ...loydetytSarjat.filter((sarja) => sarja.toUpperCase() !== 'Y')],
     [loydetytSarjat]
   );
 
-  // Muun kuin valitun sarjan tuloste samoin säännöin ja samalla järjestyksellä kuin näytön taulukko.
-  const laskeSarjanTuloste = (sarja) => {
-    const sijoitetut = laskeHenkilosijoitukset(ampujat, sarja, speksit.ratkoPalkintoSija);
-    const ampujatJarjestyksessa = jarjestaAmpujat(sijoitetut, jarjestysSarake, jarjestysSuunta);
-    return {
-      ampujat: ampujatJarjestyksessa,
-      ratkoIdt: laskeNaytettavatRatkoIdt(sijoitetut, sarja, speksit.ratkoPalkintoSija),
-      rataTilastot: laskeRataTilastot(ampujatJarjestyksessa, radatList, speksit.asemaMaksimit)
-    };
-  };
+  // Kaikki sarjat -tuloste: jokainen sarja samoin säännöin ja samalla järjestyksellä kuin näytön taulukko.
+  // Lasketaan vain tulostuksen ajaksi, eikä uudelleen joka renderöinnillä.
+  const kaikkienSarjojenTuloste = useMemo(() => {
+    if (!tulostaKaikki) return null;
+    return tulosteSarjat.map((sarja) => {
+      const sijoitetut = laskeHenkilosijoitukset(ampujat, sarja, speksit.ratkoPalkintoSija);
+      const sarjanAmpujat = jarjestaAmpujat(sijoitetut, jarjestysSarake, jarjestysSuunta);
+      return {
+        sarja,
+        ampujat: sarjanAmpujat,
+        ratkoIdt: laskeNaytettavatRatkoIdt(sijoitetut, sarja, speksit.ratkoPalkintoSija),
+        rataTilastot: laskeRataTilastot(sarjanAmpujat, radatList, speksit.asemaMaksimit)
+      };
+    });
+  }, [tulostaKaikki, tulosteSarjat, ampujat, speksit.ratkoPalkintoSija, speksit.asemaMaksimit, jarjestysSarake, jarjestysSuunta, radatList]);
 
   useEffect(() => {
     if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
@@ -532,29 +537,18 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             onPointerLeave={onSarjaPointerUp}
             onClickCapture={onSarjaClickCapture}
           >
-            <Button
-              type="button"
-              onClick={() => setSarjaSuodatin('OPEN (Y)')}
-              size="sm"
-              className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
-              variant={sarjaSuodatin === 'OPEN (Y)' ? 'default' : 'outline'}
-            >
-              OPEN (Y)
-            </Button>
-            {loydetytSarjat
-              .filter((sarja) => sarja.toUpperCase() !== 'Y')
-              .map((sarja) => (
-                <Button
-                  key={sarja}
-                  type="button"
-                  onClick={() => setSarjaSuodatin(sarja)}
-                  size="sm"
-                  className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
-                  variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
-                >
-                  {sarja}
-                </Button>
-              ))}
+            {tulosteSarjat.map((sarja) => (
+              <Button
+                key={sarja}
+                type="button"
+                onClick={() => setSarjaSuodatin(sarja)}
+                size="sm"
+                className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
+                variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
+              >
+                {sarja}
+              </Button>
+            ))}
           </div>
 
           <div className="flex w-full items-center gap-1.5 self-start overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:w-auto sm:self-auto sm:overflow-visible">
@@ -940,10 +934,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
       {/* Tulosteessa kaikki sarakkeet, vaikka näytöltä olisi piilotettu niitä kapeuden takia. */}
       {tulosteJuuri && tulosteenAika && createPortal(
-        (tulostaKaikki ? tulosteSarjat : [sarjaSuodatin]).map((sarja) => {
-          const tiedot = sarja === sarjaSuodatin
-            ? { ampujat: naytettavatAmpujat, ratkoIdt: naytaRatkoIds, rataTilastot }
-            : laskeSarjanTuloste(sarja);
+        (kaikkienSarjojenTuloste
+          || [{ sarja: sarjaSuodatin, ampujat: naytettavatAmpujat, ratkoIdt: naytaRatkoIds, rataTilastot }]
+        ).map((tiedot) => {
+          const { sarja } = tiedot;
           return (
             <TulosteTaulukko
               key={sarja}
@@ -956,9 +950,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               asemaMaksimit={speksit.asemaMaksimit}
               sarakkeet={{
                 sarja: sarja === 'OPEN (Y)',
-                seura: onkoSeuroja,
-                la: onkoLaTuloksia,
-                su: onkoSuTuloksia,
+                // Kaikki sarjat -tulosteessa sarakkeet sarjan omista tuloksista, ettei sivulle jää tyhjiä sarakkeita.
+                seura: kaikkienSarjojenTuloste ? tiedot.ampujat.some((a) => String(a.seura || '').trim()) : onkoSeuroja,
+                la: kaikkienSarjojenTuloste ? tiedot.ampujat.some((a) => a.la !== null) : onkoLaTuloksia,
+                su: kaikkienSarjojenTuloste ? tiedot.ampujat.some((a) => a.su !== null) : onkoSuTuloksia,
                 ratko: tiedot.ampujat.some((a) => onkoRatkoNakyvissa(a, tiedot.ratkoIdt))
               }}
               paivaSarakeNimet={paivaSarakeNimet}
