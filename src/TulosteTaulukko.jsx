@@ -22,7 +22,9 @@ function muotoileTulostusaika(pvm, locale) {
 }
 
 // sarakkeet: { sarja, seura, la, su, ratko } näytetäänkö sarake. analyysi: rata-analyysin rivit tai null.
+// otsikko: tulosteen nimi otsikkorivillä (oletus taulukon nimi).
 export default function TulosteTaulukko({
+  otsikko,
   kisaNimi,
   kisaPaivat,
   kisaStatus,
@@ -62,7 +64,10 @@ export default function TulosteTaulukko({
       <header className="tuloste-otsikko">
         <div>
           <h1 translate="no">{kisaNimi}</h1>
-          <div>{[kisaPaivat, tx.title, sarja].filter(Boolean).join(' · ')}</div>
+          <div>
+            {[kisaPaivat, otsikko || tx.title].filter(Boolean).join(' · ')}
+            {sarja && <> · <strong>{sarja}</strong></>}
+          </div>
         </div>
         <div className="tuloste-meta">
           {kisaStatus !== 'paattynyt' && <div className="tuloste-epavirallinen">{tx.unofficial}</div>}

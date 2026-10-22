@@ -183,6 +183,11 @@ test('laskeTaulukkoAsettelu: Seura on pisimmän seuran levyinen, enintään taso
   assert.equal(trapp.leveydet.seura, 69);
 });
 
+test('parsiTaulukkoAmpujat trimmaa sarjan', () => {
+  const rivit = [HENKILOT[0], ['1', 'Matti', ' N ', 'Seura A', '50', '48', '98', '25', '24', '24', '', '']];
+  assert.equal(parsiTaulukkoAmpujat(rivit, 3)[0].sarja, 'N');
+});
+
 test('laskeTulosteTaulukonKoko: pysty 8 rataan asti, vaaka sen yli ja tiivis yli 16 radalla', () => {
   assert.deepEqual(laskeTulosteTaulukonKoko(8), { vaaka: false, tiivis: false });
   assert.deepEqual(laskeTulosteTaulukonKoko(9), { vaaka: true, tiivis: false });

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { muodostaTulosteSarjat } from './tulosteTulokset.js';
+import { muodostaTulosteRatko, parsiTaulukkoAmpujat } from './henkiloTaulukko.js';
 
 const OTSIKKO = ['Sija', 'Nimi', 'Sarja', 'Seura', 'Tulos', 'La', 'Su', '1', '2', '3', '4', 'Ratko'];
 const RIVIT = [
@@ -9,67 +10,61 @@ const RIVIT = [
   ['', 'Ampuja A', 'Y', 'SSG', '90', '46', '44', '23', '23', '22', '22', ''],
   ['', 'Ampuja B', 'N', 'KSA', '88', '45', '43', '22', '23', '21', '22', ''],
   ['', 'Ampuja C', 'Y', 'RAM', '95', '48', '47', '24', '24', '24', '23', ''],
-  ['', 'Ampuja D', 'Y', 'OMAS', '0', '0', '0', '', '', '', '', ''],
+  ['', 'Ampuja D', 'Y', 'OMAS', '0', '0', '0', '', '', '', '', 'DNS'],
   ['', 'Ampuja E', 'N', 'SA', '88', '44', '44', '22', '22', '22', '22', '24'],
   ['', 'Ampuja F', 'N', 'NU', '88', '46', '42', '23', '23', '21', '21', '21']
 ];
+const ampujat = (rivit = RIVIT, radat = 4) => parsiTaulukkoAmpujat(rivit, radat);
 
-test('ensin OPEN (Y) kaikkine ampujineen, sitten muut sarjat ilman erillistä Y-sarjaa', () => {
-  const { sarjat, eraNumerot, naytaPaivat } = muodostaTulosteSarjat(RIVIT, { ratojenMaara: 4, ratkoSija: 3 });
-
+test('ensin OPEN (Y) kaikkine ampujineen sijajärjestyksessä, sitten muut sarjat ilman erillistä Y-sarjaa', () => {
+  const sarjat = muodostaTulosteSarjat(ampujat(), { ratkoSija: 3 });
   assert.deepEqual(sarjat.map((s) => s.sarja), ['OPEN (Y)', 'N']);
-  assert.deepEqual(eraNumerot, [1, 2, 3, 4]);
-  assert.equal(naytaPaivat, true);
 
   const open = sarjat[0];
-  assert.deepEqual(open.rivit.slice(0, 2).map((r) => [r.sija, r.nimi, r.sarja, r.tulos]), [
-    ['1', 'Ampuja C', 'Y', '95'],
-    ['2', 'Ampuja A', 'Y', '90']
-  ]);
-  assert.deepEqual(open.rivit.map((r) => r.nimi).slice(2).sort(), ['Ampuja B', 'Ampuja E', 'Ampuja F']);
-  assert.deepEqual(open.eiTulosta.map((a) => [a.nimi, a.sarja]), [['Ampuja D', 'Y']]);
+  assert.equal(open.ampujat.length, 6);
+  assert.deepEqual(open.ampujat.slice(0, 2).map((a) => [a.laskettuSija, a.nimi]), [['1', 'Ampuja C'], ['2', 'Ampuja A']]);
+  // Ilman tulosta oleva viimeisenä ilman sijaa, status ratko-sarakkeessa.
+  const d = open.ampujat.at(-1);
+  assert.deepEqual([d.nimi, d.laskettuSija], ['Ampuja D', '']);
+  assert.equal(muodostaTulosteRatko(d, open.ratkoIdt), 'DNS');
+  assert.deepEqual(open.sarakkeet, { sarja: true, seura: true, la: true, su: true, ratko: true });
 });
 
 test('tasatulos ratkaistaan ratkolla ja ratko näytetään vain tasatuloksen ampujille', () => {
-  const { sarjat } = muodostaTulosteSarjat(RIVIT, { ratojenMaara: 4, ratkoSija: 3 });
-  const n = sarjat.find((s) => s.sarja === 'N');
-  assert.deepEqual(n.rivit.map((r) => [r.sija, r.nimi, r.ratko]), [
-    ['1', 'Ampuja E', '24'],
-    ['2', 'Ampuja F', '21'],
-    ['3', 'Ampuja B', '']
-  ]);
-  assert.equal(n.naytaRatko, true);
+  const n = muodostaTulosteSarjat(ampujat(), { ratkoSija: 3 }).find((s) => s.sarja === 'N');
+  assert.deepEqual(n.ampujat.map((a) => [a.laskettuSija, a.nimi]), [['1', 'Ampuja E'], ['2', 'Ampuja F'], ['3', 'Ampuja B']]);
+  assert.ok(n.ratkoIdt.has(n.ampujat[0].id));
+  assert.equal(n.sarakkeet.sarja, false);
+  assert.equal(n.sarakkeet.ratko, true);
 });
 
-test('vähintään 10 kierrosta: kierroksia ei tulosteta', () => {
-  const otsikko = ['Nimi', 'Sarja', 'Seura', 'Tulos', ...Array.from({ length: 10 }, (_, i) => String(i + 1))];
-  const rivi = ['Ampuja A', 'Y', 'SSG', '200', ...Array(10).fill('20')];
-  const { eraNumerot, naytaPaivat, sarjat } = muodostaTulosteSarjat([otsikko, rivi], { ratojenMaara: 10 });
-  assert.deepEqual(eraNumerot, []);
-  assert.equal(naytaPaivat, false);
-  assert.deepEqual(sarjat[0].rivit[0].erat, []);
-});
-
-test('Y-sarja ja sarjattomat vain OPEN (Y) -osiossa kirjainkoosta ja välilyönneistä riippumatta', () => {
+test('sarakkeet sarjan omista tiedoista: seuraton ja päivätön sarja ilman niitä', () => {
   const rivit = [
     ['Nimi', 'Sarja', 'Seura', 'Tulos'],
     ['A', 'Y ', 'S1', '90'],
     ['B', 'y', 'S2', '95'],
-    ['C', '', 'S3', '80']
+    ['C', 'N', '', '80'],
+    ['D', '', 'S4', '70']
   ];
-  const { sarjat } = muodostaTulosteSarjat(rivit, { ratojenMaara: 0 });
-  assert.deepEqual(sarjat.map((s) => [s.sarja, s.rivit.map((r) => r.nimi)]), [
-    ['OPEN (Y)', ['B', 'A', 'C']]
+  const sarjat = muodostaTulosteSarjat(ampujat(rivit, 0));
+  // Y-sarja ja kirjainkoko/välilyönnit vain OPEN (Y) -osiossa.
+  assert.deepEqual(sarjat.map((s) => [s.sarja, s.ampujat.map((a) => a.nimi)]), [
+    ['OPEN (Y)', ['B', 'A', 'C', 'D']],
+    ['N', ['C']]
   ]);
+  assert.deepEqual(sarjat[1].sarakkeet, { sarja: false, seura: false, la: false, su: false, ratko: false });
 });
 
-test('ilman tulosta olevalle tulostetaan statuskoodi ratko-sarakkeesta', () => {
+test('tyhjä Su-sarake ennen toista päivää ei tulostu', () => {
   const rivit = [
-    ['Nimi', 'Sarja', 'Seura', 'Tulos', 'Ratko'],
-    ['A', 'Y', 'S1', '90', ''],
-    ['B', 'Y', 'S2', '0', 'DNS'],
-    ['C', 'Y', 'S3', '0', '']
+    ['Nimi', 'Sarja', 'Seura', 'Tulos', 'La', 'Su'],
+    ['A', 'Y', 'S1', '45', '45', ''],
+    ['B', 'N', 'S2', '44', '44', '']
   ];
-  const { sarjat } = muodostaTulosteSarjat(rivit, { ratojenMaara: 0 });
-  assert.deepEqual(sarjat[0].eiTulosta.map((a) => [a.nimi, a.status]), [['B', 'DNS'], ['C', '']]);
+  const sarjat = muodostaTulosteSarjat(ampujat(rivit, 0));
+  assert.deepEqual(sarjat.map((s) => [s.sarakkeet.la, s.sarakkeet.su]), [[true, false], [true, false]]);
+});
+
+test('ei ampujia: ei sarjoja', () => {
+  assert.deepEqual(muodostaTulosteSarjat([]), []);
 });
