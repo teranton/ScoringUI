@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { muodostaTulosteSarjat } from './tulosteTulokset.js';
-import { parsiTaulukkoAmpujat } from './henkiloTaulukko.js';
+import { muodostaTulosteRatko, parsiTaulukkoAmpujat } from './henkiloTaulukko.js';
 
 const OTSIKKO = ['Sija', 'Nimi', 'Sarja', 'Seura', 'Tulos', 'La', 'Su', '1', '2', '3', '4', 'Ratko'];
 const RIVIT = [
@@ -23,8 +23,10 @@ test('ensin OPEN (Y) kaikkine ampujineen sijajärjestyksessä, sitten muut sarja
   const open = sarjat[0];
   assert.equal(open.ampujat.length, 6);
   assert.deepEqual(open.ampujat.slice(0, 2).map((a) => [a.laskettuSija, a.nimi]), [['1', 'Ampuja C'], ['2', 'Ampuja A']]);
-  // Ilman tulosta oleva viimeisenä.
-  assert.equal(open.ampujat.at(-1).nimi, 'Ampuja D');
+  // Ilman tulosta oleva viimeisenä ilman sijaa, status ratko-sarakkeessa.
+  const d = open.ampujat.at(-1);
+  assert.deepEqual([d.nimi, d.laskettuSija], ['Ampuja D', '']);
+  assert.equal(muodostaTulosteRatko(d, open.ratkoIdt), 'DNS');
   assert.deepEqual(open.sarakkeet, { sarja: true, seura: true, la: true, su: true, ratko: true });
 });
 
@@ -41,15 +43,26 @@ test('sarakkeet sarjan omista tiedoista: seuraton ja päivätön sarja ilman nii
     ['Nimi', 'Sarja', 'Seura', 'Tulos'],
     ['A', 'Y ', 'S1', '90'],
     ['B', 'y', 'S2', '95'],
-    ['C', 'N', '', '80']
+    ['C', 'N', '', '80'],
+    ['D', '', 'S4', '70']
   ];
   const sarjat = muodostaTulosteSarjat(ampujat(rivit, 0));
   // Y-sarja ja kirjainkoko/välilyönnit vain OPEN (Y) -osiossa.
   assert.deepEqual(sarjat.map((s) => [s.sarja, s.ampujat.map((a) => a.nimi)]), [
-    ['OPEN (Y)', ['B', 'A', 'C']],
+    ['OPEN (Y)', ['B', 'A', 'C', 'D']],
     ['N', ['C']]
   ]);
   assert.deepEqual(sarjat[1].sarakkeet, { sarja: false, seura: false, la: false, su: false, ratko: false });
+});
+
+test('tyhjä Su-sarake ennen toista päivää ei tulostu', () => {
+  const rivit = [
+    ['Nimi', 'Sarja', 'Seura', 'Tulos', 'La', 'Su'],
+    ['A', 'Y', 'S1', '45', '45', ''],
+    ['B', 'N', 'S2', '44', '44', '']
+  ];
+  const sarjat = muodostaTulosteSarjat(ampujat(rivit, 0));
+  assert.deepEqual(sarjat.map((s) => [s.sarakkeet.la, s.sarakkeet.su]), [[true, false], [true, false]]);
 });
 
 test('ei ampujia: ei sarjoja', () => {

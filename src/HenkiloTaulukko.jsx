@@ -24,7 +24,7 @@ import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import TulosteTaulukko from './TulosteTaulukko';
-import { listaaTulosteSarjat } from './utils/tulosteTulokset';
+import { laskeTulosteSarakkeet, listaaTulosteSarjat } from './utils/tulosteTulokset';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
@@ -874,39 +874,26 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
       {/* Tulosteessa kaikki sarakkeet, vaikka näytöltä olisi piilotettu niitä kapeuden takia. */}
       {tulosteJuuri && tulosteenAika && createPortal(
-        [{ sarja: sarjaSuodatin, ampujat: naytettavatAmpujat, ratkoIdt: naytaRatkoIds, rataTilastot }].map((tiedot) => {
-          const { sarja } = tiedot;
-          return (
-            <TulosteTaulukko
-              key={sarja}
-              kisaNimi={kisaNimi}
-              kisaPaivat={kisaPaivat}
-              kisaStatus={kisaStatus}
-              sarja={sarja}
-              ampujat={tiedot.ampujat}
-              radat={radatList}
-              asemaMaksimit={speksit.asemaMaksimit}
-              sarakkeet={{
-                sarja: sarja === 'OPEN (Y)',
-                // Sarakkeet sarjan omista tuloksista, ettei sivulle jää tyhjiä sarakkeita.
-                seura: tiedot.ampujat.some((a) => String(a.seura || '').trim()),
-                la: tiedot.ampujat.some((a) => a.la !== null),
-                su: tiedot.ampujat.some((a) => a.su !== null),
-                ratko: tiedot.ampujat.some((a) => onkoRatkoNakyvissa(a, tiedot.ratkoIdt))
-              }}
-              paivaSarakeNimet={paivaSarakeNimet}
-              ratkoIdt={tiedot.ratkoIdt}
-              analyysi={naytaRataAnalyysi ? [
-                // Rata-sarakkeet ovat tulosteessa kapeita, joten yksi luku soluun.
-                { otsikko: tx.printAvg, arvot: tiedot.rataTilastot.map((t) => muotoileNumero(t.avg)) },
-                { otsikko: tx.printMedian, arvot: tiedot.rataTilastot.map((t) => muotoileNumero(t.median)) },
-                { otsikko: tx.printMaxPct, arvot: tiedot.rataTilastot.map((t) => muotoileProsentti(t.maxPct)) }
-              ] : null}
-              tulostusaika={tulosteenAika}
-              locale={locale}
-            />
-          );
-        }),
+        <TulosteTaulukko
+          kisaNimi={kisaNimi}
+          kisaPaivat={kisaPaivat}
+          kisaStatus={kisaStatus}
+          sarja={sarjaSuodatin}
+          ampujat={naytettavatAmpujat}
+          radat={radatList}
+          asemaMaksimit={speksit.asemaMaksimit}
+          sarakkeet={laskeTulosteSarakkeet(naytettavatAmpujat, sarjaSuodatin, naytaRatkoIds)}
+          paivaSarakeNimet={paivaSarakeNimet}
+          ratkoIdt={naytaRatkoIds}
+          analyysi={naytaRataAnalyysi ? [
+            // Rata-sarakkeet ovat tulosteessa kapeita, joten yksi luku soluun.
+            { otsikko: tx.printAvg, arvot: rataTilastot.map((t) => muotoileNumero(t.avg)) },
+            { otsikko: tx.printMedian, arvot: rataTilastot.map((t) => muotoileNumero(t.median)) },
+            { otsikko: tx.printMaxPct, arvot: rataTilastot.map((t) => muotoileProsentti(t.maxPct)) }
+          ] : null}
+          tulostusaika={tulosteenAika}
+          locale={locale}
+        />,
         tulosteJuuri
       )}
     </Card>
