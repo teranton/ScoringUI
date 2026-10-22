@@ -110,16 +110,6 @@ const TEKSTIT = jaadyta({
     tulosteTulokset: {
       button: 'Tulosta tulokset',
       title: 'Tulokset sarjoittain',
-      unofficial: 'Epäviralliset tulokset',
-      printed: 'Tulostettu',
-      rank: 'Sija',
-      name: 'Nimi',
-      club: 'Seura',
-      total: 'Yht.',
-      tieBreak: 'Ratko',
-      shooters: 'ampujaa',
-      noResult: 'Ei tulosta',
-      classLabel: 'Sarja',
       empty: 'Ei tuloksia tulostettavaksi.'
     },
     henkiloTaulukko: {
@@ -144,9 +134,6 @@ const TEKSTIT = jaadyta({
       hideStageAnalytics: 'Piilota analyysi',
       analyticsAvg: 'KA (n)',
       analyticsDetails: 'Md / Max%',
-      print: 'Tulosta / PDF',
-      printOptions: 'Tulostusvalinnat',
-      printAll: 'Tulosta kaikki sarjat',
       printed: 'Tulostettu',
       unofficial: 'Epäviralliset tulokset',
       printEmpty: 'Ei tuloksia tulostettavaksi.',
@@ -327,16 +314,6 @@ const TEKSTIT = jaadyta({
     tulosteTulokset: {
       button: 'Print results',
       title: 'Results by class',
-      unofficial: 'Unofficial results',
-      printed: 'Printed',
-      rank: 'Rank',
-      name: 'Name',
-      club: 'Club',
-      total: 'Total',
-      tieBreak: 'Tie-break',
-      shooters: 'shooters',
-      noResult: 'No result',
-      classLabel: 'Class',
       empty: 'No results to print.'
     },
     henkiloTaulukko: {
@@ -361,9 +338,6 @@ const TEKSTIT = jaadyta({
       hideStageAnalytics: 'Hide Analytics',
       analyticsAvg: 'Avg (n)',
       analyticsDetails: 'Md / Max%',
-      print: 'Print / PDF',
-      printOptions: 'Print options',
-      printAll: 'Print all classes',
       printed: 'Printed',
       unofficial: 'Unofficial results',
       printEmpty: 'No results to print.',

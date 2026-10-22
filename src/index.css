@@ -341,23 +341,6 @@ body {
     text-transform: uppercase;
   }
 
-  .tuloste-root .tuloste-sarja {
-    margin-bottom: 10pt;
-  }
-
-  .tuloste-root h2 {
-    font-size: 11pt;
-    font-weight: 700;
-    margin: 0 0 3pt;
-    break-after: avoid;
-  }
-
-  .tuloste-root h2 span {
-    font-size: 8pt;
-    font-weight: 400;
-    color: #444;
-  }
-
   .tuloste-root table {
     width: 100%;
     table-layout: fixed;
@@ -397,8 +380,6 @@ body {
   }
 
   .tuloste-root .tuloste-col-sija { width: 3.4em; }
-  .tuloste-root .tuloste-col-sarja { width: 3.6em; }
-  .tuloste-root .tuloste-col-seura { width: 7em; }
   .tuloste-root .tuloste-col-era { width: 2.4em; }
   .tuloste-root .tuloste-col-paiva { width: 2.8em; }
   .tuloste-root .tuloste-col-yht { width: 3.2em; }
@@ -415,18 +396,8 @@ body {
     white-space: nowrap;
   }
 
-  /* Vähintään 1pt: ohuempi viiva katoaa osalta riveistä esikatselun ja tulostuksen pyöristyksessä. */
-  .tuloste-root .tuloste-paiva {
-    border-left: 1pt solid #555;
-  }
-
   .tuloste-root .tuloste-yht {
     font-weight: 700;
-  }
-
-  .tuloste-root .tuloste-ei-tulosta td {
-    color: #555;
-    font-style: italic;
   }
 }
 

@@ -10,7 +10,6 @@ import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
-import { onkoDevTila } from './utils/devTila';
 import {
   laskeKisanPaivaStatus,
   laskeOnkoIlmoittautuminenPaattynyt,
@@ -83,7 +82,6 @@ export default function App() {
   const TulosteTulokset = ladatutPalat.tulosteTulokset ? ladatutModuulit.tulosteTulokset.default : null;
   // Taulukkonäkymän tulosteen juurielementti; HenkiloTaulukko renderöi tulosteen siihen (portaali).
   const [taulukkoTulosteJuuri, setTaulukkoTulosteJuuri] = useState(null);
-  const [devTila] = useState(() => onkoDevTila());
 
   useEffect(() => lataaAnalytiikka(), []);
 
@@ -526,7 +524,7 @@ export default function App() {
             {tx.materials}
           </Button>
         )}
-        {devTila && onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
+        {onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
           <Button onClick={tulostaTulokset} variant="outline" size="sm" className="ml-auto gap-1.5">
             <Printer className="h-4 w-4" aria-hidden="true" />
             {txTuloste.button}

@@ -12,7 +12,6 @@ import {
   jarjestaAmpujat,
   laskeRataTilastot,
   laskeTaulukkoAsettelu,
-  listaaSarjat,
   onkoAliTulosPuuttuu,
   onkoRatkoNakyvissa,
   parsiTaulukkoAmpujat,
@@ -25,7 +24,7 @@ import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import TulosteTaulukko from './TulosteTaulukko';
-import { ChevronDown } from 'lucide-react';
+import { listaaTulosteSarjat } from './utils/tulosteTulokset';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
@@ -72,9 +71,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);
   // Tulostuksen aloitusaika; tuloste renderöidään vain tulostuksen ajaksi (beforeprint–afterprint).
   const [tulosteenAika, setTulosteenAika] = useState(null);
-  // Tulostusvalikon Kaikki sarjat: seuraava tulostus tulostaa jokaisen sarjan omalle sivulleen. Ctrl+P tulostaa valitun sarjan.
-  const tulostaKaikkiRef = useRef(false);
-  const [tulostaKaikki, setTulostaKaikki] = useState(false);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
   const [jarjestysSarake, setJarjestysSarake] = useState('sija');
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
@@ -140,10 +136,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const onkoDataPuuttuu = !data || !data.henkilotCsvRaw;
   const radatList = useMemo(() => Array.from({ length: speksit.ratojenMaara }, (_, i) => i + 1), [speksit.ratojenMaara]);
   
-  const loydetytSarjat = useMemo(
-    () => listaaSarjat(ampujat),
-    [ampujat]
-  );
   
   const sijoitetutAmpujat = useMemo(() => {
     const perfStart = perfNow();
@@ -219,27 +211,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return laskeRataTilastot(naytettavatAmpujat, radatList, speksit.asemaMaksimit);
   }, [naytettavatAmpujat, radatList, speksit.asemaMaksimit]);
 
-  // Sarjapainikkeet ja Kaikki sarjat -tulosteen sarjat.
-  const tulosteSarjat = useMemo(
-    () => ['OPEN (Y)', ...loydetytSarjat.filter((sarja) => sarja.toUpperCase() !== 'Y')],
-    [loydetytSarjat]
-  );
+  // Sarjapainikkeet samassa järjestyksessä kuin Tulosta tulokset -tulosteen sarjat.
+  const tulosteSarjat = useMemo(() => listaaTulosteSarjat(ampujat), [ampujat]);
 
-  // Kaikki sarjat -tuloste: jokainen sarja samoin säännöin ja samalla järjestyksellä kuin näytön taulukko.
-  // Lasketaan vain tulostuksen ajaksi, eikä uudelleen joka renderöinnillä.
-  const kaikkienSarjojenTuloste = useMemo(() => {
-    if (!tulostaKaikki) return null;
-    return tulosteSarjat.map((sarja) => {
-      const sijoitetut = laskeHenkilosijoitukset(ampujat, sarja, speksit.ratkoPalkintoSija);
-      const sarjanAmpujat = jarjestaAmpujat(sijoitetut, jarjestysSarake, jarjestysSuunta);
-      return {
-        sarja,
-        ampujat: sarjanAmpujat,
-        ratkoIdt: laskeNaytettavatRatkoIdt(sijoitetut, sarja, speksit.ratkoPalkintoSija),
-        rataTilastot: laskeRataTilastot(sarjanAmpujat, radatList, speksit.asemaMaksimit)
-      };
-    });
-  }, [tulostaKaikki, tulosteSarjat, ampujat, speksit.ratkoPalkintoSija, speksit.asemaMaksimit, jarjestysSarake, jarjestysSuunta, radatList]);
 
   useEffect(() => {
     if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
@@ -293,16 +267,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   // Tuloste renderöidään beforeprintissä synkronisesti (flushSync), jotta se ehtii tulostettavaksi myös Ctrl+P:llä.
   useEffect(() => {
     if (!tulosteJuuri || typeof window === 'undefined') return undefined;
-    const ennenTulostusta = () => flushSync(() => {
-      setTulostaKaikki(tulostaKaikkiRef.current);
-      // Luetaan kerran: seuraava Ctrl+P tulostaa taas valitun sarjan, vaikka afterprint jäisi tulematta.
-      tulostaKaikkiRef.current = false;
-      setTulosteenAika(new Date());
-    });
-    const tulostuksenJalkeen = () => {
-      setTulostaKaikki(false);
-      setTulosteenAika(null);
-    };
+    const ennenTulostusta = () => flushSync(() => setTulosteenAika(new Date()));
+    const tulostuksenJalkeen = () => setTulosteenAika(null);
     window.addEventListener('beforeprint', ennenTulostusta);
     window.addEventListener('afterprint', tulostuksenJalkeen);
     return () => {
@@ -596,38 +562,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             >
               {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
             </Button>
-
-            {/* Yksi tulostuspainike: painallus tulostaa valitun sarjan, nuolen valikosta kaikki sarjat.
-                Valikko on natiivi select, jottei vieritettävä työkalurivi leikkaa sitä. */}
-            {tulosteJuuri && (
-              <div className="flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]">
-                <button
-                  type="button"
-                  className="px-3 text-xs font-semibold hover:bg-[hsl(var(--muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--ring))]"
-                  onClick={() => window.print()}
-                >
-                  {tx.print}
-                </button>
-                {tulosteSarjat.length > 1 && (
-                  <span className="relative flex w-7 items-center justify-center border-l border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] focus-within:ring-2 focus-within:ring-inset focus-within:ring-[hsl(var(--ring))]">
-                    <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                    <select
-                      aria-label={tx.printOptions}
-                      className="absolute inset-0 cursor-pointer opacity-0"
-                      value=""
-                      onChange={(event) => {
-                        if (event.target.value !== 'kaikki') return;
-                        tulostaKaikkiRef.current = true;
-                        window.print();
-                      }}
-                    >
-                      <option value="" disabled hidden>{tx.printOptions}</option>
-                      <option value="kaikki">{tx.printAll}</option>
-                    </select>
-                  </span>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -940,9 +874,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
       {/* Tulosteessa kaikki sarakkeet, vaikka näytöltä olisi piilotettu niitä kapeuden takia. */}
       {tulosteJuuri && tulosteenAika && createPortal(
-        (kaikkienSarjojenTuloste
-          || [{ sarja: sarjaSuodatin, ampujat: naytettavatAmpujat, ratkoIdt: naytaRatkoIds, rataTilastot }]
-        ).map((tiedot) => {
+        [{ sarja: sarjaSuodatin, ampujat: naytettavatAmpujat, ratkoIdt: naytaRatkoIds, rataTilastot }].map((tiedot) => {
           const { sarja } = tiedot;
           return (
             <TulosteTaulukko
