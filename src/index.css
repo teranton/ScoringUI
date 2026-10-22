@@ -483,6 +483,12 @@ body {
   }
 
   .tuloste-taulukko .tuloste-col-era { width: 2.2em; }
+
+  /* Kaikki sarjat -tulosteessa jokainen sarja alkaa omalta sivultaan. */
+  .tuloste-taulukko + .tuloste-taulukko {
+    break-before: page;
+  }
+
   /* Sarja- ja seurasarakkeen leveys sisällön mukaan: laskeTulosteSarakeLeveydet (utils/henkiloTaulukko.js). */
 
   /* Pystyviiva ennen ratoja. Vähintään 1pt, ettei se katoa pyöristyksessä. */

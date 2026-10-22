@@ -71,6 +71,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);
   // Tulostuksen aloitusaika; tuloste renderöidään vain tulostuksen ajaksi (beforeprint–afterprint).
   const [tulosteenAika, setTulosteenAika] = useState(null);
+  // Kaikki sarjat -painike: seuraava tulostus tulostaa jokaisen sarjan omalle sivulleen. Ctrl+P tulostaa valitun sarjan.
+  const tulostaKaikkiRef = useRef(false);
+  const [tulostaKaikki, setTulostaKaikki] = useState(false);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
   const [jarjestysSarake, setJarjestysSarake] = useState('sija');
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
@@ -215,6 +218,23 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     return laskeRataTilastot(naytettavatAmpujat, radatList, speksit.asemaMaksimit);
   }, [naytettavatAmpujat, radatList, speksit.asemaMaksimit]);
 
+  // Kaikki sarjat -tulosteen sarjat samassa järjestyksessä kuin sarjapainikkeet.
+  const tulosteSarjat = useMemo(
+    () => ['OPEN (Y)', ...loydetytSarjat.filter((sarja) => sarja.toUpperCase() !== 'Y')],
+    [loydetytSarjat]
+  );
+
+  // Muun kuin valitun sarjan tuloste samoin säännöin ja samalla järjestyksellä kuin näytön taulukko.
+  const laskeSarjanTuloste = (sarja) => {
+    const sijoitetut = laskeHenkilosijoitukset(ampujat, sarja, speksit.ratkoPalkintoSija);
+    const ampujatJarjestyksessa = jarjestaAmpujat(sijoitetut, jarjestysSarake, jarjestysSuunta);
+    return {
+      ampujat: ampujatJarjestyksessa,
+      ratkoIdt: laskeNaytettavatRatkoIdt(sijoitetut, sarja, speksit.ratkoPalkintoSija),
+      rataTilastot: laskeRataTilastot(ampujatJarjestyksessa, radatList, speksit.asemaMaksimit)
+    };
+  };
+
   useEffect(() => {
     if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
     const start = performance.now();
@@ -267,8 +287,16 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   // Tuloste renderöidään beforeprintissä synkronisesti (flushSync), jotta se ehtii tulostettavaksi myös Ctrl+P:llä.
   useEffect(() => {
     if (!tulosteJuuri || typeof window === 'undefined') return undefined;
-    const ennenTulostusta = () => flushSync(() => setTulosteenAika(new Date()));
-    const tulostuksenJalkeen = () => setTulosteenAika(null);
+    const ennenTulostusta = () => flushSync(() => {
+      setTulostaKaikki(tulostaKaikkiRef.current);
+      // Luetaan kerran: seuraava Ctrl+P tulostaa taas valitun sarjan, vaikka afterprint jäisi tulematta.
+      tulostaKaikkiRef.current = false;
+      setTulosteenAika(new Date());
+    });
+    const tulostuksenJalkeen = () => {
+      setTulostaKaikki(false);
+      setTulosteenAika(null);
+    };
     window.addEventListener('beforeprint', ennenTulostusta);
     window.addEventListener('afterprint', tulostuksenJalkeen);
     return () => {
@@ -585,6 +613,21 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                 {tx.print}
               </Button>
             )}
+
+            {tulosteJuuri && tulosteSarjat.length > 1 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 px-3 text-xs font-semibold"
+                onClick={() => {
+                  tulostaKaikkiRef.current = true;
+                  window.print();
+                }}
+              >
+                {tx.printAll}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -897,32 +940,40 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
       {/* Tulosteessa kaikki sarakkeet, vaikka näytöltä olisi piilotettu niitä kapeuden takia. */}
       {tulosteJuuri && tulosteenAika && createPortal(
-        <TulosteTaulukko
-          kisaNimi={kisaNimi}
-          kisaPaivat={kisaPaivat}
-          kisaStatus={kisaStatus}
-          sarja={sarjaSuodatin}
-          ampujat={naytettavatAmpujat}
-          radat={radatList}
-          asemaMaksimit={speksit.asemaMaksimit}
-          sarakkeet={{
-            sarja: sarjaSuodatin === 'OPEN (Y)',
-            seura: onkoSeuroja,
-            la: onkoLaTuloksia,
-            su: onkoSuTuloksia,
-            ratko: naytaRatkoSarake
-          }}
-          paivaSarakeNimet={paivaSarakeNimet}
-          ratkoIdt={naytaRatkoIds}
-          analyysi={naytaRataAnalyysi ? [
-            // Rata-sarakkeet ovat tulosteessa kapeita, joten yksi luku soluun.
-            { otsikko: tx.printAvg, arvot: rataTilastot.map((t) => muotoileNumero(t.avg)) },
-            { otsikko: tx.printMedian, arvot: rataTilastot.map((t) => muotoileNumero(t.median)) },
-            { otsikko: tx.printMaxPct, arvot: rataTilastot.map((t) => muotoileProsentti(t.maxPct)) }
-          ] : null}
-          tulostusaika={tulosteenAika}
-          locale={locale}
-        />,
+        (tulostaKaikki ? tulosteSarjat : [sarjaSuodatin]).map((sarja) => {
+          const tiedot = sarja === sarjaSuodatin
+            ? { ampujat: naytettavatAmpujat, ratkoIdt: naytaRatkoIds, rataTilastot }
+            : laskeSarjanTuloste(sarja);
+          return (
+            <TulosteTaulukko
+              key={sarja}
+              kisaNimi={kisaNimi}
+              kisaPaivat={kisaPaivat}
+              kisaStatus={kisaStatus}
+              sarja={sarja}
+              ampujat={tiedot.ampujat}
+              radat={radatList}
+              asemaMaksimit={speksit.asemaMaksimit}
+              sarakkeet={{
+                sarja: sarja === 'OPEN (Y)',
+                seura: onkoSeuroja,
+                la: onkoLaTuloksia,
+                su: onkoSuTuloksia,
+                ratko: tiedot.ampujat.some((a) => onkoRatkoNakyvissa(a, tiedot.ratkoIdt))
+              }}
+              paivaSarakeNimet={paivaSarakeNimet}
+              ratkoIdt={tiedot.ratkoIdt}
+              analyysi={naytaRataAnalyysi ? [
+                // Rata-sarakkeet ovat tulosteessa kapeita, joten yksi luku soluun.
+                { otsikko: tx.printAvg, arvot: tiedot.rataTilastot.map((t) => muotoileNumero(t.avg)) },
+                { otsikko: tx.printMedian, arvot: tiedot.rataTilastot.map((t) => muotoileNumero(t.median)) },
+                { otsikko: tx.printMaxPct, arvot: tiedot.rataTilastot.map((t) => muotoileProsentti(t.maxPct)) }
+              ] : null}
+              tulostusaika={tulosteenAika}
+              locale={locale}
+            />
+          );
+        }),
         tulosteJuuri
       )}
     </Card>
