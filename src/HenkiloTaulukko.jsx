@@ -597,31 +597,31 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
             </Button>
 
-            {/* Yksi tulostuspainike: painallus tulostaa valitun sarjan, nuolen valikosta myös kaikki sarjat.
+            {/* Yksi tulostuspainike: painallus tulostaa valitun sarjan, nuolen valikosta kaikki sarjat.
                 Valikko on natiivi select, jottei vieritettävä työkalurivi leikkaa sitä. */}
             {tulosteJuuri && (
               <div className="flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]">
                 <button
                   type="button"
-                  className="px-3 text-xs font-semibold hover:bg-[hsl(var(--muted))]"
+                  className="px-3 text-xs font-semibold hover:bg-[hsl(var(--muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--ring))]"
                   onClick={() => window.print()}
                 >
                   {tx.print}
                 </button>
                 {tulosteSarjat.length > 1 && (
-                  <span className="relative flex w-7 items-center justify-center border-l border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]">
+                  <span className="relative flex w-7 items-center justify-center border-l border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] focus-within:ring-2 focus-within:ring-inset focus-within:ring-[hsl(var(--ring))]">
                     <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
                     <select
                       aria-label={tx.printOptions}
                       className="absolute inset-0 cursor-pointer opacity-0"
                       value=""
                       onChange={(event) => {
-                        tulostaKaikkiRef.current = event.target.value === 'kaikki';
+                        if (event.target.value !== 'kaikki') return;
+                        tulostaKaikkiRef.current = true;
                         window.print();
                       }}
                     >
                       <option value="" disabled hidden>{tx.printOptions}</option>
-                      <option value="valittu">{tx.printSelected}</option>
                       <option value="kaikki">{tx.printAll}</option>
                     </select>
                   </span>
@@ -956,10 +956,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               asemaMaksimit={speksit.asemaMaksimit}
               sarakkeet={{
                 sarja: sarja === 'OPEN (Y)',
-                // Kaikki sarjat -tulosteessa sarakkeet sarjan omista tuloksista, ettei sivulle jää tyhjiä sarakkeita.
-                seura: kaikkienSarjojenTuloste ? tiedot.ampujat.some((a) => String(a.seura || '').trim()) : onkoSeuroja,
-                la: kaikkienSarjojenTuloste ? tiedot.ampujat.some((a) => a.la !== null) : onkoLaTuloksia,
-                su: kaikkienSarjojenTuloste ? tiedot.ampujat.some((a) => a.su !== null) : onkoSuTuloksia,
+                // Sarakkeet sarjan omista tuloksista, ettei sivulle jää tyhjiä sarakkeita.
+                seura: tiedot.ampujat.some((a) => String(a.seura || '').trim()),
+                la: tiedot.ampujat.some((a) => a.la !== null),
+                su: tiedot.ampujat.some((a) => a.su !== null),
                 ratko: tiedot.ampujat.some((a) => onkoRatkoNakyvissa(a, tiedot.ratkoIdt))
               }}
               paivaSarakeNimet={paivaSarakeNimet}

@@ -32,9 +32,8 @@ function tulosteRivi(ampuja, eraNumerot, ratkoIdt) {
 // Ensin OPEN (Y) kaikkine ampujineen, sitten muut sarjat kuten näytöllä.
 // eiTulosta-ampujan status on '', jos taulukossa ei ole statuskoodia.
 export function muodostaTulosteSarjat(raakaRivit, { ratojenMaara = 8, ratkoSija = ratkoPalkintoSijaOletus } = {}) {
-  // Sarjan välilyönnit pois, jotta laskeHenkilosijoitukset löytää ampujan sarjan nimellä.
-  const ampujat = parsiTaulukkoAmpujat(raakaRivit, ratojenMaara)
-    .map((a) => ({ ...a, sarja: String(a.sarja || '').trim() }));
+  // parsiTaulukkoAmpujat trimmaa sarjan, joten laskeHenkilosijoitukset löytää ampujan sarjan nimellä.
+  const ampujat = parsiTaulukkoAmpujat(raakaRivit, ratojenMaara);
 
   const kaikkiErat = Array.from(new Set(ampujat.flatMap((a) => Object.keys(a.erat).map(Number))))
     .filter(Number.isFinite)
