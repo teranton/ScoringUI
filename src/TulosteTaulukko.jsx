@@ -1,8 +1,20 @@
 // Tulostettava tulostaulukko: näytön taulukon sarja ja järjestys A4-sivuille, kaikki sarakkeet ja koko nimet.
 // HenkiloTaulukko renderöi tämän tulostuksen ajaksi App:n tulostejuureen (portaali), joten myös selaimen oma
 // tulostus (Ctrl+P) käyttää tätä eikä vieritettävää näytön taulukkoa. Näkyy vain tulostettaessa (index.css).
-import { laskeTulosteTaulukonKoko, muodostaTulosteRatko } from './utils/henkiloTaulukko';
+import { laskeTulosteSarakeLeveydet, laskeTulosteTaulukonKoko, muodostaTulosteRatko } from './utils/henkiloTaulukko';
 import { haeTekstit } from './i18n';
+
+let mittausCanvas = null;
+
+// Tekstin leveys em-yksiköissä tulosteen fontilla (index.css .tuloste-root).
+function mittaaTulosteTeksti(teksti) {
+  if (typeof document === 'undefined') return undefined;
+  if (!mittausCanvas) mittausCanvas = document.createElement('canvas');
+  const context = mittausCanvas.getContext('2d');
+  if (!context) return undefined;
+  context.font = '100px "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  return context.measureText(teksti).width / 100;
+}
 
 function muotoileTulostusaika(pvm, locale) {
   const kieli = locale === 'en' ? 'en-GB' : 'fi-FI';
@@ -28,6 +40,10 @@ export default function TulosteTaulukko({
   const tx = haeTekstit('henkiloTaulukko', locale);
 
   const { vaaka, tiivis } = laskeTulosteTaulukonKoko(radat.length);
+  const leveydet = laskeTulosteSarakeLeveydet(ampujat, sarakkeet, radat.length, {
+    koko: { vaaka, tiivis },
+    mittaa: mittaaTulosteTeksti
+  });
   const etusarakkeita = 3
     + (sarakkeet.sarja ? 1 : 0)
     + (sarakkeet.seura ? 1 : 0)
@@ -61,8 +77,8 @@ export default function TulosteTaulukko({
           <colgroup>
             <col className="tuloste-col-sija" />
             <col />
-            {sarakkeet.sarja && <col className="tuloste-col-sarja" />}
-            {sarakkeet.seura && <col className="tuloste-col-seura" />}
+            {sarakkeet.sarja && <col style={{ width: `${leveydet.sarja}em` }} />}
+            {sarakkeet.seura && <col style={{ width: `${leveydet.seura}em` }} />}
             {sarakkeet.la && <col className="tuloste-col-paiva" />}
             {sarakkeet.su && <col className="tuloste-col-paiva" />}
             <col className="tuloste-col-yht" />
