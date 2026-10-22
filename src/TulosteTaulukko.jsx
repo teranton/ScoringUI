@@ -64,7 +64,10 @@ export default function TulosteTaulukko({
       <header className="tuloste-otsikko">
         <div>
           <h1 translate="no">{kisaNimi}</h1>
-          <div>{[kisaPaivat, otsikko || tx.title, sarja].filter(Boolean).join(' · ')}</div>
+          <div>
+            {[kisaPaivat, otsikko || tx.title].filter(Boolean).join(' · ')}
+            {sarja && <> · <strong>{sarja}</strong></>}
+          </div>
         </div>
         <div className="tuloste-meta">
           {kisaStatus !== 'paattynyt' && <div className="tuloste-epavirallinen">{tx.unofficial}</div>}
