@@ -483,7 +483,7 @@ body {
   }
 
   .tuloste-taulukko .tuloste-col-era { width: 2.2em; }
-  .tuloste-taulukko .tuloste-col-seura { width: 9em; }
+  /* Sarja- ja seurasarakkeen leveys sisällön mukaan: laskeTulosteSarakeLeveydet (utils/henkiloTaulukko.js). */
 
   /* Pystyviiva ennen ratoja. Vähintään 1pt, ettei se katoa pyöristyksessä. */
   .tuloste-taulukko .tuloste-raja {

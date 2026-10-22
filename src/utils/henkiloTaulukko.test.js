@@ -5,6 +5,7 @@ import {
   jarjestaAmpujat,
   laskeRataTilastot,
   laskeTaulukkoAsettelu,
+  laskeTulosteSarakeLeveydet,
   laskeTulosteTaulukonKoko,
   muodostaTulosteRatko,
   onkoAliTulosPuuttuu,
@@ -187,6 +188,30 @@ test('laskeTulosteTaulukonKoko: pysty 8 rataan asti, vaaka sen yli ja tiivis yli
   assert.deepEqual(laskeTulosteTaulukonKoko(9), { vaaka: true, tiivis: false });
   assert.deepEqual(laskeTulosteTaulukonKoko(16), { vaaka: true, tiivis: false });
   assert.deepEqual(laskeTulosteTaulukonKoko(24), { vaaka: true, tiivis: true });
+});
+
+test('laskeTulosteSarakeLeveydet: pitkä sarja mahtuu, kun nimelle jää tilaa', () => {
+  const ampujat = [
+    { sarja: 'A (Y)', seura: 'NoSA' },
+    { sarja: 'C (N, Y17,Y66)', seura: 'SSG' }
+  ];
+  const kaikki = { sarja: true, seura: true, la: true, su: true, ratko: true };
+  const leveydet = laskeTulosteSarakeLeveydet(ampujat, kaikki, 8);
+  assert.ok(leveydet.sarja >= 'C (N, Y17,Y66)'.length * 0.6, `sarja ${leveydet.sarja}em`);
+  assert.equal(leveydet.seura, 4.5);
+  // Lyhyet sarjat eivät vie nimeltä tilaa.
+  assert.equal(laskeTulosteSarakeLeveydet([{ sarja: 'Y', seura: 'SA' }], kaikki, 8).sarja, 3.6);
+});
+
+test('laskeTulosteSarakeLeveydet kaventaa sarjaa ja seuraa vain, kun tila ei riitä', () => {
+  const ampujat = [{ sarja: 'Hyvin pitkä sarjan nimi tähän', seura: 'Hyvin pitkä seuran nimi' }];
+  const kaikki = { sarja: true, seura: true, la: true, su: true, ratko: true };
+  const leveydet = laskeTulosteSarakeLeveydet(ampujat, kaikki, 8);
+  // Pysty-A4 9pt ≈ 59.8em, kiinteät 34.3em, nimelle vähintään 9em.
+  assert.ok(leveydet.sarja + leveydet.seura <= 59.8 - 34.3 - 9 + 0.1);
+  assert.ok(leveydet.sarja >= 3.6 && leveydet.seura >= 4.5);
+  // Ilman sarjasaraketta sen leveys on 0.
+  assert.equal(laskeTulosteSarakeLeveydet(ampujat, { seura: true }, 8).sarja, 0);
 });
 
 test('muodostaTulosteRatko näyttää statuksen aina ja ratkon vain tasatuloksen ampujalle', () => {
