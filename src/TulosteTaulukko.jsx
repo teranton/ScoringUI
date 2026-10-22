@@ -4,6 +4,18 @@
 import { laskeTulosteSarakeLeveydet, laskeTulosteTaulukonKoko, muodostaTulosteRatko } from './utils/henkiloTaulukko';
 import { haeTekstit } from './i18n';
 
+let mittausCanvas = null;
+
+// Tekstin leveys em-yksiköissä tulosteen fontilla (index.css .tuloste-root).
+function mittaaTulosteTeksti(teksti) {
+  if (typeof document === 'undefined') return undefined;
+  if (!mittausCanvas) mittausCanvas = document.createElement('canvas');
+  const context = mittausCanvas.getContext('2d');
+  if (!context) return undefined;
+  context.font = '100px "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  return context.measureText(teksti).width / 100;
+}
+
 function muotoileTulostusaika(pvm, locale) {
   const kieli = locale === 'en' ? 'en-GB' : 'fi-FI';
   return `${pvm.toLocaleDateString(kieli)} ${pvm.toLocaleTimeString(kieli, { hour: '2-digit', minute: '2-digit' })}`;
@@ -28,7 +40,10 @@ export default function TulosteTaulukko({
   const tx = haeTekstit('henkiloTaulukko', locale);
 
   const { vaaka, tiivis } = laskeTulosteTaulukonKoko(radat.length);
-  const leveydet = laskeTulosteSarakeLeveydet(ampujat, sarakkeet, radat.length);
+  const leveydet = laskeTulosteSarakeLeveydet(ampujat, sarakkeet, radat.length, {
+    koko: { vaaka, tiivis },
+    mittaa: mittaaTulosteTeksti
+  });
   const etusarakkeita = 3
     + (sarakkeet.sarja ? 1 : 0)
     + (sarakkeet.seura ? 1 : 0)

@@ -363,46 +363,56 @@ export function laskeTulosteTaulukonKoko(ratojenMaara = 0) {
 }
 
 // Tulostaulukon sarja- ja seurasarakkeen leveys (em) sisällön mukaan: pisin teksti mahtuu, jos nimelle jää
-// vähintään TULOSTE_NIMI_MIN. Muuten molemmat kapenevat minimiinsä asti ja pisimmät katkaistaan.
-// Sivun leveys ja kiinteät sarakkeet vastaavat index.css:n .tuloste-taulukko-leveyksiä (9pt, tiivis 7.5pt).
+// vähintään TULOSTE_NIMI_MIN. Muuten kavennetaan ensin seuraa ja vasta sitten sarjaa, minimiinsä asti.
+// Sivun leveys ja kiinteät sarakkeet vastaavat index.css:n .tuloste-taulukko-leveyksiä (9pt, tiivis 7.5pt) ja
+// TulosteTaulukko.jsx:n @page-reunusta (10mm); muuta ne yhdessä.
 // Sarakeleveys sisältää solun reunuksen (3pt + 3pt ≈ 0.7em), joten TULOSTE_SOLU_VARA_EM kattaa sen.
-const TULOSTE_MERKKI_EM = 0.6;
+const TULOSTE_MERKKI_EM = 0.7;
 const TULOSTE_SOLU_VARA_EM = 1;
 const TULOSTE_NIMI_MIN = 9;
 const TULOSTE_SARJA = { min: 3.6, max: 14 };
 const TULOSTE_SEURA = { min: 4.5, max: 9 };
 const TULOSTE_KIINTEAT = { sija: 3.4, paiva: 2.8, yht: 3.2, ratko: 4.5, rata: 2.2 };
 
-function laskeTekstinLeveys(tekstit, { min, max }) {
-  const pisin = tekstit.reduce((m, t) => Math.max(m, String(t ?? '').trim().length), 0);
-  return Math.min(max, Math.max(min, pisin * TULOSTE_MERKKI_EM + TULOSTE_SOLU_VARA_EM));
+// Arvio ilman selainta (Node-testit): leveä merkki kohden, isoille kirjaimille riittävä.
+function arvioiTekstinLeveysEm(teksti) {
+  return teksti.length * TULOSTE_MERKKI_EM;
 }
 
-export function laskeTulosteSarakeLeveydet(ampujat = [], sarakkeet = {}, ratojenMaara = 0) {
-  const { vaaka, tiivis } = laskeTulosteTaulukonKoko(ratojenMaara);
-  const sivuMm = vaaka ? 277 : 190;
-  const fonttiPt = tiivis ? 7.5 : 9;
+function laskeTekstinLeveys(tekstit, { min, max }, mittaa) {
+  const pisin = tekstit.reduce((m, t) => {
+    const teksti = String(t ?? '').trim();
+    return teksti ? Math.max(m, mittaa(teksti) ?? arvioiTekstinLeveysEm(teksti)) : m;
+  }, 0);
+  return Math.min(max, Math.max(min, pisin + TULOSTE_SOLU_VARA_EM));
+}
+
+// koko: laskeTulosteTaulukonKoko-tulos. mittaa: tekstin leveys em-yksiköissä (selaimessa canvas-mittaus;
+// undefined = arvio).
+export function laskeTulosteSarakeLeveydet(ampujat = [], sarakkeet = {}, ratojenMaara = 0, {
+  koko = laskeTulosteTaulukonKoko(ratojenMaara),
+  mittaa = arvioiTekstinLeveysEm
+} = {}) {
+  const sivuMm = koko.vaaka ? 277 : 190;
+  const fonttiPt = koko.tiivis ? 7.5 : 9;
   const sivuEm = (sivuMm * 72) / 25.4 / fonttiPt;
   const k = TULOSTE_KIINTEAT;
   const kiinteat = k.sija + k.yht + k.rata * ratojenMaara
     + (sarakkeet.la ? k.paiva : 0) + (sarakkeet.su ? k.paiva : 0) + (sarakkeet.ratko ? k.ratko : 0);
 
-  let sarja = sarakkeet.sarja ? laskeTekstinLeveys(ampujat.map((a) => a.sarja), TULOSTE_SARJA) : 0;
-  let seura = sarakkeet.seura ? laskeTekstinLeveys(ampujat.map((a) => a.seura), TULOSTE_SEURA) : 0;
-  const tilaa = sivuEm - kiinteat - TULOSTE_NIMI_MIN;
-  const ylitys = sarja + seura - tilaa;
-  if (ylitys > 0) {
-    // Kavennetaan suhteessa siihen, paljonko kumpikin on minimiään leveämpi.
-    const sarjaJousto = sarakkeet.sarja ? sarja - TULOSTE_SARJA.min : 0;
-    const seuraJousto = sarakkeet.seura ? seura - TULOSTE_SEURA.min : 0;
-    const jousto = sarjaJousto + seuraJousto;
-    if (jousto > 0) {
-      const osuus = Math.min(1, ylitys / jousto);
-      sarja -= sarjaJousto * osuus;
-      seura -= seuraJousto * osuus;
-    }
+  let sarja = sarakkeet.sarja ? laskeTekstinLeveys(ampujat.map((a) => a.sarja), TULOSTE_SARJA, mittaa) : 0;
+  let seura = sarakkeet.seura ? laskeTekstinLeveys(ampujat.map((a) => a.seura), TULOSTE_SEURA, mittaa) : 0;
+  let ylitys = sarja + seura - (sivuEm - kiinteat - TULOSTE_NIMI_MIN);
+  if (ylitys > 0 && sarakkeet.seura) {
+    const pois = Math.min(ylitys, seura - TULOSTE_SEURA.min);
+    seura -= pois;
+    ylitys -= pois;
   }
-  const pyorista = (em) => Math.round(em * 10) / 10;
+  if (ylitys > 0 && sarakkeet.sarja) {
+    sarja -= Math.min(ylitys, sarja - TULOSTE_SARJA.min);
+  }
+  // Alaspäin, ettei pyöristys vie nimeltä sen minimiä.
+  const pyorista = (em) => Math.floor(em * 10) / 10;
   return { sarja: pyorista(sarja), seura: pyorista(seura) };
 }
 

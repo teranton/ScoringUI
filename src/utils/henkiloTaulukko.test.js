@@ -190,28 +190,41 @@ test('laskeTulosteTaulukonKoko: pysty 8 rataan asti, vaaka sen yli ja tiivis yli
   assert.deepEqual(laskeTulosteTaulukonKoko(24), { vaaka: true, tiivis: true });
 });
 
+const TULOSTE_KAIKKI = { sarja: true, seura: true, la: true, su: true, ratko: true };
+// Kiinteä mittaus: 0.6em merkiltä.
+const mittaa06 = (t) => t.length * 0.6;
+
 test('laskeTulosteSarakeLeveydet: pitkä sarja mahtuu, kun nimelle jää tilaa', () => {
   const ampujat = [
     { sarja: 'A (Y)', seura: 'NoSA' },
     { sarja: 'C (N, Y17,Y66)', seura: 'SSG' }
   ];
-  const kaikki = { sarja: true, seura: true, la: true, su: true, ratko: true };
-  const leveydet = laskeTulosteSarakeLeveydet(ampujat, kaikki, 8);
-  assert.ok(leveydet.sarja >= 'C (N, Y17,Y66)'.length * 0.6, `sarja ${leveydet.sarja}em`);
+  const leveydet = laskeTulosteSarakeLeveydet(ampujat, TULOSTE_KAIKKI, 8, { mittaa: mittaa06 });
+  assert.equal(leveydet.sarja, 9.4);
   assert.equal(leveydet.seura, 4.5);
   // Lyhyet sarjat eivät vie nimeltä tilaa.
-  assert.equal(laskeTulosteSarakeLeveydet([{ sarja: 'Y', seura: 'SA' }], kaikki, 8).sarja, 3.6);
+  assert.equal(laskeTulosteSarakeLeveydet([{ sarja: 'Y', seura: 'SA' }], TULOSTE_KAIKKI, 8).sarja, 3.6);
+  // Ilman mittausta arvio, joka riittää isoille kirjaimille.
+  assert.ok(laskeTulosteSarakeLeveydet([{ sarja: 'SM-NAISET' }], { sarja: true }, 4).sarja >= 9 * 0.7 + 1);
 });
 
-test('laskeTulosteSarakeLeveydet kaventaa sarjaa ja seuraa vain, kun tila ei riitä', () => {
-  const ampujat = [{ sarja: 'Hyvin pitkä sarjan nimi tähän', seura: 'Hyvin pitkä seuran nimi' }];
-  const kaikki = { sarja: true, seura: true, la: true, su: true, ratko: true };
-  const leveydet = laskeTulosteSarakeLeveydet(ampujat, kaikki, 8);
-  // Pysty-A4 9pt ≈ 59.8em, kiinteät 34.3em, nimelle vähintään 9em.
-  assert.ok(leveydet.sarja + leveydet.seura <= 59.8 - 34.3 - 9 + 0.1);
-  assert.ok(leveydet.sarja >= 3.6 && leveydet.seura >= 4.5);
+test('laskeTulosteSarakeLeveydet kaventaa ensin seuraa, sitten sarjaa, ja jättää nimelle minimin', () => {
+  const pysty8 = (190 * 72) / 25.4 / 9 - (3.4 + 3.2 + 8 * 2.2 + 2 * 2.8 + 4.5);
+  // Pitkä seura kapenee, sarja mahtuu edelleen kokonaan.
+  const seuraPitka = laskeTulosteSarakeLeveydet(
+    [{ sarja: 'C (N, Y17,Y66)', seura: 'Kouvolan Ampujat' }], TULOSTE_KAIKKI, 8, { mittaa: mittaa06 }
+  );
+  assert.equal(seuraPitka.sarja, 9.4);
+  assert.ok(seuraPitka.seura < 9 && seuraPitka.seura >= 4.5);
+  assert.ok(pysty8 - seuraPitka.sarja - seuraPitka.seura >= 9);
+  // Kun tila ei riitä sarjallekaan, seura on minimissään ja sarja kapenee.
+  const molemmatPitkia = laskeTulosteSarakeLeveydet(
+    [{ sarja: 'Hyvin pitkä sarjan nimi tähän', seura: 'Hyvin pitkä seuran nimi' }], TULOSTE_KAIKKI, 8, { mittaa: mittaa06 }
+  );
+  assert.equal(molemmatPitkia.seura, 4.5);
+  assert.ok(pysty8 - molemmatPitkia.sarja - molemmatPitkia.seura >= 9);
   // Ilman sarjasaraketta sen leveys on 0.
-  assert.equal(laskeTulosteSarakeLeveydet(ampujat, { seura: true }, 8).sarja, 0);
+  assert.equal(laskeTulosteSarakeLeveydet([{ seura: 'SA' }], { seura: true }, 8).sarja, 0);
 });
 
 test('muodostaTulosteRatko näyttää statuksen aina ja ratkon vain tasatuloksen ampujalle', () => {
