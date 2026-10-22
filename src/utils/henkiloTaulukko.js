@@ -71,7 +71,7 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
     if (!row || !row[nimiIndeksi]) continue;
 
     const name = row[nimiIndeksi] || '';
-    const category = row[sarjaIndeksi] || '';
+    const category = String(row[sarjaIndeksi] || '').trim();
     const seura = idxSeura !== -1 ? (row[idxSeura] || '') : '';
     const la = idxLa !== -1 ? (row[idxLa] || '') : null;
     const su = idxSu !== -1 ? (row[idxSu] || '') : null;
