@@ -25,6 +25,7 @@ import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import TulosteTaulukko from './TulosteTaulukko';
+import { ChevronDown } from 'lucide-react';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
@@ -71,7 +72,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);
   // Tulostuksen aloitusaika; tuloste renderöidään vain tulostuksen ajaksi (beforeprint–afterprint).
   const [tulosteenAika, setTulosteenAika] = useState(null);
-  // Kaikki sarjat -painike: seuraava tulostus tulostaa jokaisen sarjan omalle sivulleen. Ctrl+P tulostaa valitun sarjan.
+  // Tulostusvalikon Kaikki sarjat: seuraava tulostus tulostaa jokaisen sarjan omalle sivulleen. Ctrl+P tulostaa valitun sarjan.
   const tulostaKaikkiRef = useRef(false);
   const [tulostaKaikki, setTulostaKaikki] = useState(false);
   const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
@@ -596,31 +597,36 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
               {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
             </Button>
 
+            {/* Yksi tulostuspainike: painallus tulostaa valitun sarjan, nuolen valikosta myös kaikki sarjat.
+                Valikko on natiivi select, jottei vieritettävä työkalurivi leikkaa sitä. */}
             {tulosteJuuri && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 shrink-0 px-3 text-xs font-semibold"
-                onClick={() => window.print()}
-              >
-                {tx.print}
-              </Button>
-            )}
-
-            {tulosteJuuri && tulosteSarjat.length > 1 && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 shrink-0 px-3 text-xs font-semibold"
-                onClick={() => {
-                  tulostaKaikkiRef.current = true;
-                  window.print();
-                }}
-              >
-                {tx.printAll}
-              </Button>
+              <div className="flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]">
+                <button
+                  type="button"
+                  className="px-3 text-xs font-semibold hover:bg-[hsl(var(--muted))]"
+                  onClick={() => window.print()}
+                >
+                  {tx.print}
+                </button>
+                {tulosteSarjat.length > 1 && (
+                  <span className="relative flex w-7 items-center justify-center border-l border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))]">
+                    <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    <select
+                      aria-label={tx.printOptions}
+                      className="absolute inset-0 cursor-pointer opacity-0"
+                      value=""
+                      onChange={(event) => {
+                        tulostaKaikkiRef.current = event.target.value === 'kaikki';
+                        window.print();
+                      }}
+                    >
+                      <option value="" disabled hidden>{tx.printOptions}</option>
+                      <option value="valittu">{tx.printSelected}</option>
+                      <option value="kaikki">{tx.printAll}</option>
+                    </select>
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>
