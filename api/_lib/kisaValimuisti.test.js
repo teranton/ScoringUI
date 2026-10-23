@@ -16,6 +16,8 @@ test('välimuistiaika tulee rekisterin päivistä', () => {
   assert.equal(kisanPaivaTila({ alkuPvm: '2026-03-01', loppuPvm: '2026-09-30', ranking: true }, nyt), 'paattynyt');
   assert.equal(kisanPaivaTila({ alkuPvm: '2026-03-01', loppuPvm: '2026-10-31', ranking: true }, nyt), 'kaynnissa');
   assert.equal(kisanPaivaTila({ alkuPvm: '', loppuPvm: '', ranking: true }, nyt), 'kaynnissa');
+  // Pysyvä testikisa on käynnissä rekisterin päivistä riippumatta, joten sitä ei tallenneta päättyneenä.
+  assert.equal(kisanPaivaTila({ alkuPvm: '2025-07-05', loppuPvm: '2025-07-06', testi: true }, nyt), 'kaynnissa');
   assert.equal(cdnOtsikko('paattynyt'), CDN_OTSIKOT.paattynytKorjausaika);
   assert.equal(cdnOtsikko('tuntematon'), CDN_OTSIKOT.tulossa);
 });

@@ -25,8 +25,10 @@ export const VANHA_KUVA_OTSIKKO = `public, s-maxage=10, stale-while-revalidate=$
 
 // Tila rekisterin päivistä. KISANSPEKSIT-ohitus ei vaikuta välimuistiin: kisapäivinä data pidetään aina tuoreena.
 // Kauden ranking päättyy loppupäivänsä mukaan kuten kisa. Ilman loppupäivää se on käynnissä alkupäivästä lähtien
-// (ilman alkupäivää aina), kuten näkymässäkin.
+// (ilman alkupäivää aina), kuten näkymässäkin. Pysyvä testikisa (H = TESTI) on aina käynnissä, joten sitä
+// ei koskaan tallenneta päättyneenä.
 export function kisanPaivaTila(kisa, nyt = new Date()) {
+  if (kisa?.testi) return 'kaynnissa';
   if (kisa?.ranking && !parsiPaivamaara(kisa.loppuPvm)) {
     const alku = parsiPaivamaara(kisa.alkuPvm);
     return alku && laskeKisanStatusJaTyyli(kisa.alkuPvm, '', nyt).status === 'tulossa' ? 'tulossa' : 'kaynnissa';

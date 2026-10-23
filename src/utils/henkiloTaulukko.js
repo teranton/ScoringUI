@@ -71,7 +71,7 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
     if (!row || !row[nimiIndeksi]) continue;
 
     const name = row[nimiIndeksi] || '';
-    const category = row[sarjaIndeksi] || '';
+    const category = String(row[sarjaIndeksi] || '').trim();
     const seura = idxSeura !== -1 ? (row[idxSeura] || '') : '';
     const la = idxLa !== -1 ? (row[idxLa] || '') : null;
     const su = idxSu !== -1 ? (row[idxSu] || '') : null;
@@ -360,6 +360,60 @@ export function laskeTaulukkoAsettelu({
 // tavallisella tekstikoolla. Leveydet: index.css .tuloste-taulukko.
 export function laskeTulosteTaulukonKoko(ratojenMaara = 0) {
   return { vaaka: ratojenMaara > 8, tiivis: ratojenMaara > 16 };
+}
+
+// Tulostaulukon sarja- ja seurasarakkeen leveys (em) sisällön mukaan: pisin teksti mahtuu, jos nimelle jää
+// vähintään TULOSTE_NIMI_MIN. Muuten kavennetaan ensin seuraa ja vasta sitten sarjaa, minimiinsä asti.
+// Sivun leveys ja kiinteät sarakkeet vastaavat index.css:n .tuloste-taulukko-leveyksiä (9pt, tiivis 7.5pt) ja
+// TulosteTaulukko.jsx:n @page-reunusta (10mm); muuta ne yhdessä.
+// Sarakeleveys sisältää solun reunuksen (3pt + 3pt ≈ 0.7em), joten TULOSTE_SOLU_VARA_EM kattaa sen.
+const TULOSTE_MERKKI_EM = 0.7;
+const TULOSTE_SOLU_VARA_EM = 1;
+const TULOSTE_NIMI_MIN = 9;
+const TULOSTE_SARJA = { min: 3.6, max: 14 };
+const TULOSTE_SEURA = { min: 4.5, max: 9 };
+const TULOSTE_KIINTEAT = { sija: 3.4, paiva: 2.8, yht: 3.2, ratko: 4.5, rata: 2.2 };
+
+// Arvio ilman selainta (Node-testit): leveä merkki kohden, isoille kirjaimille riittävä.
+function arvioiTekstinLeveysEm(teksti) {
+  return teksti.length * TULOSTE_MERKKI_EM;
+}
+
+function laskeTekstinLeveys(tekstit, { min, max }, mittaa) {
+  const pisin = tekstit.reduce((m, t) => {
+    const teksti = String(t ?? '').trim();
+    return teksti ? Math.max(m, mittaa(teksti) ?? arvioiTekstinLeveysEm(teksti)) : m;
+  }, 0);
+  return Math.min(max, Math.max(min, pisin + TULOSTE_SOLU_VARA_EM));
+}
+
+// koko: laskeTulosteTaulukonKoko-tulos. mittaa: tekstin leveys em-yksiköissä (selaimessa canvas-mittaus;
+// undefined = arvio).
+export function laskeTulosteSarakeLeveydet(ampujat = [], sarakkeet = {}, ratojenMaara = 0, {
+  koko = laskeTulosteTaulukonKoko(ratojenMaara),
+  mittaa = arvioiTekstinLeveysEm
+} = {}) {
+  const sivuMm = koko.vaaka ? 277 : 190;
+  const fonttiPt = koko.tiivis ? 7.5 : 9;
+  const sivuEm = (sivuMm * 72) / 25.4 / fonttiPt;
+  const k = TULOSTE_KIINTEAT;
+  const kiinteat = k.sija + k.yht + k.rata * ratojenMaara
+    + (sarakkeet.la ? k.paiva : 0) + (sarakkeet.su ? k.paiva : 0) + (sarakkeet.ratko ? k.ratko : 0);
+
+  let sarja = sarakkeet.sarja ? laskeTekstinLeveys(ampujat.map((a) => a.sarja), TULOSTE_SARJA, mittaa) : 0;
+  let seura = sarakkeet.seura ? laskeTekstinLeveys(ampujat.map((a) => a.seura), TULOSTE_SEURA, mittaa) : 0;
+  let ylitys = sarja + seura - (sivuEm - kiinteat - TULOSTE_NIMI_MIN);
+  if (ylitys > 0 && sarakkeet.seura) {
+    const pois = Math.min(ylitys, seura - TULOSTE_SEURA.min);
+    seura -= pois;
+    ylitys -= pois;
+  }
+  if (ylitys > 0 && sarakkeet.sarja) {
+    sarja -= Math.min(ylitys, sarja - TULOSTE_SARJA.min);
+  }
+  // Alaspäin, ettei pyöristys vie nimeltä sen minimiä.
+  const pyorista = (em) => Math.floor(em * 10) / 10;
+  return { sarja: pyorista(sarja), seura: pyorista(seura) };
 }
 
 // Ratko-solun teksti tulosteeseen: statusmerkinnät ja tasatuloksen ratko, kuten näytön taulukossa.

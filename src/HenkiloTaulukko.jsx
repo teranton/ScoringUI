@@ -27,6 +27,7 @@ import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import TulosteTaulukko from './TulosteTaulukko';
+import { laskeTulosteSarakkeet } from './utils/tulosteTulokset';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
@@ -222,6 +223,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const rataTilastot = useMemo(() => {
     return laskeRataTilastot(naytettavatAmpujat, radatList, speksit.asemaMaksimit);
   }, [naytettavatAmpujat, radatList, speksit.asemaMaksimit]);
+
+
 
   useEffect(() => {
     if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
@@ -570,18 +573,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             >
               {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
             </Button>
-
-            {tulosteJuuri && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 shrink-0 px-3 text-xs font-semibold"
-                onClick={() => window.print()}
-              >
-                {tx.print}
-              </Button>
-            )}
           </div>
         </div>
 
@@ -902,13 +893,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
           ampujat={naytettavatAmpujat}
           radat={radatList}
           asemaMaksimit={speksit.asemaMaksimit}
-          sarakkeet={{
-            sarja: sarjaSuodatin === KAIKKI_SARJAT,
-            seura: onkoSeuroja,
-            la: onkoLaTuloksia,
-            su: onkoSuTuloksia,
-            ratko: naytaRatkoSarake
-          }}
+          sarakkeet={laskeTulosteSarakkeet(naytettavatAmpujat, sarjaSuodatin, naytaRatkoIds)}
           paivaSarakeNimet={paivaSarakeNimet}
           ratkoIdt={naytaRatkoIds}
           analyysi={naytaRataAnalyysi ? [

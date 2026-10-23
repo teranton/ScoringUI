@@ -110,16 +110,6 @@ const TEKSTIT = jaadyta({
     tulosteTulokset: {
       button: 'Tulosta tulokset',
       title: 'Tulokset sarjoittain',
-      unofficial: 'Epäviralliset tulokset',
-      printed: 'Tulostettu',
-      rank: 'Sija',
-      name: 'Nimi',
-      club: 'Seura',
-      total: 'Yht.',
-      tieBreak: 'Ratko',
-      shooters: 'ampujaa',
-      noResult: 'Ei tulosta',
-      classLabel: 'Sarja',
       empty: 'Ei tuloksia tulostettavaksi.'
     },
     henkiloTaulukko: {
@@ -144,7 +134,6 @@ const TEKSTIT = jaadyta({
       hideStageAnalytics: 'Piilota analyysi',
       analyticsAvg: 'KA (n)',
       analyticsDetails: 'Md / Max%',
-      print: 'Tulosta / PDF',
       printed: 'Tulostettu',
       unofficial: 'Epäviralliset tulokset',
       printEmpty: 'Ei tuloksia tulostettavaksi.',
@@ -207,6 +196,21 @@ const TEKSTIT = jaadyta({
       title: 'Eräjako',
       description: 'Voit järjestellä ampujia erien välillä raahaamalla.',
       heat: 'Erä'
+    },
+    saa: {
+      title: 'Sääennuste',
+      source: 'Sää: Ilmatieteen laitos',
+      rain: 'Sademäärä klo 8–20',
+      wind: 'Tuuli (suurin keskituuli klo 8–20)',
+      selkea: 'Selkeää',
+      puolipilvinen: 'Puolipilvistä',
+      pilvinen: 'Pilvistä',
+      sumu: 'Sumua',
+      tihku: 'Tihkusadetta',
+      sade: 'Sadetta',
+      lumi: 'Lumisadetta',
+      ranta: 'Räntää',
+      ukkonen: 'Ukkosta'
     }
   },
   en: {
@@ -310,16 +314,6 @@ const TEKSTIT = jaadyta({
     tulosteTulokset: {
       button: 'Print results',
       title: 'Results by class',
-      unofficial: 'Unofficial results',
-      printed: 'Printed',
-      rank: 'Rank',
-      name: 'Name',
-      club: 'Club',
-      total: 'Total',
-      tieBreak: 'Tie-break',
-      shooters: 'shooters',
-      noResult: 'No result',
-      classLabel: 'Class',
       empty: 'No results to print.'
     },
     henkiloTaulukko: {
@@ -344,7 +338,6 @@ const TEKSTIT = jaadyta({
       hideStageAnalytics: 'Hide Analytics',
       analyticsAvg: 'Avg (n)',
       analyticsDetails: 'Md / Max%',
-      print: 'Print / PDF',
       printed: 'Printed',
       unofficial: 'Unofficial results',
       printEmpty: 'No results to print.',
@@ -407,6 +400,21 @@ const TEKSTIT = jaadyta({
       title: 'Heat Assignment',
       description: 'You can rearrange shooters between heats by dragging.',
       heat: 'Heat'
+    },
+    saa: {
+      title: 'Weather forecast',
+      source: 'Weather: Finnish Meteorological Institute',
+      rain: 'Precipitation 8–20',
+      wind: 'Wind (max mean speed 8–20)',
+      selkea: 'Clear',
+      puolipilvinen: 'Partly cloudy',
+      pilvinen: 'Cloudy',
+      sumu: 'Fog',
+      tihku: 'Drizzle',
+      sade: 'Rain',
+      lumi: 'Snow',
+      ranta: 'Sleet',
+      ukkonen: 'Thunderstorm'
     }
   }
 });

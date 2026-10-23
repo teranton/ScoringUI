@@ -1,7 +1,7 @@
 // Sallittujen sheetId:iden lista: vain kilpailurekisterissä (sarake E) olevat taulukot.
 // Estää sen, että API:lla luettaisiin mitä tahansa palvelutilille jaettua taulukkoa.
 import { parseCsvRows } from '../../src/utils/csv.js';
-import { onkoRankingTyyppi } from '../../src/utils/kilpailurekisteri.js';
+import { onkoRankingTyyppi, onkoTestiTyyppi } from '../../src/utils/kilpailurekisteri.js';
 import { haeGoogleAsiakas, pyyntoUudelleenyrittaen } from './googleAuth.js';
 import { rivitCsvksi } from './sheetsData.js';
 import { luoValimuisti, luoYhdistaja } from './valimuisti.js';
@@ -19,15 +19,18 @@ export function normalisoiSheetId(arvo) {
   return /^[A-Za-z0-9_-]{20,}$/.test(teksti) ? teksti : '';
 }
 
-// Rekisterin kisat sheetId:n mukaan: { alkuPvm, loppuPvm, ranking } (sarakkeet C ja D sellaisinaan,
-// ranking: H-sarakkeessa RANKING).
+// Rekisterin kisat sheetId:n mukaan: { alkuPvm, loppuPvm, ranking, testi, paikka } (sarakkeet C ja D sellaisinaan,
+// ranking: H-sarakkeessa RANKING, testi: H-sarakkeessa TESTI, paikka: sarake I).
 export function parseRekisterinKisat(csvText) {
   const kisat = new Map();
   parseCsvRows(csvText).forEach((row, i) => {
     if (i === 0 && (row[1]?.toLowerCase().includes('nimi') || row[0]?.toLowerCase().includes('id'))) return;
     const id = normalisoiSheetId(row[4]);
     if (id && !kisat.has(id)) {
-      kisat.set(id, { alkuPvm: row[2] || '', loppuPvm: row[3] || '', ranking: onkoRankingTyyppi(row[7]) });
+      kisat.set(id, {
+        alkuPvm: row[2] || '', loppuPvm: row[3] || '',
+        ranking: onkoRankingTyyppi(row[7]), testi: onkoTestiTyyppi(row[7]), paikka: row[8] || ''
+      });
     }
   });
   return kisat;
@@ -93,7 +96,7 @@ export function luoSheetAllowlist({ haeRekisteriCsv, now = () => Date.now() }) {
 
   // Onko rekisteri jo muistissa (tarkistus ei silloin odota verkkoa).
   onSallittu.onLadattu = () => sallitut !== null;
-  // Kisan rekisteririvi ({ alkuPvm, loppuPvm, ranking }) tai null.
+  // Kisan rekisteririvi ({ alkuPvm, loppuPvm, ranking, testi, paikka }) tai null.
   onSallittu.kisa = (sheetId) => sallitut?.get(sheetId) || null;
   return onSallittu;
 }

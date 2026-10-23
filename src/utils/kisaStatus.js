@@ -47,6 +47,13 @@ export function parsiPaivamaara(pvmStr) {
   return date;
 }
 
+// Päivämäärä muodossa vvvv-kk-pp (paikallinen aika).
+export function isoPaiva(pvm) {
+  const kuukausi = String(pvm.getMonth() + 1).padStart(2, '0');
+  const paiva = String(pvm.getDate()).padStart(2, '0');
+  return `${pvm.getFullYear()}-${kuukausi}-${paiva}`;
+}
+
 export function laskeOnkoIlmoittautuminenPaattynyt(alkuStr, nykyhetki = new Date()) {
   if (!alkuStr) return true;
   const aloitusPaiva = parsiPaivamaara(alkuStr);
@@ -93,9 +100,17 @@ export function haeStatusOverrideSpekseista(speksitData) {
   return haeAsetusSpekseista(speksitData, STATUS_AVAIMET, tulkitseStatusArvo);
 }
 
-export function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData, nyt = new Date()) {
-  const oletus = laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt);
+// Kisan tila rekisterin päivistä. Pysyvä testikisa (rekisterin H = TESTI) on aina kisapäivässään.
+export function laskeKisanPaivaStatus(kisa, nyt = new Date()) {
+  if (kisa?.onkoTesti) return { ...STATUS_TYYLIT.kaynnissa };
+  return laskeKisanStatusJaTyyli(kisa?.alkuPvm, kisa?.loppuPvm, nyt);
+}
 
+export function laskeKisanEfektiivinenStatus(alkuStr, loppuStr, speksitData, nyt = new Date()) {
+  return efektiivinenStatus(laskeKisanStatusJaTyyli(alkuStr, loppuStr, nyt), speksitData);
+}
+
+function efektiivinenStatus(oletus, speksitData) {
   // Date-active competitions are controlled by sheet status flag.
   const override = haeStatusOverrideSpekseista(speksitData);
   if (override === 'paattynyt') {
@@ -134,5 +149,5 @@ export function laskeRankingStatus(alkuStr, loppuStr, speksitData, nyt = new Dat
 // Kisan tai rankingin näkyvä tila.
 export function laskeStatusKisalle(kisa, speksitData, nyt = new Date()) {
   if (kisa?.onkoRanking) return laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, speksitData, nyt);
-  return laskeKisanEfektiivinenStatus(kisa?.alkuPvm, kisa?.loppuPvm, speksitData, nyt);
+  return efektiivinenStatus(laskeKisanPaivaStatus(kisa, nyt), speksitData);
 }

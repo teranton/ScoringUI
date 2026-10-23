@@ -8,6 +8,11 @@
   button and printout heading change from `OPEN (Y)` to `Y` on sheets without the key. ScoringLib writes the key on
   new competitions (form field "Yhteinen sarja"; left empty, the guess applies) and uses it in the prize list. Behaviour change for sheets
   without the key: class-only competitions lose the all-shooters view (set `OPEN_SARJA` = `Y` to keep it).
+- Registry column I (optional): competition place, a town name or `lat, lon`. Upcoming and running
+  competitions with a place show a weather forecast (Finnish Meteorological Institute open data, `api/saa.js`) in the competition box.
+  Additive: an empty or missing column I shows no forecast.
+- Permanent test competitions: registry column H `TESTI` makes the UI and the API treat the competition as being on
+  its competition day whatever its dates, so its timetable and results stay visible after its end date. Additive: no tab, header or key changes.
 - Season ranking: registry column H `RANKING` marks a season ranking, ordered by its end date. The UI reads
   `RANKING_<year>` and `KISAT` (allowed only on ranking sheets) and the optional `KISANSPEKSIT`. The ranking ends
   after its end date or with `KILPAILUNSTATUS` = `FINISHED`. Additive: no existing tab, header or key changes.
