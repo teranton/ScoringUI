@@ -91,3 +91,10 @@ test('luokkakilpailu ilman asetusta: ei yhteistä sarjaa', () => {
     ['B', ['A']]
   ]);
 });
+
+test('High Gun: oma osio, ja voittaja pois sarjan tulosteesta', () => {
+  const sarjat = muodostaTulosteSarjat(ampujat(), { highGun: { paikat: 1, poisSarjoista: true } });
+  assert.deepEqual(sarjat.map((s) => s.nimi), ['Y', 'High Gun', 'N']);
+  assert.deepEqual(sarjat[1].ampujat.map((a) => a.nimi), ['Ampuja C']);
+  assert.equal(sarjat[1].sarakkeet.sarja, true);
+});

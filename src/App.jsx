@@ -16,6 +16,7 @@ import {
   laskeStatusKisalle
 } from './utils/kisaStatus';
 import { haeOpenSarjaSpekseista } from './utils/openSarja';
+import { haeHighGunSpekseista } from './utils/highGun';
 import {
   haeAikatauluMalliSpekseista,
   haeAikatauluNakyvyysSpekseista,
@@ -194,7 +195,8 @@ export default function App() {
   const nykyisenKisanSpeksit = useMemo(
     () => ({
       ...parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
-      openSarja: haeOpenSarjaSpekseista(nykyisenKisanParsitutRivit.speksitRows)
+      openSarja: haeOpenSarjaSpekseista(nykyisenKisanParsitutRivit.speksitRows),
+      highGun: haeHighGunSpekseista(nykyisenKisanParsitutRivit.speksitRows)
     }),
     [nykyisenKisanParsitutRivit.speksitRows]
   );

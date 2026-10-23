@@ -6,6 +6,7 @@
 // Ilman asetusta luokkakilpailu (kaikki sarjat A–F) saa EI, muut Y.
 import { asetusJoukko, asetusTulkitsija, haeAsetusSpekseista } from './kisaAsetukset.js';
 import { KAIKKI_SARJAT } from './henkiloTulokset.js';
+import { HIGH_GUN, HIGH_GUN_NIMI } from './highGun.js';
 
 export const OPEN_SARJA = { Y: 'y', OPEN: 'open', EI: 'ei' };
 
@@ -34,6 +35,7 @@ export function paatteleOpenSarja(asetus, sarjat) {
 
 // Näytettävä nimi sarjavalinnalle: kaikkien ampujien näkymä saa nimen Y tai Y (OPEN).
 export function sarjanNimi(sarja, openSarja) {
+  if (sarja === HIGH_GUN) return HIGH_GUN_NIMI;
   if (sarja !== KAIKKI_SARJAT) return sarja;
   return openSarja === OPEN_SARJA.OPEN ? 'Y (OPEN)' : 'Y';
 }
@@ -46,11 +48,14 @@ export function sarjaValinnat(sarjat, openSarja) {
   return [KAIKKI_SARJAT, ...lajitellut.filter((sarja) => sarja.toUpperCase() !== 'Y')];
 }
 
-// Sarjanapit näkymille: { yhteinenSarja: 'y' | 'open' | 'ei', napit: [KAIKKI_SARJAT?, ...sarjat] }.
-// sarjat ilman kirjainkoon kaksoiskappaleita (listaaSarjat).
-export function sarjaNakyma(sarjat, asetus) {
+// Sarjanapit näkymille: { yhteinenSarja: 'y' | 'open' | 'ei', napit: [KAIKKI_SARJAT?, HIGH_GUN?, ...sarjat] }.
+// sarjat ilman kirjainkoon kaksoiskappaleita (listaaSarjat). High Gun -nappi, kun highGun.paikat > 0.
+export function sarjaNakyma(sarjat, asetus, highGun = null) {
   const yhteinenSarja = paatteleOpenSarja(asetus, sarjat);
-  return { yhteinenSarja, napit: sarjaValinnat(sarjat, yhteinenSarja) };
+  const valinnat = sarjaValinnat(sarjat, yhteinenSarja);
+  if (!(highGun?.paikat > 0)) return { yhteinenSarja, napit: valinnat };
+  const kohta = valinnat[0] === KAIKKI_SARJAT ? 1 : 0;
+  return { yhteinenSarja, napit: [...valinnat.slice(0, kohta), HIGH_GUN, ...valinnat.slice(kohta)] };
 }
 
 // Valittu sarja, jos se on valittavissa; muuten ensimmäinen valinta (luokkakilpailussa ensimmäinen luokka).

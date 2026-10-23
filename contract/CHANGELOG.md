@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- New `KISANSPEKSIT` keys `HIGH_GUN` (number of High Gun places) and `HIGH_GUN_POIS_SARJOISTA` (`TRUE` default,
+  `FALSE`): the best overall scores get a "High Gun" button and printout section, and by default leave their category
+  lists, so the next shooter moves up (and any tie at the new prize places shows its tie-break). ScoringLib writes both
+  keys on new competitions and uses them in the prize list. Additive: without `HIGH_GUN` nothing changes.
 - New `KISANSPEKSIT` key `OPEN_SARJA` (`Y`, `OPEN`, `EI`) names the all-shooters category: `Y` (Finnish rules,
   everyone, e.g. SM), `Y (OPEN)` (open to foreign shooters) or none (class competition A, B, C ...). Without the
   key a competition whose categories are all single letters A–F gets none, any other gets `Y`. The UI's all-shooters

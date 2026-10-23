@@ -3,7 +3,6 @@ import { useMemo, useRef, useState } from 'react';
 import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import {
   KAIKKI_SARJAT,
-  laskeHenkilosijoitukset,
   laskeNaytettavatRatkoIdt,
   laskeRatojenMaara,
   onkoMyohempiaPaivaTuloksia,
@@ -14,6 +13,7 @@ import {
   ratkoPalkintoSijaOletus
 } from './utils/henkiloTulokset';
 import { aktiivinenSarja, haeOpenSarjaSpekseista, sarjaNakyma, sarjanNimi } from './utils/openSarja';
+import { haeHighGunSpekseista, laskeSarjanSijoitukset, laskentaSarja } from './utils/highGun';
 import { listaaSarjat } from './utils/henkiloTaulukko';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
@@ -36,14 +36,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   });
 
   // 1. Parsitaan asemakohtaiset speksit KISANSPEKSIT-datasta (asema, maksimi, toiseksi paras käytössä)
-  const { asemaMaksimit, asemaToiseksiParasKaytossa, ratkoPalkintoSija, openSarja } = useMemo(() => {
+  const { asemaMaksimit, asemaToiseksiParasKaytossa, ratkoPalkintoSija, openSarja, highGun } = useMemo(() => {
     if (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa) {
       return {
         ...parsedSpeksit,
         ratkoPalkintoSija: parsedSpeksit.ratkoPalkintoSija || ratkoPalkintoSijaOletus
       };
     }
-    return { ...parseAsemaSpeksitCsv(speksitCsv), openSarja: haeOpenSarjaSpekseista(speksitCsv) };
+    return {
+      ...parseAsemaSpeksitCsv(speksitCsv),
+      openSarja: haeOpenSarjaSpekseista(speksitCsv),
+      highGun: haeHighGunSpekseista(speksitCsv)
+    };
   }, [parsedSpeksit, speksitCsv]);
 
   const onkoRawVirheellinen = onkoCsvVirheellinen(rawCsv, 10);
@@ -157,15 +161,16 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
 
   // Kaikkien ampujien sarja on Y tai Y (OPEN), luokkakilpailussa sitä ei ole (KISANSPEKSIT: OPEN_SARJA).
+  // High Gun -nappi, kun KISANSPEKSIT: HIGH_GUN > 0.
   const { yhteinenSarja, napit: sarjaNapit } = useMemo(
-    () => sarjaNakyma(listaaSarjat(ampujat), openSarja),
-    [ampujat, openSarja]
+    () => sarjaNakyma(listaaSarjat(ampujat), openSarja, highGun),
+    [ampujat, openSarja, highGun]
   );
   const sarjaSuodatin = aktiivinenSarja(valittuSarja, sarjaNapit);
 
   const naytettavatAmpujat = useMemo(
-    () => laskeHenkilosijoitukset(ampujat, sarjaSuodatin, ratkoPalkintoSija),
-    [ampujat, ratkoPalkintoSija, sarjaSuodatin]
+    () => laskeSarjanSijoitukset(ampujat, sarjaSuodatin, ratkoPalkintoSija, highGun),
+    [ampujat, ratkoPalkintoSija, sarjaSuodatin, highGun]
   );
   // Kaikista sarjoista, jotta näkymä ei vaihdu sarjasuodattimen mukaan.
   const naytaPaivaTulokset = useMemo(() => onkoMyohempiaPaivaTuloksia(ampujat), [ampujat]);
@@ -214,7 +219,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   }, [jarjestysValinta, naytettavatAmpujat]);
   const laajennaKaikkiKortit = jarjestysValinta.startsWith('stage-');
   const naytaRatkoIds = useMemo(
-    () => laskeNaytettavatRatkoIdt(naytettavatAmpujat, sarjaSuodatin, ratkoPalkintoSija),
+    () => laskeNaytettavatRatkoIdt(naytettavatAmpujat, laskentaSarja(sarjaSuodatin), ratkoPalkintoSija),
     [naytettavatAmpujat, ratkoPalkintoSija, sarjaSuodatin]
   );
 

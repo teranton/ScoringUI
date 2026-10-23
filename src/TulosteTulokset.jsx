@@ -23,9 +23,9 @@ export default function TulosteTulokset({
   const sarjat = useMemo(
     () => muodostaTulosteSarjat(
       Array.isArray(rawRows) && rawRows.length > 1 ? parsiTaulukkoAmpujat(rawRows, ratojenMaara) : [],
-      { ratkoSija: parsedSpeksit?.ratkoPalkintoSija, openSarja: parsedSpeksit?.openSarja }
+      { ratkoSija: parsedSpeksit?.ratkoPalkintoSija, openSarja: parsedSpeksit?.openSarja, highGun: parsedSpeksit?.highGun }
     ),
-    [rawRows, ratojenMaara, parsedSpeksit?.ratkoPalkintoSija, parsedSpeksit?.openSarja]
+    [rawRows, ratojenMaara, parsedSpeksit?.ratkoPalkintoSija, parsedSpeksit?.openSarja, parsedSpeksit?.highGun]
   );
   const paivaSarakeNimet = useMemo(() => tunnistaPaivaSarakeNimet(rawRows, locale), [rawRows, locale]);
 
