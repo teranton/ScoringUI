@@ -49,13 +49,14 @@ export function sarjaValinnat(sarjat, openSarja) {
 }
 
 // Sarjanapit näkymille: { yhteinenSarja: 'y' | 'open' | 'ei', napit: [KAIKKI_SARJAT?, HIGH_GUN?, ...sarjat] }.
-// sarjat ilman kirjainkoon kaksoiskappaleita (listaaSarjat). High Gun -nappi, kun highGun.paikat > 0.
+// sarjat ilman kirjainkoon kaksoiskappaleita (listaaSarjat). High Gun -nappi, kun highGun.paikat > 0: yhteisen
+// sarjan jälkeen, luokkakilpailussa viimeisenä, jotta näkymä avautuu ensimmäiseen luokkaan.
 export function sarjaNakyma(sarjat, asetus, highGun = null) {
   const yhteinenSarja = paatteleOpenSarja(asetus, sarjat);
   const valinnat = sarjaValinnat(sarjat, yhteinenSarja);
   if (!(highGun?.paikat > 0)) return { yhteinenSarja, napit: valinnat };
-  const kohta = valinnat[0] === KAIKKI_SARJAT ? 1 : 0;
-  return { yhteinenSarja, napit: [...valinnat.slice(0, kohta), HIGH_GUN, ...valinnat.slice(kohta)] };
+  if (valinnat[0] !== KAIKKI_SARJAT) return { yhteinenSarja, napit: [...valinnat, HIGH_GUN] };
+  return { yhteinenSarja, napit: [KAIKKI_SARJAT, HIGH_GUN, ...valinnat.slice(1)] };
 }
 
 // Valittu sarja, jos se on valittavissa; muuten ensimmäinen valinta (luokkakilpailussa ensimmäinen luokka).

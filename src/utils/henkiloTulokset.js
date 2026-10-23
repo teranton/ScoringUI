@@ -120,6 +120,9 @@ export const ratkoPalkintoSijaOletus = 3;
 // KISANSPEKSIT-asetuksesta OPEN_SARJA, ks. openSarja.js.
 export const KAIKKI_SARJAT = 'OPEN (Y)';
 
+// Onko ampujalla tulos (kokonaistulos taulukon ampujilla, muuten tulos).
+export const onkoTulosta = (ampuja) => (Number.parseInt(ampuja.kokonaistulos ?? ampuja.tulos, 10) || 0) > 0;
+
 // Asemien/ratojen määrä KISANSPEKSIT-asemataulukosta; oletus 8, jos taulukkoa ei löydy.
 export function laskeRatojenMaara(asemaMaksimit) {
   const maara = Object.keys(asemaMaksimit || {}).length;

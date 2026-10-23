@@ -13,7 +13,7 @@ import {
   ratkoPalkintoSijaOletus
 } from './utils/henkiloTulokset';
 import { aktiivinenSarja, haeOpenSarjaSpekseista, sarjaNakyma, sarjanNimi } from './utils/openSarja';
-import { haeHighGunSpekseista, laskeSarjanSijoitukset, laskentaSarja } from './utils/highGun';
+import { haeHighGunSpekseista, laskeSarjanSijoitukset, laskentaSarja, sarjanRatkoSija } from './utils/highGun';
 import { listaaSarjat } from './utils/henkiloTaulukko';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
@@ -219,8 +219,9 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   }, [jarjestysValinta, naytettavatAmpujat]);
   const laajennaKaikkiKortit = jarjestysValinta.startsWith('stage-');
   const naytaRatkoIds = useMemo(
-    () => laskeNaytettavatRatkoIdt(naytettavatAmpujat, laskentaSarja(sarjaSuodatin), ratkoPalkintoSija),
-    [naytettavatAmpujat, ratkoPalkintoSija, sarjaSuodatin]
+    () => laskeNaytettavatRatkoIdt(naytettavatAmpujat, laskentaSarja(sarjaSuodatin),
+      sarjanRatkoSija(sarjaSuodatin, ratkoPalkintoSija, highGun)),
+    [naytettavatAmpujat, ratkoPalkintoSija, sarjaSuodatin, highGun]
   );
 
 

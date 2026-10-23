@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { KAIKKI_SARJAT, laskeNaytettavatRatkoIdt } from './henkiloTulokset.js';
-import { HIGH_GUN, haeHighGunSpekseista, highGunVoittajat, laskeSarjanSijoitukset, laskentaSarja } from './highGun.js';
+import { HIGH_GUN, haeHighGunSpekseista, sarjanRatkoSija, highGunVoittajat, laskeSarjanSijoitukset, laskentaSarja } from './highGun.js';
 import { sarjaNakyma, sarjanNimi } from './openSarja.js';
 
 // Beretta Gold Cup 2026 (Hyvinkää): High Gun -palkinto parhaalle, luokka A.
@@ -50,9 +50,21 @@ test('ilman pois sarjoista -asetusta voittaja pysyy sarjassa', () => {
   assert.deepEqual(sijat(a)[0], ['1', 'Kumpuvaara Rasmus']);
 });
 
-test('High Gun -nappi yhteisen sarjan jälkeen, luokkakilpailussa ensimmäisenä', () => {
+test('High Gun -nappi yhteisen sarjan jälkeen, luokkakilpailussa viimeisenä', () => {
   assert.deepEqual(sarjaNakyma(['A', 'B'], 'open', HG1).napit, [KAIKKI_SARJAT, HIGH_GUN, 'A', 'B']);
-  assert.deepEqual(sarjaNakyma(['A', 'B'], null, HG1).napit, [HIGH_GUN, 'A', 'B']);
+  assert.deepEqual(sarjaNakyma(['A', 'B'], null, HG1).napit, ['A', 'B', HIGH_GUN]);
   assert.deepEqual(sarjaNakyma(['A', 'B'], null, { paikat: 0, poisSarjoista: true }).napit, ['A', 'B']);
   assert.equal(sarjanNimi(HIGH_GUN, 'y'), 'High Gun');
+});
+
+test('High Gun -paikkoja enemmän kuin RATKO_PALKINTO_SIJA: ratko lasketaan kaikille paikoille', () => {
+  const hg4 = { paikat: 4, poisSarjoista: true };
+  assert.equal(sarjanRatkoSija(HIGH_GUN, 3, hg4), 4);
+  assert.equal(sarjanRatkoSija('A', 3, hg4), 3);
+  // Neljäs paikka on tasan (Lindh ja Raassina 185): molemmat ovat voittajia, kunnes ratko on ammuttu.
+  assert.deepEqual([...highGunVoittajat(AMPUJAT, hg4, 3)].sort(),
+    ['Kumpuvaara Rasmus', 'Lindh Oliver', 'Moilanen Juhani', 'Ojansuu Oliver', 'Raassina Miko']);
+  const hg = laskeSarjanSijoitukset(AMPUJAT, HIGH_GUN, 3, hg4);
+  assert.deepEqual([...laskeNaytettavatRatkoIdt(hg, laskentaSarja(HIGH_GUN), sarjanRatkoSija(HIGH_GUN, 3, hg4))].sort(),
+    ['Lindh Oliver', 'Raassina Miko']);
 });

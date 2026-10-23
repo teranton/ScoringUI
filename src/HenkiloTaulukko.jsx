@@ -19,7 +19,7 @@ import {
   tunnistaPaivaSarakeNimet
 } from './utils/henkiloTaulukko';
 import { aktiivinenSarja, haeOpenSarjaSpekseista, sarjaNakyma, sarjanNimi } from './utils/openSarja';
-import { HIGH_GUN, haeHighGunSpekseista, laskeSarjanSijoitukset, laskentaSarja } from './utils/highGun';
+import { HIGH_GUN, haeHighGunSpekseista, laskeSarjanSijoitukset, laskentaSarja, sarjanRatkoSija } from './utils/highGun';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
@@ -182,14 +182,15 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const naytaRatkoIds = useMemo(() => {
     const perfStart = perfNow();
-    const result = laskeNaytettavatRatkoIdt(sijoitetutAmpujat, laskentaSarja(sarjaSuodatin), speksit.ratkoPalkintoSija);
+    const result = laskeNaytettavatRatkoIdt(sijoitetutAmpujat, laskentaSarja(sarjaSuodatin),
+      sarjanRatkoSija(sarjaSuodatin, speksit.ratkoPalkintoSija, speksit.highGun));
     logPerf('naytaRatkoIds', perfStart, {
       sarja: sarjaSuodatin,
       shown: sijoitetutAmpujat.length,
       ratko: result.size
     });
     return result;
-  }, [sijoitetutAmpujat, sarjaSuodatin, speksit.ratkoPalkintoSija]);
+  }, [sijoitetutAmpujat, sarjaSuodatin, speksit.ratkoPalkintoSija, speksit.highGun]);
 
   const onkoRatkoSallittuAmpujalle = (ampuja) => naytaRatkoIds.has(ampuja?.id);
 
