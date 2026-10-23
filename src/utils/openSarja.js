@@ -3,7 +3,8 @@
 //   Y    → "Y": Suomen sääntöjen Y, johon kuuluvat kaikki ampujat (esim. SM, ei ulkomaalaisia)
 //   OPEN → "Y (OPEN)": kilpailu on avoin ulkomaalaisille
 //   EI   → ei yhteistä sarjaa, vain luokat (A, B, C ...)
-// Ilman asetusta luokkakilpailu (kaikki sarjat A–F) saa EI, muut Y.
+// Ilman asetusta luokkakilpailu saa EI, muut Y. Luokkakilpailussa jokainen sarja alkaa luokkakirjaimella A–F, jota ei
+// seuraa kirjain (A, "A (Y)", "B Y56", "D-metsästäjä").
 import { asetusJoukko, asetusTulkitsija, haeAsetusSpekseista } from './kisaAsetukset.js';
 import { KAIKKI_SARJAT } from './henkiloTulokset.js';
 import { HIGH_GUN, HIGH_GUN_NIMI } from './highGun.js';
@@ -25,7 +26,7 @@ export function haeOpenSarjaSpekseista(speksitData) {
 
 export function onkoLuokkakisa(sarjat) {
   const tunnukset = (sarjat || []).map((s) => String(s ?? '').trim().toUpperCase()).filter(Boolean);
-  return tunnukset.length > 0 && tunnukset.every((s) => /^[A-F]$/.test(s));
+  return tunnukset.length > 0 && tunnukset.every((s) => /^[A-F](?![A-ZÄÖÅ])/.test(s));
 }
 
 export function paatteleOpenSarja(asetus, sarjat) {

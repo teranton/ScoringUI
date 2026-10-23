@@ -37,6 +37,13 @@ test('luokat A (Y), B (Y56, Y20), C (N, Y66, Y17) ja D (metsästäjä): ei yhtei
   assert.equal(aktiivinenSarja(KAIKKI_SARJAT, napit), 'A');
 });
 
+test('luokan nimessä voi olla alaryhmät: luokkakirjain alussa riittää', () => {
+  assert.equal(onkoLuokkakisa(['A (Y)', 'B (Y56, Y20)', 'C N/Y66/Y17', 'D-metsästäjä', 'E1']), true);
+  assert.equal(onkoLuokkakisa(['A (Y)', 'Y56']), false);
+  assert.equal(onkoLuokkakisa(['A', 'Ase']), false);
+  assert.equal(onkoLuokkakisa(['N', 'Y', 'Y17']), false);
+});
+
 test('sarjavalinnat ja nimet', () => {
   assert.deepEqual(sarjaValinnat(new Set(['N', 'Y', 'Y56']), 'y'), [KAIKKI_SARJAT, 'N', 'Y56']);
   assert.deepEqual(sarjaValinnat(['B', 'A', 'Y'], 'ei'), ['A', 'B', 'Y']);
