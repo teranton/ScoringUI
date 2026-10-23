@@ -7,6 +7,7 @@ import {
   haeOpenSarjaSpekseista,
   onkoLuokkakisa,
   paatteleOpenSarja,
+  sarjaNakyma,
   sarjaValinnat,
   sarjanNimi
 } from './openSarja.js';
@@ -27,6 +28,13 @@ test('luokkakilpailu päätellään, kun asetusta ei ole', () => {
   assert.equal(paatteleOpenSarja(null, ['A', 'B']), 'ei');
   assert.equal(paatteleOpenSarja(null, ['Y', 'N', 'Y56']), 'y');
   assert.equal(paatteleOpenSarja('open', ['A', 'B']), 'open');
+});
+
+test('luokat A (Y), B (Y56, Y20), C (N, Y66, Y17) ja D (metsästäjä): ei yhteistä sarjaa, avautuu luokkaan A', () => {
+  const { yhteinenSarja, napit } = sarjaNakyma(['D', 'B', 'A', 'C'], null);
+  assert.equal(yhteinenSarja, 'ei');
+  assert.deepEqual(napit, ['A', 'B', 'C', 'D']);
+  assert.equal(aktiivinenSarja(KAIKKI_SARJAT, napit), 'A');
 });
 
 test('sarjavalinnat ja nimet', () => {
