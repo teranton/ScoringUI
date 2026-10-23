@@ -122,7 +122,7 @@ Any other key or value is ignored and the default applies.
 | Tie-break prize places | `RATKO_PALKINTO_SIJA` | number | 3 |
 | All-shooters category | `OPEN_SARJA` | `Y` (shown as Y, everyone; Finnish rules), `OPEN` or `Y (OPEN)` (shown as Y (OPEN), open to foreign shooters), `EI` or `FALSE` (no all-shooters category, only the classes; a `Y` class is then shown like any other) | none if every `Tulokset Y` category is a single letter A–F, otherwise `Y` |
 | High Gun prize places | `HIGH_GUN` | whole number; the best overall scores up to this place (ties included) get a High Gun list on screen and in the printout | 0 (no High Gun) |
-| High Gun winners leave their category | `HIGH_GUN_POIS_SARJOISTA` | `TRUE`, `FALSE` or `EI` (category lists are ranked without the High Gun winners, so the next shooter moves up; the all-shooters list is unchanged) | `TRUE` |
+| High Gun winners leave their category | `HIGH_GUN_POIS_SARJOISTA` | `TRUE`; `FALSE`, `EPÄTOSI`, `0` or `EI` turn it off (category lists are ranked without the High Gun winners, so the next shooter moves up; the all-shooters list is unchanged) | `TRUE` |
 
 ### Keys ScoringLib reads
 

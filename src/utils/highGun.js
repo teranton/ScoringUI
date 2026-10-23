@@ -19,7 +19,7 @@ const tulkitsePaikat = (arvo) => (/^\d+$/.test(String(arvo).trim()) ? { paikat: 
 
 const tulkitsePois = asetusTulkitsija([
   ['kylla', ['TRUE']],
-  ['ei', ['FALSE', 'EI']]
+  ['ei', ['FALSE', 'EPÄTOSI', '0', 'EI']]
 ]);
 
 // { paikat, poisSarjoista }: paikat 0 = ei High Gunia; poisSarjoista oletuksena tosi.

@@ -25,6 +25,10 @@ test('asetukset: HIGH_GUN paikat ja HIGH_GUN_POIS_SARJOISTA, oletus pois sarjois
   assert.deepEqual(haeHighGunSpekseista([['HIGH_GUN', '']]), { paikat: 0, poisSarjoista: true });
   assert.deepEqual(haeHighGunSpekseista([['HIGH_GUN', 'kolme']]), { paikat: 0, poisSarjoista: true });
   assert.deepEqual(haeHighGunSpekseista([]), { paikat: 0, poisSarjoista: true });
+  for (const arvo of ['0', 'EPÄTOSI', 'ei']) {
+    assert.equal(haeHighGunSpekseista([['HIGH_GUN_POIS_SARJOISTA', arvo]]).poisSarjoista, false, arvo);
+  }
+  assert.equal(haeHighGunSpekseista([['HIGH_GUN_POIS_SARJOISTA', 'TRUE']]).poisSarjoista, true);
 });
 
 test('High Gun -näkymässä vain voittajat, sarjassa voittaja pois ja seuraava nousee', () => {
