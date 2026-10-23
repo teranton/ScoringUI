@@ -16,9 +16,10 @@ const RIVIT = [
 ];
 const ampujat = (rivit = RIVIT, radat = 4) => parsiTaulukkoAmpujat(rivit, radat);
 
-test('ensin OPEN (Y) kaikkine ampujineen sijajärjestyksessä, sitten muut sarjat ilman erillistä Y-sarjaa', () => {
+test('ensin Y kaikkine ampujineen sijajärjestyksessä, sitten muut sarjat ilman erillistä Y-sarjaa', () => {
   const sarjat = muodostaTulosteSarjat(ampujat(), { ratkoSija: 3 });
   assert.deepEqual(sarjat.map((s) => s.sarja), ['OPEN (Y)', 'N']);
+  assert.deepEqual(sarjat.map((s) => s.nimi), ['Y', 'N']);
 
   const open = sarjat[0];
   assert.equal(open.ampujat.length, 6);
@@ -67,4 +68,33 @@ test('tyhjä Su-sarake ennen toista päivää ei tulostu', () => {
 
 test('ei ampujia: ei sarjoja', () => {
   assert.deepEqual(muodostaTulosteSarjat([]), []);
+});
+
+test('OPEN_SARJA: avoin kisa tulostaa Y (OPEN), EI tulostaa vain sarjat', () => {
+  const avoin = muodostaTulosteSarjat(ampujat(), { openSarja: 'open' });
+  assert.deepEqual(avoin.map((s) => s.nimi), ['Y (OPEN)', 'N']);
+
+  const ei = muodostaTulosteSarjat(ampujat(), { openSarja: 'ei' });
+  assert.deepEqual(ei.map((s) => [s.nimi, s.ampujat.length]), [['N', 3], ['Y', 3]]);
+  assert.equal(ei[0].sarakkeet.sarja, false);
+});
+
+test('luokkakilpailu ilman asetusta: ei yhteistä sarjaa', () => {
+  const rivit = [
+    ['Nimi', 'Sarja', 'Seura', 'Tulos'],
+    ['A', 'B', 'S1', '90'],
+    ['B', 'A', 'S2', '95'],
+    ['C', 'a', 'S3', '80']
+  ];
+  assert.deepEqual(muodostaTulosteSarjat(ampujat(rivit, 0)).map((s) => [s.nimi, s.ampujat.map((a) => a.nimi)]), [
+    ['A', ['B', 'C']],
+    ['B', ['A']]
+  ]);
+});
+
+test('High Gun: oma osio, ja voittaja pois sarjan tulosteesta', () => {
+  const sarjat = muodostaTulosteSarjat(ampujat(), { highGun: { paikat: 1, poisSarjoista: true } });
+  assert.deepEqual(sarjat.map((s) => s.nimi), ['Y', 'High Gun', 'N']);
+  assert.deepEqual(sarjat[1].ampujat.map((a) => a.nimi), ['Ampuja C']);
+  assert.equal(sarjat[1].sarakkeet.sarja, true);
 });
