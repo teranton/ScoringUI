@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- New `KISANSPEKSIT` keys `HIGH_GUN` (number of High Gun places) and `HIGH_GUN_POIS_SARJOISTA` (`TRUE` default,
+  `FALSE`): the best overall scores get a "High Gun" button and printout section, and by default leave their category
+  lists, so the next shooter moves up (and any tie at the new prize places shows its tie-break). ScoringLib writes both
+  keys on new competitions and uses them in the prize list. Additive: without `HIGH_GUN` nothing changes.
+- New `KISANSPEKSIT` key `OPEN_SARJA` (`Y`, `OPEN`, `EI`) names the all-shooters category: `Y` (Finnish rules,
+  everyone, e.g. SM), `Y (OPEN)` (open to foreign shooters) or none (class competition A, B, C ...). Without the
+  key a competition whose categories are all classes (a letter A–F alone or followed by a non-letter, e.g. `A (Y)`,
+  `B Y56`; manual High Gun categories such as `HG` or `1HG` are ignored) gets none, any other gets `Y`. The UI's all-shooters
+  button and printout heading change from `OPEN (Y)` to `Y` on sheets without the key. ScoringLib writes the key on
+  new competitions (form field "Yhteinen sarja"; left empty, the guess applies) and uses it in the prize list. Behaviour change for sheets
+  without the key: class-only competitions lose the all-shooters view (set `OPEN_SARJA` = `Y` to keep it).
 - Registry column I (optional): competition place, a town name or `lat, lon`. Upcoming and running
   competitions with a place show a weather forecast (Finnish Meteorological Institute open data, `api/saa.js`) in the competition box.
   Additive: an empty or missing column I shows no forecast.

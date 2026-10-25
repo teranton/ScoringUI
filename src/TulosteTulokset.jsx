@@ -23,23 +23,23 @@ export default function TulosteTulokset({
   const sarjat = useMemo(
     () => muodostaTulosteSarjat(
       Array.isArray(rawRows) && rawRows.length > 1 ? parsiTaulukkoAmpujat(rawRows, ratojenMaara) : [],
-      { ratkoSija: parsedSpeksit?.ratkoPalkintoSija }
+      { ratkoSija: parsedSpeksit?.ratkoPalkintoSija, openSarja: parsedSpeksit?.openSarja, highGun: parsedSpeksit?.highGun }
     ),
-    [rawRows, ratojenMaara, parsedSpeksit?.ratkoPalkintoSija]
+    [rawRows, ratojenMaara, parsedSpeksit?.ratkoPalkintoSija, parsedSpeksit?.openSarja, parsedSpeksit?.highGun]
   );
   const paivaSarakeNimet = useMemo(() => tunnistaPaivaSarakeNimet(rawRows, locale), [rawRows, locale]);
 
   return (
     <div className="tuloste-root" lang={locale}>
       {sarjat.length === 0 && <p>{tx.empty}</p>}
-      {sarjat.map(({ sarja, ampujat, ratkoIdt, sarakkeet }) => (
+      {sarjat.map(({ sarja, nimi, ampujat, ratkoIdt, sarakkeet }) => (
         <TulosteTaulukko
           key={sarja}
           otsikko={tx.title}
           kisaNimi={kisaNimi}
           kisaPaivat={kisaPaivat}
           kisaStatus={kisaStatus}
-          sarja={sarja}
+          sarja={nimi}
           ampujat={ampujat}
           radat={radat}
           asemaMaksimit={parsedSpeksit?.asemaMaksimit}
