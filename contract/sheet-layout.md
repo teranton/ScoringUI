@@ -18,7 +18,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 
 | Tab | Written by | Read by (UI) |
 |---|---|---|
-| `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, and the library-only `KILPAILUTYYPPI`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js`, `utils/kisaAsetukset.js`, `utils/openSarja.js`, `utils/highGun.js` |
+| `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, and the library-only `KILPAILUTYYPPI`, `ALKUPAIVA`, plus `RYHMAVALI`, `ISTUNTOTAUKO` on group-timetable types; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js`, `utils/kisaAsetukset.js`, `utils/openSarja.js`, `utils/highGun.js` |
 | `Tulokset Y` | Sheet formulas from the main entry tab | `HenkiloTaulukko.jsx`, `HenkiloTulokset.jsx`, `utils/henkiloTulokset.js` |
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
@@ -153,10 +153,15 @@ uses the fallback cell. Renaming a key therefore makes the library read the fall
 
 Keys ScoringLib reads with no fallback cell (the feature that needs them is skipped or stops with an error
 when they are missing): `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `Asemien määrä`, `Tyhjän ruudun symboli`.
-The group timetable and score cards (menu "Luo aikataulu ja tuloskortit") also read `KILPAILUTYYPPI` (`COMPAK`,
-`SPORTING`, `FITASC`, `ESP`; guessed from `AIKATAULU_MALLI` and stations per layout when missing), `ALKUPAIVA`
-(first competition day, for the day names; Saturday/Sunday when missing), `RYHMAVALI` (minutes between group starts)
-and `ISTUNTOTAUKO` (minutes between sessions); missing values use the type's defaults (15 and 60). The UI reads none of these four.
+The group timetable and score cards (menu "Luo aikataulu ja tuloskortit", Sporting / FITASC / ESP only; on a
+Compak sheet it stops and points to the Compak menus) also read, with no fallback cell:
+- `KILPAILUTYYPPI`: `SPORTING`, `FITASC` or `ESP` (`COMPAK` stops the menu as above). Missing or unknown, the type is
+  guessed from `AIKATAULU_MALLI` and stations per layout (1 = FITASC, 6 = ESP, otherwise Sporting) and the finished message says so.
+- `ALKUPAIVA`: first competition day, a date cell, `YYYY-MM-DD` or `D.M.YYYY`, for the day names; otherwise Lauantai / Sunnuntai.
+- `RYHMAVALI`: minutes between group starts; missing, empty or 0 gives the type's 15.
+- `ISTUNTOTAUKO`: minutes between sessions; 0 is allowed, missing or empty gives 60.
+`ALOITUS_AIKA` and `LAYOUT/PÄIVÄ` are read as in the table above (fallback F4 / F6). ScoringLib writes `KILPAILUTYYPPI` and
+`ALKUPAIVA` on every new competition and `RYHMAVALI` / `ISTUNTOTAUKO` only on group-timetable types. The UI reads none of these four.
 `OPEN_SARJA` (prize list, `PrizeModule.js`) has no fallback cell either: without it the library makes the same
 guess as the UI from the categories of `Tulokset Y`. Keep its value in the cell right next to the key, since
 the library reads only that cell.
