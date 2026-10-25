@@ -18,12 +18,12 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 
 | Tab | Written by | Read by (UI) |
 |---|---|---|
-| `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js`, `utils/kisaAsetukset.js`, `utils/openSarja.js`, `utils/highGun.js` |
+| `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, and the library-only `KILPAILUTYYPPI`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js`, `utils/kisaAsetukset.js`, `utils/openSarja.js`, `utils/highGun.js` |
 | `Tulokset Y` | Sheet formulas from the main entry tab | `HenkiloTaulukko.jsx`, `HenkiloTulokset.jsx`, `utils/henkiloTulokset.js` |
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
-| `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js`) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
+| `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js` for Compak; `KilpailuPohja.js` menu "Luo aikataulu ja tuloskortit" for the group timetable, after registration; a new competition has only an instruction text in A1) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
 | `RANKING_vvvv` (season ranking sheet, e.g. `RANKING_2026`) | Sheet formulas from the ranking sheet's `TULOKSET` / `KISAT` tabs | `RankingTulokset.jsx`, `utils/rankingTulokset.js` |
 | `KISAT` (season ranking sheet) | Tero | `RankingTulokset.jsx`, `utils/rankingTulokset.js` (competition names) |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition; column I is the place for the weather forecast, `api/saa.js`) |
@@ -153,6 +153,10 @@ uses the fallback cell. Renaming a key therefore makes the library read the fall
 
 Keys ScoringLib reads with no fallback cell (the feature that needs them is skipped or stops with an error
 when they are missing): `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `Asemien määrä`, `Tyhjän ruudun symboli`.
+The group timetable and score cards (menu "Luo aikataulu ja tuloskortit") also read `KILPAILUTYYPPI` (`COMPAK`,
+`SPORTING`, `FITASC`, `ESP`; guessed from `AIKATAULU_MALLI` and stations per layout when missing), `ALKUPAIVA`
+(first competition day, for the day names; Saturday/Sunday when missing), `RYHMAVALI` (minutes between group starts)
+and `ISTUNTOTAUKO` (minutes between sessions); missing values use the type's defaults (15 and 60). The UI reads none of these four.
 `OPEN_SARJA` (prize list, `PrizeModule.js`) has no fallback cell either: without it the library makes the same
 guess as the UI from the categories of `Tulokset Y`. Keep its value in the cell right next to the key, since
 the library reads only that cell.

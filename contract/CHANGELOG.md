@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New competitions are created before registration: ScoringLib no longer builds the group timetable or the score
+  card tabs at creation. `Aikataulu` (Sporting, FITASC, ESP) holds only an instruction text in A1 until the organiser
+  runs 🏆 Competition → Luo aikataulu ja tuloskortit, which builds it in the usual group format from the registered
+  shooters (rerunnable). `AIKATAULU_NAKYVYYS` is still `FALSE` on a new competition, so the UI doesn't show the tab
+  before then. New library-only `KISANSPEKSIT` keys `KILPAILUTYYPPI`, `ALKUPAIVA`, `RYHMAVALI` and `ISTUNTOTAUKO`
+  (in the "Aikataulu" section); the UI doesn't read them. No tab, header or UI key changes.
 - New `KISANSPEKSIT` keys `HIGH_GUN` (number of High Gun places) and `HIGH_GUN_POIS_SARJOISTA` (`TRUE` default,
   `FALSE`): the best overall scores get a "High Gun" button and printout section, and by default leave their category
   lists, so the next shooter moves up (and any tie at the new prize places shows its tie-break). ScoringLib writes both
