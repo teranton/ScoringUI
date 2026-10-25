@@ -9,7 +9,7 @@
 - New `KISANSPEKSIT` key `OPEN_SARJA` (`Y`, `OPEN`, `EI`) names the all-shooters category: `Y` (Finnish rules,
   everyone, e.g. SM), `Y (OPEN)` (open to foreign shooters) or none (class competition A, B, C ...). Without the
   key a competition whose categories are all classes (a letter A–F alone or followed by a non-letter, e.g. `A (Y)`,
-  `B Y56`) gets none, any other gets `Y`. The UI's all-shooters
+  `B Y56`; manual High Gun categories such as `HG` or `1HG` are ignored) gets none, any other gets `Y`. The UI's all-shooters
   button and printout heading change from `OPEN (Y)` to `Y` on sheets without the key. ScoringLib writes the key on
   new competitions (form field "Yhteinen sarja"; left empty, the guess applies) and uses it in the prize list. Behaviour change for sheets
   without the key: class-only competitions lose the all-shooters view (set `OPEN_SARJA` = `Y` to keep it).

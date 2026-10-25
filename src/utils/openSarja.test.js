@@ -44,6 +44,13 @@ test('luokan nimessä voi olla alaryhmät: luokkakirjain alussa riittää', () =
   assert.equal(onkoLuokkakisa(['N', 'Y', 'Y17']), false);
 });
 
+test('käsin tehty High Gun -sarja (HG, 1HG) ei estä luokkakilpailua', () => {
+  assert.equal(onkoLuokkakisa([' 1HG', 'A', 'B', 'C', 'D']), true);
+  assert.equal(onkoLuokkakisa(['HG', 'A', 'D']), true);
+  assert.equal(onkoLuokkakisa(['HG', 'Y', 'N']), false);
+  assert.equal(onkoLuokkakisa(['HG']), false);
+});
+
 test('sarjavalinnat ja nimet', () => {
   assert.deepEqual(sarjaValinnat(new Set(['N', 'Y', 'Y56']), 'y'), [KAIKKI_SARJAT, 'N', 'Y56']);
   assert.deepEqual(sarjaValinnat(['B', 'A', 'Y'], 'ei'), ['A', 'B', 'Y']);
