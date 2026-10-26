@@ -1,28 +1,25 @@
 // src/App.jsx
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
+import { Component, useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
-import HenkiloTaulukko from './HenkiloTaulukko';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
-import AikatauluNakyma from './AikatauluNakyma';
-import AikatauluRyhmaNakyma from './AikatauluRyhmaNakyma';
 import MateriaaliNakyma from './MateriaaliNakyma';
-import TulosteTulokset from './TulosteTulokset';
-import TulosteAikataulu from './TulosteAikataulu';
+import RankingTulokset from './RankingTulokset';
 import RyhmaJako from './RyhmaJako';
 import { googleClientId } from './utils/googleKayttaja';
 import { ryhmaKokoAsetuksesta } from './utils/ryhmaMuokkaus';
-import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
+import { parseCsvRows } from './utils/csv';
 import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
-import { onkoDevTila } from './utils/devTila';
 import {
-  laskeKisanEfektiivinenStatus,
-  laskeKisanStatusJaTyyli,
-  laskeOnkoIlmoittautuminenPaattynyt
+  laskeKisanPaivaStatus,
+  laskeOnkoIlmoittautuminenPaattynyt,
+  laskeStatusKisalle
 } from './utils/kisaStatus';
+import { haeOpenSarjaSpekseista } from './utils/openSarja';
+import { haeHighGunSpekseista } from './utils/highGun';
 import {
   haeAikatauluMalliSpekseista,
   haeAikatauluNakyvyysSpekseista,
@@ -32,7 +29,6 @@ import {
 } from './utils/kisaAsetukset';
 import {
   arvioiJoukkuekisaNimesta,
-  parsiKilpailurekisteri,
   ryhmitteleKisatVuosittain
 } from './utils/kilpailurekisteri';
 import { Button } from './components/ui/button';
@@ -40,16 +36,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 import { Badge } from './components/ui/badge';
 import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer } from 'lucide-react';
 import { haeTekstit } from './i18n';
-import { lueKisat, lueRekisteri, tallennaKisa, tallennaRekisteri } from './utils/paikallinenValimuisti';
+import SaaEnnuste from './components/SaaEnnuste';
+import { lataaAnalytiikka, trackAnalyticsEvent } from './utils/analytiikka';
+import { useKilpailurekisteri } from './hooks/useKilpailurekisteri';
+import { useKisaReititys } from './hooks/useKisaReititys';
+import { useKisaData } from './hooks/useKisaData';
 
-const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
-// Päättyneen kisan data haetaan avattaessa uudelleen vain, jos se on tätä vanhempi.
-const PAATTYNEEN_TUOREUS_MS = 60 * 60 * 1000;
-// Käynnissä olevan kisan esihakua ei tehdä, jos data on tätä tuoreempi.
-const LIVE_ESIHAKU_VALI_MS = 15 * 1000;
-// Esihaku alkaa vasta, kun osoitin on pysynyt kortilla näin kauan: listan yli pyyhkäisy ei hae jokaista kisaa.
-const ESIHAKU_VIIVE_MS = 150;
-let analyticsTrack = null;
+// Taulukko-, aikataulu- ja tulostenäkymät ovat omia palojaan. Ne esiladataan, kun kisa avataan,
+// joten ne ovat yleensä valmiina ennen kuin näkymä avataan (myös jos yhteys katkeaa radalla).
+// TulosteTaulukko tulee HenkiloTaulukon mukana, koska se renderöidään beforeprintissä synkronisesti.
+const NAKYMAPALAT = {
+  taulukko: () => import('./HenkiloTaulukko'),
+  aikataulu: () => import('./AikatauluNakyma'),
+  ryhmaAikataulu: () => import('./AikatauluRyhmaNakyma'),
+  tulosteAikataulu: () => import('./TulosteAikataulu'),
+  tulosteTulokset: () => import('./TulosteTulokset')
+};
+const HenkiloTaulukko = lazy(NAKYMAPALAT.taulukko);
+const AikatauluNakyma = lazy(NAKYMAPALAT.aikataulu);
+const AikatauluRyhmaNakyma = lazy(NAKYMAPALAT.ryhmaAikataulu);
+const TulosteAikataulu = lazy(NAKYMAPALAT.tulosteAikataulu);
+// Tulosluettelo renderöidään suoraan ladatusta moduulista (ei lazy), koska print() kutsutaan heti renderöinnin
+// jälkeen eikä React.lazy ehdi renderöidä ensimmäisellä kerralla.
+const ladatutModuulit = {};
 
 function statusToBadgeVariant(status) {
   if (status === 'kaynnissa') return 'ongoing';
@@ -63,102 +72,24 @@ function labelForStatus(status, locale) {
   return Object.prototype.hasOwnProperty.call(tekstit, status) ? tekstit[status] : tekstit.tulossa;
 }
 
-function trackAnalyticsEvent(eventName, properties = {}) {
-  try {
-    if (typeof analyticsTrack === 'function') {
-      analyticsTrack(eventName, properties);
-    }
-  } catch {
-    // Ignore analytics tracking errors to avoid affecting UI behavior.
-  }
-}
-
-function onkoPreviewOverrideAktiivinen() {
-  if (typeof window === 'undefined') return false;
-  try {
-    const params = new URLSearchParams(window.location.search || '');
-    const value = String(params.get('preview') || params.get('showHidden') || '').trim().toLowerCase();
-    return ['1', 'true', 'yes', 'on'].includes(value);
-  } catch {
-    return false;
-  }
-}
-
-function naytetaankoPiilotetutKisat() {
-  const env = String(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS ?? '').toLowerCase();
-  return ['1', 'true', 'yes', 'on'].includes(env) || onkoPreviewOverrideAktiivinen();
-}
-
-function naytettavatKisatRekisterista(csvText, naytaPiilotetut) {
-  const kisat = parsiKilpailurekisteri(parseCsvRows(csvText));
-  return naytaPiilotetut ? kisat : kisat.filter((kisa) => !kisa.piilotettu);
-}
-
-function sivutKisalle(onkoStaattinen) {
-  return onkoStaattinen
-    ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
-    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
-}
-
-function kisaDataUrl(sheetId, sivut) {
-  const params = new URLSearchParams();
-  params.append('sheetId', sheetId);
-  sivut.forEach((nimi) => params.append('sheetNames', nimi));
-  return `/api/kisa?${params.toString()}`;
-}
-
 export default function App() {
   const theme = 'default';
   const locale = 'fi';
-  // Selaimeen tallennettu rekisteri näytetään heti; tuore haetaan taustalla.
-  const [tallennettuRekisteri] = useState(() => lueRekisteri());
-  const [kisat, setKisat] = useState(() => (
-    tallennettuRekisteri ? naytettavatKisatRekisterista(tallennettuRekisteri.csv, naytetaankoPiilotetutKisat()) : []
-  ));
-  const [valittuKisa, setValittuKisa] = useState(null);
-  const [aktiivinenSivu, setAktiivinenSivu] = useState('tulokset');
-  const [ladataanKisalista, setLadataanKisalista] = useState(() => !tallennettuRekisteri);
-
-  const [kisaCache, setKisaCache] = useState(() => lueKisat());
-  const [ladataanKisaaBySheet, setLadataanKisaaBySheet] = useState({});
-  const [virhe, setVirhe] = useState(null);
-  // Kisadatan virhe tallennetaan kisakohtaisesti, jotta vanhan kisan haku ei näytä tai tyhjennä virhettä toisessa kisassa.
-  const [kisaVirheBySheet, setKisaVirheBySheet] = useState({});
+  const { kisat, ladataanKisalista, virhe } = useKilpailurekisteri();
+  const { valittuKisa, aktiivinenSivu, setAktiivinenSivu, avaaKisa, palaaEtusivulle } = useKisaReititys({ kisat, ladataanKisalista });
+  const { kisaStatusById, nykyisenKisanData, ladataanKisaa, valitunKisanVirhe, ajastaEsihaku, peruEsihaku } = useKisaData({ kisat, valittuKisa });
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
   // Tulostuksen aloitusaika; null kun tulosluettelon tulostus ei ole käynnissä.
   const [tulosteenAika, setTulosteenAika] = useState(null);
-  const [devTila] = useState(() => onkoDevTila());
-  const kisaCacheRef = useRef(kisaCache);
-  const fetchInFlightRef = useRef({});
-  const esihakuAjastinRef = useRef(null);
-  const esihakuKaynnissaRef = useRef(false);
-  // Etusivun vierityskohta talteen, kun kisa avataan; palautetaan, kun palataan listalle.
-  const etusivunVieritysRef = useRef(0);
-  // Kohta, johon vieritetään seuraavan näkymänvaihdon jälkeen (null: ei vieritetä, esim. suora linkki tai sivun lataus).
-  const vieritysKohdeRef = useRef(null);
+  // Ladatut näkymäpalat. Tulosteet ovat sivulla vasta, kun niiden pala on ladattu, ettei tulostus tyhjennä sivua.
+  const [ladatutPalat, setLadatutPalat] = useState({});
+  const tulostusLatautuuRef = useRef(false);
+  const TulosteTulokset = ladatutPalat.tulosteTulokset ? ladatutModuulit.tulosteTulokset.default : null;
+  // Taulukkonäkymän tulosteen juurielementti; HenkiloTaulukko renderöi tulosteen siihen (portaali).
+  const [taulukkoTulosteJuuri, setTaulukkoTulosteJuuri] = useState(null);
 
-  useEffect(() => {
-    let isCancelled = false;
-
-    // Load analytics lazily so ad blockers cannot prevent app rendering.
-    import('@vercel/analytics')
-      .then((module) => {
-        if (isCancelled) return;
-        analyticsTrack = typeof module?.track === 'function' ? module.track : null;
-      })
-      .catch(() => {
-        analyticsTrack = null;
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    kisaCacheRef.current = kisaCache;
-  }, [kisaCache]);
+  useEffect(() => lataaAnalytiikka(), []);
 
   const tx = haeTekstit('app', locale);
   const txTuloste = haeTekstit('tulosteTulokset', locale);
@@ -183,6 +114,31 @@ export default function App() {
     };
   }, [tulosteenAika]);
 
+  const lataaPala = useCallback((avain) => NAKYMAPALAT[avain]().then((moduuli) => {
+    ladatutModuulit[avain] = moduuli;
+    setLadatutPalat((vanha) => (vanha[avain] ? vanha : { ...vanha, [avain]: true }));
+    return moduuli;
+  }), []);
+
+  const tulostaTulokset = async () => {
+    // Valmiiksi ladattu pala tulostetaan heti, jolloin print() on vielä painalluksen sisällä.
+    if (ladatutPalat.tulosteTulokset) {
+      setTulosteenAika(new Date());
+      return;
+    }
+    if (tulostusLatautuuRef.current) return;
+    tulostusLatautuuRef.current = true;
+    try {
+      await lataaPala('tulosteTulokset');
+      setTulosteenAika(new Date());
+    } catch (virhe) {
+      console.error('Tulosluettelon lataus epäonnistui', virhe);
+      window.alert(tx.viewLoadFailed);
+    } finally {
+      tulostusLatautuuRef.current = false;
+    }
+  };
+
   const taulukkoLippuEnv = String(import.meta.env.VITE_ENABLE_TAULUKKO ?? '').toLowerCase();
   const onkoTaulukkoKytkettyPaalle = taulukkoLippuEnv === '1' || taulukkoLippuEnv === 'true'
     ? true
@@ -196,19 +152,7 @@ export default function App() {
       ?? ''
   ).toLowerCase();
   const onkoAikatauluPreviewOverride = ['1', 'true', 'yes', 'on'].includes(aikatauluPreviewOverrideEnv);
-  const onkoPiilotettujenKisojenOverride = naytetaankoPiilotetutKisat();
   const yhteysSahkoposti = String(import.meta.env.VITE_CONTACT_EMAIL || 'tt.tulospalvelu@gmail.com').trim();
-
-  const kisaStatusById = useMemo(() => {
-    const statusMap = {};
-
-    for (const kisa of kisat) {
-      const speksitRaw = kisa?.apiUrl ? (kisaCache[kisa.apiUrl]?.speksitCsvRaw || '') : '';
-      statusMap[kisa.id] = laskeKisanEfektiivinenStatus(kisa.alkuPvm, kisa.loppuPvm, speksitRaw);
-    }
-
-    return statusMap;
-  }, [kisat, kisaCache]);
 
   const avaaKisaNakyma = (kisa) => {
     trackAnalyticsEvent('competition_open', {
@@ -216,335 +160,9 @@ export default function App() {
       competitionName: String(kisa?.nimi || ''),
       status: String(kisaStatusById[kisa?.id]?.status || '')
     });
-    etusivunVieritysRef.current = window.scrollY;
-    vieritysKohdeRef.current = 0;
-    setAktiivinenSivu('tulokset');
-    setValittuKisa(kisa);
-    window.history.pushState(
-      { view: 'competition', competitionId: kisa.id, directLink: false },
-      '',
-      `${window.location.pathname}${window.location.search}#kisa-${kisa.id}`
-    );
+    avaaKisa(kisa);
   };
 
-  const palaaEtusivulle = () => {
-    trackAnalyticsEvent('back_home', {
-      competitionId: String(valittuKisa?.id || ''),
-      fromView: String(aktiivinenSivu || '')
-    });
-    if (window.history.state?.view === 'competition' && !window.history.state?.directLink) {
-      window.history.back();
-      return;
-    }
-
-    vieritysKohdeRef.current = 0;
-    setValittuKisa(null);
-    setAktiivinenSivu('tulokset');
-    window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
-  };
-
-  // 1. HAETAAN KILPAILUREKISTERI (CDN-välimuistissa oleva /api/rekisteri; tallennettu lista on jo näkyvissä)
-  useEffect(() => {
-    let peruttu = false;
-
-    async function haeKisalistaCsv() {
-      try {
-        const response = await fetch('/api/rekisteri');
-        if (!response.ok) {
-          throw new Error(`Kilpailurekisterin haku epäonnistui: ${response.status}`);
-        }
-        const csvText = await response.text();
-        if (onkoCsvVirheellinen(csvText, 10)) throw new Error('Kilpailurekisteri on tyhjä tai virheellinen');
-        if (peruttu) return;
-
-        setKisat(naytettavatKisatRekisterista(csvText, onkoPiilotettujenKisojenOverride));
-        setVirhe(null);
-        tallennaRekisteri(csvText);
-      } catch (error) {
-        console.error("Virhe kilpailurekisterin haussa:", error);
-        // Tallennettu lista jää näkyviin, jos sellainen on.
-        if (!peruttu && !tallennettuRekisteri) setVirhe("Kilpailurekisterin lataus epäonnistui.");
-      } finally {
-        if (!peruttu) setLadataanKisalista(false);
-      }
-    }
-
-    haeKisalistaCsv();
-    return () => {
-      peruttu = true;
-    };
-  }, [onkoPiilotettujenKisojenOverride, tallennettuRekisteri]);
-
-  // 1b. HAETAAN SPEKSIT ETUSIVULLE VAIN KÄYNNISSÄ OLEVILLE KISOILLE
-  // ja virkistetään säännöllisesti, jotta manuaaliset status-override -muutokset päivittyvät.
-  useEffect(() => {
-    if (valittuKisa || kisat.length === 0) return; // Etusivulla ollessa ja vain silloin
-
-    async function haeatKisaSpeksitBatch() {
-      const nyt = Date.now();
-      const haettavat = kisat.filter((kisa) => {
-        if (!kisa.apiUrl) return false;
-
-        const paivapohjainenStatus = laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm).status;
-        if (paivapohjainenStatus !== 'kaynnissa') return false;
-
-        const cacheData = kisaCacheRef.current[kisa.apiUrl] || null;
-        const viimeisinSpeksitHaku = Number(cacheData?.speksitFetchedAt || 0);
-        const onkoVanhentunut = !viimeisinSpeksitHaku || (nyt - viimeisinSpeksitHaku) >= STATUS_OVERRIDE_REFRESH_MS;
-
-        return onkoVanhentunut;
-      });
-
-      if (haettavat.length === 0) return;
-
-      const sheetIds = [...new Set(haettavat.map((k) => k.apiUrl))];
-
-      for (const sheetId of sheetIds) {
-        if (fetchInFlightRef.current[sheetId]) continue;
-        fetchInFlightRef.current[sheetId] = true;
-
-        try {
-          const response = await fetch(kisaDataUrl(sheetId, ['KISANSPEKSIT']));
-          if (!response.ok) continue;
-
-          const tulos = await response.json();
-          const csvByName = tulos.csvByName || {};
-          const fetchedAt = Date.now();
-
-          setKisaCache((prevCache) => ({
-            ...prevCache,
-            [sheetId]: {
-              ...(prevCache[sheetId] || {}),
-              speksitCsvRaw: csvByName['KISANSPEKSIT'] || prevCache[sheetId]?.speksitCsvRaw || "",
-              speksitFetchedAt: fetchedAt
-            }
-          }));
-        } catch (err) {
-          console.error(`Speksit-haku epäonnistui sheetille ${sheetId}:`, err);
-        } finally {
-          fetchInFlightRef.current[sheetId] = false;
-        }
-      }
-    }
-
-    haeatKisaSpeksitBatch();
-    const virkistysIntervalli = setInterval(haeatKisaSpeksitBatch, STATUS_OVERRIDE_REFRESH_MS);
-    return () => clearInterval(virkistysIntervalli);
-  }, [kisat, valittuKisa]);
-
-  // Sivu vierii koko ikkunana, joten listan vierityskohta jäisi muuten voimaan avatussa kisassa
-  // (mobiilissa vanha kisa aukesi keskeltä tuloslistaa). Kisa avautuu aina ylhäältä.
-  const valitunKisanId = valittuKisa?.id ?? null;
-  useLayoutEffect(() => {
-    if (vieritysKohdeRef.current === null) return;
-    window.scrollTo(0, vieritysKohdeRef.current);
-    vieritysKohdeRef.current = null;
-  }, [valitunKisanId]);
-
-  useEffect(() => {
-    if (!window.history.state?.view) {
-      const hash = window.location.hash || '';
-      window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}${hash}`);
-    }
-
-    const kasitteleSelaimenTakaisin = () => {
-      vieritysKohdeRef.current = etusivunVieritysRef.current;
-      setValittuKisa(null);
-      setAktiivinenSivu('tulokset');
-    };
-
-    window.addEventListener('popstate', kasitteleSelaimenTakaisin);
-    return () => window.removeEventListener('popstate', kasitteleSelaimenTakaisin);
-  }, []);
-
-  useEffect(() => {
-    if (ladataanKisalista || kisat.length === 0 || valittuKisa) return;
-
-    const hash = window.location.hash || '';
-    if (!hash.startsWith('#kisa-')) return;
-
-    const hashId = decodeURIComponent(hash.slice('#kisa-'.length));
-    if (!hashId) return;
-
-    const loydettyKisa = kisat.find((k) => String(k.id) === hashId);
-    if (!loydettyKisa) return;
-
-    // Synkronointi ulkoisesta lähteestä (URL-hash): suora linkki ja selaimen Eteenpäin-painike.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAktiivinenSivu('tulokset');
-    setValittuKisa(loydettyKisa);
-
-    if (window.history.state?.view !== 'competition' || window.history.state?.competitionId !== loydettyKisa.id) {
-      window.history.replaceState(
-        { view: 'competition', competitionId: loydettyKisa.id, directLink: true },
-        '',
-        `${window.location.pathname}${window.location.search}#kisa-${loydettyKisa.id}`
-      );
-    }
-  }, [kisat, ladataanKisalista, valittuKisa]);
-
-  useEffect(() => {
-    trackAnalyticsEvent('view_change', {
-      view: String(valittuKisa ? aktiivinenSivu : 'home'),
-      competitionId: String(valittuKisa?.id || '')
-    });
-  }, [aktiivinenSivu, valittuKisa]);
-
-  const valitunKisanSpeksitRaw = valittuKisa?.apiUrl ? (kisaCache[valittuKisa.apiUrl]?.speksitCsvRaw || '') : '';
-  const valitunKisanEfektiivinenStatus = valittuKisa
-    ? laskeKisanEfektiivinenStatus(valittuKisa.alkuPvm, valittuKisa.loppuPvm, valitunKisanSpeksitRaw).status
-    : 'tulossa';
-
-  // 2. KISADATAN HAKU BACKENDISTÄ. Sama funktio palvelee kisan avausta, live-päivitystä ja esihakua.
-  const haeKisaData = useCallback(async (sheetId, onkoStaattinen, kisaId, esihaku = false) => {
-    if (fetchInFlightRef.current[sheetId]) return;
-    fetchInFlightRef.current[sheetId] = true;
-
-    try {
-      if (!kisaCacheRef.current[sheetId]) {
-        setLadataanKisaaBySheet((prev) => ({ ...prev, [sheetId]: true }));
-      }
-
-      const startTime = performance.now();
-      const sivut = sivutKisalle(onkoStaattinen);
-      const response = await fetch(kisaDataUrl(sheetId, sivut));
-      if (!response.ok) {
-        throw new Error(`KisaDatan haku epäonnistui palvelimelta. Status: ${response.status}`);
-      }
-
-      const tulos = await response.json();
-      const csvByName = tulos.csvByName || {};
-      const vanhaData = kisaCacheRef.current[sheetId] || {};
-      const durationMs = Math.round(performance.now() - startTime);
-
-      console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}, ${tulos.timing?.source || '?'}): ${durationMs}ms`);
-
-      trackAnalyticsEvent('competition_fetch', {
-        competitionId: String(kisaId || ''),
-        mode: onkoStaattinen ? 'static' : 'live',
-        ok: 'true',
-        durationMs,
-        sheets: String(sivut.length),
-        source: String(tulos.timing?.source || ''),
-        prefetch: esihaku ? 'true' : 'false'
-      });
-
-      const uusiData = {
-        henkilotCsvRaw: csvByName['Tulokset Y'] || vanhaData.henkilotCsvRaw || "",
-        joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
-        eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
-        ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
-        aikatauluCsvRaw: csvByName['Aikataulu'] || vanhaData.aikatauluCsvRaw || "",
-        aikatauluLaCsvRaw: onkoStaattinen
-          ? (csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "")
-          : (csvByName['Aikataulu La'] || ""),
-        aikatauluSuCsvRaw: onkoStaattinen
-          ? (csvByName['Aikataulu Su'] || vanhaData.aikatauluSuCsvRaw || "")
-          : (csvByName['Aikataulu Su'] || ""),
-        speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
-        speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0),
-        haettu: Date.now()
-      };
-      setKisaCache((prevCache) => ({ ...prevCache, [sheetId]: uusiData }));
-      tallennaKisa(sheetId, uusiData);
-      // Virhe tyhjennetään vasta onnistuneen haun jälkeen, ettei se välky jokaisella epäonnistuvalla päivityksellä.
-      setKisaVirheBySheet((prev) => (prev[sheetId] ? { ...prev, [sheetId]: null } : prev));
-
-    } catch (err) {
-      console.error("Datan päivitys epäonnistui palvelimelta:", err);
-      // Myös esihaun virhe näytetään: jos kisa avataan esihaun aikana, avaus odottaa juuri tätä hakua.
-      setKisaVirheBySheet((prev) => ({ ...prev, [sheetId]: "Tietojen päivitys epäonnistui taustalla." }));
-      trackAnalyticsEvent('competition_fetch', {
-        competitionId: String(kisaId || ''),
-        mode: onkoStaattinen ? 'static' : 'live',
-        ok: 'false',
-        prefetch: esihaku ? 'true' : 'false'
-      });
-    } finally {
-      fetchInFlightRef.current[sheetId] = false;
-      setLadataanKisaaBySheet((prev) => {
-        if (!prev[sheetId]) return prev;
-        return { ...prev, [sheetId]: false };
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!valittuKisa || !valittuKisa.apiUrl) return;
-
-    const sheetId = valittuKisa.apiUrl;
-    const kisaId = valittuKisa.id;
-
-    const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
-    const cacheData = kisaCacheRef.current[sheetId] || null;
-    const puuttuuPakollistaKisaDataa = !cacheData
-      || onkoCsvVirheellinen(cacheData.henkilotCsvRaw, 10)
-      || onkoCsvVirheellinen(cacheData.joukkueetCsvRaw, 10)
-      || onkoCsvVirheellinen(cacheData.speksitCsvRaw, 2);
-    const onkoDataTuore = Boolean(cacheData) && (Date.now() - Number(cacheData.haettu || 0)) < PAATTYNEEN_TUOREUS_MS;
-
-    // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
-    // Päättyneessä kisassa vältetään turha lisähaku, jos data on välimuistissa ja alle tunnin vanhaa.
-    if (!onkoStaattinen || puuttuuPakollistaKisaDataa || !onkoDataTuore) {
-      haeKisaData(sheetId, onkoStaattinen, kisaId);
-    } else {
-      // Päättynyt kisa, jonka data on kunnossa välimuistissa: vanha live-päivityksen virhe ei enää koske sitä.
-      setKisaVirheBySheet((prev) => (prev[sheetId] ? { ...prev, [sheetId]: null } : prev));
-    }
-
-    // Jos kisa on päättynyt, ÄLÄ luo intervallia lainkaan!
-    if (onkoStaattinen) {
-      return;
-    }
-
-    // Live-kisoille käynnistetään taustapäivitys
-    const kasitteleNakymattomyys = () => {
-      if (!document.hidden) haeKisaData(sheetId, false, kisaId);
-    };
-
-    const intervalli = setInterval(() => {
-      if (!document.hidden) haeKisaData(sheetId, false, kisaId);
-    }, 20000);
-
-    document.addEventListener('visibilitychange', kasitteleNakymattomyys);
-    return () => {
-      clearInterval(intervalli);
-      document.removeEventListener('visibilitychange', kasitteleNakymattomyys);
-    };
-  }, [valittuKisa, valitunKisanEfektiivinenStatus, haeKisaData]);
-
-  // Esihaku etusivulla, kun hiiri tai näppäimistön fokus pysähtyy kisakortille: data on usein valmis klikkauksen hetkellä.
-  // Kosketusta ei käytetä, koska vierityskin alkaa kosketuksella. Esihakuja on käynnissä korkeintaan yksi kerrallaan,
-  // jotta Googlen lukukiintiö ei täyty.
-  const esihaeKisa = useCallback(async (kisa) => {
-    if (!kisa?.apiUrl || esihakuKaynnissaRef.current) return;
-    const data = kisaCacheRef.current[kisa.apiUrl];
-    const onkoStaattinen = kisaStatusById[kisa.id]?.status === 'paattynyt';
-    const ika = Date.now() - Number(data?.haettu || 0);
-    const onkoKunnossa = data && !onkoCsvVirheellinen(data.henkilotCsvRaw, 10);
-    if (onkoKunnossa && ika < (onkoStaattinen ? PAATTYNEEN_TUOREUS_MS : LIVE_ESIHAKU_VALI_MS)) return;
-    esihakuKaynnissaRef.current = true;
-    try {
-      await haeKisaData(kisa.apiUrl, onkoStaattinen, kisa.id, true);
-    } finally {
-      esihakuKaynnissaRef.current = false;
-    }
-  }, [kisaStatusById, haeKisaData]);
-
-  const peruEsihaku = useCallback(() => {
-    clearTimeout(esihakuAjastinRef.current);
-    esihakuAjastinRef.current = null;
-  }, []);
-
-  const ajastaEsihaku = useCallback((kisa) => {
-    peruEsihaku();
-    esihakuAjastinRef.current = setTimeout(() => {
-      esihakuAjastinRef.current = null;
-      esihaeKisa(kisa);
-    }, ESIHAKU_VIIVE_MS);
-  }, [esihaeKisa, peruEsihaku]);
-
-  useEffect(() => peruEsihaku, [peruEsihaku]);
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
     if (!alku) return 'Päivämäärä ei tiedossa';
@@ -556,9 +174,18 @@ export default function App() {
 
   const kisaRyhmat = useMemo(() => ryhmitteleKisatVuosittain(kisat, kuluvaVuosi), [kisat, kuluvaVuosi]);
 
-  const nykyisenKisanData = valittuKisa ? kisaCache[valittuKisa.apiUrl] : null;
-  const ladataanKisaa = valittuKisa?.apiUrl ? Boolean(ladataanKisaaBySheet[valittuKisa.apiUrl]) : false;
-  const valitunKisanVirhe = valittuKisa?.apiUrl ? kisaVirheBySheet[valittuKisa.apiUrl] : null;
+  // Esiladataan näkymäpalat, kun ensimmäinen kisa on auki. Epäonnistunut esilataus yritetään uudelleen avattaessa.
+  const onkoKisaDataa = Boolean(nykyisenKisanData) && !valittuKisa?.onkoRanking;
+  useEffect(() => {
+    if (!onkoKisaDataa || typeof window === 'undefined') return undefined;
+    const esilataa = () => Object.keys(NAKYMAPALAT).forEach((avain) => lataaPala(avain).catch(() => {}));
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(esilataa, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const ajastin = window.setTimeout(esilataa, 200);
+    return () => window.clearTimeout(ajastin);
+  }, [onkoKisaDataa, lataaPala]);
 
   // Riippuvuutena raaka-CSV-merkkijonot, jotta taustapäivitys ilman muutoksia ei parsi dataa uudelleen.
   const henkilotCsvRaw = nykyisenKisanData?.henkilotCsvRaw || '';
@@ -571,12 +198,16 @@ export default function App() {
   }), [henkilotCsvRaw, joukkueetCsvRaw, speksitCsvRaw]);
 
   const nykyisenKisanSpeksit = useMemo(
-    () => parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
+    () => ({
+      ...parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
+      openSarja: haeOpenSarjaSpekseista(nykyisenKisanParsitutRivit.speksitRows),
+      highGun: haeHighGunSpekseista(nykyisenKisanParsitutRivit.speksitRows)
+    }),
     [nykyisenKisanParsitutRivit.speksitRows]
   );
 
   const kisanStatusInfo = valittuKisa
-    ? laskeKisanEfektiivinenStatus(valittuKisa.alkuPvm, valittuKisa.loppuPvm, nykyisenKisanParsitutRivit.speksitRows)
+    ? laskeStatusKisalle(valittuKisa, nykyisenKisanParsitutRivit.speksitRows)
     : { status: 'tulossa' };
 
   const onkoKisaTulossa = kisanStatusInfo.status === 'tulossa';
@@ -674,7 +305,10 @@ export default function App() {
     if (aikatauluNakyvyysAsetus === 'after-start') return onkoTuloksetSallittu && !onkoKisaPaattynyt;
     return !onkoKisaPaattynyt;
   })();
-  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && Boolean(tulosteAikataulu);
+  const onkoOmaAikatauluTuloste = Boolean(tulosteAikataulu) && Boolean(ladatutPalat.tulosteAikataulu);
+  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && onkoOmaAikatauluTuloste;
+  // Taulukkonäkymässä tulostetaan taulukon oma A4-tuloste (myös Ctrl+P), ei vieritettävää näytön taulukkoa.
+  const tulostetaanTaulukko = !tulosteenAika && aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && Boolean(nykyisenKisanData?.henkilotCsvRaw) && Boolean(ladatutPalat.taulukko);
   const onkoMateriaaleja = useMemo(() => {
     const rivit = nykyisenKisanParsitutRivit.speksitRows || [];
     return extractMaterialGuidesFromRows(rivit).length > 0;
@@ -711,7 +345,7 @@ export default function App() {
   }
 
   const renderKisaKortti = (kisa) => {
-    const statusData = kisaStatusById[kisa.id] || laskeKisanStatusJaTyyli(kisa.alkuPvm, kisa.loppuPvm);
+    const statusData = kisaStatusById[kisa.id] || laskeKisanPaivaStatus(kisa);
     const onValittavissa = Boolean(kisa.apiUrl);
 
     return (
@@ -739,6 +373,7 @@ export default function App() {
               <div className="text-sm text-[hsl(var(--muted-foreground))]">
                 {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
               </div>
+              <SaaEnnuste kisa={kisa} status={statusData.status} locale={locale} />
             </div>
             <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
           </CardContent>
@@ -834,7 +469,7 @@ export default function App() {
   const kilpailuNakymaMaxWidth = 'min(96vw, 1320px)';
 
   return (
-    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tulosteenAika || tulostetaanAikataulu ? ' app-tulostetaan' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
+    <div data-theme={theme} className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-2.5 bg-[hsl(var(--background))] px-3 py-2.5 text-[hsl(var(--foreground))] md:gap-3 md:px-4 md:py-4 app-print-page-root${tulosteenAika || tulostetaanAikataulu || tulostetaanTaulukko ? ' app-tulostetaan' : ''}`} style={{ maxWidth: kilpailuNakymaMaxWidth }}>
       <Card className="app-print-hide-header">
         <CardHeader className="gap-1.5 border-b border-[hsl(var(--border))] pb-3.5">
           <div className="flex items-center justify-between gap-2">
@@ -862,6 +497,7 @@ export default function App() {
               <CardDescription>
                 {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
               </CardDescription>
+              <SaaEnnuste kisa={valittuKisa} status={kisanStatusInfo.status} locale={locale} className="mt-1" />
             </div>
             <Badge variant={statusToBadgeVariant(kisanStatusInfo.status)}>{labelForStatus(kisanStatusInfo.status, locale)}</Badge>
           </div>
@@ -869,7 +505,7 @@ export default function App() {
         </CardHeader>
       </Card>
 
-      <nav className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden app-print-hide-nav">
+      {!valittuKisa.onkoRanking && <nav className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden app-print-hide-nav">
         {onkoTuloksetSallittu && (
           <Button onClick={() => setAktiivinenSivu('tulokset')} variant={aktiivinenSivu === 'tulokset' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Trophy className="h-4 w-4" aria-hidden="true" />
@@ -906,16 +542,28 @@ export default function App() {
             {tx.materials}
           </Button>
         )}
-        {devTila && onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
-          <Button onClick={() => setTulosteenAika(new Date())} variant="outline" size="sm" className="ml-auto gap-1.5">
+        {onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
+          <Button onClick={tulostaTulokset} variant="outline" size="sm" className="ml-auto gap-1.5">
             <Printer className="h-4 w-4" aria-hidden="true" />
             {txTuloste.button}
           </Button>
         )}
-      </nav>
+      </nav>}
 
       {ladataanKisaa && !nykyisenKisanData ? (
-        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">{tx.fetchingCompetitionData}</div>
+        <IlmoitusLaatikko>{tx.fetchingCompetitionData}</IlmoitusLaatikko>
+      ) : valittuKisa.onkoRanking ? (
+        <main className="w-full flex-1">
+          {nykyisenKisanData && (
+            <div className="mx-auto w-full max-w-3xl">
+              <RankingTulokset
+                rawCsv={nykyisenKisanData.rankingCsvRaw}
+                kisatCsv={nykyisenKisanData.rankingKisatCsvRaw}
+                locale={locale}
+              />
+            </div>
+          )}
+        </main>
       ) : (
         <main className="w-full flex-1">
           {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (
@@ -931,7 +579,20 @@ export default function App() {
             </div>
           )}
           {aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && nykyisenKisanData && (
-            <HenkiloTaulukko data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} parsedSpeksit={nykyisenKisanSpeksit} kisaStatus={kisanStatusInfo.status} locale={locale} />
+            <NakymaVirheRaja tx={tx}>
+            <Suspense fallback={<IlmoitusLaatikko>{tx.loadingView}</IlmoitusLaatikko>}>
+            <HenkiloTaulukko
+              data={nykyisenKisanData}
+              parsedRows={nykyisenKisanParsitutRivit}
+              parsedSpeksit={nykyisenKisanSpeksit}
+              kisaStatus={kisanStatusInfo.status}
+              locale={locale}
+              tulosteJuuri={tulostetaanTaulukko ? taulukkoTulosteJuuri : null}
+              kisaNimi={valittuKisa.nimi}
+              kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
+            />
+            </Suspense>
+            </NakymaVirheRaja>
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
             <div className="mx-auto w-full max-w-3xl">
@@ -961,14 +622,16 @@ export default function App() {
               )}
 
               {Boolean(valittuAikatauluCsv) && (
-                kaytaRyhmaAikatauluNakymaa ? (
+                <NakymaVirheRaja tx={tx} key={valittuAikatauluCsv.key}>
+                <Suspense fallback={<IlmoitusLaatikko>{tx.loadingView}</IlmoitusLaatikko>}>
+                {kaytaRyhmaAikatauluNakymaa ? (
                   <AikatauluRyhmaNakyma
                     rawCsv={valittuAikatauluCsv?.raw || ''}
                     locale={locale}
                     sponsorLogos={kisanSponsorit}
                     showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
                     defaultGroupingMode={aikatauluRyhmittelyAsetus}
-                    competitionStartDate={valittuKisa?.alkuPvm || ''}
+                    competitionStartDate={valittuKisa?.onkoTesti ? '' : (valittuKisa?.alkuPvm || '')}
                   />
                 ) : (
                   <AikatauluNakyma
@@ -977,9 +640,11 @@ export default function App() {
                     sponsorLogos={kisanSponsorit}
                     showGlobalSponsorLogos={naytaAikatauluOtsikonSponsorilogot}
                     defaultGroupingMode={aikatauluRyhmittelyAsetus}
-                    omaTuloste={Boolean(tulosteAikataulu)}
+                    omaTuloste={onkoOmaAikatauluTuloste}
                   />
-                )
+                )}
+                </Suspense>
+                </NakymaVirheRaja>
               )}
             </div>
           )}
@@ -1021,7 +686,7 @@ export default function App() {
         </a>
       </footer>
 
-      {tulosteenAika && nykyisenKisanData?.henkilotCsvRaw && (
+      {tulosteenAika && TulosteTulokset && nykyisenKisanData?.henkilotCsvRaw && (
         <TulosteTulokset
           rawRows={nykyisenKisanParsitutRivit.henkilotRows}
           parsedSpeksit={nykyisenKisanSpeksit}
@@ -1032,7 +697,10 @@ export default function App() {
           locale={locale}
         />
       )}
+      {tulostetaanTaulukko && <div ref={setTaulukkoTulosteJuuri} className="tuloste-root" lang={locale} />}
       {tulostetaanAikataulu && (
+        <NakymaVirheRaja tx={null}>
+        <Suspense fallback={null}>
         <TulosteAikataulu
           aikataulu={tulosteAikataulu}
           otsikko={valittuAikatauluCsv.label}
@@ -1040,7 +708,50 @@ export default function App() {
           kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
           locale={locale}
         />
+        </Suspense>
+        </NakymaVirheRaja>
       )}
     </div>
   );
+}
+
+function IlmoitusLaatikko({ children }) {
+  return (
+    <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-sm text-[hsl(var(--muted-foreground))]">{children}</div>
+  );
+}
+
+// Näkymän virhe (esim. pala ei latautunut verkkokatkon tai uuden julkaisun takia) ei kaada koko sovellusta.
+// Uudelleenlatausnappi näytetään vain verkossa, ettei offline-tilassa välimuistista toimiva sovellus katoa.
+// Avain (key) nollaa rajan, kun näkymän sisältö vaihtuu.
+class NakymaVirheRaja extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { virhe: null };
+  }
+
+  static getDerivedStateFromError(virhe) {
+    return { virhe };
+  }
+
+  componentDidCatch(virhe) {
+    console.error('Näkymän lataus epäonnistui', virhe);
+  }
+
+  render() {
+    if (!this.state.virhe) return this.props.children;
+    const { tx } = this.props;
+    if (!tx) return null;
+    const verkossa = typeof navigator === 'undefined' || navigator.onLine !== false;
+    return (
+      <IlmoitusLaatikko>
+        {verkossa ? tx.viewLoadFailed : tx.viewLoadFailedOffline}{' '}
+        {verkossa && (
+          <button type="button" className="underline hover:text-[hsl(var(--foreground))]" onClick={() => window.location.reload()}>
+            {tx.reloadPage}
+          </button>
+        )}
+      </IlmoitusLaatikko>
+    );
+  }
 }

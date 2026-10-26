@@ -15,7 +15,7 @@ function Ruutu({ ruutu, naytaAika, tx }) {
     return (
       <>
         {aika}
-        <td colSpan={2} className={`tuloste-tauko${naytaAika ? '' : ' tuloste-raja'}`}>{tx.break}</td>
+        <td colSpan={2} className={`tuloste-tauko${naytaAika ? '' : ' tuloste-raja'}`}>{ruutu.vaihto ? tx.trajectoryChange : tx.break}</td>
       </>
     );
   }

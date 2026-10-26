@@ -341,23 +341,6 @@ body {
     text-transform: uppercase;
   }
 
-  .tuloste-root .tuloste-sarja {
-    margin-bottom: 10pt;
-  }
-
-  .tuloste-root h2 {
-    font-size: 11pt;
-    font-weight: 700;
-    margin: 0 0 3pt;
-    break-after: avoid;
-  }
-
-  .tuloste-root h2 span {
-    font-size: 8pt;
-    font-weight: 400;
-    color: #444;
-  }
-
   .tuloste-root table {
     width: 100%;
     table-layout: fixed;
@@ -397,8 +380,6 @@ body {
   }
 
   .tuloste-root .tuloste-col-sija { width: 3.4em; }
-  .tuloste-root .tuloste-col-sarja { width: 3.6em; }
-  .tuloste-root .tuloste-col-seura { width: 7em; }
   .tuloste-root .tuloste-col-era { width: 2.4em; }
   .tuloste-root .tuloste-col-paiva { width: 2.8em; }
   .tuloste-root .tuloste-col-yht { width: 3.2em; }
@@ -415,18 +396,8 @@ body {
     white-space: nowrap;
   }
 
-  /* Vähintään 1pt: ohuempi viiva katoaa osalta riveistä esikatselun ja tulostuksen pyöristyksessä. */
-  .tuloste-root .tuloste-paiva {
-    border-left: 1pt solid #555;
-  }
-
   .tuloste-root .tuloste-yht {
     font-weight: 700;
-  }
-
-  .tuloste-root .tuloste-ei-tulosta td {
-    color: #555;
-    font-style: italic;
   }
 }
 
@@ -468,5 +439,57 @@ body {
   .tuloste-aikataulu .tuloste-tuomari {
     font-weight: 700;
     text-decoration: underline;
+  }
+}
+
+/* Tulostaulukko (TulosteTaulukko.jsx): kaikki radat rinnakkain. Yli 16 radalla pienempi teksti, jotta 24 rataa
+   mahtuu vaaka-A4:lle (sarakkeet em-yksiköissä, joten ne kapenevat tekstin mukana). */
+@media print {
+  .tuloste-taulukko-tiivis {
+    font-size: 7.5pt;
+  }
+
+  .tuloste-taulukko-tiivis th {
+    font-size: 6.5pt;
+  }
+
+  .tuloste-taulukko .tuloste-col-era { width: 2.2em; }
+
+  /* Kaikki sarjat -tulosteessa jokainen sarja alkaa omalta sivultaan. */
+  .tuloste-taulukko + .tuloste-taulukko {
+    break-before: page;
+  }
+
+  /* Sarja- ja seurasarakkeen leveys sisällön mukaan: laskeTulosteSarakeLeveydet (utils/henkiloTaulukko.js). */
+
+  /* Pystyviiva ennen ratoja. Vähintään 1pt, ettei se katoa pyöristyksessä. */
+  .tuloste-taulukko .tuloste-raja {
+    border-left: 1pt solid #555;
+  }
+
+  .tuloste-taulukko .tuloste-maksimi {
+    font-weight: 700;
+  }
+
+  /* Koko nimet ja kaikki ratko-merkinnät rivitetään katkaisun sijaan. Seura katkaistaan, ettei pitkän seuran
+     nimi kahdenna jokaisen jäsenensä rivikorkeutta. */
+  .tuloste-taulukko .tuloste-nimi,
+  .tuloste-taulukko .tuloste-ratko {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .tuloste-taulukko .tuloste-ratko {
+    text-align: center;
+  }
+
+  .tuloste-taulukko .tuloste-analyysi td {
+    font-size: 0.8em;
+    font-style: italic;
+  }
+
+  .tuloste-taulukko .tuloste-analyysi .tuloste-num {
+    padding-left: 1pt;
+    padding-right: 1pt;
   }
 }

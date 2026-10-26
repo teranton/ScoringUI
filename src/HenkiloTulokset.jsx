@@ -2,7 +2,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { onkoCsvVirheellinen, parseCsvRows } from './utils/csv';
 import {
-  laskeHenkilosijoitukset,
+  KAIKKI_SARJAT,
   laskeNaytettavatRatkoIdt,
   laskeRatojenMaara,
   onkoMyohempiaPaivaTuloksia,
@@ -12,6 +12,9 @@ import {
   parseAsemaSpeksitCsv,
   ratkoPalkintoSijaOletus
 } from './utils/henkiloTulokset';
+import { aktiivinenSarja, haeOpenSarjaSpekseista, sarjaNakyma, sarjanNimi } from './utils/openSarja';
+import { haeHighGunSpekseista, laskeSarjanSijoitukset, laskentaSarja, sarjanRatkoSija } from './utils/highGun';
+import { listaaSarjat } from './utils/henkiloTaulukko';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
 import { Card, CardContent } from './components/ui/card';
@@ -22,7 +25,7 @@ import { haeTekstit } from './i18n';
 export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
   const tx = haeTekstit('henkiloTulokset', locale);
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
-  const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
+  const [valittuSarja, setSarjaSuodatin] = useState(KAIKKI_SARJAT);
   const [jarjestysValinta, setJarjestysValinta] = useState('total');
   const sarjaScrollRef = useRef(null);
   const sarjaDragRef = useRef({
@@ -33,14 +36,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   });
 
   // 1. Parsitaan asemakohtaiset speksit KISANSPEKSIT-datasta (asema, maksimi, toiseksi paras käytössä)
-  const { asemaMaksimit, asemaToiseksiParasKaytossa, ratkoPalkintoSija } = useMemo(() => {
+  const { asemaMaksimit, asemaToiseksiParasKaytossa, ratkoPalkintoSija, openSarja, highGun } = useMemo(() => {
     if (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa) {
       return {
         ...parsedSpeksit,
         ratkoPalkintoSija: parsedSpeksit.ratkoPalkintoSija || ratkoPalkintoSijaOletus
       };
     }
-    return parseAsemaSpeksitCsv(speksitCsv);
+    return {
+      ...parseAsemaSpeksitCsv(speksitCsv),
+      openSarja: haeOpenSarjaSpekseista(speksitCsv),
+      highGun: haeHighGunSpekseista(speksitCsv)
+    };
   }, [parsedSpeksit, speksitCsv]);
 
   const onkoRawVirheellinen = onkoCsvVirheellinen(rawCsv, 10);
@@ -109,9 +116,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
   const idxSija = idxNimi - 1 >= 0 ? idxNimi - 1 : 1;
 
-  const { ampujat, loydetytSarjat } = useMemo(() => {
+  const ampujat = useMemo(() => {
     const parsedAmpujat = [];
-    const sarjatSet = new Set();
 
     for (let i = 1; i < rivit.length; i++) {
       const row = rivit[i];
@@ -149,15 +155,22 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
       };
 
       parsedAmpujat.push(ampuja);
-      if (ampuja.sarja) sarjatSet.add(ampuja.sarja);
     }
 
-    return { ampujat: parsedAmpujat, loydetytSarjat: sarjatSet };
+    return parsedAmpujat;
   }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
 
+  // Kaikkien ampujien sarja on Y tai Y (OPEN), luokkakilpailussa sitä ei ole (KISANSPEKSIT: OPEN_SARJA).
+  // High Gun -nappi, kun KISANSPEKSIT: HIGH_GUN > 0.
+  const { yhteinenSarja, napit: sarjaNapit } = useMemo(
+    () => sarjaNakyma(listaaSarjat(ampujat), openSarja, highGun),
+    [ampujat, openSarja, highGun]
+  );
+  const sarjaSuodatin = aktiivinenSarja(valittuSarja, sarjaNapit);
+
   const naytettavatAmpujat = useMemo(
-    () => laskeHenkilosijoitukset(ampujat, sarjaSuodatin, ratkoPalkintoSija),
-    [ampujat, ratkoPalkintoSija, sarjaSuodatin]
+    () => laskeSarjanSijoitukset(ampujat, sarjaSuodatin, ratkoPalkintoSija, highGun),
+    [ampujat, ratkoPalkintoSija, sarjaSuodatin, highGun]
   );
   // Kaikista sarjoista, jotta näkymä ei vaihdu sarjasuodattimen mukaan.
   const naytaPaivaTulokset = useMemo(() => onkoMyohempiaPaivaTuloksia(ampujat), [ampujat]);
@@ -206,8 +219,9 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   }, [jarjestysValinta, naytettavatAmpujat]);
   const laajennaKaikkiKortit = jarjestysValinta.startsWith('stage-');
   const naytaRatkoIds = useMemo(
-    () => laskeNaytettavatRatkoIdt(naytettavatAmpujat, sarjaSuodatin, ratkoPalkintoSija),
-    [naytettavatAmpujat, ratkoPalkintoSija, sarjaSuodatin]
+    () => laskeNaytettavatRatkoIdt(naytettavatAmpujat, laskentaSarja(sarjaSuodatin),
+      sarjanRatkoSija(sarjaSuodatin, ratkoPalkintoSija, highGun)),
+    [naytettavatAmpujat, ratkoPalkintoSija, sarjaSuodatin, highGun]
   );
 
 
@@ -272,30 +286,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         onPointerLeave={onSarjaPointerUp}
         onClickCapture={onSarjaClickCapture}
       >
-        <Button
-          type="button"
-          size="sm"
-          className="shrink-0"
-          variant={sarjaSuodatin === 'OPEN (Y)' ? 'default' : 'outline'}
-          onClick={() => { setSarjaSuodatin('OPEN (Y)'); setValittuAmpujaId(null); }}
-        >
-          OPEN (Y)
-        </Button>
-        {Array.from(loydetytSarjat)
-          .sort()
-          .filter(sarja => sarja.toUpperCase() !== 'Y') // 👈 TÄMÄ RIVI POISTAA Y-NAPIN dynaamisesti
-          .map(sarja => (
-            <Button
-              key={sarja}
-              type="button"
-              size="sm"
-              className="shrink-0"
-              variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
-              onClick={() => { setSarjaSuodatin(sarja); setValittuAmpujaId(null); }}
-            >
-              {sarja}
-            </Button>
-          ))}
+        {sarjaNapit.map(sarja => (
+          <Button
+            key={sarja}
+            type="button"
+            size="sm"
+            className="shrink-0"
+            variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
+            onClick={() => { setSarjaSuodatin(sarja); setValittuAmpujaId(null); }}
+          >
+            {sarjanNimi(sarja, yhteinenSarja)}
+          </Button>
+        ))}
       </div>
 
       <div className="flex items-center justify-end gap-2">

@@ -10,6 +10,36 @@
   and reorders squads, and shows each squad's start times from the `Aikataulu*` tabs. No layout change.
 - The squad editor reads the `KISANSPEKSIT` key `Ei tuomaroivat:` (already used by ScoringLib's shuffle and
   timetable) to highlight shooters in classes that don't referee. No layout change.
+- New competitions are created before registration: ScoringLib no longer builds the group timetable at
+  creation. `Aikataulu` (Sporting, FITASC, ESP) holds only an instruction text in A1 until the organiser runs 🏆 Competition → Luo aikataulu, which builds it in the usual group format from the registered
+  shooters (rerunnable). `AIKATAULU_NAKYVYYS` is `FALSE` on a new competition and the menu doesn't change it: the
+  organiser sets it to `TRUE` / `AFTER_START` to publish the timetable (the menu's finished message says so). Until then
+  the UI doesn't show the tab, except on a preview with `VITE_TIMETABLE_PREVIEW_OVERRIDE` / `VITE_FORCE_TIMETABLE_VISIBLE`,
+  where the instruction-only tab shows an empty timetable. New library-only `KISANSPEKSIT` keys `KILPAILUTYYPPI`, `ALKUPAIVA`, `RYHMAVALI` and `ISTUNTOTAUKO`
+  (in the "Aikataulu" section); the UI doesn't read them. No tab, header or UI key changes.
+- New `KISANSPEKSIT` keys `HIGH_GUN` (number of High Gun places) and `HIGH_GUN_POIS_SARJOISTA` (`TRUE` default,
+  `FALSE`): the best overall scores get a "High Gun" button and printout section, and by default leave their category
+  lists, so the next shooter moves up (and any tie at the new prize places shows its tie-break). ScoringLib writes both
+  keys on new competitions and uses them in the prize list. Additive: without `HIGH_GUN` nothing changes.
+- New `KISANSPEKSIT` key `OPEN_SARJA` (`Y`, `OPEN`, `EI`) names the all-shooters category: `Y` (Finnish rules,
+  everyone, e.g. SM), `Y (OPEN)` (open to foreign shooters) or none (class competition A, B, C ...). Without the
+  key a competition whose categories are all classes (a letter A–F alone or followed by a non-letter, e.g. `A (Y)`,
+  `B Y56`; manual High Gun categories such as `HG` or `1HG` are ignored) gets none, any other gets `Y`. The UI's all-shooters
+  button and printout heading change from `OPEN (Y)` to `Y` on sheets without the key. ScoringLib writes the key on
+  new competitions (form field "Yhteinen sarja"; left empty, the guess applies) and uses it in the prize list. Behaviour change for sheets
+  without the key: class-only competitions lose the all-shooters view (set `OPEN_SARJA` = `Y` to keep it).
+- Registry column I (optional): competition place, a town name or `lat, lon`. Upcoming and running
+  competitions with a place show a weather forecast (Finnish Meteorological Institute open data, `api/saa.js`) in the competition box.
+  Additive: an empty or missing column I shows no forecast.
+- Permanent test competitions: registry column H `TESTI` makes the UI and the API treat the competition as being on
+  its competition day whatever its dates, so its timetable and results stay visible after its end date. Additive: no tab, header or key changes.
+- Season ranking: registry column H `RANKING` marks a season ranking, ordered by its end date. The UI reads
+  `RANKING_<year>` and `KISAT` (allowed only on ranking sheets) and the optional `KISANSPEKSIT`. The ranking ends
+  after its end date or with `KILPAILUNSTATUS` = `FINISHED`. Additive: no existing tab, header or key changes.
+- Compak timetable with layouts shot twice (ScoringLib "Kierroksia per rata"): later rounds sit below a
+  `RATOJEN VAIHTO` row in the same lane columns, headers read `RATA1 / RATA3`. The UI shows the header as
+  "1 / 3", prints the change row like a break, and the screen, search and group view do not treat break rows as
+  shooters. No new tabs or keys.
 - Compak timetable printout (`TulosteAikataulu.jsx`) reads the same `Aikataulu*` tabs as the screen. No layout
   change; the lane-grid conventions it relies on (empty slot, `TAUKO`, U+200B referee marker) are now written down.
 - Private sheets: the API serves only the tabs the UI reads (`KISANSPEKSIT`, `Tulokset Y`, `NEW_Joukkue`,

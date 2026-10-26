@@ -4,6 +4,10 @@ import assert from 'node:assert/strict';
 import {
   jarjestaAmpujat,
   laskeRataTilastot,
+  laskeTaulukkoAsettelu,
+  laskeTulosteSarakeLeveydet,
+  laskeTulosteTaulukonKoko,
+  muodostaTulosteRatko,
   onkoAliTulosPuuttuu,
   parsiTaulukkoAmpujat,
   tunnistaPaivaSarakeNimet
@@ -100,4 +104,138 @@ test('onkoAliTulosPuuttuu tunnistaa tyhjät ja viivat', () => {
   }
   assert.equal(onkoAliTulosPuuttuu('0'), false);
   assert.equal(onkoAliTulosPuuttuu(24), false);
+});
+
+test('laskeTaulukkoAsettelu: mittaamaton leveys antaa väljän asettelun', () => {
+  const asettelu = laskeTaulukkoAsettelu({ leveys: 0, ratojenMaara: 8, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(asettelu.taso, 'desktop');
+  assert.equal(asettelu.mahtuu, true);
+  assert.equal(asettelu.piilotettuja, false);
+  assert.equal(asettelu.leveydet.rata, 30);
+});
+
+test('laskeTaulukkoAsettelu: leveällä näytöllä radat levenevät enintään kattoon', () => {
+  const vahan = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(vahan.taso, 'desktop');
+  assert.equal(vahan.leveydet.rata, 40);
+
+  const compak = laskeTaulukkoAsettelu({ leveys: 1440, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(compak.taso, 'desktop');
+  assert.equal(compak.leveydet.rata, 35);
+  assert.equal(compak.mahtuu, true);
+});
+
+test('laskeTaulukkoAsettelu: kapeammalla ensin kavennetaan, sitten pudotetaan sarakkeita', () => {
+  const lappari = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(lappari.taso, 'desktop');
+  assert.deepEqual(lappari.sarakkeet, { sarja: true, seura: false, paivat: true });
+
+  const eiSeuroja = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSeura: false });
+  assert.equal(eiSeuroja.piilotettuja, false);
+
+  const tabletti = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(tabletti.taso, 'mobile');
+  assert.deepEqual(tabletti.sarakkeet, { sarja: true, seura: true, paivat: true });
+
+  const pieniKisa = laskeTaulukkoAsettelu({ leveys: 390, ratojenMaara: 5, onkoSarja: true });
+  assert.equal(pieniKisa.taso, 'mobile');
+  assert.deepEqual(pieniKisa.sarakkeet, { sarja: true, seura: false, paivat: false });
+  assert.equal(pieniKisa.lyhennaNimet, false);
+
+  const puhelin = laskeTaulukkoAsettelu({ leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2 });
+  assert.equal(puhelin.taso, 'compact');
+  assert.deepEqual(puhelin.sarakkeet, { sarja: false, seura: false, paivat: false });
+  assert.equal(puhelin.lyhennaNimet, true);
+  assert.equal(puhelin.piilotettuja, true);
+  assert.equal(puhelin.mahtuu, true);
+  assert.equal(puhelin.leveydet.rata, 26);
+});
+
+test('laskeTaulukkoAsettelu: jos mikään ei mahdu, tiivein asettelu ja vieritys', () => {
+  const asettelu = laskeTaulukkoAsettelu({ leveys: 390, ratojenMaara: 24, naytaRatko: true, onkoSarja: true });
+  assert.equal(asettelu.taso, 'compact');
+  assert.equal(asettelu.mahtuu, false);
+  assert.equal(asettelu.leveydet.rata, 18);
+});
+
+test('laskeTaulukkoAsettelu: kaikki sarakkeet -tilassa mitään ei piiloteta', () => {
+  const asettelu = laskeTaulukkoAsettelu({
+    leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2, kaikkiSarakkeet: true
+  });
+  assert.equal(asettelu.taso, 'compact');
+  assert.deepEqual(asettelu.sarakkeet, { sarja: true, seura: true, paivat: true });
+  assert.equal(asettelu.piilotettuja, false);
+  assert.equal(asettelu.mahtuu, false);
+});
+
+test('laskeTaulukkoAsettelu: Seura on pisimmän seuran levyinen, enintään tason maksimi', () => {
+  const lyhyet = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 4 });
+  assert.equal(lyhyet.leveydet.seura, 55);
+
+  const pitkat = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 35 });
+  assert.equal(pitkat.leveydet.seura, 140);
+
+  const mobiili = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2, seuraMerkit: 10 });
+  assert.equal(mobiili.taso, 'mobile');
+  assert.equal(mobiili.leveydet.seura, 70);
+
+  const trapp = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2, seuraMerkit: 8 });
+  assert.equal(trapp.leveydet.seura, 69);
+});
+
+test('parsiTaulukkoAmpujat trimmaa sarjan', () => {
+  const rivit = [HENKILOT[0], ['1', 'Matti', ' N ', 'Seura A', '50', '48', '98', '25', '24', '24', '', '']];
+  assert.equal(parsiTaulukkoAmpujat(rivit, 3)[0].sarja, 'N');
+});
+
+test('laskeTulosteTaulukonKoko: pysty 8 rataan asti, vaaka sen yli ja tiivis yli 16 radalla', () => {
+  assert.deepEqual(laskeTulosteTaulukonKoko(8), { vaaka: false, tiivis: false });
+  assert.deepEqual(laskeTulosteTaulukonKoko(9), { vaaka: true, tiivis: false });
+  assert.deepEqual(laskeTulosteTaulukonKoko(16), { vaaka: true, tiivis: false });
+  assert.deepEqual(laskeTulosteTaulukonKoko(24), { vaaka: true, tiivis: true });
+});
+
+const TULOSTE_KAIKKI = { sarja: true, seura: true, la: true, su: true, ratko: true };
+// Kiinteä mittaus: 0.6em merkiltä.
+const mittaa06 = (t) => t.length * 0.6;
+
+test('laskeTulosteSarakeLeveydet: pitkä sarja mahtuu, kun nimelle jää tilaa', () => {
+  const ampujat = [
+    { sarja: 'A (Y)', seura: 'NoSA' },
+    { sarja: 'C (N, Y17,Y66)', seura: 'SSG' }
+  ];
+  const leveydet = laskeTulosteSarakeLeveydet(ampujat, TULOSTE_KAIKKI, 8, { mittaa: mittaa06 });
+  assert.equal(leveydet.sarja, 9.4);
+  assert.equal(leveydet.seura, 4.5);
+  // Lyhyet sarjat eivät vie nimeltä tilaa.
+  assert.equal(laskeTulosteSarakeLeveydet([{ sarja: 'Y', seura: 'SA' }], TULOSTE_KAIKKI, 8).sarja, 3.6);
+  // Ilman mittausta arvio, joka riittää isoille kirjaimille.
+  assert.ok(laskeTulosteSarakeLeveydet([{ sarja: 'SM-NAISET' }], { sarja: true }, 4).sarja >= 9 * 0.7 + 1);
+});
+
+test('laskeTulosteSarakeLeveydet kaventaa ensin seuraa, sitten sarjaa, ja jättää nimelle minimin', () => {
+  const pysty8 = (190 * 72) / 25.4 / 9 - (3.4 + 3.2 + 8 * 2.2 + 2 * 2.8 + 4.5);
+  // Pitkä seura kapenee, sarja mahtuu edelleen kokonaan.
+  const seuraPitka = laskeTulosteSarakeLeveydet(
+    [{ sarja: 'C (N, Y17,Y66)', seura: 'Kouvolan Ampujat' }], TULOSTE_KAIKKI, 8, { mittaa: mittaa06 }
+  );
+  assert.equal(seuraPitka.sarja, 9.4);
+  assert.ok(seuraPitka.seura < 9 && seuraPitka.seura >= 4.5);
+  assert.ok(pysty8 - seuraPitka.sarja - seuraPitka.seura >= 9);
+  // Kun tila ei riitä sarjallekaan, seura on minimissään ja sarja kapenee.
+  const molemmatPitkia = laskeTulosteSarakeLeveydet(
+    [{ sarja: 'Hyvin pitkä sarjan nimi tähän', seura: 'Hyvin pitkä seuran nimi' }], TULOSTE_KAIKKI, 8, { mittaa: mittaa06 }
+  );
+  assert.equal(molemmatPitkia.seura, 4.5);
+  assert.ok(pysty8 - molemmatPitkia.sarja - molemmatPitkia.seura >= 9);
+  // Ilman sarjasaraketta sen leveys on 0.
+  assert.equal(laskeTulosteSarakeLeveydet([{ seura: 'SA' }], { seura: true }, 8).sarja, 0);
+});
+
+test('muodostaTulosteRatko näyttää statuksen aina ja ratkon vain tasatuloksen ampujalle', () => {
+  const tasa = { id: 'a', ratkoNaytto: { statusEtiketit: [], teksti: '24' } };
+  const status = { id: 'b', ratkoNaytto: { statusEtiketit: ['DNF'], teksti: '' } };
+  assert.equal(muodostaTulosteRatko(tasa, new Set(['a'])), '24');
+  assert.equal(muodostaTulosteRatko(tasa, new Set()), '');
+  assert.equal(muodostaTulosteRatko(status, new Set()), 'DNF');
 });

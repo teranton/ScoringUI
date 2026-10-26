@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { muodostaTulosteAikataulu, tunnistaRataSarakkeet } from './aikatauluRadat.js';
+import { muodostaTulosteAikataulu, taukoTyyppi, tunnistaRataSarakkeet } from './aikatauluRadat.js';
 
 const ZWSP = '\u200B';
 
@@ -35,8 +35,8 @@ test('neljä rataa yhdellä sivulla, yhteinen aika, tyhjä paikka, tuomari ja ta
   assert.deepEqual(osa.rivit.map((r) => r.aika), ['09:00', '09:02', '09:05']);
 
   const [eka, toka, tauko] = osa.rivit;
-  assert.deepEqual(eka.ruudut[1], { aika: '09:00', nro: '136', nimi: '', tuomari: false, tauko: false });
-  assert.deepEqual(toka.ruudut[2], { aika: '09:02', nro: '22', nimi: 'Kuuminainen Juho', tuomari: true, tauko: false });
+  assert.deepEqual(eka.ruudut[1], { aika: '09:00', nro: '136', nimi: '', tuomari: false, tauko: false, vaihto: false });
+  assert.deepEqual(toka.ruudut[2], { aika: '09:02', nro: '22', nimi: 'Kuuminainen Juho', tuomari: true, tauko: false, vaihto: false });
   assert.deepEqual(toka.ruudut[3].nimi, '');
   assert.ok(tauko.ruudut.every((r) => r.tauko));
 });
@@ -51,7 +51,7 @@ test('radoilla eri ajat: aika tulostetaan jokaiselle radalle', () => {
   const [osa] = muodostaTulosteAikataulu(rivit).osat;
   assert.equal(osa.yhteinenAika, false);
   assert.deepEqual(osa.rivit[0].ruudut.map((r) => r.aika), ['10:00', '14:30']);
-  assert.deepEqual(osa.rivit[1].ruudut[1], { aika: '', nro: '', nimi: '', tuomari: false, tauko: false });
+  assert.deepEqual(osa.rivit[1].ruudut[1], { aika: '', nro: '', nimi: '', tuomari: false, tauko: false, vaihto: false });
 });
 
 test('yli neljä rataa jaetaan sivuille tasan', () => {
@@ -80,5 +80,29 @@ test('rivit ajan mukaan kuten näytöllä, nimetön paikka säilyttää numeron'
   ];
   const [osa] = muodostaTulosteAikataulu(rivit).osat;
   assert.deepEqual(osa.rivit.map((r) => r.aika), ['08:30', '09:05']);
-  assert.deepEqual(osa.rivit[1].ruudut[1], { aika: '09:05', nro: '6', nimi: '', tuomari: false, tauko: false });
+  assert.deepEqual(osa.rivit[1].ruudut[1], { aika: '09:05', nro: '6', nimi: '', tuomari: false, tauko: false, vaihto: false });
+});
+
+test('radat ammutaan kahdesti: kierrokset allekkain RATOJEN VAIHTO -rivin alla, otsikko "RATA1 / RATA3"', () => {
+  const rivit = [
+    ['AIKATAULU | 1.8.2026'],
+    ['', 'RATA1 / RATA3', '', '', 'RATA2 / RATA4'],
+    [],
+    ['09:00', '1', 'A', '09:00', '2', 'B'],
+    ['09:03', '2', 'B', '', '', ''],
+    ['09:06', '', 'RATOJEN VAIHTO', '09:06', '', 'RATOJEN VAIHTO'],
+    ['09:21', '1', 'A', '09:21', '2', 'B']
+  ];
+  assert.deepEqual(tunnistaRataSarakkeet(rivit).map((r) => r.label), ['1 / 3', '2 / 4']);
+  const [osa] = muodostaTulosteAikataulu(rivit).osat;
+  assert.deepEqual(osa.rivit.map((r) => r.aika), ['09:00', '09:03', '09:06', '09:21']);
+  assert.deepEqual(osa.rivit[2].ruudut[0], { aika: '09:06', nro: '', nimi: 'RATOJEN VAIHTO', tuomari: false, tauko: true, vaihto: true });
+  assert.equal(osa.rivit[1].ruudut[1].nimi, '');
+});
+
+test('tauon tyyppi: TAUKO ja RATOJEN VAIHTO ilman numeroa', () => {
+  assert.equal(taukoTyyppi('TAUKO', ''), 'tauko');
+  assert.equal(taukoTyyppi('Ratojen vaihto', ''), 'vaihto');
+  assert.equal(taukoTyyppi('TAUKO', '12'), null);
+  assert.equal(taukoTyyppi('Virtanen', ''), null);
 });
