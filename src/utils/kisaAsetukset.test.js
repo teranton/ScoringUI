@@ -5,6 +5,7 @@ import {
   haeAikatauluMalliSpekseista,
   haeAikatauluNakyvyysSpekseista,
   haeAikatauluRyhmittelySpekseista,
+  haeEiTuomaroivatSarjatSpekseista,
   haeSponsoriLogoNakyvyysSpekseista
 } from './kisaAsetukset.js';
 
@@ -61,4 +62,17 @@ test('asetuksen arvo on avaimen oikealla puolella oleva ensimmäinen ei-tyhjä s
   const vierekkain = [['AIKATAULU_MALLI', 'AIKATAULURYHMAKOKO', 'INLINE']];
   assert.equal(haeAikatauluMalliSpekseista(vierekkain), null);
   assert.equal(haeAikatauluRyhmittelySpekseista(vierekkain), 'inline');
+});
+
+test('Ei tuomaroivat -sarjat luetaan kuten ScoringLib: avaimen viereinen solu, muuten B20', () => {
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([['Korostukset päällä', 'TRUE'], ['Ei tuomaroivat:', 'N, Y70 ,J', 'ohje']]), ['N', 'Y70', 'J']);
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista('Ei tuomaroivat:,"N,J"\n'), ['N', 'J']);
+  // Tyhjä arvosolu: oikealla oleva ohjeteksti ei ole sarjalista.
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([['Ei tuomaroivat:', '', 'ohje']]), []);
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([['Ei tuomaroivat:']]), []);
+  // Vanha taulukko ilman avainta: B20.
+  const vanha = Array.from({ length: 20 }, () => ['']);
+  vanha[19] = ['Muu otsikko', 'N, J'];
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista(vanha), ['N', 'J']);
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([]), []);
 });

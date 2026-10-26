@@ -12,7 +12,7 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
   const kisat = parsiKilpailurekisteri([
     ['ID', 'Nimi', 'Alku', 'Loppu', 'SheetId', 'Joukkue', 'Piilotettu'],
     ['k1', 'Kevätkisa', '2026-04-05', '2026-04-05', 'sheet-1', 'true', ''],
-    ['k2', 'SM 2026', '2026-06-06', '2026-06-07', 'sheet-2', '', '1'],
+    ['k2', 'SM 2026', '2026-06-06', '2026-06-07', 'sheet-2', '', '1', '', ' Oulainen '],
     ['', '', '', '', '', '', '']
   ]);
 
@@ -26,7 +26,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       joukkueKisaAsetus: null,
       piilotettu: true,
       onkoRanking: false,
-      onkoTesti: false
+      onkoTesti: false,
+      paikka: 'Oulainen'
     },
     {
       id: 'k1',
@@ -37,7 +38,8 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       joukkueKisaAsetus: true,
       piilotettu: false,
       onkoRanking: false,
-      onkoTesti: false
+      onkoTesti: false,
+      paikka: ''
     }
   ]);
 });

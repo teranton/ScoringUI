@@ -3,7 +3,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { parseCsvRows } from './utils/csv';
 import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import {
-  laskeHenkilosijoitukset,
+  KAIKKI_SARJAT,
   laskeNaytettavatRatkoIdt,
   laskeRatojenMaara,
   parseAsemaSpeksitCsv
@@ -18,6 +18,8 @@ import {
   parsiTaulukkoAmpujat,
   tunnistaPaivaSarakeNimet
 } from './utils/henkiloTaulukko';
+import { aktiivinenSarja, haeOpenSarjaSpekseista, sarjaNakyma, sarjanNimi } from './utils/openSarja';
+import { HIGH_GUN, haeHighGunSpekseista, laskeSarjanSijoitukset, laskentaSarja, sarjanRatkoSija } from './utils/highGun';
 import { getStatusLabelSizeClass, getStatusLabelToneClass } from './utils/statusLabels';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
@@ -25,6 +27,7 @@ import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import TulosteTaulukko from './TulosteTaulukko';
+import { laskeTulosteSarakkeet } from './utils/tulosteTulokset';
 
 const logPerf = createPerfLogger('HenkiloTaulukkoPerf');
 
@@ -71,7 +74,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const [naytaRataAnalyysi, setNaytaRataAnalyysi] = useState(false);
   // Tulostuksen aloitusaika; tuloste renderöidään vain tulostuksen ajaksi (beforeprint–afterprint).
   const [tulosteenAika, setTulosteenAika] = useState(null);
-  const [sarjaSuodatin, setSarjaSuodatin] = useState('OPEN (Y)');
+  const [valittuSarja, setSarjaSuodatin] = useState(KAIKKI_SARJAT);
   const [jarjestysSarake, setJarjestysSarake] = useState('sija');
   const [jarjestysSuunta, setJarjestysSuunta] = useState('asc');
   const sarjaScrollRef = useRef(null);
@@ -92,7 +95,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     const perfStart = perfNow();
     const parsed = (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa)
       ? parsedSpeksit
-      : parseAsemaSpeksitCsv(data?.speksitCsvRaw);
+      : {
+        ...parseAsemaSpeksitCsv(data?.speksitCsvRaw),
+        openSarja: haeOpenSarjaSpekseista(data?.speksitCsvRaw),
+        highGun: haeHighGunSpekseista(data?.speksitCsvRaw)
+      };
     const result = {
       ...parsed,
       ratojenMaara: laskeRatojenMaara(parsed.asemaMaksimit)
@@ -140,17 +147,24 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     () => listaaSarjat(ampujat),
     [ampujat]
   );
+  // Kaikkien ampujien sarja on Y tai Y (OPEN), luokkakilpailussa sitä ei ole (KISANSPEKSIT: OPEN_SARJA).
+  // High Gun -nappi, kun KISANSPEKSIT: HIGH_GUN > 0.
+  const { yhteinenSarja, napit: sarjaNapit } = useMemo(
+    () => sarjaNakyma(loydetytSarjat, speksit.openSarja, speksit.highGun),
+    [loydetytSarjat, speksit.openSarja, speksit.highGun]
+  );
+  const sarjaSuodatin = aktiivinenSarja(valittuSarja, sarjaNapit);
   
   const sijoitetutAmpujat = useMemo(() => {
     const perfStart = perfNow();
-    const result = laskeHenkilosijoitukset(ampujat, sarjaSuodatin, speksit.ratkoPalkintoSija);
+    const result = laskeSarjanSijoitukset(ampujat, sarjaSuodatin, speksit.ratkoPalkintoSija, speksit.highGun);
     logPerf('sijoitetutAmpujat', perfStart, {
       sarja: sarjaSuodatin,
       source: ampujat.length,
       shown: result.length
     });
     return result;
-  }, [ampujat, sarjaSuodatin, speksit.ratkoPalkintoSija]);
+  }, [ampujat, sarjaSuodatin, speksit.ratkoPalkintoSija, speksit.highGun]);
 
   const naytettavatAmpujat = useMemo(() => {
     const perfStart = perfNow();
@@ -168,14 +182,15 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const naytaRatkoIds = useMemo(() => {
     const perfStart = perfNow();
-    const result = laskeNaytettavatRatkoIdt(sijoitetutAmpujat, sarjaSuodatin, speksit.ratkoPalkintoSija);
+    const result = laskeNaytettavatRatkoIdt(sijoitetutAmpujat, laskentaSarja(sarjaSuodatin),
+      sarjanRatkoSija(sarjaSuodatin, speksit.ratkoPalkintoSija, speksit.highGun));
     logPerf('naytaRatkoIds', perfStart, {
       sarja: sarjaSuodatin,
       shown: sijoitetutAmpujat.length,
       ratko: result.size
     });
     return result;
-  }, [sijoitetutAmpujat, sarjaSuodatin, speksit.ratkoPalkintoSija]);
+  }, [sijoitetutAmpujat, sarjaSuodatin, speksit.ratkoPalkintoSija, speksit.highGun]);
 
   const onkoRatkoSallittuAmpujalle = (ampuja) => naytaRatkoIds.has(ampuja?.id);
 
@@ -195,7 +210,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     leveys: taulukkoNakymaLeveys,
     ratojenMaara: radatList.length,
     naytaRatko: naytaRatkoSarake,
-    onkoSarja: sarjaSuodatin === 'OPEN (Y)',
+    onkoSarja: sarjaSuodatin === KAIKKI_SARJAT || sarjaSuodatin === HIGH_GUN,
     onkoSeura: onkoSeuroja,
     seuraMerkit,
     paivienMaara: (onkoLaTuloksia ? 1 : 0) + (onkoSuTuloksia ? 1 : 0),
@@ -214,6 +229,8 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const rataTilastot = useMemo(() => {
     return laskeRataTilastot(naytettavatAmpujat, radatList, speksit.asemaMaksimit);
   }, [naytettavatAmpujat, radatList, speksit.asemaMaksimit]);
+
+
 
   useEffect(() => {
     if (!isPerfLoggingEnabled() || typeof performance === 'undefined') return;
@@ -504,29 +521,18 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             onPointerLeave={onSarjaPointerUp}
             onClickCapture={onSarjaClickCapture}
           >
-            <Button
-              type="button"
-              onClick={() => setSarjaSuodatin('OPEN (Y)')}
-              size="sm"
-              className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
-              variant={sarjaSuodatin === 'OPEN (Y)' ? 'default' : 'outline'}
-            >
-              OPEN (Y)
-            </Button>
-            {loydetytSarjat
-              .filter((sarja) => sarja.toUpperCase() !== 'Y')
-              .map((sarja) => (
-                <Button
-                  key={sarja}
-                  type="button"
-                  onClick={() => setSarjaSuodatin(sarja)}
-                  size="sm"
-                  className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
-                  variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
-                >
-                  {sarja}
-                </Button>
-              ))}
+            {sarjaNapit.map((sarja) => (
+              <Button
+                key={sarja}
+                type="button"
+                onClick={() => setSarjaSuodatin(sarja)}
+                size="sm"
+                className="shrink-0 rounded-lg h-8 px-3 text-xs font-semibold shadow-none"
+                variant={sarjaSuodatin === sarja ? 'default' : 'outline'}
+              >
+                {sarjanNimi(sarja, yhteinenSarja)}
+              </Button>
+            ))}
           </div>
 
           <div className="flex w-full items-center gap-1.5 self-start overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:w-auto sm:self-auto sm:overflow-visible">
@@ -573,18 +579,6 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
             >
               {naytaRataAnalyysi ? tx.hideStageAnalytics : tx.showStageAnalytics}
             </Button>
-
-            {tulosteJuuri && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 shrink-0 px-3 text-xs font-semibold"
-                onClick={() => window.print()}
-              >
-                {tx.print}
-              </Button>
-            )}
           </div>
         </div>
 
@@ -901,17 +895,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
           kisaNimi={kisaNimi}
           kisaPaivat={kisaPaivat}
           kisaStatus={kisaStatus}
-          sarja={sarjaSuodatin}
+          sarja={sarjanNimi(sarjaSuodatin, yhteinenSarja)}
           ampujat={naytettavatAmpujat}
           radat={radatList}
           asemaMaksimit={speksit.asemaMaksimit}
-          sarakkeet={{
-            sarja: sarjaSuodatin === 'OPEN (Y)',
-            seura: onkoSeuroja,
-            la: onkoLaTuloksia,
-            su: onkoSuTuloksia,
-            ratko: naytaRatkoSarake
-          }}
+          sarakkeet={laskeTulosteSarakkeet(naytettavatAmpujat, sarjaSuodatin, naytaRatkoIds)}
           paivaSarakeNimet={paivaSarakeNimet}
           ratkoIdt={naytaRatkoIds}
           analyysi={naytaRataAnalyysi ? [

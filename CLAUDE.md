@@ -7,6 +7,11 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
 
 - Serverless functions in `api/` read the competition spreadsheets directly with a Google service
   account (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`). There is no API to ScoringLib.
+- Squad editing (`src/RyhmaJako.jsx`) is the one write path: the organiser signs in with Google in the browser
+  (Google Identity Services, `VITE_GOOGLE_CLIENT_ID`, `spreadsheets` and `email` scopes, account chooser on every sign-in) and the browser reads and writes the
+  sheet's `OSALLISTUJAT` rows with that token, so Google enforces editor access. Without `VITE_GOOGLE_CLIENT_ID`
+  the feature is hidden. The service account stays read-only. Moves to a free place write the place number as the
+  name (the shuffle's free-place convention), so `NRO`/`Ryhmä` formulas keep contiguous numbering.
 - The frontend parses tabs as CSV. The tabs, headers and settings it depends on are listed in
   `contract/sheet-layout.md`. That file is the contract with ScoringLib (`teranton/ScoringLib`) and the
   sheet template.
@@ -25,6 +30,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   (`api/_lib/valimuisti.js`), so `vercel dev`, where every request runs in a new process, doesn't hit Google
   on every request. Google 429s are retried once, then old data is served if there is any.
   The browser keeps the registry and the last 20 opened competitions in `localStorage`.
+- `api/saa.js` serves the weather forecast for a competition's place (registry column I) from the
+  Finnish Meteorological Institute open data (WFS, edited 10-day forecast, free, no key, CC BY 4.0; place names resolved by FMI). Forecasts are kept in `api/_lib/valimuisti.js` (1 h, CDN 30 min).
 
 ## Commands
 

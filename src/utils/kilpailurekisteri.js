@@ -1,14 +1,11 @@
 // src/utils/kilpailurekisteri.js
 // Kilpailurekisterin rivien tulkinta ja kisojen ryhmittely etusivulle.
 import { TOSI_ARVOT } from './henkiloTulokset.js';
-import { parsiPaivamaara } from './kisaStatus.js';
+import { isoPaiva, parsiPaivamaara } from './kisaStatus.js';
 
 function muunnaPaivamaaraJarjestysavaimeksi(pvmStr) {
   const pvm = parsiPaivamaara(pvmStr);
-  if (!pvm) return null;
-  const kuukausi = String(pvm.getMonth() + 1).padStart(2, '0');
-  const paiva = String(pvm.getDate()).padStart(2, '0');
-  return `${pvm.getFullYear()}-${kuukausi}-${paiva}`;
+  return pvm ? isoPaiva(pvm) : null;
 }
 
 export function haeKisanVuosi(kisa) {
@@ -77,7 +74,8 @@ export function parsiKilpailurekisteri(raakaRivit) {
         joukkueKisaAsetus,
         piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true,
         onkoRanking: onkoRankingTyyppi(row[7]),
-        onkoTesti: onkoTestiTyyppi(row[7])
+        onkoTesti: onkoTestiTyyppi(row[7]),
+        paikka: String(row[8] || '').trim()
       });
     }
   }

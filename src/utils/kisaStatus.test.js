@@ -9,6 +9,7 @@ import {
   laskeOnkoIlmoittautuminenPaattynyt,
   laskeRankingStatus,
   laskeStatusKisalle,
+  onkoPaattynytPaivista,
   parsiPaivamaara
 } from './kisaStatus.js';
 
@@ -116,4 +117,12 @@ test('pysyvä testikisa on kisapäivässään päivistä riippumatta, KISANSPEKS
   assert.equal(laskeStatusKisalle(testi, [['KILPAILUNSTATUS', 'RUNNING']], nyt).status, 'kaynnissa');
   assert.equal(laskeStatusKisalle(testi, [['KILPAILUNSTATUS', 'PAUSED']], nyt).status, 'tauolla');
   assert.equal(laskeStatusKisalle(testi, [['KILPAILUNSTATUS', 'FINISHED']], nyt).status, 'paattynyt');
+});
+
+test('onkoPaattynytPaivista ei katso FINISHED-asetusta', () => {
+  const nyt = new Date(2026, 9, 26);
+  assert.equal(onkoPaattynytPaivista({ alkuPvm: '1.10.2026', loppuPvm: '2.10.2026' }, nyt), true);
+  assert.equal(onkoPaattynytPaivista({ alkuPvm: '1.11.2026', loppuPvm: '2.11.2026' }, nyt), false);
+  assert.equal(onkoPaattynytPaivista({ onkoTesti: true, alkuPvm: '1.10.2026', loppuPvm: '2.10.2026' }, nyt), false);
+  assert.equal(onkoPaattynytPaivista({ onkoRanking: true, alkuPvm: '1.1.2026', loppuPvm: '31.12.2026' }, nyt), false);
 });

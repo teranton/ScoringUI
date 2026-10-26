@@ -116,6 +116,13 @@ export const ratkoStatusPainot = {
 
 export const ratkoPalkintoSijaOletus = 3;
 
+// Kaikkien ampujien näkymän tunniste sarjasuodattimessa. Näytettävä nimi (Y tai Y (OPEN)) tulee
+// KISANSPEKSIT-asetuksesta OPEN_SARJA, ks. openSarja.js.
+export const KAIKKI_SARJAT = 'OPEN (Y)';
+
+// Onko ampujalla tulos (kokonaistulos taulukon ampujilla, muuten tulos).
+export const onkoTulosta = (ampuja) => (Number.parseInt(ampuja.kokonaistulos ?? ampuja.tulos, 10) || 0) > 0;
+
 // Asemien/ratojen määrä KISANSPEKSIT-asemataulukosta; oletus 8, jos taulukkoa ei löydy.
 export function laskeRatojenMaara(asemaMaksimit) {
   const maara = Object.keys(asemaMaksimit || {}).length;
@@ -229,10 +236,10 @@ function onkoRatkoArvoAnnettu(ampuja) {
 
 export function laskeHenkilosijoitukset(
   ampujat,
-  sarjaSuodatin = 'OPEN (Y)',
+  sarjaSuodatin = KAIKKI_SARJAT,
   ratkoSija = ratkoPalkintoSijaOletus
 ) {
-  const onKaikkiNakyma = sarjaSuodatin === 'OPEN (Y)';
+  const onKaikkiNakyma = sarjaSuodatin === KAIKKI_SARJAT;
   const lajiteltuLista = onKaikkiNakyma
     ? [...ampujat]
     : ampujat.filter((ampuja) => String(ampuja.sarja || '').toUpperCase() === sarjaSuodatin.toUpperCase());
@@ -294,14 +301,14 @@ export function laskeHenkilosijoitukset(
 }
 
 // Palauttaa niiden ampujien id:t, joiden ratkotulos näytetään.
-// Ratko näytetään vain tasatuloksessa oleville. OPEN-näkymässä lisäksi vain
+// Ratko näytetään vain tasatuloksessa oleville. Kaikkien ampujien näkymässä lisäksi vain
 // palkintosijojen (ratkoSija) rajatuloksen saavuttaneille.
 export function laskeNaytettavatRatkoIdt(
   sijoitetutAmpujat,
-  sarjaSuodatin = 'OPEN (Y)',
+  sarjaSuodatin = KAIKKI_SARJAT,
   ratkoSija = ratkoPalkintoSijaOletus
 ) {
-  const onKaikkiNakyma = sarjaSuodatin === 'OPEN (Y)';
+  const onKaikkiNakyma = sarjaSuodatin === KAIKKI_SARJAT;
   const rajatulos = onKaikkiNakyma && sijoitetutAmpujat.length >= ratkoSija
     ? parseInt(sijoitetutAmpujat[ratkoSija - 1]?.tulos, 10)
     : NaN;

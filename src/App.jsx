@@ -5,21 +5,26 @@ import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import RankingTulokset from './RankingTulokset';
+import RyhmaJako from './RyhmaJako';
+import { googleClientId } from './utils/googleKayttaja';
+import { ryhmaKokoAsetuksesta } from './utils/ryhmaMuokkaus';
 import { parseCsvRows } from './utils/csv';
 import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
-import { onkoDevTila } from './utils/devTila';
 import {
   laskeKisanPaivaStatus,
   laskeOnkoIlmoittautuminenPaattynyt,
   laskeStatusKisalle
 } from './utils/kisaStatus';
+import { haeOpenSarjaSpekseista } from './utils/openSarja';
+import { haeHighGunSpekseista } from './utils/highGun';
 import {
   haeAikatauluMalliSpekseista,
   haeAikatauluNakyvyysSpekseista,
   haeAikatauluRyhmittelySpekseista,
+  haeEiTuomaroivatSarjatSpekseista,
   haeSponsoriLogoNakyvyysSpekseista
 } from './utils/kisaAsetukset';
 import {
@@ -31,6 +36,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 import { Badge } from './components/ui/badge';
 import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer } from 'lucide-react';
 import { haeTekstit } from './i18n';
+import SaaEnnuste from './components/SaaEnnuste';
 import { lataaAnalytiikka, trackAnalyticsEvent } from './utils/analytiikka';
 import { useKilpailurekisteri } from './hooks/useKilpailurekisteri';
 import { useKisaReititys } from './hooks/useKisaReititys';
@@ -82,12 +88,12 @@ export default function App() {
   const TulosteTulokset = ladatutPalat.tulosteTulokset ? ladatutModuulit.tulosteTulokset.default : null;
   // Taulukkonäkymän tulosteen juurielementti; HenkiloTaulukko renderöi tulosteen siihen (portaali).
   const [taulukkoTulosteJuuri, setTaulukkoTulosteJuuri] = useState(null);
-  const [devTila] = useState(() => onkoDevTila());
 
   useEffect(() => lataaAnalytiikka(), []);
 
   const tx = haeTekstit('app', locale);
   const txTuloste = haeTekstit('tulosteTulokset', locale);
+  const txRyhmat = haeTekstit('ryhmaJako', locale);
 
   // Tulosluettelo renderöidään ensin, sitten avataan selaimen tulostusikkuna.
   useEffect(() => {
@@ -192,7 +198,11 @@ export default function App() {
   }), [henkilotCsvRaw, joukkueetCsvRaw, speksitCsvRaw]);
 
   const nykyisenKisanSpeksit = useMemo(
-    () => parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
+    () => ({
+      ...parseAsemaSpeksitRows(nykyisenKisanParsitutRivit.speksitRows),
+      openSarja: haeOpenSarjaSpekseista(nykyisenKisanParsitutRivit.speksitRows),
+      highGun: haeHighGunSpekseista(nykyisenKisanParsitutRivit.speksitRows)
+    }),
     [nykyisenKisanParsitutRivit.speksitRows]
   );
 
@@ -269,10 +279,16 @@ export default function App() {
     () => haeAikatauluRyhmittelySpekseista(nykyisenKisanParsitutRivit.speksitRows || []) || 'inline',
     [nykyisenKisanParsitutRivit.speksitRows]
   );
+  const eiTuomaroivatSarjat = useMemo(
+    () => haeEiTuomaroivatSarjatSpekseista(nykyisenKisanParsitutRivit.speksitRows || []),
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
   const aikatauluMalliAsetus = useMemo(
     () => haeAikatauluMalliSpekseista(nykyisenKisanParsitutRivit.speksitRows || []) || 'inline',
     [nykyisenKisanParsitutRivit.speksitRows]
   );
+  // Ryhmien muokkaus järjestäjille (oma Google-kirjautuminen), kunnes kisa on päättynyt.
+  const onkoRyhmaMuokkausSallittu = Boolean(valittuKisa?.apiUrl) && Boolean(googleClientId()) && !onkoKisaPaattynyt;
   const kaytaRyhmaAikatauluNakymaa = aikatauluMalliAsetus === 'groups' || aikatauluRyhmittelyAsetus !== 'inline';
   // Compak-aikataululla (rata-ruudukko) on oma A4-tuloste. Se on sivulla aina aikataulunäkymässä, jotta
   // myös selaimen oma tulostus (Ctrl+P) tulostaa sen eikä näytön ruudukkoa.
@@ -317,7 +333,8 @@ export default function App() {
     onkoKisaPaattynyt,
     onkoKisaTulossa,
     onkoTaulukkoSallittu,
-    onkoTuloksetSallittu
+    onkoTuloksetSallittu,
+    onkoRyhmaMuokkausSallittu
   });
   if (seuraavaAktiivinenSivu !== aktiivinenSivu) {
     setAktiivinenSivu(seuraavaAktiivinenSivu);
@@ -356,6 +373,7 @@ export default function App() {
               <div className="text-sm text-[hsl(var(--muted-foreground))]">
                 {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
               </div>
+              <SaaEnnuste kisa={kisa} status={statusData.status} locale={locale} />
             </div>
             <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
           </CardContent>
@@ -479,6 +497,7 @@ export default function App() {
               <CardDescription>
                 {muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
               </CardDescription>
+              <SaaEnnuste kisa={valittuKisa} status={kisanStatusInfo.status} locale={locale} className="mt-1" />
             </div>
             <Badge variant={statusToBadgeVariant(kisanStatusInfo.status)}>{labelForStatus(kisanStatusInfo.status, locale)}</Badge>
           </div>
@@ -523,7 +542,7 @@ export default function App() {
             {tx.materials}
           </Button>
         )}
-        {devTila && onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
+        {onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
           <Button onClick={tulostaTulokset} variant="outline" size="sm" className="ml-auto gap-1.5">
             <Printer className="h-4 w-4" aria-hidden="true" />
             {txTuloste.button}
@@ -629,6 +648,17 @@ export default function App() {
               )}
             </div>
           )}
+          {aktiivinenSivu === 'ryhmat' && onkoRyhmaMuokkausSallittu && (
+            <RyhmaJako
+              key={valittuKisa.apiUrl}
+              sheetId={valittuKisa.apiUrl}
+              ryhmaKoko={ryhmaKokoAsetuksesta(aikatauluRyhmittelyAsetus)}
+              ryhmittely={aikatauluRyhmittelyAsetus}
+              aikataulut={aikatauluCsvList}
+              eiTuomaroivat={eiTuomaroivatSarjat}
+              locale={locale}
+            />
+          )}
           {aktiivinenSivu === 'materiaalit' && onkoMateriaaleja && nykyisenKisanData && (
             <div className="mx-auto w-full max-w-3xl">
               <MateriaaliNakyma specsCsv={nykyisenKisanData.speksitCsvRaw} locale={locale} />
@@ -643,6 +673,13 @@ export default function App() {
       )}
 
       <footer className="pt-1 text-center text-xs text-[hsl(var(--muted-foreground))]">
+        {onkoRyhmaMuokkausSallittu && aktiivinenSivu !== 'ryhmat' && (
+          <div className="pb-1 app-print-hide-nav">
+            <button type="button" className="underline hover:text-[hsl(var(--foreground))]" onClick={() => setAktiivinenSivu('ryhmat')}>
+              {txRyhmat.openEditor}
+            </button>
+          </div>
+        )}
         {tx.contactLabel}:{' '}
         <a href={`mailto:${yhteysSahkoposti}`} className="underline hover:text-[hsl(var(--foreground))]">
           {yhteysSahkoposti}

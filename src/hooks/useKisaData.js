@@ -2,7 +2,7 @@
 // avatun kisan haku ja live-päivitys sekä esihaku, kun osoitin pysähtyy kisakortille.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onkoCsvVirheellinen } from '../utils/csv';
-import { laskeKisanPaivaStatus, laskeRankingStatus, laskeStatusKisalle } from '../utils/kisaStatus';
+import { laskeKisanPaivaStatus, laskeRankingStatus, laskeStatusKisalle, onkoPaattynytPaivista } from '../utils/kisaStatus';
 import { haeKisanVuosi } from '../utils/kilpailurekisteri';
 import { rankingValilehdenNimi } from '../utils/rankingTulokset';
 import { lueKisat, tallennaKisa } from '../utils/paikallinenValimuisti';
@@ -228,8 +228,10 @@ export function useKisaData({ kisat, valittuKisa }) {
     const onkoDataTuore = Boolean(cacheData) && (Date.now() - Number(cacheData.haettu || 0)) < PAATTYNEEN_TUOREUS_MS;
 
     // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
-    // Päättyneessä kisassa vältetään turha lisähaku, jos data on välimuistissa ja alle tunnin vanhaa.
-    if (!onkoStaattinen || puuttuuPakollistaKisaDataa || !onkoDataTuore) {
+    // Päivien mukaan päättyneessä kisassa vältetään turha lisähaku, jos data on välimuistissa ja alle tunnin vanhaa.
+    // Pelkällä FINISHED-asetuksella päättynyt haetaan aina, jotta asetuksen poisto tulee näkyviin.
+    const ohitaHaku = onkoStaattinen && onkoPaattynytPaivista(valittuKisa) && !puuttuuPakollistaKisaDataa && onkoDataTuore;
+    if (!ohitaHaku) {
       haeKisaData(valittuKisa, onkoStaattinen);
     } else {
       // Päättynyt kisa, jonka data on kunnossa välimuistissa: vanha live-päivityksen virhe ei enää koske sitä.

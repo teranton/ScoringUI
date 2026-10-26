@@ -47,6 +47,13 @@ export function parsiPaivamaara(pvmStr) {
   return date;
 }
 
+// Päivämäärä muodossa vvvv-kk-pp (paikallinen aika).
+export function isoPaiva(pvm) {
+  const kuukausi = String(pvm.getMonth() + 1).padStart(2, '0');
+  const paiva = String(pvm.getDate()).padStart(2, '0');
+  return `${pvm.getFullYear()}-${kuukausi}-${paiva}`;
+}
+
 export function laskeOnkoIlmoittautuminenPaattynyt(alkuStr, nykyhetki = new Date()) {
   if (!alkuStr) return true;
   const aloitusPaiva = parsiPaivamaara(alkuStr);
@@ -137,6 +144,13 @@ export function laskeRankingStatus(alkuStr, loppuStr, speksitData, nyt = new Dat
   if (alku && tanaan < alku) return { ...STATUS_TYYLIT.tulossa };
   if (loppu && tanaan > loppu) return { ...STATUS_TYYLIT.paattynyt };
   return { ...STATUS_TYYLIT.kaynnissa };
+}
+
+// Onko kisa tai ranking päättynyt jo päivämäärien mukaan (ilman KILPAILUNSTATUS-asetusta). Pelkällä
+// FINISHED-asetuksella päättynyt kisa voidaan palauttaa käyntiin, joten sen asetuksia ei voi jättää hakematta.
+export function onkoPaattynytPaivista(kisa, nyt = new Date()) {
+  const tila = kisa?.onkoRanking ? laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, '', nyt) : laskeKisanPaivaStatus(kisa, nyt);
+  return tila.status === 'paattynyt';
 }
 
 // Kisan tai rankingin näkyvä tila.
