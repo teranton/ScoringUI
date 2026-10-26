@@ -69,3 +69,17 @@ test('päivät ja avaimet aikataulun järjestyksessä', () => {
   assert.deepEqual(ajat.paivat.map((p) => p.nimi), ['Lauantai', 'Sunnuntai']);
   assert.deepEqual(lahtoajatAvaimin(ajat, { numero: 1, paikat: [] }).map((l) => l.avain), ajat.paivat.map((p) => p.avain));
 });
+
+test('ryhmälista ilman aikoja ei ole päivä', () => {
+  const ryhmalista = csv([
+    ['Ryhmät | SM 2026'],
+    ['RYHMÄ', 'Nro', 'Nimi', 'Sarja', 'Seura'],
+    ['1', '1', 'Matti', 'Y', 'A']
+  ]);
+  assert.deepEqual(lueLahtoajat([{ key: 'aikataulu-ryhmat', raw: ryhmalista, label: 'Ryhmät' }], 'group6', TX).paivat, []);
+  const molemmat = lueLahtoajat([
+    { key: 'aikataulu-ryhmat', raw: ryhmalista, label: 'Ryhmät' },
+    { key: 'aikataulu-main', raw: YHDISTETTY, label: 'SM 2026' }
+  ], 'group6', TX);
+  assert.deepEqual(molemmat.paivat.map((p) => p.avain.split(':')[0]), ['aikataulu-main', 'aikataulu-main']);
+});

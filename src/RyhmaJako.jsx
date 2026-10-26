@@ -30,6 +30,7 @@ import {
   laskeRyhmaKoko,
   nimetTasmaavat,
   odotetutNimet,
+  onAmpuja,
   parsiOsallistujat,
   ryhmanTayttoaste,
   siirtoPyynnot,
@@ -37,7 +38,7 @@ import {
   suunnitteleSiirto
 } from './utils/ryhmaMuokkaus';
 import { lueLahtoajat, ryhmanLahtoajat } from './utils/ryhmaLahtoajat';
-import { korostusVarit, ryhmatAjoittain, sarjatPaikoista } from './utils/ryhmaNakyma';
+import { KOROSTUSVARIT, korostusVarit, ryhmatAjoittain, sarjatPaikoista, tallennetutKorostukset, vaihdaKorostus as vaihdettuKorostus } from './utils/ryhmaNakyma';
 
 const tayta = (teksti, arvot) => teksti.replace(/\{(\w+)\}/g, (_, avain) => String(arvot[avain] ?? ''));
 
@@ -101,12 +102,10 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
   const [viesti, setViesti] = useState(null); // { teksti, virhe?, kumoa?: { ennen, odotetut } }
   const [raahaus, setRaahaus] = useState(null); // { lahde, x, y, kohdeRivi }
   const raahausRef = useRef(null);
-  const [korostetut, setKorostetut] = useState(() => {
-    const arvo = lueValinnat(sheetId).korostetut;
-    return Array.isArray(arvo) ? arvo.filter((x) => typeof x === 'string') : [];
-  });
-  const [nakyma, setNakyma] = useState(() => (lueValinnat(sheetId).nakyma === 'ajat' ? 'ajat' : 'ryhmat'));
-  const [paivaValinta, setPaivaValinta] = useState(() => lueValinnat(sheetId).paiva || null);
+  const [tallennetut] = useState(() => lueValinnat(sheetId));
+  const [korostetut, setKorostetut] = useState(() => tallennetutKorostukset(tallennetut.korostetut)); // [{ sarja, vari }]
+  const [nakyma, setNakyma] = useState(tallennetut.nakyma === 'ajat' ? 'ajat' : 'ryhmat');
+  const [paivaValinta, setPaivaValinta] = useState(typeof tallennetut.paiva === 'string' ? tallennetut.paiva : null);
   useEffect(() => {
     try {
       window.localStorage.setItem(valinnatAvain(sheetId), JSON.stringify({ korostetut, nakyma, paiva: paivaValinta }));
@@ -114,9 +113,7 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
       // ei selaimen tallennustilaa
     }
   }, [sheetId, korostetut, nakyma, paivaValinta]);
-  const sarjaVarit = useMemo(() => korostusVarit(korostetut), [korostetut]);
   const valittuPaiva = lahtoajat.paivat.some((p) => p.avain === paivaValinta) ? paivaValinta : lahtoajat.paivat[0]?.avain;
-  const vaihdaKorostus = (sarja) => setKorostetut((vanhat) => (vanhat.includes(sarja) ? vanhat.filter((x) => x !== sarja) : [...vanhat, sarja]));
   const vieritysRef = useRef(null);
 
   useEffect(() => {
@@ -322,7 +319,20 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
   useEffect(() => lopetaVieritys, []);
 
   const ryhmat = useMemo(() => (data ? muodostaRyhmat(data.paikat, ryhmaKoko) : []), [data, ryhmaKoko]);
+  const ajatRyhmittain = useMemo(() => new Map(ryhmat.map((r) => [r.numero, ryhmanLahtoajat(lahtoajat, r)])), [ryhmat, lahtoajat]);
+  const ajoittain = useMemo(
+    () => (nakyma === 'ajat' ? ryhmatAjoittain(ryhmat, (r) => ajatRyhmittain.get(r.numero), valittuPaiva) : []),
+    [nakyma, ryhmat, ajatRyhmittain, valittuPaiva]
+  );
   const sarjat = useMemo(() => sarjatPaikoista(data?.paikat), [data]);
+  // Korostuksista näytetään vain kilpailun nykyiset sarjat (tallennettu sarja on voinut poistua).
+  const voimassa = useMemo(
+    () => (data ? korostetut.filter((k) => sarjat.some((s) => s.sarja === k.sarja)) : korostetut),
+    [data, korostetut, sarjat]
+  );
+  const sarjaVarit = useMemo(() => korostusVarit(voimassa), [voimassa]);
+  const variaVapaana = voimassa.length < KOROSTUSVARIT.length;
+  const vaihdaKorostus = (sarja) => setKorostetut(vaihdettuKorostus(voimassa, sarja));
 
   // --- Napautus: ensin ampuja, sitten paikka (vapaa paikka tai toinen ampuja).
   const napauta = (paikka) => {
@@ -341,10 +351,10 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
   // Yhden ryhmän kortti (ryhmänäkymässä ja lähtöaikanäkymässä).
   const ryhmaKortti = (ryhma) => {
     const varit = TAYTTOASTE_VARIT[ryhmanTayttoaste(ryhma)];
-    const ajat = ryhmanLahtoajat(lahtoajat, ryhma);
+    const ajat = ajatRyhmittain.get(ryhma.numero) || [];
     const eiTuomaroivia = ryhma.paikat.filter(eiTuomaroi).length;
-    const korostettuja = korostetut
-      .map((sarja) => ({ sarja, n: ryhma.paikat.filter((p) => p.sarja === sarja && p.tyyppi !== 'vapaa' && p.tyyppi !== 'tyhja').length }))
+    const korostettuja = voimassa
+      .map(({ sarja }) => ({ sarja, n: ryhma.paikat.filter((p) => onAmpuja(p) && p.sarja === sarja).length }))
       .filter((k) => k.n > 0);
     return (
       <Card key={ryhma.numero} className={`overflow-hidden border-2 ${varit.kortti}`}>
@@ -387,21 +397,21 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
         </CardHeader>
         <CardContent className="flex flex-col gap-1.5 p-2">
           {ryhma.paikat.map((paikka) => {
-            const onAmpuja = paikka.tyyppi === 'ampuja' || paikka.tyyppi === 'lukittu';
+            const ampuja = onAmpuja(paikka);
             const siirrettava = voiSiirtaa(paikka);
             const lukossa = paikka.onTuloksia || paikka.tyyppi === 'lukittu';
             const lukonSyy = paikka.onTuloksia ? tx.locked : tx.formulaName;
             const eiTuomaroiva = eiTuomaroi(paikka);
-            const korostus = onAmpuja ? sarjaVarit.get(paikka.sarja) : null;
+            const korostus = ampuja ? sarjaVarit.get(paikka.sarja) : null;
             const onLahde = raahaus?.lahde.rivi === paikka.rivi;
             const onKohde = raahaus && kohdeRivi === paikka.rivi && !onLahde;
             const onValittu = valittuRivi === paikka.rivi;
             const kehys = onKohde
               ? (lukossa ? 'border-rose-400 bg-rose-50' : 'border-[hsl(var(--primary))] bg-[hsl(var(--muted))] ring-2 ring-[hsl(var(--primary))]')
               : onValittu ? 'border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary))]'
-                : korostus ? korostus.rivi
+                : korostus ? `${korostus.rivi}${eiTuomaroiva ? ' border-l-4 border-l-violet-500' : ''}`
                   : eiTuomaroiva ? 'border-violet-300 bg-violet-50'
-                  : onAmpuja ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
+                  : ampuja ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
                   : `border-dashed border-[hsl(var(--border))]${valittu ? ' bg-[hsl(var(--muted))]' : ''}`;
             return (
               <div
@@ -431,18 +441,18 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
                   type="button"
                   className="flex min-h-11 flex-1 items-center gap-2 py-1.5 pr-3 text-left disabled:cursor-default"
                   onClick={() => napauta(paikka)}
-                  disabled={!muokattava || tallennetaan || (!onAmpuja && !valittu)}
+                  disabled={!muokattava || tallennetaan || (!ampuja && !valittu)}
                   aria-pressed={onValittu}
                 >
                   <span className="w-8 shrink-0 text-right font-semibold tabular-nums text-[hsl(var(--muted-foreground))]" translate="no">{paikka.nro}</span>
-                  {onAmpuja ? (
+                  {ampuja ? (
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium" translate="no">{paikka.nimi}</span>
                       <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]" translate="no">
                         {korostus || eiTuomaroiva ? (
                           <>
                             <span
-                              className={`rounded px-1 font-semibold ${korostus ? korostus.merkki : 'bg-violet-600 text-white'}`}
+                              className={`rounded px-1 font-semibold ${korostus ? `${korostus.merkki}${eiTuomaroiva ? ' ring-2 ring-violet-500' : ''}` : 'bg-violet-600 text-white'}`}
                               title={eiTuomaroiva ? tx.nonReferee : undefined}
                             >
                               {paikka.sarja}
@@ -562,15 +572,16 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
                     key={sarja}
                     type="button"
                     aria-pressed={Boolean(vari)}
+                    disabled={!vari && !variaVapaana}
                     onClick={() => vaihdaKorostus(sarja)}
-                    className={`min-h-9 rounded-full border px-3 text-sm ${vari ? `${vari.merkki} border-transparent` : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'}`}
+                    className={`min-h-9 rounded-full border px-3 text-sm ${vari ? `${vari.merkki} border-transparent` : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] disabled:opacity-50'}`}
                     translate="no"
                   >
                     {sarja} <span className="opacity-75">{maara}</span>
                   </button>
                 );
               })}
-              {korostetut.length > 0 && (
+              {voimassa.length > 0 && (
                 <Button type="button" size="sm" variant="ghost" onClick={() => setKorostetut([])}>{tx.clearHighlight}</Button>
               )}
             </div>
@@ -595,7 +606,7 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
 
       {data && nakyma === 'ajat' && lahtoajat.paivat.length > 0 ? (
         <div className="space-y-4">
-          {ryhmatAjoittain(ryhmat, (r) => ryhmanLahtoajat(lahtoajat, r), valittuPaiva).map(({ aika, ryhmat: samaan }) => (
+          {ajoittain.map(({ aika, ryhmat: samaan }) => (
             <section key={aika || 'ei-aikaa'} className="space-y-2">
               <h3 className="flex items-center gap-1.5 px-1 text-sm font-semibold tabular-nums">
                 <Clock className="h-4 w-4" aria-hidden="true" />
