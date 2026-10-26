@@ -1,7 +1,8 @@
 // src/RyhmaJako.jsx
 // Järjestäjän ryhmien muokkaus: ampujan siirto vapaalle paikalle, järjestys ryhmän sisällä ja vaihto ryhmien välillä.
 // Raahaus toimii hiirellä ja kosketuksella (kahvasta, pointer-tapahtumat), ja napautus ampujaan ja paikkaan tekee saman.
-// Ryhmät on väritetty täyttöasteen mukaan, ja otsikossa näkyvät ryhmän lähtöajat aikataulusta.
+// Ryhmät on väritetty täyttöasteen mukaan, ja otsikossa näkyvät ryhmän lähtöajat aikataulusta. Valitut sarjat
+// korostetaan omilla väreillään, ja ryhmät voi näyttää lähtöajoittain (samaan aikaan lähtevät rinnakkain).
 // Data luetaan ja kirjoitetaan käyttäjän omalla Google-tunnisteella (utils/googleKayttaja.js).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, GripVertical, Lock, LogOut, RefreshCw } from 'lucide-react';
@@ -36,6 +37,7 @@ import {
   suunnitteleSiirto
 } from './utils/ryhmaMuokkaus';
 import { lueLahtoajat, ryhmanLahtoajat } from './utils/ryhmaLahtoajat';
+import { korostusVarit, ryhmatAjoittain, sarjatPaikoista } from './utils/ryhmaNakyma';
 
 const tayta = (teksti, arvot) => teksti.replace(/\{(\w+)\}/g, (_, avain) => String(arvot[avain] ?? ''));
 
@@ -55,6 +57,17 @@ const paikoilla = (data, paikat) => ({ ...data, paikat, ampujat: paikat.filter((
 function kohdeRiviPisteessa(x, y) {
   const elementti = document.elementFromPoint(x, y)?.closest?.('[data-ampuja-rivi]');
   return elementti ? Number(elementti.dataset.ampujaRivi) : null;
+}
+
+// Näkymän valinnat (korostetut sarjat, näkymä, päivä) muistetaan selaimessa kilpailukohtaisesti.
+const valinnatAvain = (sheetId) => `ryhmaJako:nakyma:${sheetId}`;
+function lueValinnat(sheetId) {
+  try {
+    const arvo = JSON.parse(window.localStorage.getItem(valinnatAvain(sheetId)) || '{}');
+    return arvo && typeof arvo === 'object' ? arvo : {};
+  } catch {
+    return {};
+  }
 }
 
 async function lueOsallistujat(sheetId, alue) {
@@ -88,6 +101,22 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
   const [viesti, setViesti] = useState(null); // { teksti, virhe?, kumoa?: { ennen, odotetut } }
   const [raahaus, setRaahaus] = useState(null); // { lahde, x, y, kohdeRivi }
   const raahausRef = useRef(null);
+  const [korostetut, setKorostetut] = useState(() => {
+    const arvo = lueValinnat(sheetId).korostetut;
+    return Array.isArray(arvo) ? arvo.filter((x) => typeof x === 'string') : [];
+  });
+  const [nakyma, setNakyma] = useState(() => (lueValinnat(sheetId).nakyma === 'ajat' ? 'ajat' : 'ryhmat'));
+  const [paivaValinta, setPaivaValinta] = useState(() => lueValinnat(sheetId).paiva || null);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(valinnatAvain(sheetId), JSON.stringify({ korostetut, nakyma, paiva: paivaValinta }));
+    } catch {
+      // ei selaimen tallennustilaa
+    }
+  }, [sheetId, korostetut, nakyma, paivaValinta]);
+  const sarjaVarit = useMemo(() => korostusVarit(korostetut), [korostetut]);
+  const valittuPaiva = lahtoajat.paivat.some((p) => p.avain === paivaValinta) ? paivaValinta : lahtoajat.paivat[0]?.avain;
+  const vaihdaKorostus = (sarja) => setKorostetut((vanhat) => (vanhat.includes(sarja) ? vanhat.filter((x) => x !== sarja) : [...vanhat, sarja]));
   const vieritysRef = useRef(null);
 
   useEffect(() => {
@@ -293,6 +322,7 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
   useEffect(() => lopetaVieritys, []);
 
   const ryhmat = useMemo(() => (data ? muodostaRyhmat(data.paikat, ryhmaKoko) : []), [data, ryhmaKoko]);
+  const sarjat = useMemo(() => sarjatPaikoista(data?.paikat), [data]);
 
   // --- Napautus: ensin ampuja, sitten paikka (vapaa paikka tai toinen ampuja).
   const napauta = (paikka) => {
@@ -306,6 +336,132 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
     } else {
       teeSiirto(paikkaRivilla(valittuRivi), paikka);
     }
+  };
+
+  // Yhden ryhmän kortti (ryhmänäkymässä ja lähtöaikanäkymässä).
+  const ryhmaKortti = (ryhma) => {
+    const varit = TAYTTOASTE_VARIT[ryhmanTayttoaste(ryhma)];
+    const ajat = ryhmanLahtoajat(lahtoajat, ryhma);
+    const eiTuomaroivia = ryhma.paikat.filter(eiTuomaroi).length;
+    const korostettuja = korostetut
+      .map((sarja) => ({ sarja, n: ryhma.paikat.filter((p) => p.sarja === sarja && p.tyyppi !== 'vapaa' && p.tyyppi !== 'tyhja').length }))
+      .filter((k) => k.n > 0);
+    return (
+      <Card key={ryhma.numero} className={`overflow-hidden border-2 ${varit.kortti}`}>
+        <CardHeader className={`space-y-1 border-b border-[hsl(var(--border))] px-3 py-2 ${varit.otsikko}`}>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">{tx.squad} {ryhma.numero}</CardTitle>
+            {eiTuomaroivia > 0 && (
+              <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+                {tayta(tx.nonRefereeCount, { n: eiTuomaroivia })}
+              </span>
+            )}
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${varit.merkki}`}
+              title={tayta(tx.fillLabel, { n: ryhma.ampujia, koko: ryhma.koko })}
+              aria-label={tayta(tx.fillLabel, { n: ryhma.ampujia, koko: ryhma.koko })}
+            >
+              {tayta(tx.fill, { n: ryhma.ampujia, koko: ryhma.koko })}
+            </span>
+          </div>
+          {korostettuja.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {korostettuja.map(({ sarja, n }) => (
+                <span key={sarja} className={`rounded px-1.5 py-0.5 text-xs font-semibold ${sarjaVarit.get(sarja).merkki}`} translate="no">
+                  {sarja} × {n}
+                </span>
+              ))}
+            </div>
+          )}
+          {ajat.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs" aria-label={tx.startTimes}>
+              <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {ajat.map(({ paiva, aika }, i) => (
+                <span key={i} className="tabular-nums">
+                  {paiva && <span className="font-medium">{paiva} </span>}
+                  {aika}
+                </span>
+              ))}
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1.5 p-2">
+          {ryhma.paikat.map((paikka) => {
+            const onAmpuja = paikka.tyyppi === 'ampuja' || paikka.tyyppi === 'lukittu';
+            const siirrettava = voiSiirtaa(paikka);
+            const lukossa = paikka.onTuloksia || paikka.tyyppi === 'lukittu';
+            const lukonSyy = paikka.onTuloksia ? tx.locked : tx.formulaName;
+            const eiTuomaroiva = eiTuomaroi(paikka);
+            const korostus = onAmpuja ? sarjaVarit.get(paikka.sarja) : null;
+            const onLahde = raahaus?.lahde.rivi === paikka.rivi;
+            const onKohde = raahaus && kohdeRivi === paikka.rivi && !onLahde;
+            const onValittu = valittuRivi === paikka.rivi;
+            const kehys = onKohde
+              ? (lukossa ? 'border-rose-400 bg-rose-50' : 'border-[hsl(var(--primary))] bg-[hsl(var(--muted))] ring-2 ring-[hsl(var(--primary))]')
+              : onValittu ? 'border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary))]'
+                : korostus ? korostus.rivi
+                  : eiTuomaroiva ? 'border-violet-300 bg-violet-50'
+                  : onAmpuja ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
+                  : `border-dashed border-[hsl(var(--border))]${valittu ? ' bg-[hsl(var(--muted))]' : ''}`;
+            return (
+              <div
+                key={paikka.rivi}
+                data-ampuja-rivi={paikka.rivi}
+                className={`flex select-none items-stretch rounded-md border text-sm [-webkit-touch-callout:none] ${kehys}${onLahde ? ' opacity-40' : ''}`}
+              >
+                {siirrettava ? (
+                  <button
+                    type="button"
+                    aria-label={tayta(tx.dragHandle, { nimi: paikka.nimi })}
+                    className="flex w-10 shrink-0 cursor-grab touch-none items-center justify-center text-[hsl(var(--muted-foreground))] active:cursor-grabbing"
+                    onPointerDown={(e) => aloitaRaahaus(e, paikka)}
+                    onPointerMove={liikuta}
+                    onPointerUp={(e) => pudota(e)}
+                    onPointerCancel={(e) => pudota(e, true)}
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <GripVertical className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <span className="flex w-10 shrink-0 items-center justify-center text-[hsl(var(--muted-foreground))]" title={lukossa ? lukonSyy : undefined}>
+                    {lukossa && <Lock className="h-4 w-4" aria-label={lukonSyy} />}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="flex min-h-11 flex-1 items-center gap-2 py-1.5 pr-3 text-left disabled:cursor-default"
+                  onClick={() => napauta(paikka)}
+                  disabled={!muokattava || tallennetaan || (!onAmpuja && !valittu)}
+                  aria-pressed={onValittu}
+                >
+                  <span className="w-8 shrink-0 text-right font-semibold tabular-nums text-[hsl(var(--muted-foreground))]" translate="no">{paikka.nro}</span>
+                  {onAmpuja ? (
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium" translate="no">{paikka.nimi}</span>
+                      <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]" translate="no">
+                        {korostus || eiTuomaroiva ? (
+                          <>
+                            <span
+                              className={`rounded px-1 font-semibold ${korostus ? korostus.merkki : 'bg-violet-600 text-white'}`}
+                              title={eiTuomaroiva ? tx.nonReferee : undefined}
+                            >
+                              {paikka.sarja}
+                            </span>
+                            {paikka.seura && ` · ${paikka.seura}`}
+                          </>
+                        ) : [paikka.sarja, paikka.seura].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="min-w-0 flex-1 italic text-[hsl(var(--muted-foreground))]">{tx.freeSlot}</span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    );
   };
 
   if (!kaytossa) {
@@ -394,113 +550,67 @@ export default function RyhmaJako({ sheetId, ryhmaKoko, ryhmittely, aikataulut, 
         </div>
       )}
 
-      {data && (
+      {data && ryhmat.length > 0 && (
+        <Card>
+          <CardContent className="space-y-3 p-3">
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={tx.highlight}>
+              <span className="mr-1 text-sm font-medium">{tx.highlight}</span>
+              {sarjat.map(({ sarja, maara }) => {
+                const vari = sarjaVarit.get(sarja);
+                return (
+                  <button
+                    key={sarja}
+                    type="button"
+                    aria-pressed={Boolean(vari)}
+                    onClick={() => vaihdaKorostus(sarja)}
+                    className={`min-h-9 rounded-full border px-3 text-sm ${vari ? `${vari.merkki} border-transparent` : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'}`}
+                    translate="no"
+                  >
+                    {sarja} <span className="opacity-75">{maara}</span>
+                  </button>
+                );
+              })}
+              {korostetut.length > 0 && (
+                <Button type="button" size="sm" variant="ghost" onClick={() => setKorostetut([])}>{tx.clearHighlight}</Button>
+              )}
+            </div>
+            {lahtoajat.paivat.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-sm font-medium">{tx.view}</span>
+                {[['ryhmat', tx.viewSquads], ['ajat', tx.viewTimes]].map(([arvo, teksti]) => (
+                  <Button key={arvo} type="button" size="sm" variant={nakyma === arvo ? 'secondary' : 'outline'} aria-pressed={nakyma === arvo} onClick={() => setNakyma(arvo)}>
+                    {teksti}
+                  </Button>
+                ))}
+                {nakyma === 'ajat' && lahtoajat.paivat.length > 1 && lahtoajat.paivat.map((p) => (
+                  <Button key={p.avain} type="button" size="sm" variant={valittuPaiva === p.avain ? 'secondary' : 'ghost'} aria-pressed={valittuPaiva === p.avain} onClick={() => setPaivaValinta(p.avain)}>
+                    {p.nimi}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {data && nakyma === 'ajat' && lahtoajat.paivat.length > 0 ? (
+        <div className="space-y-4">
+          {ryhmatAjoittain(ryhmat, (r) => ryhmanLahtoajat(lahtoajat, r), valittuPaiva).map(({ aika, ryhmat: samaan }) => (
+            <section key={aika || 'ei-aikaa'} className="space-y-2">
+              <h3 className="flex items-center gap-1.5 px-1 text-sm font-semibold tabular-nums">
+                <Clock className="h-4 w-4" aria-hidden="true" />
+                {aika || tx.noStartTime}
+                <span className="font-normal text-[hsl(var(--muted-foreground))]">· {tayta(tx.squadCount, { n: samaan.length })}</span>
+              </h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {samaan.map(ryhmaKortti)}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : data && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {ryhmat.map((ryhma) => {
-            const varit = TAYTTOASTE_VARIT[ryhmanTayttoaste(ryhma)];
-            const ajat = ryhmanLahtoajat(lahtoajat, ryhma);
-            const eiTuomaroivia = ryhma.paikat.filter(eiTuomaroi).length;
-            return (
-              <Card key={ryhma.numero} className={`overflow-hidden border-2 ${varit.kortti}`}>
-                <CardHeader className={`space-y-1 border-b border-[hsl(var(--border))] px-3 py-2 ${varit.otsikko}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-base">{tx.squad} {ryhma.numero}</CardTitle>
-                    {eiTuomaroivia > 0 && (
-                      <span className="ml-auto rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
-                        {tayta(tx.nonRefereeCount, { n: eiTuomaroivia })}
-                      </span>
-                    )}
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${varit.merkki}`}
-                      title={tayta(tx.fillLabel, { n: ryhma.ampujia, koko: ryhma.koko })}
-                      aria-label={tayta(tx.fillLabel, { n: ryhma.ampujia, koko: ryhma.koko })}
-                    >
-                      {tayta(tx.fill, { n: ryhma.ampujia, koko: ryhma.koko })}
-                    </span>
-                  </div>
-                  {ajat.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs" aria-label={tx.startTimes}>
-                      <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      {ajat.map(({ paiva, aika }, i) => (
-                        <span key={i} className="tabular-nums">
-                          {paiva && <span className="font-medium">{paiva} </span>}
-                          {aika}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="flex flex-col gap-1.5 p-2">
-                  {ryhma.paikat.map((paikka) => {
-                    const onAmpuja = paikka.tyyppi === 'ampuja' || paikka.tyyppi === 'lukittu';
-                    const siirrettava = voiSiirtaa(paikka);
-                    const lukossa = paikka.onTuloksia || paikka.tyyppi === 'lukittu';
-                    const lukonSyy = paikka.onTuloksia ? tx.locked : tx.formulaName;
-                    const eiTuomaroiva = eiTuomaroi(paikka);
-                    const onLahde = raahaus?.lahde.rivi === paikka.rivi;
-                    const onKohde = raahaus && kohdeRivi === paikka.rivi && !onLahde;
-                    const onValittu = valittuRivi === paikka.rivi;
-                    const kehys = onKohde
-                      ? (lukossa ? 'border-rose-400 bg-rose-50' : 'border-[hsl(var(--primary))] bg-[hsl(var(--muted))] ring-2 ring-[hsl(var(--primary))]')
-                      : onValittu ? 'border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary))]'
-                        : eiTuomaroiva ? 'border-violet-300 bg-violet-50'
-                          : onAmpuja ? 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
-                          : `border-dashed border-[hsl(var(--border))]${valittu ? ' bg-[hsl(var(--muted))]' : ''}`;
-                    return (
-                      <div
-                        key={paikka.rivi}
-                        data-ampuja-rivi={paikka.rivi}
-                        className={`flex select-none items-stretch rounded-md border text-sm [-webkit-touch-callout:none] ${kehys}${onLahde ? ' opacity-40' : ''}`}
-                      >
-                        {siirrettava ? (
-                          <button
-                            type="button"
-                            aria-label={tayta(tx.dragHandle, { nimi: paikka.nimi })}
-                            className="flex w-10 shrink-0 cursor-grab touch-none items-center justify-center text-[hsl(var(--muted-foreground))] active:cursor-grabbing"
-                            onPointerDown={(e) => aloitaRaahaus(e, paikka)}
-                            onPointerMove={liikuta}
-                            onPointerUp={(e) => pudota(e)}
-                            onPointerCancel={(e) => pudota(e, true)}
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <GripVertical className="h-5 w-5" aria-hidden="true" />
-                          </button>
-                        ) : (
-                          <span className="flex w-10 shrink-0 items-center justify-center text-[hsl(var(--muted-foreground))]" title={lukossa ? lukonSyy : undefined}>
-                            {lukossa && <Lock className="h-4 w-4" aria-label={lukonSyy} />}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          className="flex min-h-11 flex-1 items-center gap-2 py-1.5 pr-3 text-left disabled:cursor-default"
-                          onClick={() => napauta(paikka)}
-                          disabled={!muokattava || tallennetaan || (!onAmpuja && !valittu)}
-                          aria-pressed={onValittu}
-                        >
-                          <span className="w-8 shrink-0 text-right font-semibold tabular-nums text-[hsl(var(--muted-foreground))]" translate="no">{paikka.nro}</span>
-                          {onAmpuja ? (
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium" translate="no">{paikka.nimi}</span>
-                              <span className="block truncate text-xs text-[hsl(var(--muted-foreground))]" translate="no">
-                                {eiTuomaroiva ? (
-                                  <>
-                                    <span className="rounded bg-violet-600 px-1 font-semibold text-white" title={tx.nonReferee}>{paikka.sarja}</span>
-                                    {paikka.seura && ` · ${paikka.seura}`}
-                                  </>
-                                ) : [paikka.sarja, paikka.seura].filter(Boolean).join(' · ')}
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="min-w-0 flex-1 italic text-[hsl(var(--muted-foreground))]">{tx.freeSlot}</span>
-                          )}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {ryhmat.map(ryhmaKortti)}
         </div>
       )}
 

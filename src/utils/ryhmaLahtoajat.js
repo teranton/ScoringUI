@@ -16,11 +16,12 @@ function lisaa(kartta, avain, paiva, aika) {
   if (!kartta.has(avain)) kartta.set(avain, new Map());
   const paivat = kartta.get(avain);
   const vanha = paivat.get(paiva.avain);
-  if (!vanha || toSortValue(aika) < toSortValue(vanha.aika)) paivat.set(paiva.avain, { paiva: paiva.nimi, aika });
+  if (!vanha || toSortValue(aika) < toSortValue(vanha.aika)) paivat.set(paiva.avain, { avain: paiva.avain, paiva: paiva.nimi, aika });
 }
 
 // aikataulut: [{ key, raw, label }] (App.jsx aikatauluCsvList). tx: aikatauluRyhma-tekstit (päivien nimet).
-// Palauttaa { ryhmittain: Map<ryhmä, Map<päiväavain, { paiva, aika }>>, numeroittain: Map<numero, sama> }.
+// Palauttaa { paivat: [{ avain, nimi }], ryhmittain: Map<ryhmä, Map<päiväavain, { avain, paiva, aika }>>,
+// numeroittain: Map<numero, sama> }.
 // Päivän nimi jätetään pois, kun aikataulussa on vain yksi päivä.
 export function lueLahtoajat(aikataulut, ryhmittely, tx) {
   const ryhmittain = new Map();
@@ -50,10 +51,10 @@ export function lueLahtoajat(aikataulut, ryhmittely, tx) {
       }
     }
   }
-  return { ryhmittain, numeroittain };
+  return { paivat: osiot.map(({ avain, nimi }) => ({ avain, nimi })), ryhmittain, numeroittain };
 }
 
-// Ryhmän lähtöajat näytettäväksi: [{ paiva, aika }] päivien järjestyksessä.
+// Ryhmän lähtöajat näytettäväksi: [{ avain, paiva, aika }] päivien järjestyksessä.
 export function ryhmanLahtoajat(lahtoajat, ryhma) {
   if (!lahtoajat) return [];
   const suoraan = lahtoajat.ryhmittain.get(ryhma.numero);
