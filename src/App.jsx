@@ -5,6 +5,9 @@ import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import RankingTulokset from './RankingTulokset';
+import RyhmaJako from './RyhmaJako';
+import { googleClientId } from './utils/googleKayttaja';
+import { ryhmaKokoAsetuksesta } from './utils/ryhmaMuokkaus';
 import { parseCsvRows } from './utils/csv';
 import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
@@ -21,6 +24,7 @@ import {
   haeAikatauluMalliSpekseista,
   haeAikatauluNakyvyysSpekseista,
   haeAikatauluRyhmittelySpekseista,
+  haeEiTuomaroivatSarjatSpekseista,
   haeSponsoriLogoNakyvyysSpekseista
 } from './utils/kisaAsetukset';
 import {
@@ -89,6 +93,7 @@ export default function App() {
 
   const tx = haeTekstit('app', locale);
   const txTuloste = haeTekstit('tulosteTulokset', locale);
+  const txRyhmat = haeTekstit('ryhmaJako', locale);
 
   // Tulosluettelo renderöidään ensin, sitten avataan selaimen tulostusikkuna.
   useEffect(() => {
@@ -274,10 +279,16 @@ export default function App() {
     () => haeAikatauluRyhmittelySpekseista(nykyisenKisanParsitutRivit.speksitRows || []) || 'inline',
     [nykyisenKisanParsitutRivit.speksitRows]
   );
+  const eiTuomaroivatSarjat = useMemo(
+    () => haeEiTuomaroivatSarjatSpekseista(nykyisenKisanParsitutRivit.speksitRows || []),
+    [nykyisenKisanParsitutRivit.speksitRows]
+  );
   const aikatauluMalliAsetus = useMemo(
     () => haeAikatauluMalliSpekseista(nykyisenKisanParsitutRivit.speksitRows || []) || 'inline',
     [nykyisenKisanParsitutRivit.speksitRows]
   );
+  // Ryhmien muokkaus järjestäjille (oma Google-kirjautuminen), kunnes kisa on päättynyt.
+  const onkoRyhmaMuokkausSallittu = Boolean(valittuKisa?.apiUrl) && Boolean(googleClientId()) && !onkoKisaPaattynyt;
   const kaytaRyhmaAikatauluNakymaa = aikatauluMalliAsetus === 'groups' || aikatauluRyhmittelyAsetus !== 'inline';
   // Compak-aikataululla (rata-ruudukko) on oma A4-tuloste. Se on sivulla aina aikataulunäkymässä, jotta
   // myös selaimen oma tulostus (Ctrl+P) tulostaa sen eikä näytön ruudukkoa.
@@ -322,7 +333,8 @@ export default function App() {
     onkoKisaPaattynyt,
     onkoKisaTulossa,
     onkoTaulukkoSallittu,
-    onkoTuloksetSallittu
+    onkoTuloksetSallittu,
+    onkoRyhmaMuokkausSallittu
   });
   if (seuraavaAktiivinenSivu !== aktiivinenSivu) {
     setAktiivinenSivu(seuraavaAktiivinenSivu);
@@ -636,6 +648,17 @@ export default function App() {
               )}
             </div>
           )}
+          {aktiivinenSivu === 'ryhmat' && onkoRyhmaMuokkausSallittu && (
+            <RyhmaJako
+              key={valittuKisa.apiUrl}
+              sheetId={valittuKisa.apiUrl}
+              ryhmaKoko={ryhmaKokoAsetuksesta(aikatauluRyhmittelyAsetus)}
+              ryhmittely={aikatauluRyhmittelyAsetus}
+              aikataulut={aikatauluCsvList}
+              eiTuomaroivat={eiTuomaroivatSarjat}
+              locale={locale}
+            />
+          )}
           {aktiivinenSivu === 'materiaalit' && onkoMateriaaleja && nykyisenKisanData && (
             <div className="mx-auto w-full max-w-3xl">
               <MateriaaliNakyma specsCsv={nykyisenKisanData.speksitCsvRaw} locale={locale} />
@@ -650,6 +673,13 @@ export default function App() {
       )}
 
       <footer className="pt-1 text-center text-xs text-[hsl(var(--muted-foreground))]">
+        {onkoRyhmaMuokkausSallittu && aktiivinenSivu !== 'ryhmat' && (
+          <div className="pb-1 app-print-hide-nav">
+            <button type="button" className="underline hover:text-[hsl(var(--foreground))]" onClick={() => setAktiivinenSivu('ryhmat')}>
+              {txRyhmat.openEditor}
+            </button>
+          </div>
+        )}
         {tx.contactLabel}:{' '}
         <a href={`mailto:${yhteysSahkoposti}`} className="underline hover:text-[hsl(var(--foreground))]">
           {yhteysSahkoposti}

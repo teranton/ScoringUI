@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Squad editing for organisers (`RyhmaJako.jsx`): reads the main tab through the named range `OSALLISTUJAT` and swaps
+  two shooters' entered values, with the organiser's own Google account (not the service account). Squads and
+  numbers stay position based, as ScoringLib builds them. No layout change; ScoringLib must keep the named range,
+  the header row above it and position-based squads (see "Squad editing" in `sheet-layout.md`).
+  The editor also moves shooters to free places (writes the place number as the name, the shuffle's convention)
+  and reorders squads, and shows each squad's start times from the `Aikataulu*` tabs. No layout change.
+- The squad editor reads the `KISANSPEKSIT` key `Ei tuomaroivat:` (already used by ScoringLib's shuffle and
+  timetable) to highlight shooters in classes that don't referee. No layout change.
 - New competitions are created before registration: ScoringLib no longer builds the group timetable at
   creation. `Aikataulu` (Sporting, FITASC, ESP) holds only an instruction text in A1 until the organiser runs 🏆 Competition → Luo aikataulu, which builds it in the usual group format from the registered
   shooters (rerunnable). `AIKATAULU_NAKYVYYS` is `FALSE` on a new competition and the menu doesn't change it: the

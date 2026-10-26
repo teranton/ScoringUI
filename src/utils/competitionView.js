@@ -10,8 +10,15 @@ function seuraavaSivuYhdenKierroksen({
   onkoKisaPaattynyt,
   onkoKisaTulossa,
   onkoTaulukkoSallittu,
-  onkoTuloksetSallittu
+  onkoTuloksetSallittu,
+  onkoRyhmaMuokkausSallittu
 }) {
+  // Ryhmien muokkaus avataan erikseen, ja se on auki myös ennen kisaa, vaikka aikataulu olisi vielä piilossa.
+  if (aktiivinenSivu === 'ryhmat') {
+    if (onkoRyhmaMuokkausSallittu) return 'ryhmat';
+    return onkoTuloksetSallittu ? 'tulokset' : 'ilmoittautuneet';
+  }
+
   if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'aikataulu' && aktiivinenSivu !== 'materiaalit') {
     return onkoIlmoittautuneita ? 'ilmoittautuneet' : (onkoAikatauluSallittu ? 'aikataulu' : (onkoMateriaaleja ? 'materiaalit' : 'ilmoittautuneet'));
   }
