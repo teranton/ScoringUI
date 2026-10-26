@@ -146,6 +146,13 @@ export function laskeRankingStatus(alkuStr, loppuStr, speksitData, nyt = new Dat
   return { ...STATUS_TYYLIT.kaynnissa };
 }
 
+// Onko kisa tai ranking päättynyt jo päivämäärien mukaan (ilman KILPAILUNSTATUS-asetusta). Pelkällä
+// FINISHED-asetuksella päättynyt kisa voidaan palauttaa käyntiin, joten sen asetuksia ei voi jättää hakematta.
+export function onkoPaattynytPaivista(kisa, nyt = new Date()) {
+  const tila = kisa?.onkoRanking ? laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, '', nyt) : laskeKisanPaivaStatus(kisa, nyt);
+  return tila.status === 'paattynyt';
+}
+
 // Kisan tai rankingin näkyvä tila.
 export function laskeStatusKisalle(kisa, speksitData, nyt = new Date()) {
   if (kisa?.onkoRanking) return laskeRankingStatus(kisa.alkuPvm, kisa.loppuPvm, speksitData, nyt);
