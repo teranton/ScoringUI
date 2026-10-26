@@ -91,7 +91,7 @@ const paikanNimi = (nimiSolu, tyyppi) => {
 export const vapaanPaikanNimi = (paikka) => String(Number(paikka.nro) || paikka.paikka + 1);
 
 // Ampujan paikka: nimi syötetty tai kaavasta.
-const onAmpuja = (p) => p.tyyppi === 'ampuja' || p.tyyppi === 'lukittu';
+export const onAmpuja = (p) => p.tyyppi === 'ampuja' || p.tyyppi === 'lukittu';
 
 // rowData: spreadsheets.get-vastauksen sheets[0].data[0].rowData (otsikkorivi ensin).
 // Palauttaa alueen kaikki paikat järjestyksessä. Paikka on rivin järjestysnumero alueella (0 = ensimmäinen).

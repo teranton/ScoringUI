@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { haeTekstit } from '../i18n.js';
-import { lueLahtoajat, ryhmanLahtoajat } from './ryhmaLahtoajat.js';
+import { lueLahtoajat, ryhmanLahtoajat as lahtoajatAvaimin } from './ryhmaLahtoajat.js';
+
+const ryhmanLahtoajat = (...a) => lahtoajatAvaimin(...a).map(({ paiva, aika }) => ({ paiva, aika }));
 
 const TX = haeTekstit('aikatauluRyhma', 'fi');
 const csv = (rows) => rows.map((row) => row.join(',')).join('\n');
@@ -60,4 +62,24 @@ test('samannimiset välilehdet pysyvät eri päivinä', () => {
     { key: 'aikataulu-su', raw: RATARUUDUKKO.replace('9:00', '8:30'), label: 'SM 2026' }
   ], 'inline', TX);
   assert.deepEqual(ryhmanLahtoajat(ajat, { numero: 2, paikat: [{ nro: '6' }] }), [{ paiva: 'SM 2026', aika: '9:00' }, { paiva: 'SM 2026', aika: '8:30' }]);
+});
+
+test('päivät ja avaimet aikataulun järjestyksessä', () => {
+  const ajat = lueLahtoajat([{ key: 'aikataulu-main', raw: YHDISTETTY, label: 'SM 2026' }], 'group6', TX);
+  assert.deepEqual(ajat.paivat.map((p) => p.nimi), ['Lauantai', 'Sunnuntai']);
+  assert.deepEqual(lahtoajatAvaimin(ajat, { numero: 1, paikat: [] }).map((l) => l.avain), ajat.paivat.map((p) => p.avain));
+});
+
+test('ryhmälista ilman aikoja ei ole päivä', () => {
+  const ryhmalista = csv([
+    ['Ryhmät | SM 2026'],
+    ['RYHMÄ', 'Nro', 'Nimi', 'Sarja', 'Seura'],
+    ['1', '1', 'Matti', 'Y', 'A']
+  ]);
+  assert.deepEqual(lueLahtoajat([{ key: 'aikataulu-ryhmat', raw: ryhmalista, label: 'Ryhmät' }], 'group6', TX).paivat, []);
+  const molemmat = lueLahtoajat([
+    { key: 'aikataulu-ryhmat', raw: ryhmalista, label: 'Ryhmät' },
+    { key: 'aikataulu-main', raw: YHDISTETTY, label: 'SM 2026' }
+  ], 'group6', TX);
+  assert.deepEqual(molemmat.paivat.map((p) => p.avain.split(':')[0]), ['aikataulu-main', 'aikataulu-main']);
 });

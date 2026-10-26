@@ -10,17 +10,19 @@ const numero = (arvo) => {
   return m ? parseInt(m[0], 10) : null;
 };
 
-// Päivä tunnistetaan välilehdestä ja sen päiväosiosta, joten samannimiset välilehdet pysyvät eri päivinä.
+// Päivä tunnistetaan välilehden avaimesta ja sen päiväosiosta, joten samannimiset välilehdet pysyvät eri päivinä.
 function lisaa(kartta, avain, paiva, aika) {
   if (avain === null || !aika) return;
+  paiva.ajallinen = true;
   if (!kartta.has(avain)) kartta.set(avain, new Map());
   const paivat = kartta.get(avain);
   const vanha = paivat.get(paiva.avain);
-  if (!vanha || toSortValue(aika) < toSortValue(vanha.aika)) paivat.set(paiva.avain, { paiva: paiva.nimi, aika });
+  if (!vanha || toSortValue(aika) < toSortValue(vanha.aika)) paivat.set(paiva.avain, { avain: paiva.avain, paiva: paiva.nimi, aika });
 }
 
 // aikataulut: [{ key, raw, label }] (App.jsx aikatauluCsvList). tx: aikatauluRyhma-tekstit (päivien nimet).
-// Palauttaa { ryhmittain: Map<ryhmä, Map<päiväavain, { paiva, aika }>>, numeroittain: Map<numero, sama> }.
+// Palauttaa { paivat: [{ avain, nimi }], ryhmittain: Map<ryhmä, Map<päiväavain, { avain, paiva, aika }>>,
+// numeroittain: Map<numero, sama> }.
 // Päivän nimi jätetään pois, kun aikataulussa on vain yksi päivä.
 export function lueLahtoajat(aikataulut, ryhmittely, tx) {
   const ryhmittain = new Map();
@@ -33,12 +35,13 @@ export function lueLahtoajat(aikataulut, ryhmittely, tx) {
     for (const osio of paivaosiot) {
       // Monen välilehden aikataulussa yhden päivän välilehti nimetään välilehden otsikolla.
       const nimi = lista.length > 1 && paivaosiot.length === 1 ? valilehti.label : paivanOtsikko(osio.label, tx);
-      osiot.push({ avain: `${v}:${osio.key}`, nimi, osio, mode: jasennetty.mode, laneRows: jasennetty.laneRows });
+      osiot.push({ avain: `${valilehti.key ?? v}:${osio.key}`, nimi, osio, mode: jasennetty.mode, laneRows: jasennetty.laneRows });
     }
   });
   const yksiPaiva = osiot.length <= 1;
-  for (const { avain, nimi, osio, mode, laneRows } of osiot) {
-    const paiva = { avain, nimi: yksiPaiva ? '' : nimi };
+  for (const o of osiot) {
+    const { avain, nimi, osio, mode, laneRows } = o;
+    const paiva = o.paiva = { avain, nimi: yksiPaiva ? '' : nimi };
     if (mode === 'combined-schedule') {
       for (const lahto of osio.heats || []) lisaa(ryhmittain, numero(lahto.groupLabel), paiva, lahto.time);
     } else if (mode === 'lane-grid') {
@@ -50,10 +53,12 @@ export function lueLahtoajat(aikataulut, ryhmittely, tx) {
       }
     }
   }
-  return { ryhmittain, numeroittain };
+  // Päiviksi lasketaan vain osiot, joilla on lähtöaikoja (ryhmälistassa ilman aikoja ei ole).
+  const paivat = osiot.filter((o) => o.paiva.ajallinen).map(({ avain, nimi }) => ({ avain, nimi }));
+  return { paivat, ryhmittain, numeroittain };
 }
 
-// Ryhmän lähtöajat näytettäväksi: [{ paiva, aika }] päivien järjestyksessä.
+// Ryhmän lähtöajat näytettäväksi: [{ avain, paiva, aika }] päivien järjestyksessä.
 export function ryhmanLahtoajat(lahtoajat, ryhma) {
   if (!lahtoajat) return [];
   const suoraan = lahtoajat.ryhmittain.get(ryhma.numero);
