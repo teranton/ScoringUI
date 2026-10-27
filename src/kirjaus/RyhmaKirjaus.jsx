@@ -371,13 +371,14 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     if (tila.aanet !== false) soita('korjaus');
   };
 
-  // Ampuja hyväksyy aseman tuloksensa. Kun kaikki ovat hyväksyneet, siirrytään seuraavalle kesken olevalle asemalle
-  // ammuntajärjestyksessä (aina samoin, valittiinpa asema itse, PERUlla tai automaattisesti).
-  const kuittaaAmpujanAsema = (nro) => {
+  // Ampujat hyväksyvät aseman tuloksensa yhdellä painalluksella (oletus; huomautus korjataan ensin korjaustilassa).
+  // Sitten siirrytään seuraavalle kesken olevalle asemalle ammuntajärjestyksessä (aina samoin, valittiinpa asema itse,
+  // PERUlla tai automaattisesti).
+  const kuittaaKaikki = () => {
     if (!layout || liianPian()) return;
     setTila((t) => {
-      const kortit = kuittaaAsema(t.kortit, layout, nro, asema);
       const mukana = ampujat.filter((a) => !t.keskeyttaneet.includes(a.nro));
+      const kortit = mukana.reduce((k, a) => kuittaaAsema(k, layout, a.nro, asema), t.kortit);
       const seuraavaA = asemaKesken(layout, asema, mukana, kortit) ? null : seuraavaAsema(layout, asema, mukana, kortit);
       return { ...t, kortit, layout: layout.nro, asema: seuraavaA ?? asema, valittu: null };
     });
@@ -666,25 +667,6 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           );
         })}
 
-        {kuittaamatta && !korjaustila && (
-          <div className="mt-2 flex flex-col gap-2 rounded-lg bg-white p-3">
-            <div className="font-semibold">Asema {asemat[asema].id} ammuttu. Jokainen ampuja tarkistaa ja hyväksyy aseman tuloksensa.</div>
-            {aktiiviset.map((a) => {
-              const merkit = merkitOf(tila.kortit, layout, a.nro);
-              return (
-                <div key={a.nro} className="flex items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate">{a.nro} {a.nimi}</span>
-                  <span className="shrink-0 text-xs text-slate-500">yht. {osumat(merkit)}/{taytetyt(merkit)}</span>
-                  <b className="shrink-0">{osumat(merkit.slice(alku, loppu))}/{loppu - alku}</b>
-                  {asemaKuitattu(tila.kortit, layout, a.nro, asema)
-                    ? <span className="shrink-0 rounded bg-green-700 px-2 py-1 text-xs text-white">Hyväksytty ✓</span>
-                    : <button type="button" className="shrink-0 rounded bg-blue-800 px-3 py-1.5 text-white" onClick={() => kuittaaAmpujanAsema(a.nro)}>Hyväksyn</button>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
         {layoutValmis && !kuittaamatta && !korjaustila && (
           <div className="mt-2 flex flex-col gap-2 rounded-lg bg-white p-3">
             <div className="font-semibold">{layout.nimi} ammuttu.</div>
@@ -721,6 +703,22 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           <>
             <div className="mb-1 truncate text-center text-sm">{kuittaus || 'Korjaustila: napauta korjattavaa kiekkoa. Asemaa voi vaihtaa yläpalkista.'}</div>
             <button type="button" className="h-14 w-full rounded-lg bg-blue-800 text-lg font-bold text-white" onClick={() => setKorjaustila(false)}>Lopeta korjaus</button>
+          </>
+        ) : kuittaamatta ? (
+          <>
+            <div className="mb-1 text-sm">
+              Asema {asemat[asema].id} ammuttu: ampujat tarkistavat tuloksensa yltä. Huomautus? <b>Korjaa</b> ensin.
+            </div>
+            <div className="grid grid-cols-[1fr_1fr_2fr] gap-2">
+              <button type="button" className="flex h-14 flex-col items-center justify-center rounded-lg border-2 border-slate-400 font-semibold active:bg-slate-200 disabled:opacity-30 sm:h-20" disabled={!viimeHistoria} onClick={peruViimeisin}>
+                <span className="text-lg leading-tight">PERU</span>
+                {viimeHistoria && <span className="text-[11px] font-normal leading-tight text-slate-600">{viimeHistoria.nro}</span>}
+              </button>
+              <button type="button" className="h-14 rounded-lg border-2 border-amber-600 bg-amber-50 text-lg font-bold text-amber-900 sm:h-20" onClick={() => setKorjaustila(true)}>Korjaa</button>
+              <button type="button" className="h-14 rounded-lg bg-green-700 text-lg font-bold leading-tight text-white active:bg-green-900 sm:h-20" onClick={kuittaaKaikki}>
+                Kaikki hyväksyvät ✓
+              </button>
+            </div>
           </>
         ) : (
           <>
