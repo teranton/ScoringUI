@@ -254,19 +254,28 @@ A squad code (payload `r` = squad number instead of `c`; ScoringLib lists them a
   station table (id header `LAYOUT` / `ASEMA` / `RATA` / `LANE` / `STATION` with `MAX` / `MAKS` / `MAARA` / `COUNT` right next
   to it, 26 rows below; fallback J3:K28) and `AIKATAULURYHMAKOKO`. The `LAYOUT/KISA` stations are split evenly over the
   layouts in order, as ScoringLib's `readLayouts`; station k overall is result column k on the main tab.
+  `RATAn_OHJELMA` on a one-station layout (FITASC): the pegs, comma separated, each `aS+bD` (`4S+2D, 4S+1D, 5S+1D`; a
+  double is 2 targets). Used only when the targets add up to the layout's; the phone then shows the pegs as stands
+  (singles first, then doubles with the order moved one place). Cards are still stored per sheet station.
 - `Aikataulu*` (every tab whose name starts with `Aikataulu`, in tab order): the group timetable's header row with
   `Start` and layout names, then time rows with `Ryhmä N` cells, gives each layout's round and start time for the squad.
+  The squad is the first number in the cell. With ScoringLib's `ALOITUSTAPA` = `ASEMILTA` (squads start on every stand)
+  the cell is `Ryhmä N · asema S`: S is the starting stand's id (station table id, FITASC peg number). The phone opens on
+  it, the stand order wraps from it and the first shooter moves one place per stand counted from it.
 
 Writes (created on the first save if missing):
 - `MOBIILI Layout N` (N = layout 1..): header `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, RYHMÄ, HYVÄKSYTTY`, then
-  `ASEMA <k>` per station (hits on station k, k = result column) and the targets `<k>/<1..max>` station by station.
-  Shooter n on row n + 1; `NIMI` from the main tab; `HYVÄKSYTTY` is the time the shooter confirmed the card on the phone
-  (empty again after any change). Only the squad's own shooters are written; other cards are refused and logged
+  `ASEMA <k>` per station (hits on station k, k = result column), the targets `<k>/<1..max>` station by station, and
+  last `KUITATUT`: the stands the shooter has confirmed on the phone, comma separated (phone stand ids: station table
+  ids, FITASC pegs 1..n). Shooter n on row n + 1; `NIMI` from the main tab; `HYVÄKSYTTY` is the time the shooter
+  confirmed the last stand, i.e. the whole card (empty again after any change; a change on a stand also removes that
+  stand from `KUITATUT`). Rows written before `KUITATUT` existed read as no stand confirmations. Only the squad's own shooters are written; other cards are refused and logged
   (`EI RYHMÄSSÄ …`). A tab narrower than the layout's targets is widened.
 - `MOBIILI_LOKI`: as above, `RATA` = `Layout N`, `HUOM` = `RYHMÄ <n>` (and `HYVÄKSYTTY`).
 - `MOBIILI_RYHMAT`: the phone holding each squad, header `RYHMÄ` then the same columns as `MOBIILI_LAITTEET` (squad n on
-  row n + 1). Another phone takes a held squad with a confirmation on the phone (no PIN: the code is on the squad's own
-  card). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
+  row n + 1). Another phone takes a held squad only after the holder releases it or with the squad's office PIN
+  (ScoringLib's Laitteen vaihto: PIN-koodit lists held squads; the PIN is `vaihtoPin` with `r<squad>` in place of the
+  layout, and `PIN-VIRHEET` counts wrong PINs as for layouts). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
 
 Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
 

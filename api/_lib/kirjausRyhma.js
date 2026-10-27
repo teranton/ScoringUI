@@ -52,8 +52,22 @@ function layoutNimet(rivit) {
   return Array.from({ length: 8 }, (_, i) => String(rivit[2 + i]?.[7] ?? '').trim()).filter(Boolean);
 }
 
-// Layoutit: [{ nro, nimi, asemat: [{ sarake, id, kohteita }], kohteita }]. Asemia on LAYOUT/KISA (muuten asemataulukon
+// FITASC-layoutin ohjelma RATAn_OHJELMA-avaimesta: pisteet pilkuilla, kukin "4S+2D" (sinkut ensin, tupla = 2 kiekkoa).
+// Palauttaa [{ sinkut, tuplat }] tai null (ei tätä muotoa, esim. Compakin "SSSD"). Sama kuin ScoringLib fitascOhjelma.
+export function fitascOhjelma(arvo) {
+  const teksti = String(arvo ?? '').trim().toUpperCase();
+  if (!teksti) return null;
+  const pisteet = teksti.split(/\s*[,;]\s*/).filter(Boolean).map((osa) => {
+    const m = osa.match(/^(?:(\d+)\s*S)?\s*\+?\s*(?:(\d+)\s*D)?$/);
+    if (!m || (m[1] === undefined && m[2] === undefined)) return null;
+    return { sinkut: Number(m[1] || 0), tuplat: Number(m[2] || 0) };
+  });
+  return pisteet.length && pisteet.every((p) => p && p.sinkut + p.tuplat > 0) ? pisteet : null;
+}
+
+// Layoutit: [{ nro, nimi, asemat: [{ sarake, id, kohteita }], kohteita, ohjelma? }]. Asemia on LAYOUT/KISA (muuten asemataulukon
 // asemat, joilla on maksimi), ja ne jaetaan tasan layouteille järjestyksessä. sarake on aseman tulossarake (1..) pääsivulla.
+// ohjelma: yhden aseman layoutille (FITASC) RATAn_OHJELMA-pisteet, kun niiden kiekot täsmäävät layoutiin.
 // Palauttaa { layoutit } tai { virhe }.
 export function lueLayoutit(rivit) {
   const nimet = layoutNimet(rivit);
@@ -66,7 +80,10 @@ export function lueLayoutit(rivit) {
   const per = maara / nimet.length;
   const layoutit = nimet.slice(0, MAKS_LAYOUT).map((nimi, i) => {
     const asemat = taulu.slice(i * per, (i + 1) * per).map((a, k) => ({ sarake: i * per + k + 1, id: a.id, kohteita: a.kohteita }));
-    return { nro: i + 1, nimi, asemat, kohteita: asemat.reduce((s, a) => s + a.kohteita, 0) };
+    const kohteita = asemat.reduce((s, a) => s + a.kohteita, 0);
+    const ohjelma = asemat.length === 1 ? fitascOhjelma(speksiArvo(rivit, `RATA${i + 1}_OHJELMA`)) : null;
+    const sopii = ohjelma && ohjelma.reduce((s, p) => s + p.sinkut + 2 * p.tuplat, 0) === kohteita;
+    return { nro: i + 1, nimi, asemat, kohteita, ...(sopii ? { ohjelma } : {}) };
   });
   if (layoutit.some((l) => l.kohteita < 1 || l.kohteita > MAKS_KOHTEITA)) {
     return { virhe: `KISANSPEKSIT: layoutin kiekkomäärä ei ole välillä 1–${MAKS_KOHTEITA}` };
@@ -128,9 +145,11 @@ const minuutit = (aika) => {
 };
 
 // Ryhmän vuorot ryhmäaikataulusta (Aikataulu-välilehdet välilehtijärjestyksessä): otsikkorivillä "Start" ja layoutien
-// nimet, sen alla aikarivit, joiden soluissa "Ryhmä N". Päivät välilehtien järjestyksessä ja ylhäältä alas, rinnakkaiset
-// istunnot lähtöajan mukaan (ScoringLib ScoreCardFill.squadRounds).
-// aikataulut: [{ nimi, rivit }]. Palauttaa { [layoutin nro]: { kierros (0..), aika, paiva } }; tyhjä, jos ryhmää ei löydy.
+// nimet, sen alla aikarivit, joiden soluissa "Ryhmä N" tai asemalähdössä "Ryhmä N · asema S" (ryhmä = solun ensimmäinen
+// luku, S = lähtöaseman tunnus). Päivät välilehtien järjestyksessä ja ylhäältä alas, rinnakkaiset istunnot lähtöajan
+// mukaan (ScoringLib ScoreCardFill.squadRounds).
+// aikataulut: [{ nimi, rivit }]. Palauttaa { [layoutin nro]: { kierros (0..), aika, paiva, alkuasema? } }; tyhjä, jos
+// ryhmää ei löydy.
 export function ryhmanVuorot(aikataulut, layoutit, ryhma) {
   const haetut = new Map(layoutit.map((l) => [n(l.nimi), l.nro]));
   const vuorot = [];
@@ -146,16 +165,20 @@ export function ryhmanVuorot(aikataulut, layoutit, ryhma) {
           const aika = minuutit(aikaRivi[sc]);
           if (aika === null) break;
           for (const { c, nro } of sarakkeet) {
-            const m = String(aikaRivi[c] ?? '').match(/(\d+)\s*$/);
+            const solu = String(aikaRivi[c] ?? '');
+            const m = solu.match(/(\d+)/);
             if (!m || Number(m[1]) !== ryhma || vuorot.some((x) => x.nro === nro)) continue;
-            vuorot.push({ nro, avain: [v, r, aika], aika: String(aikaRivi[sc]).trim(), paiva: nimi });
+            const asema = solu.match(/asema\s*(.+?)\s*$/i);
+            vuorot.push({ nro, avain: [v, r, aika], aika: String(aikaRivi[sc]).trim(), paiva: nimi, ...(asema ? { alkuasema: asema[1].slice(0, 20) } : {}) });
           }
         }
       });
     });
   });
   vuorot.sort((a, b) => a.avain[0] - b.avain[0] || a.avain[1] - b.avain[1] || a.avain[2] - b.avain[2]);
-  return Object.fromEntries(vuorot.map((x, kierros) => [x.nro, { kierros, aika: x.aika, paiva: x.paiva }]));
+  return Object.fromEntries(vuorot.map((x, kierros) => [x.nro, {
+    kierros, aika: x.aika, paiva: x.paiva, ...(x.alkuasema ? { alkuasema: x.alkuasema } : {})
+  }]));
 }
 
 // --- Kortit ---
@@ -164,12 +187,14 @@ export function ryhmanVuorot(aikataulut, layoutit, ryhma) {
 export const onkoRyhmaMerkit = (merkit, kohteita) => typeof merkit === 'string' && merkit.length === kohteita && /^[XO-]+$/.test(merkit);
 
 // MOBIILI Layout N -otsikko: NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, RYHMÄ, HYVÄKSYTTY, asemien tulokset
-// (ASEMA <tulossarake>), sitten kiekot <tulossarake>/<kiekko>.
+// (ASEMA <tulossarake>), kiekot <tulossarake>/<kiekko> ja lopuksi KUITATUT (ampujan hyväksymät asemat pilkuilla;
+// lopussa, jotta ennen sitä kirjoitetut rivit luetaan ennallaan).
 export function ryhmaKorttiOtsikko(layout) {
   return [
     'NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', 'RYHMÄ', 'HYVÄKSYTTY',
     ...layout.asemat.map((a) => `ASEMA ${a.sarake}`),
-    ...layout.asemat.flatMap((a) => Array.from({ length: a.kohteita }, (_, k) => `${a.sarake}/${k + 1}`))
+    ...layout.asemat.flatMap((a) => Array.from({ length: a.kohteita }, (_, k) => `${a.sarake}/${k + 1}`)),
+    'KUITATUT'
   ];
 }
 
@@ -183,13 +208,13 @@ export function asemienTulokset(layout, merkit) {
   });
 }
 
-export function ryhmaKorttiRivi(layout, { nro, nimi, merkit, versio, laite, aika, ryhma, hyvaksytty }) {
+export function ryhmaKorttiRivi(layout, { nro, nimi, merkit, versio, laite, aika, ryhma, hyvaksytty, kuitatut }) {
   const asemat = asemienTulokset(layout, merkit);
   return [nro, nimi || '', asemat.reduce((s, x) => s + x, 0), aika, laite, versio, ryhma, hyvaksytty || '',
-    ...asemat, ...[...merkit].map((m) => (m === '-' ? '' : m))];
+    ...asemat, ...[...merkit].map((m) => (m === '-' ? '' : m)), (kuitatut || []).join(',')];
 }
 
-// MOBIILI Layout N -rivi → { nro, merkit, versio, laite, aika, hyvaksytty } tai null (tyhjä rivi).
+// MOBIILI Layout N -rivi → { nro, merkit, versio, laite, aika, hyvaksytty, kuitatut } tai null (tyhjä rivi).
 export function lueRyhmaKorttiRivi(rivi, layout) {
   if (!Array.isArray(rivi)) return null;
   const nro = Number.parseInt(rivi[0], 10);
@@ -206,7 +231,8 @@ export function lueRyhmaKorttiRivi(rivi, layout) {
     versio: Number.isFinite(versio) ? versio : 0,
     laite: String(rivi[4] ?? ''),
     aika: String(rivi[3] ?? ''),
-    hyvaksytty: String(rivi[7] ?? '').trim()
+    hyvaksytty: String(rivi[7] ?? '').trim(),
+    kuitatut: String(rivi[alku + layout.kohteita] ?? '').split(',').map((x) => x.trim()).filter(Boolean)
   };
 }
 
@@ -234,13 +260,16 @@ export function tarkistaRyhmaTallennus(runko, onLaitetunnus) {
     if (!Number.isSafeInteger(k.versio) || k.versio < 1) return { virhe: 'Virheellinen versio' };
     if (k.hyvaksytty !== undefined && k.hyvaksytty !== null && k.hyvaksytty !== true && k.hyvaksytty !== false
       && (!Number.isSafeInteger(k.hyvaksytty) || k.hyvaksytty < HYVAKSYNTA_MIN_MS)) return { virhe: 'Virheellinen hyväksyntä' };
+    if (k.kuitatut !== undefined && (!Array.isArray(k.kuitatut) || k.kuitatut.length > 50
+      || !k.kuitatut.every((x) => typeof x === 'string' && x.length >= 1 && x.length <= 20 && !x.includes(',')))) return { virhe: 'Virheelliset asemahyväksynnät' };
     if (k.jako !== undefined && (typeof k.jako !== 'string' || !/^\d{1,3}(,\d{1,3}){0,49}$/.test(k.jako))) return { virhe: 'Virheellinen asemajako' };
   }
   return {
     laite,
     haltija,
     kortit: kortit.map((k) => ({
-      layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: k.hyvaksytty || null, ...(k.jako ? { jako: k.jako } : {})
+      layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: k.hyvaksytty || null,
+      kuitatut: [...new Set((k.kuitatut || []).map((x) => x.trim()).filter(Boolean))], ...(k.jako ? { jako: k.jako } : {})
     }))
   };
 }

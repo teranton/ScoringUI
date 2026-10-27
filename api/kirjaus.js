@@ -6,7 +6,8 @@
 // sen. Korvatun laitteen kortteja ei tallenneta: ne kirjataan lokiin ristiriitoina kilpailutoimistolle.
 // Ryhmäkoodilla (Sporting / FITASC / ESP) samat toiminnot koskevat yhtä ryhmää: avaa antaa ryhmän ampujat, layoutit
 // asemineen ja kortit, tallenna kirjoittaa MOBIILI Layout N -välilehdille vain ryhmän ampujien kortteja, ja haltija on
-// MOBIILI_RYHMAT-välilehdellä. Ryhmän saa toiselle puhelimelle ilman PIN-koodia (koodi on ryhmän omalla kortilla).
+// MOBIILI_RYHMAT-välilehdellä. Varatun ryhmän saa toiselle puhelimelle kuten radan: luovutuksella tai kilpailutoimiston
+// ryhmän PIN-koodilla (ScoringLib laskee sen sarakkeella "r<ryhmä>").
 // Pääsy rata- tai ryhmäkoodilla (Authorization: Bearer <koodi>, api/_lib/kirjausAvain.js). Kirjoittaa erillisellä
 // kirjuripalvelutilillä, joka on jaettu muokkaajaksi vain kisoihin, joissa mobiilikirjaus on käytössä.
 // Google-kiintiö on 60 lukua ja 60 kirjoitusta minuutissa per tili, joten tallennus tekee yhden luvun
@@ -322,7 +323,7 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
 
 // --- Ryhmäpuhelin (Sporting / FITASC / ESP) ---
 
-// Kortin rivi ilman tietoa layoutin leveydestä: riittävän leveä alue kaikille layouteille (8 + asemat + 200 kiekkoa).
+// Kortin rivi ilman tietoa layoutin leveydestä: riittävän leveä alue kaikille layouteille (8 + asemat + 200 kiekkoa + KUITATUT).
 const RYHMA_RIVIN_LOPPU = 'JZ';
 const ryhmaKorttiAlue = (nimi, nro) => `${valilehtiAlue(nimi)}!A${nro + 1}:${RYHMA_RIVIN_LOPPU}${nro + 1}`;
 const ryhmanTunnus = (k) => `${k.layout}:${k.nro}`;
@@ -375,7 +376,7 @@ async function avaaRyhma(request, { sheetId, ryhma, voimassaAsti }, { laite, hal
   const kortit = [];
   luettavat.forEach(({ layout }, i) => {
     const k = lueRyhmaKorttiRivi((omat[i] || [])[0], layout);
-    if (k && k.versio > 0) kortit.push({ layout: layout.nro, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: Boolean(k.hyvaksytty) });
+    if (k && k.versio > 0) kortit.push({ layout: layout.nro, nro: k.nro, merkit: k.merkit, versio: k.versio, kuitatut: k.kuitatut, hyvaksytty: Boolean(k.hyvaksytty) });
   });
   const rivi = lueLaiteRivi(haltijaTab ? (omat[luettavat.length] || [])[0] : null, { ryhma: true });
   const julkinen = julkinenHaltija(rivi, laite);
@@ -516,7 +517,10 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
     if (vanha && vanha.versio >= kortti.versio) {
       if (vanha.versio === kortti.versio && vanha.merkit === kortti.merkit) tallennetut.push({ layout: layout.nro, nro: kortti.nro });
       else {
-        uudemmat.push({ layout: layout.nro, nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio, hyvaksytty: Boolean(vanha.hyvaksytty), muuLaite: vanha.laite !== laite, aika: vanha.aika });
+        uudemmat.push({
+          layout: layout.nro, nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio, kuitatut: vanha.kuitatut,
+          hyvaksytty: Boolean(vanha.hyvaksytty), muuLaite: vanha.laite !== laite, aika: vanha.aika
+        });
       }
       continue;
     }
@@ -631,14 +635,13 @@ async function radanJonossa(tunnus, toimi) {
 }
 
 const TAVAT = {
-  vapaa: 'vapaa rata', siirto: 'siirto edelliseltä laitteelta', pin: 'kilpailutoimiston PIN-koodi',
-  ryhma: 'ryhmän koodi, vahvistettu uudella puhelimella'
+  vapaa: 'vapaa rata', siirto: 'siirto edelliseltä laitteelta', pin: 'kilpailutoimiston PIN-koodi'
 };
 
 // Ottaa radan tai ryhmän tälle laitteelle: vapaa suoraan, sama laite saa avaimensa uudelleen, varattu edellisen
 // laitteen siirtoavaimella tai radan vaihto-PIN-koodilla (väärät PIN-koodit lasketaan; MAKS_PIN_VIRHEET lukitsee vaihdon,
-// kunnes kilpailutoimisto avaa PIN-koodit ScoringLibin valikosta). Varatun ryhmän saa vahvistuksella (vahvista: true)
-// ilman PIN-koodia: ryhmäkoodi on ryhmän omalla kortilla, ja ryhmän kirjaaja vaihtuu kesken kierroksen, kun puhelin sammuu.
+// kunnes kilpailutoimisto avaa PIN-koodit ScoringLibin valikosta). Ryhmä samoin: sen PIN lasketaan tunnuksella
+// "r<ryhmä>", jotta vahingossa avattu ryhmäkoodi ei vie ryhmää kirjaajalta.
 async function ota(request, avain, req, res) {
   const kohde = kohdeOf(avain);
   // Saman radan otot jonossa tässä palvelinilmentymässä: rinnakkaiset väärät PIN-koodit lasketaan kaikki.
@@ -667,12 +670,11 @@ async function otaJonossa(request, avain, kohde, req, res) {
     let tapa = null;
     if (!rivi.laite) tapa = 'vapaa';
     else if (siirto && onHaltija(siirto, rivi, { ...tunnus, laite: rivi.laite }, salaisuus())) tapa = 'siirto';
-    else if (kohde.ryhma && runko?.vahvista === true) tapa = 'ryhma';
-    else if (pin && !kohde.ryhma) {
+    else if (pin) {
       if (rivi.pinVirheet >= MAKS_PIN_VIRHEET) {
         return laheta(res, 423, { error: 'Liian monta väärää PIN-koodia. Kilpailutoimisto avaa vaihdon näyttämällä PIN-koodit uudelleen.', haltija: julkinenHaltija(rivi, laite) });
       }
-      if (pin !== vaihtoPin({ sheetId, sarake: avain.sarake, sukupolvi: rivi.sukupolvi }, salaisuus())) {
+      if (pin !== vaihtoPin({ sheetId, sarake: kohde.tunnus, sukupolvi: rivi.sukupolvi }, salaisuus())) {
         const virheet = rivi.pinVirheet + 1;
         await batchUpdate(request, sheetId, [solut(tabit.laitteet, kohde.rivi, 6, [virheet])]);
         return laheta(res, 403, { error: 'Väärä PIN-koodi', yrityksia: Math.max(0, MAKS_PIN_VIRHEET - virheet), haltija: julkinenHaltija({ ...rivi, pinVirheet: virheet }, laite) });
@@ -684,9 +686,10 @@ async function otaJonossa(request, avain, kohde, req, res) {
       return laheta(res, 409, { error, varattu: true, haltija: julkinenHaltija(rivi, laite) });
     }
 
-    const uusi = { sukupolvi: rivi.sukupolvi + 1, laite, nimi, otettu: aikaleima(), tapa: TAVAT[tapa], pinVirheet: 0, linja: rivi.linja };
+    const tapaTeksti = tapa === 'vapaa' && kohde.ryhma ? 'vapaa ryhmä' : TAVAT[tapa];
+    const uusi = { sukupolvi: rivi.sukupolvi + 1, laite, nimi, otettu: aikaleima(), tapa: tapaTeksti, pinVirheet: 0, linja: rivi.linja };
     const otettu = kohde.ryhma ? 'RYHMÄ OTETTU' : 'RATA OTETTU';
-    await vaihdaHaltija(request, sheetId, kohde, tabit, uusi, { laite, teksti: `${otettu}: ${TAVAT[tapa]}${rivi.laite ? ` (edellinen ${rivi.nimi || rivi.laite})` : ''}` });
+    await vaihdaHaltija(request, sheetId, kohde, tabit, uusi, { laite, teksti: `${otettu}: ${tapaTeksti}${rivi.laite ? ` (edellinen ${rivi.nimi || rivi.laite})` : ''}` });
     return vastaa(uusi);
   });
 }

@@ -6,7 +6,7 @@ import qrcode from 'qrcode-generator';
 // Siirtolinkki on yleensä alle 600 merkkiä; pidempi QR-koodi on tiheä ja vaatii hyvän kameran.
 const TIHEA_QR = 1200;
 
-function PinLomake({ onOta, painike }) {
+export function PinLomake({ onOta, painike }) {
   const [pin, setPin] = useState('');
   const [viesti, setViesti] = useState('');
   const [odottaa, setOdottaa] = useState(false);

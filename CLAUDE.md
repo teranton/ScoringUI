@@ -26,8 +26,11 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   (release, or a QR transfer link when offline, `src/kirjaus/haltija.js`), or a new device takes over with the office's
   one-time PIN from ScoringLib. A replaced device's marks are handed to the holder, which fills its empty targets (only the holder writes cards); differences are logged.
   A squad code (Sporting / FITASC / ESP, from ScoringLib's Näytä ryhmäkoodit list, not printed on the cards) opens the squad phone (`src/kirjaus/RyhmaKirjaus.jsx`,
-  `ryhma.js`, `api/_lib/kirjausRyhma.js`): targets station by station, then each shooter confirms the card; cards go to
-  `MOBIILI Layout N`, the holding phone to `MOBIILI_RYHMAT`, and another phone takes the squad with a confirmation (no PIN).
+  `ryhma.js`, `api/_lib/kirjausRyhma.js`): targets station by station (from the timetable's starting stand `Ryhmä N · asema S`,
+  wrapping; FITASC pegs from `RATAn_OHJELMA`, singles then doubles); each shooter confirms every stand (`KUITATUT`) and the
+  phone then moves to the next stand; cards go to
+  `MOBIILI Layout N`, the holding phone to `MOBIILI_RYHMAT`, and another phone takes a held squad after a release or with the squad's
+  office PIN (ScoringLib's PIN list, computed with `r<squad>` in place of the layout).
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
   time follows the registry dates (finished 1 h, served stale up to 1 day in the 14-day correction window and 30 days after it; running 15 s; upcoming 60 s).
   With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.

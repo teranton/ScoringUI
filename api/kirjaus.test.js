@@ -478,11 +478,11 @@ test('ryhmä: tallennus kirjoittaa vain ryhmän kortit; hyväksyntä ja asemien 
   assert.equal(taulukko['MOBIILI Layout 1'].rivit[5][7], '');
 
   const avattu = await ryhmaKutsu({ laite: 'puhelin-1', haltija: h });
-  assert.deepEqual(avattu.body.kortit.find((k) => k.nro === 4), { layout: 1, nro: 4, merkit: RYHMA_MERKIT, versio: VERSIO, hyvaksytty: true });
+  assert.deepEqual(avattu.body.kortit.find((k) => k.nro === 4), { layout: 1, nro: 4, merkit: RYHMA_MERKIT, versio: VERSIO, kuitatut: [], hyvaksytty: true });
   assert.equal(avattu.body.haltija.oma, true);
 });
 
-test('ryhmä: toinen puhelin ottaa ryhmän vahvistuksella, korvatun merkinnät täydennyksiksi', async () => {
+test('ryhmä: toinen puhelin ottaa ryhmän PIN-koodilla, korvatun merkinnät täydennyksiksi', async () => {
   alustaRyhma();
   const h1 = await otaRyhma('puhelin-1');
   await tallennaRyhma({ laite: 'puhelin-1', haltija: h1, kortit: [{ layout: 1, nro: 4, merkit: 'XX' + '-'.repeat(23), versio: VERSIO }] });
@@ -490,12 +490,16 @@ test('ryhmä: toinen puhelin ottaa ryhmän vahvistuksella, korvatun merkinnät t
   const varattu = await otaRyhma('puhelin-2');
   assert.equal(varattu.statusCode, 409);
   assert.match(varattu.body.error, /toinen puhelin/);
-  // PIN ei koske ryhmiä.
-  assert.equal((await otaRyhma('puhelin-2', { pin: '1234' })).statusCode, 409);
+  // Pelkkä vahvistus ei enää riitä; ryhmän PIN lasketaan tunnuksella r<ryhmä>, ei radan sarakkeella.
+  assert.equal((await otaRyhma('puhelin-2', { vahvista: true })).statusCode, 409);
+  const ryhmanPin = vaihtoPin({ sheetId: ID, sarake: 'r2', sukupolvi: 1 }, process.env.KIRJAUS_SALAISUUS);
+  const vaara = ryhmanPin === '0000' ? '0001' : '0000';
+  assert.equal((await otaRyhma('puhelin-2', { pin: vaara })).statusCode, 403);
+  assert.equal(taulukko.MOBIILI_RYHMAT.rivit[2][6], 1, 'väärä PIN lasketaan');
 
-  const h2 = await otaRyhma('puhelin-2', { vahvista: true });
+  const h2 = await otaRyhma('puhelin-2', { pin: ryhmanPin });
   assert.match(h2, /^h1\.2\./);
-  assert.match(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], /RYHMÄ OTETTU: ryhmän koodi/);
+  assert.match(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], /RYHMÄ OTETTU: kilpailutoimiston PIN-koodi/);
 
   const vanha = await tallennaRyhma({ laite: 'puhelin-1', haltija: h1, kortit: [
     { layout: 1, nro: 4, merkit: 'XXOX' + '-'.repeat(21), versio: VERSIO + 5 },

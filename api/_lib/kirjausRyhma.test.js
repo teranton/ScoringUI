@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  asemaRivit, asemienTulokset, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko, ryhmaKorttiOtsikko,
+  asemaRivit, asemienTulokset, fitascOhjelma, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko, ryhmaKorttiOtsikko,
   ryhmaKorttiRivi, ryhmanAmpujat, ryhmanVuorot, tarkistaRyhmaTallennus
 } from './kirjausRyhma.js';
 
@@ -35,6 +35,23 @@ test('layoutit: asemat jaetaan tasan nimetyille layouteille, tulossarake juoksee
   assert.equal(lueLayoutit([SPEKSIT[0], ...SPEKSIT.slice(4)]).layoutit[0].asemat.length, 4);
 });
 
+test('FITASC-ohjelma: pisteet pilkuilla, sinkut ja tuplat; layoutille vain kun kiekot täsmäävät', () => {
+  assert.deepEqual(fitascOhjelma('4S+2D, 4s+1d; 5S'), [{ sinkut: 4, tuplat: 2 }, { sinkut: 4, tuplat: 1 }, { sinkut: 5, tuplat: 0 }]);
+  assert.deepEqual(fitascOhjelma('2D'), [{ sinkut: 0, tuplat: 2 }]);
+  for (const huono of ['', 'SSSD', '4X', '0S+0D', null]) assert.equal(fitascOhjelma(huono), null);
+  const fitasc = [
+    ['RATA1_NIMI', 'A'], ['RATA2_NIMI', 'B'], ['LAYOUT/KISA', '2'],
+    ['RATA1_OHJELMA', '4S+2D, 4S+1D, 5S+1D, 2S+1D'], ['RATA2_OHJELMA', '4S+2D'],
+    ['', '', '', 'Asema', 'Maks'], ['', '', '', '1', '25'], ['', '', '', '2', '25']
+  ];
+  const { layoutit } = lueLayoutit(fitasc);
+  assert.equal(layoutit[0].ohjelma.length, 4);
+  // 4S+2D = 8 kiekkoa, ei 25: ohjelmaa ei käytetä.
+  assert.equal(layoutit[1].ohjelma, undefined);
+  // Monen aseman layoutille (Sporting) ohjelmaa ei lueta.
+  assert.equal(lueLayoutit([...SPEKSIT, ['RATA1_OHJELMA', '5S+5D']]).layoutit[0].ohjelma, undefined);
+});
+
 test('ryhmän ampujat: Ryhmä-sarake, muuten numero / ryhmäkoko; vapaa paikka ohitetaan', () => {
   const rivit = [
     ['NRO', 'Ryhmä', 'NIMI'],
@@ -60,6 +77,12 @@ test('ryhmän vuorot ryhmäaikataulusta: kierros, aika ja päivä', () => {
     1: { kierros: 0, aika: '09:00', paiva: 'Aikataulu' }
   });
   assert.deepEqual(ryhmanVuorot(aikataulut, layoutit, 9), {});
+  // Asemalähtö: ryhmä on solun ensimmäinen luku, lähtöasema sanan "asema" jälkeen.
+  const asemilta = [{ nimi: 'Aikataulu', rivit: [['Start', 'Metsä', 'Järvi'], ['8.30', 'Ryhmä 12 · asema 2', 'Ryhmä 2 · asema 4']] }];
+  assert.deepEqual(ryhmanVuorot(asemilta, layoutit, 2), { 2: { kierros: 0, aika: '8.30', paiva: 'Aikataulu', alkuasema: '4' } });
+  assert.deepEqual(ryhmanVuorot(asemilta, layoutit, 12)[1].alkuasema, '2');
+  const valilla = [{ nimi: 'Aikataulu', rivit: [['Start', 'Metsä'], ['8.30', 'Ryhmä 1 · asema P 3 ']] }];
+  assert.equal(ryhmanVuorot(valilla, layoutit, 1)[1].alkuasema, 'P 3', 'aseman tunnus sellaisenaan');
   assert.deepEqual(ryhmanVuorot([], layoutit, 1), {});
 });
 
@@ -67,13 +90,17 @@ test('korttirivi: asemien tulokset, kiekot ja luku takaisin', () => {
   const layout = lueLayoutit(SPEKSIT).layoutit[0];
   const otsikko = ryhmaKorttiOtsikko(layout);
   assert.deepEqual(otsikko.slice(0, 11), ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', 'RYHMÄ', 'HYVÄKSYTTY', 'ASEMA 1', 'ASEMA 2', '1/1']);
-  assert.equal(otsikko.length, 8 + 2 + 25);
+  assert.equal(otsikko.length, 8 + 2 + 25 + 1);
+  assert.equal(otsikko[35], 'KUITATUT');
   assert.equal(otsikko[20], '2/1');
   const merkit = 'XXOXXXXXXO' + 'XO' + '-'.repeat(13);
   assert.deepEqual(asemienTulokset(layout, merkit), [8, 1]);
-  const rivi = ryhmaKorttiRivi(layout, { nro: 4, nimi: 'Dahl D', merkit, versio: 5, laite: 'l', aika: 'nyt', ryhma: 2, hyvaksytty: '' });
+  const rivi = ryhmaKorttiRivi(layout, { nro: 4, nimi: 'Dahl D', merkit, versio: 5, laite: 'l', aika: 'nyt', ryhma: 2, hyvaksytty: '', kuitatut: ['1'] });
+  assert.equal(rivi[35], '1');
+  // Ennen KUITATUT-saraketta kirjoitettu rivi luetaan ilman asemahyväksyntöjä.
+  assert.deepEqual(lueRyhmaKorttiRivi(rivi.slice(0, 35), layout).kuitatut, []);
   assert.deepEqual(rivi.slice(0, 11), [4, 'Dahl D', 9, 'nyt', 'l', 5, 2, '', 8, 1, 'X']);
-  assert.deepEqual(lueRyhmaKorttiRivi(rivi, layout), { nro: 4, merkit, versio: 5, laite: 'l', aika: 'nyt', hyvaksytty: '' });
+  assert.deepEqual(lueRyhmaKorttiRivi(rivi, layout), { nro: 4, merkit, versio: 5, laite: 'l', aika: 'nyt', hyvaksytty: '', kuitatut: ['1'] });
   assert.equal(lueRyhmaKorttiRivi(['', 'x'], layout), null);
   assert.ok(onkoRyhmaMerkit(merkit, 25));
   assert.ok(!onkoRyhmaMerkit(merkit, 24));
@@ -83,7 +110,9 @@ test('tallennuksen tarkistus', () => {
   const laite = (l) => /^[a-z0-9-]{4,}$/.test(l);
   const kortti = { layout: 1, nro: 4, merkit: 'XO-', versio: 10 };
   assert.deepEqual(tarkistaRyhmaTallennus({ laite: 'laite-1', haltija: 'h', kortit: [kortti] }, laite),
-    { laite: 'laite-1', haltija: 'h', kortit: [{ ...kortti, hyvaksytty: null }] });
+    { laite: 'laite-1', haltija: 'h', kortit: [{ ...kortti, hyvaksytty: null, kuitatut: [] }] });
+  assert.deepEqual(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, kuitatut: ['1', 'P 3', '1'] }] }, laite).kortit[0].kuitatut, ['1', 'P 3']);
+  for (const huono of ['1', [1], ['a,b'], ['']]) assert.ok(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, kuitatut: huono }] }, laite).virhe);
   assert.ok(tarkistaRyhmaTallennus({ laite: 'x', kortit: [] }, laite).virhe);
   assert.ok(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [kortti, kortti] }, laite).virhe);
   assert.ok(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, layout: 0 }] }, laite).virhe);

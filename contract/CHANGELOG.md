@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Squad phone, stand starts and layout programs (phase 5b): group timetable cells may be `Ryhmä N · asema S`
+  (ScoringLib's new library-only key `ALOITUSTAPA` = `ASEMILTA`); the squad is the cell's first number, S the starting
+  stand. New optional key `RATAn_OHJELMA` for FITASC layouts (pegs `4S+2D, 4S+1D, …`), read by the squad phone; the
+  Compak form (`SSSD` …) is unchanged. ScoringLib writes `RATAn_OHJELMA` (empty) for Compak and FITASC copies.
+  Additive: cells without `· asema` and layouts without a program work as before.
+- Squad phone takeover needs the squad's office PIN (or a release from the holder) instead of a confirmation, so an
+  accidentally opened squad code can't take the squad. ScoringLib lists the PINs of held squads and resets their
+  `PIN-VIRHEET` in `MOBIILI_RYHMAT`. No new columns.
+- Squad phone, confirmation after every stand: `MOBIILI Layout N` gets a last column `KUITATUT` (stands the shooter
+  has confirmed). `HYVÄKSYTTY` is set when every stand is confirmed. Additive: the column is after the targets, so
+  earlier rows read as before.
+
 - Mobile score entry, squad phone (phase 5, Sporting / FITASC / ESP): `api/kirjaus.js` now also reads the main tab
   (`NRO`, `NIMI`, `RYHMÄ`), the `KISANSPEKSIT` layout names, `LAYOUT/KISA`, station table and `AIKATAULURYHMAKOKO`, and the
   group timetable on every `Aikataulu*` tab, with the writer account. New tabs written only by it: `MOBIILI Layout N`

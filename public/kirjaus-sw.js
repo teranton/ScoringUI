@@ -167,7 +167,10 @@ function lahetettavat(rivi) {
     .slice(0, MAKS_KORTTEJA)
     // Ryhmäpuhelimen kortissa on layout (src/kirjaus/ryhma.js lahettamattomat); nimen palvelin ottaa pääsivulta.
     .map(([nro, k]) => (k.layout
-      ? { layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}), ...jako(k.layout) }
+      ? {
+        layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, ...(k.kuitatut?.length ? { kuitatut: k.kuitatut } : {}),
+        ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}), ...jako(k.layout)
+      }
       : { nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '' }));
 }
 
