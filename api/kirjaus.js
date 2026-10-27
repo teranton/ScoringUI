@@ -686,9 +686,10 @@ async function otaJonossa(request, avain, kohde, req, res) {
       return laheta(res, 409, { error, varattu: true, haltija: julkinenHaltija(rivi, laite) });
     }
 
-    const uusi = { sukupolvi: rivi.sukupolvi + 1, laite, nimi, otettu: aikaleima(), tapa: TAVAT[tapa], pinVirheet: 0, linja: rivi.linja };
+    const tapaTeksti = tapa === 'vapaa' && kohde.ryhma ? 'vapaa ryhmä' : TAVAT[tapa];
+    const uusi = { sukupolvi: rivi.sukupolvi + 1, laite, nimi, otettu: aikaleima(), tapa: tapaTeksti, pinVirheet: 0, linja: rivi.linja };
     const otettu = kohde.ryhma ? 'RYHMÄ OTETTU' : 'RATA OTETTU';
-    await vaihdaHaltija(request, sheetId, kohde, tabit, uusi, { laite, teksti: `${otettu}: ${TAVAT[tapa]}${rivi.laite ? ` (edellinen ${rivi.nimi || rivi.laite})` : ''}` });
+    await vaihdaHaltija(request, sheetId, kohde, tabit, uusi, { laite, teksti: `${otettu}: ${tapaTeksti}${rivi.laite ? ` (edellinen ${rivi.nimi || rivi.laite})` : ''}` });
     return vastaa(uusi);
   });
 }
