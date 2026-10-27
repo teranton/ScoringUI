@@ -1,5 +1,6 @@
 // Ryhmäpuhelimen korttilogiikka (Sporting / FITASC / ESP): kortti per (layout, ampuja), kiekot asemittain.
-// Kortti: { layout, nro, merkit (X/O/-, layoutin kiekkojen verran), versio, lahetetty, hyvaksytty (ms, true tai null) }.
+// Kortti: { layout, nro, merkit (X/O/-, layoutin kiekkojen verran), versio, lahetetty, kuitatut (puhelimen asemien
+// tunnukset, jotka ampuja on hyväksynyt), hyvaksytty (ms, true tai null: kaikki asemat hyväksytty) }.
 // Kortit ovat oliossa avaimella "<layout>:<nro>". Puhtaat funktiot (ryhma.test.js).
 import { uusiVersio } from './kortit.js';
 
@@ -104,13 +105,14 @@ export function asemanSiirto(layout, asema) {
   return (layout.kierros || 0) + Math.max(0, asemaJarjestys(layout).indexOf(asema));
 }
 
-const asemaKesken = (layout, asema, ampujat, kortit, keskeyttaneet = []) => {
+// Asema on kesken, kun jollakulla (keskeyttämättömällä) on siinä tyhjä kiekko tai hyväksymätön tulos.
+export const asemaKesken = (layout, asema, ampujat, kortit, keskeyttaneet = []) => {
   const { alku, loppu } = pisteet(layout)[asema] || { alku: 0, loppu: 0 };
-  return ampujat.some((amp) => !keskeyttaneet.includes(amp.nro) && merkitOf(kortit, layout, amp.nro).slice(alku, loppu).includes('-'));
+  return ampujat.some((amp) => !keskeyttaneet.includes(amp.nro)
+    && (merkitOf(kortit, layout, amp.nro).slice(alku, loppu).includes('-') || !asemaKuitattu(kortit, layout, amp.nro, asema)));
 };
 
-// Ensimmäinen asema ammuntajärjestyksessä, jolla jonkun (keskeyttämättömän) ampujan kiekko on merkitsemättä (muuten
-// viimeinen). Tyhjä layout avautuu lähtöasemalta.
+// Ensimmäinen kesken oleva asema ammuntajärjestyksessä (muuten viimeinen). Tyhjä layout avautuu lähtöasemalta.
 export function aloitusAsema(layout, ampujat, kortit, keskeyttaneet = []) {
   const jarjestys = asemaJarjestys(layout);
   return jarjestys.find((a) => asemaKesken(layout, a, ampujat, kortit, keskeyttaneet)) ?? jarjestys[jarjestys.length - 1] ?? 0;
@@ -190,8 +192,11 @@ export function merkitse({ kortit, historia }, layout, { nro, i }, merkki, nyt =
   const merkit = merkitOf(kortit, layout, nro);
   if (i < 0 || i >= layout.kohteita || merkit[i] === merkki) return { kortit, historia };
   const uudet = merkit.slice(0, i) + merkki + merkit.slice(i + 1);
+  // Muuttuneen aseman hyväksyntä poistuu (muiden asemien jää).
+  const asemaId = pisteet(layout)[pisteKiekolle(layout, i)]?.id;
+  const kuitatut = kuitatutOf(vanha, layout).filter((id) => id !== asemaId);
   return {
-    kortit: { ...kortit, [avain]: { layout: layout.nro, nro, merkit: uudet, versio: uusiVersio(vanha?.versio, nyt), lahetetty: false, hyvaksytty: null } },
+    kortit: { ...kortit, [avain]: { layout: layout.nro, nro, merkit: uudet, versio: uusiVersio(vanha?.versio, nyt), lahetetty: false, kuitatut, hyvaksytty: null } },
     historia: [...historia, { layout: layout.nro, nro, i, ennen: merkit[i] }].slice(-200)
   };
 }
@@ -205,12 +210,28 @@ export function peru({ kortit, historia }, layoutit, nyt = Date.now()) {
   return { kortit: uudet, historia: historia.slice(0, -1), kohta: viimeinen };
 }
 
-// Ampuja hyväksyy layoutin korttinsa (vain täysi kortti). Uusi versio, jotta hyväksyntä lähtee taulukkoon.
-export function hyvaksy(kortit, layout, nro, nyt = Date.now()) {
+// Kortin hyväksytyt asemat (tunnukset). Ennen asemakohtaista hyväksyntää hyväksytty kortti kattaa kaikki asemat.
+export function kuitatutOf(kortti, layout) {
+  if (!kortti) return [];
+  if (kortti.hyvaksytty && !kortti.kuitatut?.length) return pisteet(layout).map((p) => p.id);
+  return Array.isArray(kortti.kuitatut) ? kortti.kuitatut : [];
+}
+
+export const asemaKuitattu = (kortit, layout, nro, asema) =>
+  kuitatutOf(kortit[korttiAvain(layout.nro, nro)], layout).includes(pisteet(layout)[asema]?.id);
+
+// Ampuja hyväksyy aseman tuloksensa (vain täysi asema). Kun kaikki asemat on hyväksytty, koko kortti on hyväksytty.
+// Uusi versio, jotta hyväksyntä lähtee taulukkoon.
+export function kuittaaAsema(kortit, layout, nro, asema, nyt = Date.now()) {
   const avain = korttiAvain(layout.nro, nro);
   const kortti = kortit[avain];
-  if (!kortti || taytetyt(kortti.merkit) !== layout.kohteita || kortti.hyvaksytty) return kortit;
-  return { ...kortit, [avain]: { ...kortti, versio: uusiVersio(kortti.versio, nyt), lahetetty: false, hyvaksytty: nyt } };
+  const piste = pisteet(layout)[asema];
+  if (!kortti || !piste || kortti.merkit.slice(piste.alku, piste.loppu).includes('-')) return kortit;
+  const vanhat = kuitatutOf(kortti, layout);
+  if (vanhat.includes(piste.id)) return kortit;
+  const kuitatut = [...vanhat, piste.id];
+  const kaikki = pisteet(layout).every((p) => kuitatut.includes(p.id)) && taytetyt(kortti.merkit) === layout.kohteita;
+  return { ...kortit, [avain]: { ...kortti, kuitatut, versio: uusiVersio(kortti.versio, nyt), lahetetty: false, hyvaksytty: kaikki ? nyt : null } };
 }
 
 // Palvelimen kortit paikallisiin (kuten kortit.js yhdistaPalvelimelta): uudempi versio voittaa, sama versio merkitään
@@ -222,7 +243,10 @@ export function yhdistaPalvelimelta(kortit, palvelimen, { kaikki = false } = {})
     const avain = korttiAvain(p.layout, p.nro);
     nahdyt.add(avain);
     const oma = tulos[avain];
-    const palvelimelta = { layout: p.layout, nro: p.nro, merkit: p.merkit, versio: p.versio, lahetetty: true, hyvaksytty: p.hyvaksytty ? (oma?.hyvaksytty || true) : null };
+    const palvelimelta = {
+      layout: p.layout, nro: p.nro, merkit: p.merkit, versio: p.versio, lahetetty: true,
+      kuitatut: Array.isArray(p.kuitatut) ? p.kuitatut : [], hyvaksytty: p.hyvaksytty ? (oma?.hyvaksytty || true) : null
+    };
     if (!oma || p.versio > oma.versio || (p.versio === oma.versio && p.merkit !== oma.merkit)) tulos = { ...tulos, [avain]: palvelimelta };
     else if (p.versio === oma.versio && !oma.lahetetty) tulos = { ...tulos, [avain]: { ...oma, lahetetty: true } };
     else if (kaikki && p.versio < oma.versio && oma.lahetetty) tulos = { ...tulos, [avain]: { ...oma, lahetetty: false } };
@@ -245,7 +269,8 @@ export function lahettamattomat(kortit, maks = 60, layoutit = []) {
       const layout = layoutit.find((l) => l.nro === k.layout);
       return {
         layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio,
-        ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}), ...(layout ? { jako: asemaJako(layout) } : {})
+        ...(k.kuitatut?.length ? { kuitatut: k.kuitatut } : {}), ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}),
+        ...(layout ? { jako: asemaJako(layout) } : {})
       };
     });
 }
@@ -289,7 +314,7 @@ export function sovitaPituudet(kortit, layoutit, vanhat = [], nyt = Date.now()) 
     } else {
       merkit = k.merkit.length > layout.kohteita ? k.merkit.slice(0, layout.kohteita) : k.merkit.padEnd(layout.kohteita, '-');
     }
-    tulos = { ...tulos, [avain]: { ...k, merkit, versio: uusiVersio(k.versio, nyt), lahetetty: false, hyvaksytty: null } };
+    tulos = { ...tulos, [avain]: { ...k, merkit, versio: uusiVersio(k.versio, nyt), lahetetty: false, kuitatut: [], hyvaksytty: null } };
   }
   return tulos;
 }
@@ -316,7 +341,7 @@ export function otaTaydennykset(kortit, taydennykset, layoutit, sovelletut = {},
     }).join('');
     uudetSovelletut[avain] = merkit;
     if (muuttui) {
-      uudet = { ...uudet, [avain]: { layout: l, nro: n, merkit: tulos, versio: uusiVersio(oma?.versio, nyt), lahetetty: false, hyvaksytty: null } };
+      uudet = { ...uudet, [avain]: { layout: l, nro: n, merkit: tulos, versio: uusiVersio(oma?.versio, nyt), lahetetty: false, kuitatut: kuitatutOf(oma, layout), hyvaksytty: null } };
       taytetyt++;
     }
   }

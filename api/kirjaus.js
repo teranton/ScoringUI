@@ -322,7 +322,7 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
 
 // --- Ryhmäpuhelin (Sporting / FITASC / ESP) ---
 
-// Kortin rivi ilman tietoa layoutin leveydestä: riittävän leveä alue kaikille layouteille (8 + asemat + 200 kiekkoa).
+// Kortin rivi ilman tietoa layoutin leveydestä: riittävän leveä alue kaikille layouteille (8 + asemat + 200 kiekkoa + KUITATUT).
 const RYHMA_RIVIN_LOPPU = 'JZ';
 const ryhmaKorttiAlue = (nimi, nro) => `${valilehtiAlue(nimi)}!A${nro + 1}:${RYHMA_RIVIN_LOPPU}${nro + 1}`;
 const ryhmanTunnus = (k) => `${k.layout}:${k.nro}`;
@@ -375,7 +375,7 @@ async function avaaRyhma(request, { sheetId, ryhma, voimassaAsti }, { laite, hal
   const kortit = [];
   luettavat.forEach(({ layout }, i) => {
     const k = lueRyhmaKorttiRivi((omat[i] || [])[0], layout);
-    if (k && k.versio > 0) kortit.push({ layout: layout.nro, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: Boolean(k.hyvaksytty) });
+    if (k && k.versio > 0) kortit.push({ layout: layout.nro, nro: k.nro, merkit: k.merkit, versio: k.versio, kuitatut: k.kuitatut, hyvaksytty: Boolean(k.hyvaksytty) });
   });
   const rivi = lueLaiteRivi(haltijaTab ? (omat[luettavat.length] || [])[0] : null, { ryhma: true });
   const julkinen = julkinenHaltija(rivi, laite);
@@ -516,7 +516,10 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
     if (vanha && vanha.versio >= kortti.versio) {
       if (vanha.versio === kortti.versio && vanha.merkit === kortti.merkit) tallennetut.push({ layout: layout.nro, nro: kortti.nro });
       else {
-        uudemmat.push({ layout: layout.nro, nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio, hyvaksytty: Boolean(vanha.hyvaksytty), muuLaite: vanha.laite !== laite, aika: vanha.aika });
+        uudemmat.push({
+          layout: layout.nro, nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio, kuitatut: vanha.kuitatut,
+          hyvaksytty: Boolean(vanha.hyvaksytty), muuLaite: vanha.laite !== laite, aika: vanha.aika
+        });
       }
       continue;
     }

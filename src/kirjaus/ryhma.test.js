@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  aloitusAsema, aloitusLayout, asemaJarjestys, asemanSiirto, asemanVali, hyvaksy, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, kierrata, korttiAvain, kuittaa, lahettamattomat,
+  aloitusAsema, aloitusLayout, asemaJarjestys, asemanSiirto, asemanVali, asemaKuitattu, kuittaaAsema, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, kierrata, korttiAvain, kuittaa, lahettamattomat,
   layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, yhdistaPalvelimelta
 } from './ryhma.js';
 
@@ -9,12 +9,16 @@ const L1 = { nro: 1, nimi: 'Metsä', asemat: [{ sarake: 1, id: '1', kohteita: 2 
 const L2 = { nro: 2, nimi: 'Järvi', asemat: [{ sarake: 3, id: '3', kohteita: 5 }], kohteita: 5, kierros: 0 };
 const AMPUJAT = [{ nro: 4, nimi: 'Dahl D' }, { nro: 5, nimi: 'Fors F' }];
 const tila = (kortit = {}) => ({ kortit, historia: [] });
+// Ampuja hyväksyy kaikki layoutin asemat.
+const hyvaksyKaikki = (kortit, layout, nro, nyt) => layout.asemat.reduce((k, _, a) => kuittaaAsema(k, layout, nro, a, nyt), kortit);
 
 test('asemien välit, järjestys ja aloitus', () => {
   assert.deepEqual(asemanVali(L1, 1), { alku: 2, loppu: 5 });
   assert.deepEqual(layoutJarjestys([{ ...L1, kierros: 1 }, L2, { nro: 3, kohteita: 1, asemat: [] }]).map((l) => l.nro), [2, 1, 3]);
   let t = tila();
   for (const nro of [4, 5]) for (let i = 0; i < 2; i++) t = merkitse(t, L1, { nro, i }, 'X', 10 + i);
+  assert.equal(aloitusAsema(L1, AMPUJAT, t.kortit), 0, 'ammuttu asema odottaa hyväksyntää');
+  for (const nro of [4, 5]) t = { ...t, kortit: kuittaaAsema(t.kortit, L1, nro, 0, 20) };
   assert.equal(aloitusAsema(L1, AMPUJAT, t.kortit), 1);
   assert.equal(aloitusLayout([L1, L2], AMPUJAT, t.kortit).nro, 1);
 });
@@ -43,9 +47,13 @@ test('asemalähtö: puhelin avautuu lähtöasemalta, järjestys kiertää ja alo
   let t = tila();
   assert.equal(aloitusAsema(L3, AMPUJAT, t.kortit), 2);
   for (const nro of [4, 5]) for (const i of [4, 5]) t = merkitse(t, L3, { nro, i }, 'X', 1);
+  assert.equal(aloitusAsema(L3, AMPUJAT, t.kortit), 2, 'hyväksymättä');
+  for (const nro of [4, 5]) t = { ...t, kortit: kuittaaAsema(t.kortit, L3, nro, 2, 2) };
   assert.equal(aloitusAsema(L3, AMPUJAT, t.kortit), 0);
   assert.equal(seuraavaAsema(L3, 2, AMPUJAT, t.kortit), 0);
   for (const nro of [4, 5]) for (const i of [0, 1, 2, 3]) t = merkitse(t, L3, { nro, i }, 'X', 2);
+  for (const nro of [4, 5]) for (const a of [0, 1]) t = { ...t, kortit: kuittaaAsema(t.kortit, L3, nro, a, 3) };
+  assert.equal(t.kortit[korttiAvain(3, 4)].hyvaksytty, 3, 'kaikki asemat hyväksytty: kortti hyväksytty');
   assert.equal(seuraavaAsema(L3, 1, AMPUJAT, t.kortit), null);
   assert.equal(aloitusAsema(L3, AMPUJAT, t.kortit), 1, 'valmis layout: viimeinen ammuttu asema');
 });
@@ -91,18 +99,30 @@ test('FITASC: ohjelman pisteet asemina, sinkut ensin ja tuplissa järjestys siir
   assert.equal(seuraavaKohta(F, 0, kolme, v.kortit, null, [1]).nro, 3);
   assert.equal(aloitusAsema(F, kolme, v.kortit, [1]), 0);
   for (const nro of [2, 3]) for (const i of [2, 3]) v = merkitse(v, F, { nro, i }, 'X', 2);
-  assert.equal(aloitusAsema(F, kolme, v.kortit, [1]), 1, 'keskeyttäneen tyhjiä ei odoteta');
+  for (const nro of [2, 3]) v = { ...v, kortit: kuittaaAsema(v.kortit, F, nro, 0, 3) };
+  assert.equal(aloitusAsema(F, kolme, v.kortit, [1]), 1, 'keskeyttäneen tyhjiä ja hyväksyntää ei odoteta');
 });
 
 test('peru palauttaa edellisen merkin; muutos poistaa hyväksynnän', () => {
   let t = tila();
   for (let i = 0; i < 5; i++) t = merkitse(t, L1, { nro: 4, i }, 'X', i + 1);
-  const hyv = hyvaksy(t.kortit, L1, 4, 100);
+  const ekaAsema = kuittaaAsema(t.kortit, L1, 4, 0, 50);
+  assert.equal(ekaAsema[korttiAvain(1, 4)].hyvaksytty, null, 'yksi asema ei hyväksy koko korttia');
+  assert.deepEqual(ekaAsema[korttiAvain(1, 4)].kuitatut, ['1']);
+  const hyv = kuittaaAsema(ekaAsema, L1, 4, 1, 100);
   assert.equal(hyv[korttiAvain(1, 4)].hyvaksytty, 100);
-  assert.equal(hyvaksy(t.kortit, L1, 5, 100), t.kortit, 'vajaata korttia ei hyväksytä');
+  assert.equal(kuittaaAsema(t.kortit, L1, 5, 0, 100), t.kortit, 'vajaata asemaa ei hyväksytä');
   const p = peru({ kortit: hyv, historia: t.historia }, [L1]);
   assert.equal(merkitOf(p.kortit, L1, 4), 'XXXX-');
   assert.equal(p.kortit[korttiAvain(1, 4)].hyvaksytty, null);
+  // Muutos asemalla 2 poistaa vain sen hyväksynnän.
+  assert.deepEqual(p.kortit[korttiAvain(1, 4)].kuitatut, ['1']);
+  assert.ok(asemaKuitattu(p.kortit, L1, 4, 0));
+  assert.ok(!asemaKuitattu(p.kortit, L1, 4, 1));
+  // Taulukosta saatu hyväksytty kortti ilman asemia kattaa kaikki asemat.
+  assert.ok(asemaKuitattu({ [korttiAvain(1, 4)]: { merkit: 'XXXXX', hyvaksytty: true } }, L1, 4, 1));
+  assert.deepEqual(lahettamattomat(hyv, 60, [L1])[0].kuitatut, ['1', '2']);
+  assert.deepEqual(yhdistaPalvelimelta({}, [{ layout: 1, nro: 4, merkit: 'XXXXX', versio: 9, kuitatut: ['2'], hyvaksytty: false }])[korttiAvain(1, 4)].kuitatut, ['2']);
   assert.deepEqual(p.kohta, { layout: 1, nro: 4, i: 4, ennen: '-' });
   assert.deepEqual(layoutinTila(L1, AMPUJAT, hyv), { valmiit: 1, hyvaksytyt: 1, ampujia: 2 });
 });
@@ -147,7 +167,7 @@ test('kierrätys, kiekon asema ja keskeyttäneet layoutin hyväksynnässä', () 
   // Ampuja 5 keskeytti: layout on hyväksytty, kun ampuja 4 hyväksyy.
   let t = tila();
   for (let i = 0; i < 5; i++) t = merkitse(t, L1, { nro: 4, i }, 'X', 10);
-  const kortit = hyvaksy(t.kortit, L1, 4, Date.UTC(2026, 0, 1));
+  const kortit = hyvaksyKaikki(t.kortit, L1, 4, Date.UTC(2026, 0, 1));
   assert.equal(layoutHyvaksytty(L1, AMPUJAT, kortit), false);
   assert.equal(layoutHyvaksytty(L1, AMPUJAT, kortit, [5]), true);
   assert.deepEqual(layoutinTila(L1, AMPUJAT, kortit, [5]), { valmiit: 1, hyvaksytyt: 1, ampujia: 1 });

@@ -90,13 +90,17 @@ test('korttirivi: asemien tulokset, kiekot ja luku takaisin', () => {
   const layout = lueLayoutit(SPEKSIT).layoutit[0];
   const otsikko = ryhmaKorttiOtsikko(layout);
   assert.deepEqual(otsikko.slice(0, 11), ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', 'RYHMÄ', 'HYVÄKSYTTY', 'ASEMA 1', 'ASEMA 2', '1/1']);
-  assert.equal(otsikko.length, 8 + 2 + 25);
+  assert.equal(otsikko.length, 8 + 2 + 25 + 1);
+  assert.equal(otsikko[35], 'KUITATUT');
   assert.equal(otsikko[20], '2/1');
   const merkit = 'XXOXXXXXXO' + 'XO' + '-'.repeat(13);
   assert.deepEqual(asemienTulokset(layout, merkit), [8, 1]);
-  const rivi = ryhmaKorttiRivi(layout, { nro: 4, nimi: 'Dahl D', merkit, versio: 5, laite: 'l', aika: 'nyt', ryhma: 2, hyvaksytty: '' });
+  const rivi = ryhmaKorttiRivi(layout, { nro: 4, nimi: 'Dahl D', merkit, versio: 5, laite: 'l', aika: 'nyt', ryhma: 2, hyvaksytty: '', kuitatut: ['1'] });
+  assert.equal(rivi[35], '1');
+  // Ennen KUITATUT-saraketta kirjoitettu rivi luetaan ilman asemahyväksyntöjä.
+  assert.deepEqual(lueRyhmaKorttiRivi(rivi.slice(0, 35), layout).kuitatut, []);
   assert.deepEqual(rivi.slice(0, 11), [4, 'Dahl D', 9, 'nyt', 'l', 5, 2, '', 8, 1, 'X']);
-  assert.deepEqual(lueRyhmaKorttiRivi(rivi, layout), { nro: 4, merkit, versio: 5, laite: 'l', aika: 'nyt', hyvaksytty: '' });
+  assert.deepEqual(lueRyhmaKorttiRivi(rivi, layout), { nro: 4, merkit, versio: 5, laite: 'l', aika: 'nyt', hyvaksytty: '', kuitatut: ['1'] });
   assert.equal(lueRyhmaKorttiRivi(['', 'x'], layout), null);
   assert.ok(onkoRyhmaMerkit(merkit, 25));
   assert.ok(!onkoRyhmaMerkit(merkit, 24));
@@ -106,7 +110,9 @@ test('tallennuksen tarkistus', () => {
   const laite = (l) => /^[a-z0-9-]{4,}$/.test(l);
   const kortti = { layout: 1, nro: 4, merkit: 'XO-', versio: 10 };
   assert.deepEqual(tarkistaRyhmaTallennus({ laite: 'laite-1', haltija: 'h', kortit: [kortti] }, laite),
-    { laite: 'laite-1', haltija: 'h', kortit: [{ ...kortti, hyvaksytty: null }] });
+    { laite: 'laite-1', haltija: 'h', kortit: [{ ...kortti, hyvaksytty: null, kuitatut: [] }] });
+  assert.deepEqual(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, kuitatut: ['1', 'P 3', '1'] }] }, laite).kortit[0].kuitatut, ['1', 'P 3']);
+  for (const huono of ['1', [1], ['a,b'], ['']]) assert.ok(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, kuitatut: huono }] }, laite).virhe);
   assert.ok(tarkistaRyhmaTallennus({ laite: 'x', kortit: [] }, laite).virhe);
   assert.ok(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [kortti, kortti] }, laite).virhe);
   assert.ok(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, layout: 0 }] }, laite).virhe);

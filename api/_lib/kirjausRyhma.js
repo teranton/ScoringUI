@@ -187,12 +187,14 @@ export function ryhmanVuorot(aikataulut, layoutit, ryhma) {
 export const onkoRyhmaMerkit = (merkit, kohteita) => typeof merkit === 'string' && merkit.length === kohteita && /^[XO-]+$/.test(merkit);
 
 // MOBIILI Layout N -otsikko: NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, RYHMÄ, HYVÄKSYTTY, asemien tulokset
-// (ASEMA <tulossarake>), sitten kiekot <tulossarake>/<kiekko>.
+// (ASEMA <tulossarake>), kiekot <tulossarake>/<kiekko> ja lopuksi KUITATUT (ampujan hyväksymät asemat pilkuilla;
+// lopussa, jotta ennen sitä kirjoitetut rivit luetaan ennallaan).
 export function ryhmaKorttiOtsikko(layout) {
   return [
     'NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', 'RYHMÄ', 'HYVÄKSYTTY',
     ...layout.asemat.map((a) => `ASEMA ${a.sarake}`),
-    ...layout.asemat.flatMap((a) => Array.from({ length: a.kohteita }, (_, k) => `${a.sarake}/${k + 1}`))
+    ...layout.asemat.flatMap((a) => Array.from({ length: a.kohteita }, (_, k) => `${a.sarake}/${k + 1}`)),
+    'KUITATUT'
   ];
 }
 
@@ -206,13 +208,13 @@ export function asemienTulokset(layout, merkit) {
   });
 }
 
-export function ryhmaKorttiRivi(layout, { nro, nimi, merkit, versio, laite, aika, ryhma, hyvaksytty }) {
+export function ryhmaKorttiRivi(layout, { nro, nimi, merkit, versio, laite, aika, ryhma, hyvaksytty, kuitatut }) {
   const asemat = asemienTulokset(layout, merkit);
   return [nro, nimi || '', asemat.reduce((s, x) => s + x, 0), aika, laite, versio, ryhma, hyvaksytty || '',
-    ...asemat, ...[...merkit].map((m) => (m === '-' ? '' : m))];
+    ...asemat, ...[...merkit].map((m) => (m === '-' ? '' : m)), (kuitatut || []).join(',')];
 }
 
-// MOBIILI Layout N -rivi → { nro, merkit, versio, laite, aika, hyvaksytty } tai null (tyhjä rivi).
+// MOBIILI Layout N -rivi → { nro, merkit, versio, laite, aika, hyvaksytty, kuitatut } tai null (tyhjä rivi).
 export function lueRyhmaKorttiRivi(rivi, layout) {
   if (!Array.isArray(rivi)) return null;
   const nro = Number.parseInt(rivi[0], 10);
@@ -229,7 +231,8 @@ export function lueRyhmaKorttiRivi(rivi, layout) {
     versio: Number.isFinite(versio) ? versio : 0,
     laite: String(rivi[4] ?? ''),
     aika: String(rivi[3] ?? ''),
-    hyvaksytty: String(rivi[7] ?? '').trim()
+    hyvaksytty: String(rivi[7] ?? '').trim(),
+    kuitatut: String(rivi[alku + layout.kohteita] ?? '').split(',').map((x) => x.trim()).filter(Boolean)
   };
 }
 
@@ -257,13 +260,16 @@ export function tarkistaRyhmaTallennus(runko, onLaitetunnus) {
     if (!Number.isSafeInteger(k.versio) || k.versio < 1) return { virhe: 'Virheellinen versio' };
     if (k.hyvaksytty !== undefined && k.hyvaksytty !== null && k.hyvaksytty !== true && k.hyvaksytty !== false
       && (!Number.isSafeInteger(k.hyvaksytty) || k.hyvaksytty < HYVAKSYNTA_MIN_MS)) return { virhe: 'Virheellinen hyväksyntä' };
+    if (k.kuitatut !== undefined && (!Array.isArray(k.kuitatut) || k.kuitatut.length > 50
+      || !k.kuitatut.every((x) => typeof x === 'string' && x.length >= 1 && x.length <= 20 && !x.includes(',')))) return { virhe: 'Virheelliset asemahyväksynnät' };
     if (k.jako !== undefined && (typeof k.jako !== 'string' || !/^\d{1,3}(,\d{1,3}){0,49}$/.test(k.jako))) return { virhe: 'Virheellinen asemajako' };
   }
   return {
     laite,
     haltija,
     kortit: kortit.map((k) => ({
-      layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: k.hyvaksytty || null, ...(k.jako ? { jako: k.jako } : {})
+      layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: k.hyvaksytty || null,
+      kuitatut: [...new Set((k.kuitatut || []).map((x) => x.trim()).filter(Boolean))], ...(k.jako ? { jako: k.jako } : {})
     }))
   };
 }

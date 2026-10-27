@@ -265,9 +265,11 @@ A squad code (payload `r` = squad number instead of `c`; ScoringLib lists them a
 
 Writes (created on the first save if missing):
 - `MOBIILI Layout N` (N = layout 1..): header `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, RYHMÄ, HYVÄKSYTTY`, then
-  `ASEMA <k>` per station (hits on station k, k = result column) and the targets `<k>/<1..max>` station by station.
-  Shooter n on row n + 1; `NIMI` from the main tab; `HYVÄKSYTTY` is the time the shooter confirmed the card on the phone
-  (empty again after any change). Only the squad's own shooters are written; other cards are refused and logged
+  `ASEMA <k>` per station (hits on station k, k = result column), the targets `<k>/<1..max>` station by station, and
+  last `KUITATUT`: the stands the shooter has confirmed on the phone, comma separated (phone stand ids: station table
+  ids, FITASC pegs 1..n). Shooter n on row n + 1; `NIMI` from the main tab; `HYVÄKSYTTY` is the time the shooter
+  confirmed the last stand, i.e. the whole card (empty again after any change; a change on a stand also removes that
+  stand from `KUITATUT`). Rows written before `KUITATUT` existed read as no stand confirmations. Only the squad's own shooters are written; other cards are refused and logged
   (`EI RYHMÄSSÄ …`). A tab narrower than the layout's targets is widened.
 - `MOBIILI_LOKI`: as above, `RATA` = `Layout N`, `HUOM` = `RYHMÄ <n>` (and `HYVÄKSYTTY`).
 - `MOBIILI_RYHMAT`: the phone holding each squad, header `RYHMÄ` then the same columns as `MOBIILI_LAITTEET` (squad n on

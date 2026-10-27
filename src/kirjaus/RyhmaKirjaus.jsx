@@ -6,7 +6,7 @@
 // edellisen puhelimen lähettämättömät merkinnät täydentävät uuden puhelimen tyhjiä kiekkoja.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  aloitusAsema, aloitusLayout, asemaJarjestys, asemanSiirto, hyvaksy, kierrata, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, korttiAvain, kuittaa, lahettamattomat,
+  aloitusAsema, aloitusLayout, asemaJarjestys, asemaKesken, asemaKuitattu, asemanSiirto, kierrata, kuittaaAsema, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, korttiAvain, kuittaa, lahettamattomat,
   layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
   yhdistaPalvelimelta
 } from './ryhma.js';
@@ -330,12 +330,8 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       // Ampujan osuus asemalla (FITASC: sinkut tai tuplat) valmis: valinta pois, jotta seuraava tyhjä ampuja tulee vuoroon.
       const v = kohdanOsa(layout, asema, kohta.i);
       const valmis = !merkitOf(uusi.kortit, layout, kohta.nro).slice(v.alku, v.loppu).includes('-');
-      // Asema valmis: aina seuraavalle kesken olevalle asemalle (myös PERUn tai asemavalinnan jälkeen); layoutin
-      // viimeinen jää näkyviin hyväksyntää varten.
-      const mukana = ampujat.filter((a) => !t.keskeyttaneet.includes(a.nro));
-      const asemaValmiiksi = !seuraavaKohta(layout, asema, mukana, uusi.kortit);
-      const seuraavaA = asemaValmiiksi ? seuraavaAsema(layout, asema, mukana, uusi.kortit) : null;
-      return { ...t, ...uusi, layout: layout.nro, asema: seuraavaA ?? asema, valittu: valmis || seuraavaA !== null ? null : kohta.nro };
+      // Asema pysyy näkyvissä, kunnes ampujat ovat hyväksyneet sen tuloksensa (kuittaaAmpujanAsema siirtää eteenpäin).
+      return { ...t, ...uusi, layout: layout.nro, asema, valittu: valmis ? null : kohta.nro };
     });
     setKuittaus(null);
     if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : 'nolla');
@@ -373,11 +369,16 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     if (tila.aanet !== false) soita('korjaus');
   };
 
-  const hyvaksyAmpuja = (nro) => {
-    if (!layout) return;
-    const merkit = merkitOf(tila.kortit, layout, nro);
-    if (!window.confirm(`${nro} ${nimi(nro)}: ${layout.nimi} ${osumat(merkit)}/${layout.kohteita}. Hyväksytkö tuloksesi?`)) return;
-    setTila((t) => ({ ...t, kortit: hyvaksy(t.kortit, layout, nro) }));
+  // Ampuja hyväksyy aseman tuloksensa. Kun kaikki ovat hyväksyneet, siirrytään seuraavalle kesken olevalle asemalle
+  // ammuntajärjestyksessä (aina samoin, valittiinpa asema itse, PERUlla tai automaattisesti).
+  const kuittaaAmpujanAsema = (nro) => {
+    if (!layout || liianPian()) return;
+    setTila((t) => {
+      const kortit = kuittaaAsema(t.kortit, layout, nro, asema);
+      const mukana = ampujat.filter((a) => !t.keskeyttaneet.includes(a.nro));
+      const seuraavaA = asemaKesken(layout, asema, mukana, kortit) ? null : seuraavaAsema(layout, asema, mukana, kortit);
+      return { ...t, kortit, layout: layout.nro, asema: seuraavaA ?? asema, valittu: null };
+    });
     if (tila.aanet !== false) soita('osuma');
   };
 
@@ -559,7 +560,10 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   }
 
   const { alku, loppu } = asemat[asema];
-  const seuraavaKesken = seuraavaAsema(layout, asema, ampujat.filter((a) => !tila.keskeyttaneet.includes(a.nro)), tila.kortit);
+  const aktiiviset = ampujat.filter((a) => !tila.keskeyttaneet.includes(a.nro));
+  const seuraavaKesken = seuraavaAsema(layout, asema, aktiiviset, tila.kortit);
+  // Asema ammuttu, mutta joku ei ole vielä hyväksynyt sen tulostaan.
+  const kuittaamatta = !kohta && aktiiviset.some((a) => !asemaKuitattu(tila.kortit, layout, a.nro, asema));
   const osa = kohta && asemat[asema].osat.length > 1 ? kohdanOsa(layout, asema, kohta.i) : null;
   const layoutValmis = ampujat.every((a) => tila.keskeyttaneet.includes(a.nro) || taytetyt(merkitOf(tila.kortit, layout, a.nro)) === layout.kohteita);
   const viimeHistoria = tila.historia[tila.historia.length - 1];
@@ -600,10 +604,12 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       <nav className="flex shrink-0 gap-1 overflow-x-auto px-2 pt-2">
         {asemaJarjestys(layout).map((k) => {
           const a = asemat[k];
-          const valmis = ampujat.every((amp) => tila.keskeyttaneet.includes(amp.nro) || !merkitOf(tila.kortit, layout, amp.nro).slice(a.alku, a.loppu).includes('-'));
+          const ammuttu = aktiiviset.every((amp) => !merkitOf(tila.kortit, layout, amp.nro).slice(a.alku, a.loppu).includes('-'));
+          const valmis = ammuttu && aktiiviset.every((amp) => asemaKuitattu(tila.kortit, layout, amp.nro, k));
+          const tausta = valmis ? 'bg-green-100' : ammuttu ? 'bg-amber-100' : 'bg-white';
           return (
             <button key={k} type="button" onClick={() => valitseAsema(k)}
-              className={`min-w-11 shrink-0 rounded-lg border-2 px-2 py-1 text-center ${k === asema ? 'border-blue-700 bg-blue-50' : valmis ? 'border-transparent bg-green-100' : 'border-transparent bg-white'}`}>
+              className={`min-w-11 shrink-0 rounded-lg border-2 px-2 py-1 text-center ${k === asema ? `border-blue-700 ${valmis || ammuttu ? tausta : 'bg-blue-50'}` : `border-transparent ${tausta}`}`}>
               <div className="text-[10px] uppercase text-slate-500">Asema</div>
               <div className="font-bold leading-tight">{a.id}</div>
             </button>
@@ -636,7 +642,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                     {keskeytti ? 'Keskeytti · peru' : 'Keskeytti'}
                   </button>
                 ) : keskeytti && <span className="shrink-0 rounded bg-slate-700 px-2 text-xs leading-5 text-white">Keskeytti</span>}
-                {kortti?.hyvaksytty && <span className="shrink-0 rounded bg-green-700 px-1.5 text-xs leading-5 text-white">✓</span>}
+                {asemaKuitattu(tila.kortit, layout, a.nro, asema) && <span className="shrink-0 rounded bg-green-700 px-1.5 text-xs leading-5 text-white">✓</span>}
                 <span className="shrink-0 text-right leading-tight">
                   <span className="text-lg font-bold">{osumat(asemalla)}</span>
                   <span className="text-xs text-slate-500"> as. · yht. {osumat(merkit)}/{taytetyt(merkit)}{kortti && kortti.lahetetty === false ? ' •' : ''}</span>
@@ -658,10 +664,29 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           );
         })}
 
-        {layoutValmis && !korjaustila && (
+        {kuittaamatta && !korjaustila && (
           <div className="mt-2 flex flex-col gap-2 rounded-lg bg-white p-3">
-            <div className="font-semibold">{layout.nimi} ammuttu. Jokainen ampuja tarkistaa ja hyväksyy tuloksensa.</div>
-            {ampujat.filter((a) => !tila.keskeyttaneet.includes(a.nro)).map((a) => {
+            <div className="font-semibold">Asema {asemat[asema].id} ammuttu. Jokainen ampuja tarkistaa ja hyväksyy aseman tuloksensa.</div>
+            {aktiiviset.map((a) => {
+              const merkit = merkitOf(tila.kortit, layout, a.nro);
+              return (
+                <div key={a.nro} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{a.nro} {a.nimi}</span>
+                  <span className="shrink-0 text-xs text-slate-500">yht. {osumat(merkit)}/{taytetyt(merkit)}</span>
+                  <b className="shrink-0">{osumat(merkit.slice(alku, loppu))}/{loppu - alku}</b>
+                  {asemaKuitattu(tila.kortit, layout, a.nro, asema)
+                    ? <span className="shrink-0 rounded bg-green-700 px-2 py-1 text-xs text-white">Hyväksytty ✓</span>
+                    : <button type="button" className="shrink-0 rounded bg-blue-800 px-3 py-1.5 text-white" onClick={() => kuittaaAmpujanAsema(a.nro)}>Hyväksyn</button>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {layoutValmis && !kuittaamatta && !korjaustila && (
+          <div className="mt-2 flex flex-col gap-2 rounded-lg bg-white p-3">
+            <div className="font-semibold">{layout.nimi} ammuttu.</div>
+            {aktiiviset.map((a) => {
               const merkit = merkitOf(tila.kortit, layout, a.nro);
               const kortti = tila.kortit[korttiAvain(layout.nro, a.nro)];
               return (
@@ -673,7 +698,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                   <b className="shrink-0">{osumat(merkit)}/{layout.kohteita}</b>
                   {kortti?.hyvaksytty
                     ? <span className="shrink-0 rounded bg-green-700 px-2 py-1 text-xs text-white">Hyväksytty ✓</span>
-                    : <button type="button" className="shrink-0 rounded bg-blue-800 px-3 py-1.5 text-white" onClick={() => hyvaksyAmpuja(a.nro)}>Hyväksyn</button>}
+                    : <span className="shrink-0 rounded bg-amber-100 px-2 py-1 text-xs text-amber-900">Asemia hyväksymättä</span>}
                 </div>
               );
             })}
@@ -701,7 +726,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
               <span className="min-w-0 flex-1 truncate">
                 {kuittaus || (kohta
                   ? <>Vuorossa <b>{kohta.nro} {nimi(kohta.nro)}</b>{osa ? ` · ${osa.nimi}` : ''} · kiekko {kohta.i - alku + 1}/{loppu - alku}</>
-                  : seuraavaKesken !== null ? 'Asema valmis.' : 'Layout valmis.')}
+                  : kuittaamatta ? 'Hyväksykää aseman tulokset.' : seuraavaKesken !== null ? 'Asema valmis.' : 'Layout valmis.')}
               </span>
               {kohta && <button type="button" className="shrink-0 rounded border border-slate-400 px-2 text-xs leading-6" onClick={seuraava}>Seuraava ampuja ›</button>}
               {!kohta && seuraavaKesken !== null && (

@@ -7,6 +7,9 @@
   stand. New optional key `RATAn_OHJELMA` for FITASC layouts (pegs `4S+2D, 4S+1D, …`), read by the squad phone; the
   Compak form (`SSSD` …) is unchanged. ScoringLib writes `RATAn_OHJELMA` (empty) for Compak and FITASC copies.
   Additive: cells without `· asema` and layouts without a program work as before.
+- Squad phone, confirmation after every stand: `MOBIILI Layout N` gets a last column `KUITATUT` (stands the shooter
+  has confirmed). `HYVÄKSYTTY` is set when every stand is confirmed. Additive: the column is after the targets, so
+  earlier rows read as before.
 
 - Mobile score entry, squad phone (phase 5, Sporting / FITASC / ESP): `api/kirjaus.js` now also reads the main tab
   (`NRO`, `NIMI`, `RYHMÄ`), the `KISANSPEKSIT` layout names, `LAYOUT/KISA`, station table and `AIKATAULURYHMAKOKO`, and the

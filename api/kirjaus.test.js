@@ -478,7 +478,7 @@ test('ryhmä: tallennus kirjoittaa vain ryhmän kortit; hyväksyntä ja asemien 
   assert.equal(taulukko['MOBIILI Layout 1'].rivit[5][7], '');
 
   const avattu = await ryhmaKutsu({ laite: 'puhelin-1', haltija: h });
-  assert.deepEqual(avattu.body.kortit.find((k) => k.nro === 4), { layout: 1, nro: 4, merkit: RYHMA_MERKIT, versio: VERSIO, hyvaksytty: true });
+  assert.deepEqual(avattu.body.kortit.find((k) => k.nro === 4), { layout: 1, nro: 4, merkit: RYHMA_MERKIT, versio: VERSIO, kuitatut: [], hyvaksytty: true });
   assert.equal(avattu.body.haltija.oma, true);
 });
 
