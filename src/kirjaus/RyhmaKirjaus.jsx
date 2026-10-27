@@ -6,8 +6,8 @@
 // edellisen puhelimen lähettämättömät merkinnät täydentävät uuden puhelimen tyhjiä kiekkoja.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  aloitusAsema, aloitusLayout, asemanVali, hyvaksy, korttiAvain, kuittaa, lahettamattomat, layoutJarjestys, layoutinTila,
-  merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
+  aloitusAsema, aloitusLayout, asemaKiekolle, asemanVali, hyvaksy, kierrata, korttiAvain, kuittaa, lahettamattomat,
+  layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
   yhdistaPalvelimelta
 } from './ryhma.js';
 import { lueKoodi as lueKoodinSisalto } from './kortit.js';
@@ -124,7 +124,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
         }
         const korvattu = Boolean(tilaRef.current.haltija) && !data.haltija?.oma && !data.haltija?.tamaLaite;
         setTila((t) => {
-          const kortit = sovitaPituudet(yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }), data.layoutit || []);
+          const kortit = sovitaPituudet(yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }), data.layoutit || [], t.avaus?.layoutit || []);
           return {
             ...taydennettyna({ ...t, avaus: data, kortit }, data.haltija?.oma ? data.taydennykset : null, data.layoutit),
             ...(korvattu && lahettamattomat(t.kortit).length === 0 ? { haltija: null, korvattu: korvausTieto(data.haltija, 0) } : {})
@@ -168,7 +168,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     if (document.visibilityState === 'hidden' && taustaRef.current) return;
     const { avaus: avattu, haltija, korvattu, luovutettu } = tilaRef.current;
     if (korvattu || luovutettu || !avattu) return;
-    const lahetetyt = lahettamattomat(tilaRef.current.kortit);
+    const lahetetyt = lahettamattomat(tilaRef.current.kortit, 60, avattu.layoutit);
     if (lahetetyt.length === 0 && (!haltija || Date.now() - tarkistettuRef.current < TARKISTUS_VALI_MS)) return;
     if (!haltija) {
       if (avattu.haltija?.vapaa) await otaRyhma();
@@ -193,13 +193,13 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       }
       if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
       tarkistettuRef.current = Date.now();
-      const hylatyt = (data.hylatyt || []).filter((h) => h.syy === 'ryhma').length;
+      const hylatyt = (data.hylatyt || []).filter((h) => h.syy === 'ryhma' || h.syy === 'layout').length;
       setTila((t) => ({
         ...taydennettyna({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }, data.taydennykset, t.avaus?.layoutit),
         hylattyIlmoitus: (t.hylattyIlmoitus || 0) + hylatyt
       }));
-      // Layoutin kiekkomäärä muuttui taulukossa: ryhmän tiedot haetaan uudelleen ja kortit sovitetaan.
-      if ((data.hylatyt || []).some((h) => h.syy === 'layout')) setLatausKierros((n) => n + 1);
+      // Layoutin asemajako muuttui taulukossa: ryhmän tiedot haetaan uudelleen ja kortit sovitetaan.
+      if ((data.hylatyt || []).some((h) => h.syy === 'kohteet')) setLatausKierros((n) => n + 1);
       setSynk({ virhe: '', viimeksi: Date.now(), katkesi: null });
       taustaRef.current = false;
       const muu = (data.uudemmat || []).find((k) => k.muuLaite);
@@ -216,9 +216,11 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const avaus = tila.avaus;
   const ampujat = useMemo(() => avaus?.ampujat || [], [avaus]);
   const jarjestys = useMemo(() => layoutJarjestys(avaus?.layoutit), [avaus]);
-  const layout = jarjestys.find((l) => l.nro === tila.layout) || aloitusLayout(jarjestys, ampujat, tila.kortit);
+  const layout = jarjestys.find((l) => l.nro === tila.layout) || aloitusLayout(jarjestys, ampujat, tila.kortit, tila.keskeyttaneet);
+  // Layoutin ampumajärjestys (aloittaja vaihtuu kierroksittain kuten paperikortissa).
+  const vuoro = useMemo(() => kierrata(ampujat, layout?.kierros), [ampujat, layout?.kierros]);
   const asema = layout ? Math.min(tila.asema ?? aloitusAsema(layout, ampujat, tila.kortit), layout.asemat.length - 1) : 0;
-  const kohta = layout ? seuraavaKohta(layout, asema, ampujat, tila.kortit, tila.valittu, tila.keskeyttaneet) : null;
+  const kohta = layout ? seuraavaKohta(layout, asema, vuoro, tila.kortit, tila.valittu, tila.keskeyttaneet) : null;
   const nimi = useCallback((nro) => ampujat.find((a) => a.nro === nro)?.nimi || '', [ampujat]);
 
   const odottavat = useMemo(() => lahettamattomat(tila.kortit, Infinity), [tila.kortit]);
@@ -339,7 +341,12 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     kirjaa('peru', l, p.kohta.nro, p.kohta.i, merkitOf(tila.kortit, l, p.kohta.nro)[p.kohta.i], p.kohta.ennen);
     setTila((t) => {
       const tuore = peru(t, avaus.layoutit);
-      return tuore ? { ...t, kortit: tuore.kortit, historia: tuore.historia, layout: tuore.kohta.layout, valittu: tuore.kohta.nro } : t;
+      if (!tuore) return t;
+      const tl = avaus.layoutit.find((x) => x.nro === tuore.kohta.layout);
+      return {
+        ...t, kortit: tuore.kortit, historia: tuore.historia, layout: tuore.kohta.layout,
+        asema: tl ? asemaKiekolle(tl, tuore.kohta.i) : t.asema, valittu: tuore.kohta.nro
+      };
     });
     setKuittaus(`Peruttu: ${kiekkoTeksti(l, p.kohta.nro, p.kohta.i)}.`);
     if (tila.aanet !== false) soita('peru');
@@ -380,7 +387,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const valitseAmpuja = (nro) => setTila((t) => ({ ...t, layout: layout?.nro ?? null, asema, valittu: nro }));
   const seuraava = () => {
     if (!layout || !kohta) return;
-    const nro = seuraavaAmpuja(layout, asema, ampujat, tila.kortit, kohta.nro, tila.keskeyttaneet);
+    const nro = seuraavaAmpuja(layout, asema, vuoro, tila.kortit, kohta.nro, tila.keskeyttaneet);
     if (nro !== null) valitseAmpuja(nro);
   };
 
@@ -476,11 +483,11 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       <div className="flex flex-col gap-1">
         <b>Layout</b>
         {jarjestys.map((l) => {
-          const t = layoutinTila(l, ampujat, tila.kortit);
+          const t = layoutinTila(l, ampujat, tila.kortit, tila.keskeyttaneet);
           return (
             <button key={l.nro} type="button" className={`flex justify-between rounded border px-3 py-2 text-left ${l.nro === layout?.nro ? 'border-blue-800 bg-blue-50' : 'border-slate-300'}`} onClick={() => valitseLayout(l.nro)}>
               <span>{l.nimi}{l.aika ? ` · ${l.aika}` : ''}{l.paiva && jarjestys.some((x) => x.paiva && x.paiva !== l.paiva) ? ` (${l.paiva})` : ''}</span>
-              <span className="text-slate-600">{t.hyvaksytyt === t.ampujia && t.ampujia > 0 ? 'hyväksytty ✓' : `${t.valmiit}/${t.ampujia} valmis`}</span>
+              <span className="text-slate-600">{layoutHyvaksytty(l, ampujat, tila.kortit, tila.keskeyttaneet) ? 'hyväksytty ✓' : `${t.valmiit}/${t.ampujia} valmis`}</span>
             </button>
           );
         })}
@@ -563,7 +570,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       )}
       {tila.hylattyIlmoitus > 0 && (
         <Ilmoitus onOk={() => setTila((t) => ({ ...t, hylattyIlmoitus: 0 }))}>
-          {tila.hylattyIlmoitus} korttia ei tallennettu: ampuja ei ole enää tässä ryhmässä. Merkinnät ovat kilpailutoimiston lokissa.
+          {tila.hylattyIlmoitus} korttia ei tallennettu: ampuja ei ole enää tässä ryhmässä tai layout on poistettu kisan asetuksista. Merkinnät ovat kilpailutoimiston lokissa.
         </Ilmoitus>
       )}
       {toinenLaite && (
@@ -596,7 +603,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
 
       <section className={`${korjaustila ? 'bg-amber-50' : ''} flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-2 py-1.5`}>
         {ampujat.length === 0 && <p className="rounded bg-white p-4">Ryhmässä ei ole ampujia.</p>}
-        {ampujat.map((a) => {
+        {vuoro.map((a) => {
           const merkit = merkitOf(tila.kortit, layout, a.nro);
           const kortti = tila.kortit[korttiAvain(layout.nro, a.nro)];
           const keskeytti = tila.keskeyttaneet.includes(a.nro);
@@ -658,7 +665,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
               );
             })}
             {(() => {
-              const seuraavaLayout = jarjestys.find((l) => l.nro !== layout.nro && layoutinTila(l, ampujat, tila.kortit).hyvaksytyt < ampujat.length);
+              const seuraavaLayout = jarjestys.find((l) => l.nro !== layout.nro && !layoutHyvaksytty(l, ampujat, tila.kortit, tila.keskeyttaneet));
               return seuraavaLayout && (
                 <button type="button" className="self-start rounded border border-slate-400 px-3 py-2" onClick={() => valitseLayout(seuraavaLayout.nro)}>
                   Seuraava layout: {seuraavaLayout.nimi}{seuraavaLayout.aika ? ` · ${seuraavaLayout.aika}` : ''}

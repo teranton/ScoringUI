@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  aloitusAsema, aloitusLayout, asemanVali, hyvaksy, korttiAvain, kuittaa, lahettamattomat, layoutJarjestys, layoutinTila,
-  merkitOf, merkitse, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, yhdistaPalvelimelta
+  aloitusAsema, aloitusLayout, asemaKiekolle, asemanVali, hyvaksy, kierrata, korttiAvain, kuittaa, lahettamattomat,
+  layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, yhdistaPalvelimelta
 } from './ryhma.js';
 
 const L1 = { nro: 1, nimi: 'Metsä', asemat: [{ sarake: 1, id: '1', kohteita: 2 }, { sarake: 2, id: '2', kohteita: 3 }], kohteita: 5 };
@@ -64,7 +64,7 @@ test('kiekkomäärän muutos ja korvatun puhelimen täydennykset', () => {
   let t = tila();
   t = merkitse(t, L1, { nro: 4, i: 0 }, 'X', 5);
   const lyhyt = { ...L1, kohteita: 4 };
-  const sovitettu = sovitaPituudet(t.kortit, [lyhyt], 10);
+  const sovitettu = sovitaPituudet(t.kortit, [lyhyt], [], 10);
   assert.equal(sovitettu[korttiAvain(1, 4)].merkit, 'X---');
   const tayd = otaTaydennykset(t.kortit, { '1:4': 'OOXXX', '1:5': 'XX---', '7:1': 'X' }, [L1], {}, 20);
   assert.equal(merkitOf(tayd.kortit, L1, 4), 'XOXXX', 'oma merkintä säilyy');
@@ -72,4 +72,41 @@ test('kiekkomäärän muutos ja korvatun puhelimen täydennykset', () => {
   assert.equal(tayd.taytetyt, 2);
   const uudelleen = otaTaydennykset(tayd.kortit, { '1:4': 'OOXXX' }, [L1], tayd.sovelletut, 30);
   assert.equal(uudelleen.taytetyt, 0);
+});
+
+test('kierrätys, kiekon asema ja keskeyttäneet layoutin hyväksynnässä', () => {
+  const kolme = [{ nro: 1 }, { nro: 2 }, { nro: 3 }];
+  assert.deepEqual(kierrata(kolme, 0).map((a) => a.nro), [1, 2, 3]);
+  assert.deepEqual(kierrata(kolme, 1).map((a) => a.nro), [2, 3, 1]);
+  assert.deepEqual(kierrata(kolme, 4).map((a) => a.nro), [2, 3, 1]);
+  assert.deepEqual(kierrata(kolme, undefined).map((a) => a.nro), [1, 2, 3]);
+  assert.deepEqual([0, 1, 2, 4].map((i) => asemaKiekolle(L1, i)), [0, 0, 1, 1]);
+
+  // Ampuja 5 keskeytti: layout on hyväksytty, kun ampuja 4 hyväksyy.
+  let t = tila();
+  for (let i = 0; i < 5; i++) t = merkitse(t, L1, { nro: 4, i }, 'X', 10);
+  const kortit = hyvaksy(t.kortit, L1, 4, Date.UTC(2026, 0, 1));
+  assert.equal(layoutHyvaksytty(L1, AMPUJAT, kortit), false);
+  assert.equal(layoutHyvaksytty(L1, AMPUJAT, kortit, [5]), true);
+  assert.deepEqual(layoutinTila(L1, AMPUJAT, kortit, [5]), { valmiit: 1, hyvaksytyt: 1, ampujia: 1 });
+  assert.equal(aloitusLayout([L1, L2], AMPUJAT, kortit, [5]).nro, 2);
+});
+
+test('asemajako: lähtee kortin mukana, muutos sovitetaan asema kerrallaan, poistettu layout hylätään', () => {
+  let t = tila();
+  'XOXXO'.split('').forEach((m, i) => { t = merkitse(t, L1, { nro: 4, i }, m, 10 + i); });
+  assert.equal(lahettamattomat(t.kortit, 60, [L1])[0].jako, '2,3');
+  assert.equal(lahettamattomat(t.kortit)[0].jako, undefined);
+
+  // Kiekko siirtyy asemalta 2 asemalle 1 (2,3 → 3,2): aseman 1 merkinnät pysyvät asemalla 1.
+  const uusi = { ...L1, asemat: [{ sarake: 1, id: '1', kohteita: 3 }, { sarake: 2, id: '2', kohteita: 2 }] };
+  const sovitettu = sovitaPituudet(t.kortit, [uusi], [L1], 100);
+  assert.equal(sovitettu[korttiAvain(1, 4)].merkit, 'XO-XX');
+  assert.equal(sovitettu[korttiAvain(1, 4)].lahetetty, false);
+  assert.equal(sovitaPituudet(sovitettu, [uusi], [uusi], 200), sovitettu, 'sama jako: ei muutosta');
+
+  const lahetetyt = lahettamattomat(t.kortit);
+  const kuitattu = kuittaa(t.kortit, lahetetyt, { hylatyt: [{ layout: 1, nro: 4, syy: 'layout' }] });
+  assert.equal(kuitattu[korttiAvain(1, 4)].hylatty, true);
+  assert.deepEqual(lahettamattomat(kuitattu), []);
 });

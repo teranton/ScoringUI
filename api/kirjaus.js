@@ -29,7 +29,7 @@ import {
   haltijaRivi, julkinenHaltija, laitteenNimi, lisaaTaydennys, lueLaiteRivi, onHaltija, tarkistaLinja, vaihtoPin
 } from './_lib/kirjausHaltija.js';
 import {
-  PAA_VALILEHTI, RYHMAT_VALILEHTI, layoutValilehti, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko,
+  PAA_VALILEHTI, RYHMAT_VALILEHTI, asemaJako, layoutValilehti, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko,
   ryhmaKorttiOtsikko, ryhmaKorttiRivi, ryhmanAmpujat, ryhmanVuorot, tarkistaRyhmaTallennus
 } from './_lib/kirjausRyhma.js';
 
@@ -356,34 +356,28 @@ async function avaaRyhma(request, { sheetId, ryhma, voimassaAsti }, { laite, hal
   const layoutTabit = meta.valilehdet.filter((v) => /^MOBIILI Layout \d+$/i.test(v.nimi.trim()));
   const haltijaTab = etsiValilehti(meta, kohde.tab);
 
-  // Pääsivu, asetukset ja aikataulut muotoiltuina; kortit ja haltijarivi muotoilemattomina (13-numeroinen VERSIO).
-  const omatAlueet = [
-    ...layoutTabit.map((t) => `${valilehtiAlue(t.nimi)}!A2:${RYHMA_RIVIN_LOPPU}${MAKS_NRO + 1}`),
-    ...(haltijaTab ? [laiteAlue(haltijaTab, kohde.rivi)] : [])
-  ];
-  const [arvot, omat] = await Promise.all([
-    batchGet(request, sheetId, [perus.paa, perus.speksit, ...aikataulut].map(valilehtiAlue), 'FORMATTED_VALUE'),
-    batchGet(request, sheetId, omatAlueet, 'UNFORMATTED_VALUE')
-  ]);
-  const [paaRivit, speksit, ...aikatauluRivit] = arvot;
+  // Ensin pääsivu, asetukset ja aikataulut muotoiltuina, sitten vain ryhmän ampujien korttirivit ja haltijarivi
+  // muotoilemattomina (13-numeroinen VERSIO; rivi = NRO + 1).
+  const [paaRivit, speksit, ...aikatauluRivit] = await batchGet(request, sheetId,
+    [perus.paa, perus.speksit, ...aikataulut].map(valilehtiAlue), 'FORMATTED_VALUE');
   const tiedot = ryhmanTiedot(paaRivit, speksit, ryhma);
   if (tiedot.virhe) return laheta(res, 409, { error: tiedot.virhe });
   const { layoutit, ampujat } = tiedot;
   const vuorot = ryhmanVuorot(aikataulut.map((nimi, i) => ({ nimi, rivit: aikatauluRivit[i] })), layoutit, ryhma);
 
-  const ryhmassa = new Set(ampujat.map((a) => a.nro));
-  const kortit = [];
-  layoutTabit.forEach((tab, i) => {
+  const luettavat = [];
+  for (const tab of layoutTabit) {
     const layout = layoutit.find((l) => layoutValilehti(l.nro).toLowerCase() === tab.nimi.trim().toLowerCase());
-    if (!layout) return;
-    (omat[i] || []).forEach((r) => {
-      const k = lueRyhmaKorttiRivi(r, layout);
-      if (k && k.versio > 0 && ryhmassa.has(k.nro)) {
-        kortit.push({ layout: layout.nro, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: Boolean(k.hyvaksytty) });
-      }
-    });
+    if (layout) for (const a of ampujat) luettavat.push({ layout, alue: ryhmaKorttiAlue(tab.nimi, a.nro) });
+  }
+  const omat = await batchGet(request, sheetId,
+    [...luettavat.map((l) => l.alue), ...(haltijaTab ? [laiteAlue(haltijaTab, kohde.rivi)] : [])], 'UNFORMATTED_VALUE');
+  const kortit = [];
+  luettavat.forEach(({ layout }, i) => {
+    const k = lueRyhmaKorttiRivi((omat[i] || [])[0], layout);
+    if (k && k.versio > 0) kortit.push({ layout: layout.nro, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: Boolean(k.hyvaksytty) });
   });
-  const rivi = lueLaiteRivi(haltijaTab ? (omat[layoutTabit.length] || [])[0] : null, { ryhma: true });
+  const rivi = lueLaiteRivi(haltijaTab ? (omat[luettavat.length] || [])[0] : null, { ryhma: true });
   const julkinen = julkinenHaltija(rivi, laite);
 
   return laheta(res, 200, {
@@ -400,13 +394,13 @@ async function avaaRyhma(request, { sheetId, ryhma, voimassaAsti }, { laite, hal
 
 // Korvatun puhelimen kortit (ryhmä otettiin toiselle puhelimelle): merkinnät, joiden kiekot ovat taulukossa vielä tyhjiä,
 // välitetään haltijalle (MOBIILI_RYHMAT, TÄYDENNYKSET, avain "<layout>:<nro>"); poikkeavat kirjataan lokiin.
-async function korvatunRyhmaTallennus(request, sheetId, kohde, tabit, laite, kortit, aika) {
+async function korvatunRyhmaTallennus(request, sheetId, kohde, tabit, laite, kortit, vieraat, aika) {
   const [laiteRivit] = await batchGet(request, sheetId, [laiteAlue(tabit.laitteet, kohde.rivi)], 'UNFORMATTED_VALUE');
   const rivi = lueLaiteRivi((laiteRivit || [])[0], { ryhma: true });
   let taydennykset = rivi.taydennykset;
   let taydennetyt = 0;
   let eroavat = 0;
-  const lokirivit = [];
+  const lokirivit = [...vieraat];
   for (const { kortti, layout, vanha } of kortit) {
     const t = taydenna(vanha?.merkit || '-'.repeat(layout.kohteita), kortti.merkit);
     if (t.taytetty === 0 && t.eri === 0) continue;
@@ -485,8 +479,15 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
   kortit.forEach((kortti) => {
     const layout = layoutit.find((l) => l.nro === kortti.layout);
     const i = luettavat.indexOf(kortti);
-    if (!layout || i === -1 || !onkoRyhmaMerkit(kortti.merkit, layout.kohteita)) {
+    // Layout poistettu kisan asetuksista: kortti ei tallennu, merkinnät lokiin, eikä laite lähetä sitä uudelleen.
+    if (!layout || i === -1) {
       hylatyt.push({ layout: kortti.layout, nro: kortti.nro, syy: 'layout' });
+      vieraat.push([aika, `Layout ${kortti.layout}`, kortti.nro, laite, kortti.versio, '', kortti.merkit, `LAYOUT EI KISASSA (RYHMÄ ${ryhma}): EI TALLENNETTU`]);
+      return;
+    }
+    // Asemataulukkoa muutettu: laite hakee layoutit uudelleen, sovittaa kortin ja lähettää sen uudelleen.
+    if (!onkoRyhmaMerkit(kortti.merkit, layout.kohteita) || (kortti.jako && kortti.jako !== asemaJako(layout))) {
+      hylatyt.push({ layout: kortti.layout, nro: kortti.nro, syy: 'kohteet' });
       return;
     }
     const vanha = lueRyhmaKorttiRivi((tallessa[i] || [])[0], layout);
@@ -500,12 +501,14 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
 
   if (!haltija) return { status: 409, body: { error: 'Päivitä sivu: kirjauksen uusi versio', paivita: true } };
   if (!onHaltija(haltija, rivi, { sheetId, sarake: kohde.tunnus, laite }, salaisuus())) {
-    return radanJonossa(kohde.jono, () => korvatunRyhmaTallennus(request, sheetId, kohde, tabit, laite, kelvot, aika));
+    return radanJonossa(kohde.jono, () => korvatunRyhmaTallennus(request, sheetId, kohde, tabit, laite, kelvot, vieraat, aika));
   }
 
-  // Liian kapea layoutin välilehti (asemataulukon kiekkoja lisätty) levennetään samassa kirjoituksessa.
+  // Liian kapea layoutin välilehti (asemataulukon kiekkoja lisätty) levennetään, ja otsikko kirjoitetaan aina
+  // uudelleen (asemajako voi muuttua kiekkojen määrän pysyessä samana) samassa kirjoituksessa.
   const requests = [];
   const levennetyt = new Set();
+  const otsikoidut = new Set();
   const tallennetut = [];
   const uudemmat = [];
   const lokirivit = [...vieraat];
@@ -521,7 +524,11 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
     const otsikko = ryhmaKorttiOtsikko(layout);
     if (Number.isInteger(tab.sarakkeita) && tab.sarakkeita < otsikko.length && !levennetyt.has(tab.id)) {
       levennetyt.add(tab.id);
-      requests.push({ appendDimension: { sheetId: tab.id, dimension: 'COLUMNS', length: otsikko.length - tab.sarakkeita } }, solut(tab, 0, 0, otsikko));
+      requests.push({ appendDimension: { sheetId: tab.id, dimension: 'COLUMNS', length: otsikko.length - tab.sarakkeita } });
+    }
+    if (!otsikoidut.has(tab.id)) {
+      otsikoidut.add(tab.id);
+      requests.push(solut(tab, 0, 0, otsikko));
     }
     requests.push(solut(tab, kortti.nro, 0, ryhmaKorttiRivi(layout, {
       ...kortti, nimi: ryhmassa.get(kortti.nro), laite, aika, ryhma, hyvaksytty: hyvaksynta(kortti.hyvaksytty, vanha)
@@ -540,8 +547,9 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
 }
 
 // Hyväksynnän aika riville: laitteen aika, taulukossa jo oleva (true: laite sai hyväksynnän taulukosta) tai tyhjä.
+// true ilman taulukon hyväksyntää (rivi tyhjennetty) ei keksi uutta aikaa: ampuja hyväksyy kortin uudelleen.
 function hyvaksynta(hyvaksytty, vanha) {
-  if (hyvaksytty === true) return vanha?.hyvaksytty || aikaleima();
+  if (hyvaksytty === true) return vanha?.hyvaksytty || '';
   return hyvaksytty ? aikaleima(hyvaksytty) : '';
 }
 

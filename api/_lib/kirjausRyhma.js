@@ -79,6 +79,17 @@ export function lueLayoutit(rivit) {
 // Ryhmän ampujat pääsivulta (muotoillut arvot, otsikko rivillä 1): NRO, NIMI ja RYHMÄ otsikon mukaan. Rivin ryhmä on
 // Ryhmä-sarakkeen luku, muuten ylöspäin pyöristetty NRO / ryhmäkoko. Nimi, joka on sama kuin oma numero, on vapaa paikka.
 // Palauttaa [{ nro, nimi }] numerojärjestyksessä.
+// Ryhmän numero solusta: ensimmäinen kokonaisluku, joten muotoiltu ("Ryhmä 3", "3,00") ja muotoilematon arvo (3)
+// antavat saman ryhmän (avaus lukee pääsivun muotoiltuna, tallennus muotoilemattomana; ScoringLib readSquads samoin).
+export function ryhmaLuku(arvo) {
+  const m = String(arvo ?? '').match(/\d+/);
+  return m ? Number(m[0]) : Number.NaN;
+}
+
+// Layoutin asemajako ("10,8,7"): laite lähettää sen kortin mukana, ja eri jaolla merkityt kortit hylätään (asemataulukkoa
+// muutettu, vaikka kiekkojen määrä olisi sama).
+export const asemaJako = (layout) => layout.asemat.map((a) => a.kohteita).join(',');
+
 export function ryhmanAmpujat(rivit, ryhma, ryhmaKoko = OLETUS_RYHMAKOKO) {
   const otsikko = (rivit?.[0] || []).map(n);
   const sarake = (nimi, oletus) => {
@@ -96,7 +107,7 @@ export function ryhmanAmpujat(rivit, ryhma, ryhmaKoko = OLETUS_RYHMAKOKO) {
     if (!(nro > 0) || nro > MAKS_NRO) return;
     const nimi = puhdasTeksti(rivi[nimiS], 80);
     if (!nimi || nimi === String(nro)) return;
-    const taulukosta = ryhmaS >= 0 ? Number.parseInt(rivi[ryhmaS], 10) : Number.NaN;
+    const taulukosta = ryhmaS >= 0 ? ryhmaLuku(rivi[ryhmaS]) : Number.NaN;
     const oma = taulukosta > 0 ? taulukosta : Math.ceil(nro / koko);
     if (oma === ryhma && !ampujat.some((a) => a.nro === nro)) ampujat.push({ nro, nimi });
   });
@@ -223,10 +234,13 @@ export function tarkistaRyhmaTallennus(runko, onLaitetunnus) {
     if (!Number.isSafeInteger(k.versio) || k.versio < 1) return { virhe: 'Virheellinen versio' };
     if (k.hyvaksytty !== undefined && k.hyvaksytty !== null && k.hyvaksytty !== true && k.hyvaksytty !== false
       && (!Number.isSafeInteger(k.hyvaksytty) || k.hyvaksytty < HYVAKSYNTA_MIN_MS)) return { virhe: 'Virheellinen hyväksyntä' };
+    if (k.jako !== undefined && (typeof k.jako !== 'string' || !/^\d{1,3}(,\d{1,3}){0,49}$/.test(k.jako))) return { virhe: 'Virheellinen asemajako' };
   }
   return {
     laite,
     haltija,
-    kortit: kortit.map((k) => ({ layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: k.hyvaksytty || null }))
+    kortit: kortit.map((k) => ({
+      layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: k.hyvaksytty || null, ...(k.jako ? { jako: k.jako } : {})
+    }))
   };
 }

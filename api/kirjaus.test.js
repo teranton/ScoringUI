@@ -444,11 +444,14 @@ test('ryhmä: tallennus kirjoittaa vain ryhmän kortit; hyväksyntä ja asemien 
     { layout: 1, nro: 4, merkit: RYHMA_MERKIT, versio: VERSIO, hyvaksytty: Date.UTC(2026, 9, 27, 10) },
     { layout: 1, nro: 1, merkit: RYHMA_MERKIT, versio: VERSIO },
     { layout: 2, nro: 5, merkit: 'X', versio: VERSIO },
-    { layout: 3, nro: 5, merkit: 'X', versio: VERSIO }
+    { layout: 3, nro: 5, merkit: 'X', versio: VERSIO },
+    { layout: 1, nro: 5, merkit: RYHMA_MERKIT, versio: VERSIO, jako: '8,17' }
   ] });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.tallennetut, [{ layout: 1, nro: 4 }]);
-  assert.deepEqual(res.body.hylatyt, [{ layout: 1, nro: 1, syy: 'ryhma' }, { layout: 2, nro: 5, syy: 'layout' }, { layout: 3, nro: 5, syy: 'layout' }]);
+  assert.deepEqual(res.body.hylatyt, [
+    { layout: 1, nro: 1, syy: 'ryhma' }, { layout: 2, nro: 5, syy: 'kohteet' }, { layout: 3, nro: 5, syy: 'layout' }, { layout: 1, nro: 5, syy: 'kohteet' }
+  ]);
   const tab = taulukko['MOBIILI Layout 1'].rivit;
   assert.deepEqual(tab[0].slice(6, 11), ['RYHMÄ', 'HYVÄKSYTTY', 'ASEMA 1', 'ASEMA 2', '1/1']);
   assert.deepEqual(tab[4].slice(0, 3), [4, 'Dahl D', 23]);
@@ -459,6 +462,7 @@ test('ryhmä: tallennus kirjoittaa vain ryhmän kortit; hyväksyntä ja asemien 
   const loki = taulukko.MOBIILI_LOKI.rivit;
   assert.ok(loki.some((r) => r[1] === 'Layout 1' && r[2] === 4 && /HYVÄKSYTTY/.test(r[7])));
   assert.ok(loki.some((r) => r[2] === 1 && /EI RYHMÄSSÄ 2/.test(r[7])));
+  assert.ok(loki.some((r) => r[1] === 'Layout 3' && /LAYOUT EI KISASSA/.test(r[7])));
 
   // Välilehdet ovat jo olemassa: yksi luku ja yksi kirjoitus.
   lukuja = 0;
@@ -467,6 +471,11 @@ test('ryhmä: tallennus kirjoittaa vain ryhmän kortit; hyväksyntä ja asemien 
   assert.deepEqual(toinen.body.tallennetut, [{ layout: 1, nro: 5 }]);
   assert.equal(lukuja, 1);
   assert.equal(kirjoitukset, 1);
+
+  // Hyväksyntä taulukosta (true), mutta rivillä ei ole hyväksyntää: uutta aikaa ei keksitä.
+  const kolmas = await tallennaRyhma({ laite: 'puhelin-1', haltija: h, kortit: [{ layout: 1, nro: 5, merkit: RYHMA_MERKIT, versio: VERSIO + 1, hyvaksytty: true, jako: '10,15' }] });
+  assert.deepEqual(kolmas.body.tallennetut, [{ layout: 1, nro: 5 }]);
+  assert.equal(taulukko['MOBIILI Layout 1'].rivit[5][7], '');
 
   const avattu = await ryhmaKutsu({ laite: 'puhelin-1', haltija: h });
   assert.deepEqual(avattu.body.kortit.find((k) => k.nro === 4), { layout: 1, nro: 4, merkit: RYHMA_MERKIT, versio: VERSIO, hyvaksytty: true });
@@ -488,12 +497,16 @@ test('ryhmä: toinen puhelin ottaa ryhmän vahvistuksella, korvatun merkinnät t
   assert.match(h2, /^h1\.2\./);
   assert.match(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], /RYHMÄ OTETTU: ryhmän koodi/);
 
-  const vanha = await tallennaRyhma({ laite: 'puhelin-1', haltija: h1, kortit: [{ layout: 1, nro: 4, merkit: 'XXOX' + '-'.repeat(21), versio: VERSIO + 5 }] });
+  const vanha = await tallennaRyhma({ laite: 'puhelin-1', haltija: h1, kortit: [
+    { layout: 1, nro: 4, merkit: 'XXOX' + '-'.repeat(21), versio: VERSIO + 5 },
+    { layout: 1, nro: 1, merkit: 'X' + '-'.repeat(24), versio: VERSIO }
+  ] });
   assert.equal(vanha.statusCode, 409);
   assert.equal(vanha.body.korvattu, true);
   assert.equal(vanha.body.taydennetty, 1);
   assert.deepEqual(JSON.parse(taulukko.MOBIILI_RYHMAT.rivit[2][9]), { '1:4': 'XXOX' + '-'.repeat(21) });
   assert.equal(taulukko['MOBIILI Layout 1'].rivit[4][5], VERSIO, 'korvattu ei kirjoita korttia');
+  assert.ok(taulukko.MOBIILI_LOKI.rivit.some((r) => r[2] === 1 && /EI RYHMÄSSÄ 2/.test(r[7])), 'korvatun ryhmään kuulumaton lokiin');
 
   const avattu = await ryhmaKutsu({ laite: 'puhelin-2', haltija: h2 });
   assert.deepEqual(avattu.body.taydennykset, { '1:4': 'XXOX' + '-'.repeat(21) });

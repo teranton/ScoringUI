@@ -43,6 +43,9 @@ test('ryhmän ampujat: Ryhmä-sarake, muuten numero / ryhmäkoko; vapaa paikka o
   // Nro 6 ilman ryhmää: 6 / 3 → ryhmä 2.
   assert.deepEqual(ryhmanAmpujat(rivit, 2, 3), [{ nro: 3, nimi: 'Ek E' }, { nro: 4, nimi: 'Dahl D' }, { nro: 6, nimi: 'Fors F' }]);
   assert.deepEqual(ryhmanAmpujat([['NRO', 'X', 'NIMI'], ['4', '', 'Dahl D'], ['7', '', 'Gran G']], 2, 3), [{ nro: 4, nimi: 'Dahl D' }]);
+  // Muotoiltu ("Ryhmä 2") ja muotoilematon (2) Ryhmä antavat saman ryhmän.
+  const muotoiltu = [['NRO', 'Ryhmä', 'NIMI'], ['1', 'Ryhmä 2', 'Aalto A'], [2, 2, 'Berg B'], ['3', '2,00', 'Ek E']];
+  assert.deepEqual(ryhmanAmpujat(muotoiltu, 2, 3).map((a) => a.nro), [1, 2, 3]);
   assert.equal(ryhmaKoko(SPEKSIT), 3);
   assert.equal(ryhmaKoko([]), 6);
 });

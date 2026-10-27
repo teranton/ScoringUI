@@ -16,26 +16,50 @@ export function asemanVali(layout, asema) {
   return { alku, loppu: alku + (layout.asemat[asema]?.kohteita || 0) };
 }
 
+// Kiekko i:n asema layoutilla (indeksi).
+export function asemaKiekolle(layout, i) {
+  let loppu = 0;
+  const a = layout.asemat.findIndex((s) => (loppu += s.kohteita) > i);
+  return a === -1 ? Math.max(0, layout.asemat.length - 1) : a;
+}
+
+// Layoutin asemajako ("10,8,7", sama kuin api/_lib/kirjausRyhma.js asemaJako): lähtee kortin mukana.
+export const asemaJako = (layout) => layout.asemat.map((a) => a.kohteita).join(',');
+
+// Ampumajärjestys layoutilla: aikataulun kierros siirtää aloittajaa yhdellä per kierros, kuten paperikortissa
+// (ScoringLib ScoreCardFill.rotateShooters). Ilman kierrosta numerojärjestys.
+export function kierrata(ampujat, kierros) {
+  const k = ampujat.length && Number.isInteger(kierros) && kierros > 0 ? kierros % ampujat.length : 0;
+  return [...ampujat.slice(k), ...ampujat.slice(0, k)];
+}
+
 // Ryhmän layoutit ammuntajärjestyksessä: aikataulun kierroksen mukaan, aikataulusta puuttuvat lopussa numerojärjestyksessä.
 export function layoutJarjestys(layoutit) {
   return [...(layoutit || [])].sort((a, b) => (a.kierros ?? 999) - (b.kierros ?? 999) || a.nro - b.nro);
 }
 
-// Layoutin tilanne: { valmiit (kaikki kiekot merkitty), hyvaksytyt, ampujia }.
-export function layoutinTila(layout, ampujat, kortit) {
+// Layoutin tilanne: { valmiit (kaikki kiekot merkitty), hyvaksytyt, ampujia }. Keskeyttäneitä ei odoteta (heillä ei ole
+// hyväksyntää), paitsi jos heidän korttinsa on jo hyväksytty.
+export function layoutinTila(layout, ampujat, kortit, keskeyttaneet = []) {
   let valmiit = 0;
   let hyvaksytyt = 0;
-  for (const a of ampujat) {
+  const mukana = ampujat.filter((a) => !keskeyttaneet.includes(a.nro) || kortit[korttiAvain(layout.nro, a.nro)]?.hyvaksytty);
+  for (const a of mukana) {
     const kortti = kortit[korttiAvain(layout.nro, a.nro)];
     if (kortti && taytetyt(kortti.merkit) === layout.kohteita) valmiit++;
     if (kortti?.hyvaksytty) hyvaksytyt++;
   }
-  return { valmiit, hyvaksytyt, ampujia: ampujat.length };
+  return { valmiit, hyvaksytyt, ampujia: mukana.length };
 }
 
+export const layoutHyvaksytty = (layout, ampujat, kortit, keskeyttaneet = []) => {
+  const t = layoutinTila(layout, ampujat, kortit, keskeyttaneet);
+  return t.ampujia > 0 && t.hyvaksytyt === t.ampujia;
+};
+
 // Ensimmäinen layout, jota ei ole vielä hyväksytty kokonaan (muuten viimeinen).
-export function aloitusLayout(jarjestys, ampujat, kortit) {
-  return jarjestys.find((l) => layoutinTila(l, ampujat, kortit).hyvaksytyt < ampujat.length) || jarjestys[jarjestys.length - 1] || null;
+export function aloitusLayout(jarjestys, ampujat, kortit, keskeyttaneet = []) {
+  return jarjestys.find((l) => !layoutHyvaksytty(l, ampujat, kortit, keskeyttaneet)) || jarjestys[jarjestys.length - 1] || null;
 }
 
 // Ensimmäinen asema, jolla jonkun ampujan kiekko on merkitsemättä (muuten viimeinen).
@@ -127,16 +151,23 @@ export function yhdistaPalvelimelta(kortit, palvelimen, { kaikki = false } = {})
   return tulos;
 }
 
-// Lähettämättömät kortit API:n muodossa (enintään maks). Hylätyt (ei ryhmässä) eivät lähde uudelleen.
-export function lahettamattomat(kortit, maks = 60) {
+// Lähettämättömät kortit API:n muodossa (enintään maks), asemajaon kanssa, kun layout tunnetaan. Hylätyt (ei ryhmässä
+// tai layout poistettu) eivät lähde uudelleen. Sama sääntö public/kirjaus-sw.js lahetettavat.
+export function lahettamattomat(kortit, maks = 60, layoutit = []) {
   return Object.values(kortit)
     .filter((k) => !k.lahetetty && !k.hylatty)
     .slice(0, maks)
-    .map((k) => ({ layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}) }));
+    .map((k) => {
+      const layout = layoutit.find((l) => l.nro === k.layout);
+      return {
+        layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio,
+        ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}), ...(layout ? { jako: asemaJako(layout) } : {})
+      };
+    });
 }
 
-// Tallennuksen vastaus: lähetetyt versiot lähetetyiksi, palvelimen uudemmat käyttöön, ryhmään kuulumattomat hylätyiksi
-// (ne jäävät laitteelle ja lokiin, mutta eivät lähde uudelleen).
+// Tallennuksen vastaus: lähetetyt versiot lähetetyiksi, palvelimen uudemmat käyttöön, ryhmään kuulumattomat ja poistettujen
+// layoutien kortit hylätyiksi (ne jäävät laitteelle ja lokiin, mutta eivät lähde uudelleen).
 export function kuittaa(kortit, lahetetyt, { tallennetut = [], uudemmat = [], hylatyt = [] }) {
   let tulos = kortit;
   const versiot = new Map(lahetetyt.map((k) => [korttiAvain(k.layout, k.nro), k.versio]));
@@ -148,18 +179,32 @@ export function kuittaa(kortit, lahetetyt, { tallennetut = [], uudemmat = [], hy
   for (const h of hylatyt) {
     const avain = korttiAvain(h.layout, h.nro);
     const oma = tulos[avain];
-    if (h.syy === 'ryhma' && oma && oma.versio === versiot.get(avain)) tulos = { ...tulos, [avain]: { ...oma, hylatty: true } };
+    if ((h.syy === 'ryhma' || h.syy === 'layout') && oma && oma.versio === versiot.get(avain)) tulos = { ...tulos, [avain]: { ...oma, hylatty: true } };
   }
   return yhdistaPalvelimelta(tulos, uudemmat);
 }
 
-// Layoutin kiekkomäärä muuttui (asemataulukkoa korjattu): kortit sovitetaan uuteen pituuteen ja lähetetään uudelleen.
-export function sovitaPituudet(kortit, layoutit, nyt = Date.now()) {
+// Layoutin asemajako muuttui (asemataulukkoa korjattu): kortit sovitetaan asema kerrallaan (aseman tulossarake yhdistää
+// vanhan ja uuden; lisätyt kiekot tyhjinä, poistetut pois) ja lähetetään uudelleen. vanhat = edelliset layoutit
+// (merkinnät tehtiin niiden jaolla); ilman niitä pituus sovitetaan lopusta.
+export function sovitaPituudet(kortit, layoutit, vanhat = [], nyt = Date.now()) {
   let tulos = kortit;
   for (const [avain, k] of Object.entries(kortit)) {
     const layout = layoutit.find((l) => l.nro === k.layout);
-    if (!layout || k.merkit.length === layout.kohteita) continue;
-    const merkit = k.merkit.length > layout.kohteita ? k.merkit.slice(0, layout.kohteita) : k.merkit.padEnd(layout.kohteita, '-');
+    if (!layout) continue;
+    const vanha = vanhat.find((l) => l.nro === k.layout);
+    const vanhallaJaolla = vanha && vanha.kohteita === k.merkit.length && asemaJako(vanha) !== asemaJako(layout);
+    if (!vanhallaJaolla && k.merkit.length === layout.kohteita) continue;
+    let merkit;
+    if (vanhallaJaolla) {
+      merkit = layout.asemat.map((asema) => {
+        const a = vanha.asemat.findIndex((x) => x.sarake === asema.sarake);
+        const osa = a === -1 ? '' : k.merkit.slice(asemanVali(vanha, a).alku, asemanVali(vanha, a).loppu);
+        return osa.slice(0, asema.kohteita).padEnd(asema.kohteita, '-');
+      }).join('');
+    } else {
+      merkit = k.merkit.length > layout.kohteita ? k.merkit.slice(0, layout.kohteita) : k.merkit.padEnd(layout.kohteita, '-');
+    }
     tulos = { ...tulos, [avain]: { ...k, merkit, versio: uusiVersio(k.versio, nyt), lahetetty: false, hyvaksytty: null } };
   }
   return tulos;

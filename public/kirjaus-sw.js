@@ -157,12 +157,17 @@ function lahetettavat(rivi) {
   const tila = rivi?.tila;
   if (!tila?.kortit || !rivi.koodi || !rivi.laite || !tila.haltija || tila.korvattu || tila.luovutettu) return [];
   const nimet = { ...tila.avaus?.nimet, ...rivi.nimet };
+  const layoutit = Array.isArray(tila.avaus?.layoutit) ? tila.avaus.layoutit : [];
+  const jako = (nro) => {
+    const l = layoutit.find((x) => x.nro === nro);
+    return l && Array.isArray(l.asemat) ? { jako: l.asemat.map((a) => a.kohteita).join(',') } : {};
+  };
   return Object.entries(tila.kortit)
     .filter(([, k]) => k && !k.lahetetty && !k.hylatty)
     .slice(0, MAKS_KORTTEJA)
     // Ryhmäpuhelimen kortissa on layout (src/kirjaus/ryhma.js lahettamattomat); nimen palvelin ottaa pääsivulta.
     .map(([nro, k]) => (k.layout
-      ? { layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}) }
+      ? { layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}), ...jako(k.layout) }
       : { nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '' }));
 }
 

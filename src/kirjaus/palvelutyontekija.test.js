@@ -62,4 +62,7 @@ test('lahetettavat: ryhmäpuhelimen kortit layoutin kanssa, hylätyt eivät läh
     { layout: 1, nro: 4, merkit: 'XO-', versio: 5, hyvaksytty: 1800000000000 },
     { layout: 2, nro: 4, merkit: 'X--', versio: 7 }
   ]);
+  // Asemajako avauksen layouteista, kuten sivulla (ryhma.js lahettamattomat).
+  const avaus = { layoutit: [{ nro: 1, asemat: [{ kohteita: 1 }, { kohteita: 2 }] }] };
+  assert.deepEqual(lahetettavat(rivi({ kortit, avaus })).map((k) => k.jako), ['1,2', undefined]);
 });
