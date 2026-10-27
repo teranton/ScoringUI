@@ -27,7 +27,7 @@ test('haltija-avain kelpaa vain samalle laitteelle ja sukupolvelle', () => {
 });
 
 test('laiterivi: puuttuva on vapaa, linja luetaan siistittynä', () => {
-  assert.deepEqual(julkinenHaltija(lueLaiteRivi([]), 'x'), { vapaa: true, oma: false, nimi: '', otettu: '', tapa: '', lukittu: false });
+  assert.deepEqual(julkinenHaltija(lueLaiteRivi([]), 'x'), { vapaa: true, oma: false, tamaLaite: false, nimi: '', otettu: '', tapa: '', lukittu: false });
   const rivi = lueLaiteRivi([2, 1, 'a', 'Android', 'aika', 'vapaa rata', 10, '{"ohitetut":[3,3,"x"],"ohjelma":"SDD"}']);
   assert.equal(julkinenHaltija(rivi, 'a').oma, true);
   assert.equal(julkinenHaltija(rivi, 'a').lukittu, true);

@@ -30,7 +30,7 @@ test('tavallinen ratalinkki ei ole siirto; rikkinäiset osat ohitetaan', () => {
 });
 
 test('siirron yhdistäminen: uudempi versio voittaa, siirretyt lähetetään, linja tulee mukaan', () => {
-  const tila = { kortit: { 3: { merkit: MERKIT, versio: 10, lahetetty: true }, 4: { merkit: MERKIT, versio: 10, lahetetty: true } }, ohitetut: [], luovutettu: true };
+  const tila = { kortit: { 3: { merkit: MERKIT, versio: 10, lahetetty: true }, 4: { merkit: MERKIT, versio: 10, lahetetty: true } }, ohitetut: [], luovutettu: true, haltija: 'h1.1.vanha' };
   const uusi = yhdistaSiirto(tila, {
     haltija: 'h1.2.x',
     kortit: [{ nro: 3, versio: 11, merkit: 'X'.repeat(25) }, { nro: 4, versio: 9, merkit: 'O'.repeat(25) }],
@@ -42,6 +42,7 @@ test('siirron yhdistäminen: uudempi versio voittaa, siirretyt lähetetään, li
   assert.equal(uusi.ohjelma, 'SSSD');
   assert.equal(uusi.siirtoAvain, 'h1.2.x');
   assert.equal(uusi.luovutettu, false);
+  assert.equal(uusi.haltija, null);
 });
 
 test('linjan tila ja laitteen nimi', () => {

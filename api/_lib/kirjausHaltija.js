@@ -7,7 +7,7 @@
 // (ScoringLib laskee saman, Mobiilikirjaus.vaihtoPin), joten se kelpaa vain yhteen vaihtoon.
 // Puhtaat funktiot, ei Google-kutsuja (kirjausHaltija.test.js).
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { MAKS_NRO } from './kirjausData.js';
+import { MAKS_NRO, puhdasTeksti } from './kirjausData.js';
 
 export const LAITTEET_VALILEHTI = 'MOBIILI_LAITTEET';
 export const LAITTEET_OTSIKKO = ['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY'];
@@ -73,6 +73,8 @@ export function julkinenHaltija(rivi, laite) {
   return {
     vapaa: !rivi.laite,
     oma: Boolean(rivi.laite) && rivi.laite === laite,
+    // Rata on tämän laitteen, vaikka avain puuttuisi (esim. oton vastaus katosi): ota antaa avaimen uudelleen.
+    tamaLaite: Boolean(rivi.laite) && rivi.laite === laite,
     nimi: rivi.nimi,
     otettu: rivi.otettu,
     tapa: rivi.tapa,
@@ -80,7 +82,6 @@ export function julkinenHaltija(rivi, laite) {
   };
 }
 
-export const puhdasTeksti = (t, maks) => [...String(t ?? '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, maks);
 export const laitteenNimi = (nimi) => puhdasTeksti(nimi, MAKS_LAITTEEN_NIMI);
 
 // Linjan tila, jonka uusi laite saa radan mukana: laitteella lisätyt ja ohitetut ampujat, tauot, keskeyttäneet

@@ -213,6 +213,10 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
   const rivi = lueLaiteRivi((laiteRivit || [])[0]);
   const aika = aikaleima();
 
+  if (!haltija) {
+    // Vaiheen 3 sovellus (ei haltija-avainta): ei kirjoiteta eikä lokiteta; uusi versio latautuu sivun päivityksellä.
+    return { status: 409, body: { error: 'Päivitä sivu: kirjauksen uusi versio', paivita: true } };
+  }
   if (!onHaltija(haltija, rivi, { sheetId, sarake, laite }, salaisuus())) {
     const ristiriidat = ristiriitaRivit(sarake, laite, kortit, tallessa, aika);
     if (ristiriidat.length > 0) {
@@ -233,7 +237,8 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
     if (vanha && vanha.versio >= kortti.versio) {
       // Sama versio on jo tallessa (uudelleenlähetys) tai taulukossa on uudempi: ei kirjoiteta.
       if (vanha.versio === kortti.versio && vanha.merkit === kortti.merkit) tallennetut.push(kortti.nro);
-      else uudemmat.push({ nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio, laite: vanha.laite, aika: vanha.aika });
+      // Toisen laitteen tunnusta ei palauteta (sillä ja ratakoodilla saisi radan); vain tieto, että se oli toinen.
+      else uudemmat.push({ nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio, muuLaite: vanha.laite !== laite, aika: vanha.aika });
       return;
     }
     requests.push(solut(tabit.kortit, kortti.nro, 0, korttiRivi({ ...kortti, laite, aika })));
@@ -304,7 +309,21 @@ const TAVAT = { vapaa: 'vapaa rata', siirto: 'siirto edelliseltä laitteelta', p
 // Ottaa radan tälle laitteelle: vapaa rata suoraan, sama laite saa avaimensa uudelleen, varattu rata edellisen
 // laitteen siirtoavaimella tai vaihto-PIN-koodilla (väärät PIN-koodit lasketaan; MAKS_PIN_VIRHEET lukitsee vaihdon,
 // kunnes kilpailutoimisto avaa PIN-koodit ScoringLibin valikosta).
+const otot = new Map();
 async function ota(request, avain, req, res) {
+  // Saman radan otot jonossa tässä palvelinilmentymässä: rinnakkaiset väärät PIN-koodit lasketaan kaikki.
+  const tunnus = `${avain.sheetId}:${avain.sarake}`;
+  const edellinen = otot.get(tunnus) || Promise.resolve();
+  const tama = edellinen.catch(() => {}).then(() => otaJonossa(request, avain, req, res));
+  otot.set(tunnus, tama);
+  try {
+    return await tama;
+  } finally {
+    if (otot.get(tunnus) === tama) otot.delete(tunnus);
+  }
+}
+
+async function otaJonossa(request, avain, req, res) {
   const runko = runkoOf(req);
   const laite = typeof runko?.laite === 'string' ? runko.laite : '';
   if (!onLaitetunnus(laite)) return laheta(res, 400, { error: 'Laitteen tunnus puuttuu' });

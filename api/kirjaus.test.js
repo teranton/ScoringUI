@@ -191,7 +191,7 @@ test('tallenna: haltija ottaa radan, kortti ja loki yhdellä kirjoituksella; van
   // Vanhempi versio: palautetaan taulukon kortti.
   const vanha = await tallenna({ ...body, kortit: [{ nro: 3, merkit: 'O'.repeat(25), versio: VERSIO - 1 }] });
   assert.deepEqual(vanha.body.tallennetut, []);
-  assert.deepEqual(vanha.body.uudemmat.map(({ nro, merkit, versio }) => ({ nro, merkit, versio })), [{ nro: 3, merkit: MERKIT, versio: VERSIO }]);
+  assert.deepEqual(vanha.body.uudemmat.map(({ nro, merkit, versio, muuLaite }) => ({ nro, merkit, versio, muuLaite })), [{ nro: 3, merkit: MERKIT, versio: VERSIO, muuLaite: false }]);
 
   // Avaus: kortit, versio tarkkana lukuna, ja haltija.
   const avattu = await kutsu({ laite: 'laite-1', haltija: h1 });
@@ -208,8 +208,9 @@ test('tallenna: ilman haltija-avainta ei kirjoiteta', async () => {
   alusta();
   const res = await tallenna({ laite: 'laite-1', kortit: [{ nro: 3, merkit: MERKIT, versio: VERSIO }] });
   assert.equal(res.statusCode, 409);
-  assert.equal(res.body.korvattu, true);
+  assert.equal(res.body.paivita, true);
   assert.equal(taulukko['MOBIILI Rata 2'].rivit[3], undefined);
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.length, 1, 'vanhan version tallennusta ei lokiteta');
   // Väärennetty avain toiselle laitteelle ei kelpaa.
   const h1 = await ota('laite-1');
   const res2 = await tallenna({ laite: 'laite-2', haltija: h1, kortit: [{ nro: 3, merkit: MERKIT, versio: VERSIO }] });
@@ -261,7 +262,10 @@ test('PIN-koodin arvaus lukittuu', async () => {
   await ota('laite-1');
   const oikea = vaihtoPin({ sheetId: ID, sarake: 2, sukupolvi: 1 }, process.env.KIRJAUS_SALAISUUS);
   const vaara = oikea === '1111' ? '2222' : '1111';
-  for (let i = 0; i < 10; i++) assert.equal((await ota('laite-2', { pin: vaara })).statusCode, 403);
+  // Rinnakkaiset yritykset lasketaan kaikki.
+  const tulokset = await Promise.all(Array.from({ length: 10 }, () => ota('laite-2', { pin: vaara })));
+  assert.deepEqual(tulokset.map((r) => r.statusCode), Array(10).fill(403));
+  assert.equal(taulukko.MOBIILI_LAITTEET.rivit[2][6], 10);
   const lukittu = await ota('laite-2', { pin: oikea });
   assert.equal(lukittu.statusCode, 423);
   assert.equal(lukittu.body.haltija.lukittu, true);

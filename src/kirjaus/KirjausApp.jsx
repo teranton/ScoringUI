@@ -216,7 +216,7 @@ function RataNakyma({ koodi, onVaihda }) {
         }
         // Tällä laitteella oli rata, mutta se on nyt toisella (vaihdettu PIN-koodilla) tai luovutettu: korvattu.
         // Lähettämättömät kortit lähtevät vielä kerran, jolloin palvelin kirjaa poikkeavat lokiin.
-        const korvattu = Boolean(tilaRef.current.haltija) && !data.haltija?.oma;
+        const korvattu = Boolean(tilaRef.current.haltija) && !data.haltija?.oma && !data.haltija?.tamaLaite;
         setTila((t) => ({
           ...t,
           avaus: data,
@@ -266,15 +266,18 @@ function RataNakyma({ koodi, onVaihda }) {
         return { virhe: data.error || `Virhe ${res.status}`, yrityksia: data.yrityksia };
       }
       setTila((t) => {
-        // Siirtolinkin linja on tuoreempi kuin taulukon (vanha laite oli ilman verkkoa); muuten taulukon linja.
-        const linjalla = siirtoAvain || !data.linja ? t : otaLinja(t, data.linja);
+        // Taulukon linja käyttöön, paitsi siirrossa (siirtolinkin linja on tuoreempi: vanha laite oli ilman verkkoa)
+        // ja kun tällä laitteella on lähettämättömiä linjan muutoksia (esim. sama laite ottaa radan takaisin).
+        const omaMuutos = t.lahetettyLinja !== null && t.lahetettyLinja !== undefined && linjaTekstina(t) !== t.lahetettyLinja;
+        const otetaan = !siirtoAvain && data.linja && !omaMuutos;
+        const linjalla = otetaan ? otaLinja(t, data.linja) : t;
         return {
           ...linjalla,
           haltija: data.haltija,
           siirtoAvain: null,
           korvattu: null,
           luovutettu: false,
-          lahetettyLinja: siirtoAvain || !data.linja ? t.lahetettyLinja : linjaTekstina(linjalla),
+          lahetettyLinja: otetaan ? linjaTekstina(linjalla) : t.lahetettyLinja,
           avaus: t.avaus ? { ...t.avaus, haltija: data.tila } : t.avaus
         };
       });
@@ -332,7 +335,7 @@ function RataNakyma({ koodi, onVaihda }) {
       setSynk({ virhe: '', viimeksi: Date.now(), katkesi: null });
       taustaRef.current = false;
       // Taulukossa oli toisen laitteen uudempi kortti: kaksi laitetta kirjaa samaa rataa.
-      const muu = (data.uudemmat || []).find((k) => k.laite && k.laite !== laite);
+      const muu = (data.uudemmat || []).find((k) => k.muuLaite);
       if (muu) setToinenLaite({ aika: muu.aika, nro: muu.nro });
     } catch (error) {
       const verkko = error instanceof TypeError;
@@ -358,15 +361,17 @@ function RataNakyma({ koodi, onVaihda }) {
   }, [tila.kortit, lahettamatta, asemaValmis, linjaMuuttui, laheta]);
 
   // Avaus kertoi radan vapaaksi (tai siirtolinkki odottaa) eikä tällä laitteella ole vielä rataa: otetaan heti,
-  // ettei toinen laite ehdi ensin. Luovuttanut tai korvattu laite ei ota rataa takaisin itsestään.
-  const otaHeti = Boolean(tila.avaus && !tila.haltija && !tila.korvattu && !tila.luovutettu
-    && (tila.avaus.haltija?.vapaa || tila.siirtoAvain));
+  // ettei toinen laite ehdi ensin. Rata on tämän laitteen, mutta avain puuttuu: avain haetaan uudelleen.
+  // Luovuttanut tai korvattu laite ei ota rataa takaisin itsestään.
+  const avattuHaltija = tila.avaus?.haltija;
+  const otaHeti = Boolean(avattuHaltija && !tila.korvattu && !tila.luovutettu
+    && ((!tila.haltija && (avattuHaltija.vapaa || tila.siirtoAvain)) || (avattuHaltija.tamaLaite && !avattuHaltija.oma)));
   useEffect(() => {
     if (otaHeti) otaRata();
   }, [otaHeti, latausKierros, otaRata]);
 
   // Avauksessa havaittu korvaus: lähettämättömät kortit lähtevät kerran (palvelin kirjaa poikkeavat lokiin).
-  const korvattuAvauksessa = Boolean(tila.haltija && tila.avaus?.haltija && !tila.avaus.haltija.oma);
+  const korvattuAvauksessa = Boolean(tila.haltija && tila.avaus?.haltija && !tila.avaus.haltija.oma && !tila.avaus.haltija.tamaLaite);
   useEffect(() => {
     if (korvattuAvauksessa) laheta();
   }, [korvattuAvauksessa, laheta]);
@@ -629,12 +634,18 @@ function RataNakyma({ koodi, onVaihda }) {
   };
 
   // Asennettu sovellus iPhonessa ei näe Safarin tallennuksia, joten koodi liitetään sinne erikseen.
+  // Asennettu sovellus on eri laite kuin Safari: kun rata on tällä, kopioidaan siirtolinkki, jolla sovellus ottaa radan
+  // ilman PIN-koodia (lähettämättömät kortit mukana). Safari-välilehti näyttää sen jälkeen "Laite korvattu".
   const kopioiKoodi = async () => {
+    const teksti = tila.haltija ? siirtoOsoite() : koodi;
+    const ohje = tila.haltija
+      ? 'Radan siirtolinkki kopioitu. Liitä se asennetun sovelluksen aloitusnäkymään: sovellus ottaa radan, ja kirjaus jatkuu siellä.'
+      : 'Ratakoodi kopioitu. Liitä se asennetun sovelluksen aloitusnäkymään.';
     try {
-      await navigator.clipboard.writeText(koodi);
-      window.alert('Ratakoodi kopioitu. Liitä se asennetun sovelluksen aloitusnäkymään.');
+      await navigator.clipboard.writeText(teksti);
+      window.alert(ohje);
     } catch {
-      window.prompt('Kopioi ratakoodi:', koodi);
+      window.prompt(ohje, teksti);
     }
   };
 
@@ -676,7 +687,8 @@ function RataNakyma({ koodi, onVaihda }) {
     koodi,
     haltija: tila.haltija,
     kortit: lahettamattomat(tila.kortit, Infinity),
-    linja: linjaTekstina(tila) !== tila.lahetettyLinja ? linjaTilasta(tila) : null
+    // Linja aina mukana: uusi laite ei tunne taulukon linjaa ennen kuin se on ottanut radan.
+    linja: linjaTilasta(tila)
   });
 
   if (!avaus) {
@@ -748,7 +760,7 @@ function RataNakyma({ koodi, onVaihda }) {
 
   // Rata ei ole tällä laitteella: korvattu, luovutettu tai toisen laitteen käytössä.
   const haltijanTila = avaus.haltija;
-  const varattu = !tila.haltija && !tila.siirtoAvain && haltijanTila && !haltijanTila.oma && !haltijanTila.vapaa;
+  const varattu = !tila.haltija && !tila.siirtoAvain && haltijanTila && !haltijanTila.oma && !haltijanTila.vapaa && !haltijanTila.tamaLaite;
   if (tila.korvattu || tila.luovutettu || varattu) {
     return (
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">

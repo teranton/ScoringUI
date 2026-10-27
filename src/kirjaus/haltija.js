@@ -75,5 +75,6 @@ export function yhdistaSiirto(tila, siirto) {
     const oma = kortit[k.nro];
     if (!oma || k.versio > oma.versio) kortit = { ...kortit, [k.nro]: { merkit: k.merkit, versio: k.versio, lahetetty: false } };
   }
-  return { ...otaLinja(tila, siirto.linja), kortit, siirtoAvain: siirto.haltija, luovutettu: false, korvattu: false };
+  // Laitteen oma vanha avain pois: rata otetaan siirtoavaimella, ei mahdollisesti vanhentuneella avaimella.
+  return { ...otaLinja(tila, siirto.linja), kortit, haltija: null, siirtoAvain: siirto.haltija, luovutettu: false, korvattu: null };
 }

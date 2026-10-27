@@ -135,12 +135,19 @@ function avaaTietokanta() {
   });
 }
 
+// Radat avaimineen ({ ...rivi, avain }), jotta korvatun laitteen tila voidaan kirjoittaa takaisin.
 function kaikkiRadat(db) {
   return new Promise((resolve, reject) => {
     if (!db.objectStoreNames.contains(RADAT)) return resolve([]);
-    const pyynto = db.transaction(RADAT, 'readonly').objectStore(RADAT).getAll();
-    pyynto.onsuccess = () => resolve(pyynto.result || []);
-    pyynto.onerror = () => reject(pyynto.error);
+    const radat = [];
+    const kursori = db.transaction(RADAT, 'readonly').objectStore(RADAT).openCursor();
+    kursori.onsuccess = () => {
+      const c = kursori.result;
+      if (!c) return resolve(radat);
+      radat.push({ ...c.value, avain: c.key });
+      c.continue();
+    };
+    kursori.onerror = () => reject(kursori.error);
   });
 }
 
@@ -154,6 +161,28 @@ function lahetettavat(rivi) {
     .filter(([, k]) => k && !k.lahetetty)
     .slice(0, MAKS_KORTTEJA)
     .map(([nro, k]) => ({ nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '' }));
+}
+
+// Korvatun laitteen tila takaisin tietokantaan (sama muoto kuin KirjausApp: haltija pois, korvattu-tieto).
+// Järjestysnumero kasvaa, joten sivu käyttää tätä kopiota avatessaan.
+async function merkitseKorvatuksi(rivi, data) {
+  if (!data?.korvattu) return;
+  const h = data.haltija || {};
+  const tila = {
+    ...rivi.tila,
+    haltija: null,
+    korvattu: { nimi: h.nimi || '', otettu: h.otettu || '', vapaa: Boolean(h.vapaa), kirjattu: data.kirjattu || 0 },
+    jarjestys: (rivi.tila.jarjestys || 0) + 1
+  };
+  const db = await avaaTietokanta();
+  await new Promise((resolve) => {
+    const tx = db.transaction(RADAT, 'readwrite');
+    const { avain, ...tallennettava } = rivi;
+    tx.objectStore(RADAT).put({ ...tallennettava, tila, aika: Date.now() }, avain);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+    tx.onabort = resolve;
+  });
 }
 
 // Lähettää kaikkien ratojen kortit. Ei merkitse niitä lähetetyiksi: sivu saa kuittauksen avatessaan radan
@@ -171,8 +200,10 @@ async function lahetaKaikki() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${rivi.koodi}` },
         body: JSON.stringify({ laite: rivi.laite, haltija: rivi.tila.haltija, kortit })
       });
-      // 5xx (ruuhka, Google) yritetään myöhemmin; 4xx (vanhentunut koodi, laite korvattu ym.) näkyy sivulla, kun se avataan.
+      // 5xx (ruuhka, Google) yritetään myöhemmin; 4xx (vanhentunut koodi ym.) näkyy sivulla, kun se avataan.
       if (res.status >= 500) verkkovirhe = new Error(`Virhe ${res.status}`);
+      // Laite korvattu: merkitään radan tilaan, ettei sivu lähetä samoja kortteja (ja lokita niitä) uudelleen.
+      if (res.status === 409) await merkitseKorvatuksi(rivi, await res.json().catch(() => ({})));
     } catch (error) {
       verkkovirhe = error;
     }

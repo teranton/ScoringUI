@@ -191,6 +191,8 @@ export function lueKorttiRivi(rivi) {
 // Korttilista saa olla tyhjä, kun mukana on linjan tila (linja tarkistetaan api/_lib/kirjausHaltija.js:ssä).
 export const MAKS_KORTTEJA = 30;
 const MAKS_NIMI = 80;
+// Näyttöteksti: ohjausmerkit pois ja pituus rajattu.
+export const puhdasTeksti = (t, maks) => [...String(t ?? '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, maks);
 export const onLaitetunnus = (laite) => typeof laite === 'string' && /^[A-Za-z0-9_-]{4,64}$/.test(laite);
 
 export function tarkistaTallennus(runko) {
@@ -209,8 +211,8 @@ export function tarkistaTallennus(runko) {
     if (!Number.isSafeInteger(k.versio) || k.versio < 1) return { virhe: 'Virheellinen versio' };
     if (k.nimi !== undefined && typeof k.nimi !== 'string') return { virhe: 'Virheellinen nimi' };
   }
-  // Nimi on vain näyttöä varten (laite tuntee sen aikataulusta): ohjausmerkit pois ja pituus rajattu.
-  const nimi = (n) => [...String(n || '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, MAKS_NIMI);
+  // Nimi on vain näyttöä varten (laite tuntee sen aikataulusta).
+  const nimi = (n) => puhdasTeksti(n, MAKS_NIMI);
   return {
     laite,
     haltija,
