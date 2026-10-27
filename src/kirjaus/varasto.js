@@ -7,9 +7,9 @@ const KOODI = 'scoringui:kirjaus:koodi';
 const LAITE = 'scoringui:kirjaus:laite';
 const radanAvain = (sheetId, sarake) => `scoringui:kirjaus:${sheetId}:${sarake}`;
 
-export const TIETOKANTA = 'scoringui-kirjaus';
-export const RADAT = 'radat';
-export const MERKINNAT = 'merkinnat';
+const TIETOKANTA = 'scoringui-kirjaus';
+const RADAT = 'radat';
+const MERKINNAT = 'merkinnat';
 // Merkintälokin rivit poistetaan, kun ne ovat tätä vanhempia (kisa kestää enintään muutaman päivän).
 const LOKIN_SAILYTYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -103,12 +103,13 @@ const pyynnonTulos = (pyynto) => new Promise((resolve, reject) => {
   pyynto.onerror = () => reject(pyynto.error);
 });
 
-export const rataTunnus = (sheetId, sarake) => `${sheetId}:${sarake}`;
+const rataTunnus = (sheetId, sarake) => `${sheetId}:${sarake}`;
 
-// Radan tila koodeineen (palvelutyöntekijä tarvitsee koodin ja laitteen lähettääkseen). Palauttaa true/false.
-export async function tallennaRataTietokantaan(sheetId, sarake, { tila, koodi, laite }) {
+// Radan tila koodeineen (palvelutyöntekijä tarvitsee koodin, laitteen ja lähettämättömien korttien nimet
+// lähettääkseen). Palauttaa true/false.
+export async function tallennaRataTietokantaan(sheetId, sarake, { tila, koodi, laite, nimet }) {
   try {
-    await transaktio(RADAT, 'readwrite', (s) => s.put({ tila, koodi, laite, aika: Date.now() }, rataTunnus(sheetId, sarake)));
+    await transaktio(RADAT, 'readwrite', (s) => s.put({ tila, koodi, laite, nimet, aika: Date.now() }, rataTunnus(sheetId, sarake)));
     return true;
   } catch {
     return false;
@@ -153,8 +154,9 @@ export async function siivoaMerkinnat(nyt = Date.now()) {
       const kursori = s.openCursor();
       kursori.onsuccess = () => {
         const c = kursori.result;
-        if (!c) return resolve();
-        if (nyt - (c.value.aika || 0) > LOKIN_SAILYTYS_MS) c.delete();
+        // Avaimet kasvavat kirjausjärjestyksessä: ensimmäinen tarpeeksi uusi rivi lopettaa siivouksen.
+        if (!c || nyt - (c.value.aika || 0) <= LOKIN_SAILYTYS_MS) return resolve();
+        c.delete();
         c.continue();
       };
       kursori.onerror = () => resolve();

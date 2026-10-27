@@ -136,18 +136,21 @@ function RataNakyma({ koodi, onVaihda }) {
   const tyhjennettyRef = useRef(false);
   // Tallennusten järjestysnumero: kahdesta kopiosta (localStorage, IndexedDB) uudempi on se, jolla numero on suurempi.
   const jarjestysRef = useRef(tila.jarjestys || 0);
-  const alkuTilaRef = useRef(tila);
-  // IndexedDB-kopioon kirjoitetaan vasta, kun se on luettu ja verrattu (muuten avaus kirjoittaisi sen yli).
+  const alkuJarjestys = useRef(tila.jarjestys || 0);
+  // IndexedDB-kopioon kirjoitetaan ja radan tiedot haetaan vasta, kun kopio on luettu ja verrattu
+  // (muuten tallennus kirjoittaisi uudemman kopion yli tai avaus muuttaisi tilaa ennen vertailua).
   const [kopioLuettu, setKopioLuettu] = useState(false);
+  // Taustalähetys pyydetty (yhteys katkesi): piilossa olevan sivun ei tarvitse lähettää samoja kortteja.
+  const taustaRef = useRef(false);
 
   // Jos localStorage-kopio puuttuu tai on vanhempi (tallennus epäonnistui, selain tyhjensi sen), jatketaan
-  // IndexedDB:n kopiosta. Vain jos tällä sivulla ei ole vielä ehditty muuttaa mitään.
+  // IndexedDB:n kopiosta. Kopion lukuun asti tila ei muutu (merkinnät odottavat avausta, avaus kopiota).
   useEffect(() => {
     let peruttu = false;
     lueRataTietokannasta(info.sheetId, info.sarake).then((kopio) => {
       if (peruttu) return;
-      if (kopio && (kopio.jarjestys || 0) > jarjestysRef.current && tilaRef.current === alkuTilaRef.current) {
-        jarjestysRef.current = kopio.jarjestys;
+      if (kopio && (kopio.jarjestys || 0) > alkuJarjestys.current) {
+        jarjestysRef.current = Math.max(jarjestysRef.current, kopio.jarjestys);
         setTila(alkutila(kopio));
       }
       setKopioLuettu(true);
@@ -169,7 +172,9 @@ function RataNakyma({ koodi, onVaihda }) {
       if (!paikallinen) setTallennus((t) => (t.ok ? { ...t, ok: false } : t));
       return;
     }
-    tallennaRataTietokantaan(info.sheetId, info.sarake, { tila: tallennettava, koodi, laite }).then((kopio) => {
+    // Nimet lähettämättömille korteille, jotta taustalähetys kirjoittaa saman nimen kuin sivu (myös laitteella lisätyt).
+    const nimet = Object.fromEntries(lahettamattomat(tila.kortit, Infinity).map((k) => [k.nro, nimiRef.current(k.nro)]));
+    tallennaRataTietokantaan(info.sheetId, info.sarake, { tila: tallennettava, koodi, laite, nimet }).then((kopio) => {
       const ok = paikallinen || kopio;
       setTallennus((t) => (t.ok === ok ? t : { ...t, ok }));
     });
@@ -178,6 +183,7 @@ function RataNakyma({ koodi, onVaihda }) {
   // Radan tiedot ja taulukossa jo olevat kortit. Ilman yhteyttä jatketaan laitteelle tallennetuilla tiedoilla
   // ja yritetään uudelleen, kun yhteys palaa.
   useEffect(() => {
+    if (!kopioLuettu) return undefined;
     let peruttu = false;
     fetch('/api/kirjaus?toiminto=avaa', { headers: { Authorization: `Bearer ${koodi}`, 'X-Kirjaus-Laite': laite }, cache: 'no-store' })
       .then(async (res) => {
@@ -194,7 +200,7 @@ function RataNakyma({ koodi, onVaihda }) {
         if (!peruttu) setLataus({ tila: 'virhe', viesti: 'Ei yhteyttä', pysyva: false });
       });
     return () => { peruttu = true; };
-  }, [koodi, laite, latausKierros]);
+  }, [koodi, laite, latausKierros, kopioLuettu]);
 
   const avaus = tila.avaus;
   const jono = useMemo(() => {
@@ -212,6 +218,7 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const laheta = useCallback(async () => {
     if (lahettaaRef.current || tyhjennettyRef.current) return;
+    if (document.visibilityState === 'hidden' && taustaRef.current) return;
     // Toisen laitteen varoitus kuittaamatta: ei kirjoiteta toisen laitteen tulosten päälle.
     const { avaus: avattu, hyvaksyttyMuu } = tilaRef.current;
     if (avattu?.muuLaite && hyvaksyttyMuu !== muuLaiteAvain(avattu.muuLaite)) return;
@@ -230,6 +237,7 @@ function RataNakyma({ koodi, onVaihda }) {
       if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
       setTila((t) => ({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }));
       setSynk({ virhe: '', viimeksi: Date.now(), katkesi: null });
+      taustaRef.current = false;
       // Taulukossa oli toisen laitteen uudempi kortti: kaksi laitetta kirjaa samaa rataa.
       const muu = (data.uudemmat || []).find((k) => k.laite && k.laite !== laite);
       if (muu) setToinenLaite({ aika: muu.aika, nro: muu.nro });
@@ -237,7 +245,7 @@ function RataNakyma({ koodi, onVaihda }) {
       const verkko = error instanceof TypeError;
       setSynk((s) => ({ ...s, virhe: verkko ? 'Ei yhteyttä' : error.message, katkesi: s.katkesi || Date.now() }));
       // Selain lähettää taustalla, kun yhteys palaa, vaikka sivu suljettaisiin (Chrome/Android).
-      if (verkko) pyydaTaustalahetys();
+      if (verkko) pyydaTaustalahetys().then((pyydetty) => { if (pyydetty) taustaRef.current = true; });
     } finally {
       lahettaaRef.current = false;
     }
@@ -258,10 +266,8 @@ function RataNakyma({ koodi, onVaihda }) {
   useEffect(() => {
     const vali = setInterval(laheta, SYNKRONOINTI_VALI_MS);
     const nakyvyys = () => {
-      if (document.visibilityState === 'hidden') {
-        laheta();
-        if (lahettamattomat(tilaRef.current.kortit, 1).length > 0) pyydaTaustalahetys();
-      } else laheta();
+      // Piiloon jäädessä viimeiset merkinnät; jos lähetys epäonnistuu, se pyytää taustalähetyksen.
+      laheta();
     };
     window.addEventListener('online', laheta);
     document.addEventListener('visibilitychange', nakyvyys);
@@ -313,7 +319,7 @@ function RataNakyma({ koodi, onVaihda }) {
   useEffect(() => {
     if (lahettamatta === 0) return undefined;
     const kysy = (e) => {
-      if (tyhjennettyRef.current) return;
+      if (tyhjennettyRef.current || window.kirjausPoistuu) return;
       e.preventDefault();
       e.returnValue = '';
     };

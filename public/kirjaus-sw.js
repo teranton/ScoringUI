@@ -30,7 +30,7 @@ async function tallennaKuori(vastaus) {
   await Promise.all(tiedostot.map(async (polku) => {
     if (await valimuisti.match(polku)) return;
     const res = await fetch(polku);
-    if (res.ok) await valimuisti.put(polku, res);
+    if (kelpaa(res)) await valimuisti.put(polku, res);
   }));
   await valimuisti.put(SIVU, vastaus);
   const kaytossa = new Set(tiedostot);
@@ -86,15 +86,23 @@ async function sivu(event) {
   return (await tallessa) || verkosta;
 }
 
-async function tiedosto(request) {
+// /assets/-tiedostojen nimessä on sisällön tiiviste, joten välimuistin kopio on aina oikea. Muut (manifesti,
+// kuvakkeet) annetaan välimuistista ja päivitetään taustalla, jotta muutos tulee käyttöön seuraavalla kerralla.
+async function tiedosto(event) {
+  const { request } = event;
+  const polku = new URL(request.url).pathname;
   const tallessa = await caches.match(request, { ignoreSearch: true });
-  if (tallessa) return tallessa;
-  const res = await fetch(request);
-  if (kelpaa(res)) {
-    const valimuisti = await caches.open(VALIMUISTI);
-    await valimuisti.put(new URL(request.url).pathname, res.clone());
-  }
-  return res;
+  const hae = async () => {
+    const res = await fetch(request);
+    if (kelpaa(res)) {
+      const valimuisti = await caches.open(VALIMUISTI);
+      await valimuisti.put(polku, res.clone());
+    }
+    return res;
+  };
+  if (!tallessa) return hae();
+  if (!polku.startsWith('/assets/')) event.waitUntil(hae().catch(() => {}));
+  return tallessa;
 }
 
 self.addEventListener('fetch', (event) => {
@@ -105,15 +113,23 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate' && (url.pathname === SIVU || url.pathname === '/kirjaus')) {
     event.respondWith(sivu(event));
   } else if (url.pathname.startsWith('/assets/') || MUUT.includes(url.pathname) || url.pathname.startsWith('/favicon')) {
-    event.respondWith(tiedosto(request));
+    event.respondWith(tiedosto(event));
   }
 });
 
 // --- Taustalähetys ---
 
+// Sama versio ja rakenne kuin varasto.js:ssä, jotta tietokanta on oikean muotoinen kumman tahansa luomana.
 function avaaTietokanta() {
   return new Promise((resolve, reject) => {
-    const pyynto = indexedDB.open(TIETOKANTA);
+    const pyynto = indexedDB.open(TIETOKANTA, 1);
+    pyynto.onupgradeneeded = () => {
+      const db = pyynto.result;
+      if (!db.objectStoreNames.contains(RADAT)) db.createObjectStore(RADAT);
+      if (!db.objectStoreNames.contains('merkinnat')) {
+        db.createObjectStore('merkinnat', { autoIncrement: true }).createIndex('rata', 'rata');
+      }
+    };
     pyynto.onsuccess = () => resolve(pyynto.result);
     pyynto.onerror = () => reject(pyynto.error);
   });
@@ -135,9 +151,9 @@ function lahetettavat(rivi) {
   if (!tila?.kortit || !rivi.koodi || !rivi.laite) return [];
   const muu = tila.avaus?.muuLaite;
   if (muu && tila.hyvaksyttyMuu !== `${muu.laite}|${muu.aika}`) return [];
-  const nimet = tila.avaus?.nimet || {};
+  const nimet = { ...tila.avaus?.nimet, ...rivi.nimet };
   return Object.entries(tila.kortit)
-    .filter(([, k]) => k && k.lahetetty === false)
+    .filter(([, k]) => k && !k.lahetetty)
     .slice(0, MAKS_KORTTEJA)
     .map(([nro, k]) => ({ nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '' }));
 }

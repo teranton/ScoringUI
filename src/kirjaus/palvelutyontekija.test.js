@@ -38,6 +38,11 @@ test('lahetettavat: vain lähettämättömät kortit nimineen', () => {
   ]);
 });
 
+test('lahetettavat: sivun tallentamat nimet (myös laitteella lisätyt) ennen avauksen nimiä', () => {
+  const kortit = { 12: { merkit: '-'.repeat(25), versio: 1, lahetetty: false } };
+  assert.equal(lahetettavat({ ...rivi({ kortit, avaus: { nimet: {} } }), nimet: { 12: 'Lisätty Liisa' } })[0].nimi, 'Lisätty Liisa');
+});
+
 test('lahetettavat: ei mitään ilman koodia tai kun toisen laitteen varoitus on kuittaamatta', () => {
   const kortit = { 3: { merkit: '-'.repeat(25), versio: 1, lahetetty: false } };
   assert.deepEqual(lahetettavat({ ...rivi({ kortit }), koodi: '' }), []);
