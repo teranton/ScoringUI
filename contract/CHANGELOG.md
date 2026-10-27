@@ -7,6 +7,9 @@
   stand. New optional key `RATAn_OHJELMA` for FITASC layouts (pegs `4S+2D, 4S+1D, …`), read by the squad phone; the
   Compak form (`SSSD` …) is unchanged. ScoringLib writes `RATAn_OHJELMA` (empty) for Compak and FITASC copies.
   Additive: cells without `· asema` and layouts without a program work as before.
+- Squad phone takeover needs the squad's office PIN (or a release from the holder) instead of a confirmation, so an
+  accidentally opened squad code can't take the squad. ScoringLib lists the PINs of held squads and resets their
+  `PIN-VIRHEET` in `MOBIILI_RYHMAT`. No new columns.
 - Squad phone, confirmation after every stand: `MOBIILI Layout N` gets a last column `KUITATUT` (stands the shooter
   has confirmed). `HYVÄKSYTTY` is set when every stand is confirmed. Additive: the column is after the targets, so
   earlier rows read as before.

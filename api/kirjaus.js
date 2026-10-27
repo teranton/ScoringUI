@@ -6,7 +6,8 @@
 // sen. Korvatun laitteen kortteja ei tallenneta: ne kirjataan lokiin ristiriitoina kilpailutoimistolle.
 // Ryhmäkoodilla (Sporting / FITASC / ESP) samat toiminnot koskevat yhtä ryhmää: avaa antaa ryhmän ampujat, layoutit
 // asemineen ja kortit, tallenna kirjoittaa MOBIILI Layout N -välilehdille vain ryhmän ampujien kortteja, ja haltija on
-// MOBIILI_RYHMAT-välilehdellä. Ryhmän saa toiselle puhelimelle ilman PIN-koodia (koodi on ryhmän omalla kortilla).
+// MOBIILI_RYHMAT-välilehdellä. Varatun ryhmän saa toiselle puhelimelle kuten radan: luovutuksella tai kilpailutoimiston
+// ryhmän PIN-koodilla (ScoringLib laskee sen sarakkeella "r<ryhmä>").
 // Pääsy rata- tai ryhmäkoodilla (Authorization: Bearer <koodi>, api/_lib/kirjausAvain.js). Kirjoittaa erillisellä
 // kirjuripalvelutilillä, joka on jaettu muokkaajaksi vain kisoihin, joissa mobiilikirjaus on käytössä.
 // Google-kiintiö on 60 lukua ja 60 kirjoitusta minuutissa per tili, joten tallennus tekee yhden luvun
@@ -634,14 +635,13 @@ async function radanJonossa(tunnus, toimi) {
 }
 
 const TAVAT = {
-  vapaa: 'vapaa rata', siirto: 'siirto edelliseltä laitteelta', pin: 'kilpailutoimiston PIN-koodi',
-  ryhma: 'ryhmän koodi, vahvistettu uudella puhelimella'
+  vapaa: 'vapaa rata', siirto: 'siirto edelliseltä laitteelta', pin: 'kilpailutoimiston PIN-koodi'
 };
 
 // Ottaa radan tai ryhmän tälle laitteelle: vapaa suoraan, sama laite saa avaimensa uudelleen, varattu edellisen
 // laitteen siirtoavaimella tai radan vaihto-PIN-koodilla (väärät PIN-koodit lasketaan; MAKS_PIN_VIRHEET lukitsee vaihdon,
-// kunnes kilpailutoimisto avaa PIN-koodit ScoringLibin valikosta). Varatun ryhmän saa vahvistuksella (vahvista: true)
-// ilman PIN-koodia: ryhmäkoodi on ryhmän omalla kortilla, ja ryhmän kirjaaja vaihtuu kesken kierroksen, kun puhelin sammuu.
+// kunnes kilpailutoimisto avaa PIN-koodit ScoringLibin valikosta). Ryhmä samoin: sen PIN lasketaan tunnuksella
+// "r<ryhmä>", jotta vahingossa avattu ryhmäkoodi ei vie ryhmää kirjaajalta.
 async function ota(request, avain, req, res) {
   const kohde = kohdeOf(avain);
   // Saman radan otot jonossa tässä palvelinilmentymässä: rinnakkaiset väärät PIN-koodit lasketaan kaikki.
@@ -670,12 +670,11 @@ async function otaJonossa(request, avain, kohde, req, res) {
     let tapa = null;
     if (!rivi.laite) tapa = 'vapaa';
     else if (siirto && onHaltija(siirto, rivi, { ...tunnus, laite: rivi.laite }, salaisuus())) tapa = 'siirto';
-    else if (kohde.ryhma && runko?.vahvista === true) tapa = 'ryhma';
-    else if (pin && !kohde.ryhma) {
+    else if (pin) {
       if (rivi.pinVirheet >= MAKS_PIN_VIRHEET) {
         return laheta(res, 423, { error: 'Liian monta väärää PIN-koodia. Kilpailutoimisto avaa vaihdon näyttämällä PIN-koodit uudelleen.', haltija: julkinenHaltija(rivi, laite) });
       }
-      if (pin !== vaihtoPin({ sheetId, sarake: avain.sarake, sukupolvi: rivi.sukupolvi }, salaisuus())) {
+      if (pin !== vaihtoPin({ sheetId, sarake: kohde.tunnus, sukupolvi: rivi.sukupolvi }, salaisuus())) {
         const virheet = rivi.pinVirheet + 1;
         await batchUpdate(request, sheetId, [solut(tabit.laitteet, kohde.rivi, 6, [virheet])]);
         return laheta(res, 403, { error: 'Väärä PIN-koodi', yrityksia: Math.max(0, MAKS_PIN_VIRHEET - virheet), haltija: julkinenHaltija({ ...rivi, pinVirheet: virheet }, laite) });

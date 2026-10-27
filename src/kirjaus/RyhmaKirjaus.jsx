@@ -1,8 +1,9 @@
 // Ryhmäpuhelin (Sporting / FITASC / ESP): ryhmän kirjaaja merkitsee ryhmän ampujien kiekot asema kerrallaan omalla
-// puhelimellaan, ja kun layout on ammuttu, jokainen ampuja hyväksyy korttinsa (kuten paperikortin allekirjoitus).
-// Ryhmäkoodi tulee ryhmän kortin QR-koodista. Merkinnät tallennetaan heti laitteelle ja lähetetään taulukon
+// puhelimellaan, ja jokainen ampuja hyväksyy tuloksensa aina aseman jälkeen (kuten paperikortin allekirjoitus).
+// Ryhmäkoodi tulee kilpailutoimiston ryhmäkoodilistasta. Merkinnät tallennetaan heti laitteelle ja lähetetään taulukon
 // MOBIILI Layout N -välilehdille taustalla (api/kirjaus.js), samoin kuin Compak-radan laitteessa.
-// Ryhmää kirjaa yksi puhelin kerrallaan; toinen puhelin ottaa ryhmän vahvistuksella (esim. akku loppui), jolloin
+// Ryhmää kirjaa yksi puhelin kerrallaan; toinen puhelin ottaa ryhmän luovutuksen jälkeen tai kilpailutoimiston ryhmän
+// PIN-koodilla (esim. akku loppui), jolloin
 // edellisen puhelimen lähettämättömät merkinnät täydentävät uuden puhelimen tyhjiä kiekkoja.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -20,6 +21,7 @@ import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
+import { PinLomake } from './Haltija.jsx';
 import { soita } from './aanet.js';
 import { Asennus, SynkMerkki } from './Yhteiset.jsx';
 
@@ -138,20 +140,20 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     return () => { peruttu = true; };
   }, [koodi, laite, latausKierros, kopioLuettu]);
 
-  // Ottaa ryhmän tälle puhelimelle: vapaa suoraan, varattu vahvistuksella (vahvista: true).
-  const otaRyhma = useCallback(async ({ vahvista = false } = {}) => {
+  // Ottaa ryhmän tälle puhelimelle: vapaa suoraan, varattu kilpailutoimiston ryhmän PIN-koodilla.
+  const otaRyhma = useCallback(async ({ pin = '' } = {}) => {
     if (otetaanRef.current) return { virhe: 'Odota hetki' };
     otetaanRef.current = true;
     try {
       const res = await fetch('/api/kirjaus?toiminto=ota', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${koodi}` },
-        body: JSON.stringify({ laite, nimi: laitteenNimi(laite), ...(vahvista ? { vahvista: true } : {}) })
+        body: JSON.stringify({ laite, nimi: laitteenNimi(laite), ...(pin ? { pin } : {}) })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.haltija) setTila((t) => ({ ...t, avaus: t.avaus ? { ...t.avaus, haltija: data.haltija } : t.avaus }));
-        return { virhe: data.error || `Virhe ${res.status}` };
+        return { virhe: data.error || `Virhe ${res.status}`, yrityksia: data.yrityksia };
       }
       setTila((t) => ({ ...t, haltija: data.haltija, korvattu: null, luovutettu: false, avaus: t.avaus ? { ...t.avaus, haltija: data.tila } : t.avaus }));
       setLatausKierros((n) => n + 1);
@@ -542,7 +544,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           haltija={avattuHaltija}
           korvattu={tila.korvattu}
           lahettamatta={lahettamatta}
-          onOta={() => otaRyhma({ vahvista: true })}
+          onOta={otaRyhma}
           onPaivita={() => setLatausKierros((n) => n + 1)}
         />
       </main>
@@ -767,7 +769,6 @@ function RyhmanHaltija({ tyyppi, haltija, korvattu, lahettamatta, onOta, onPaivi
   const [odottaa, setOdottaa] = useState(false);
   const toinen = haltija && !haltija.vapaa && !haltija.oma ? `${haltija.nimi || 'toinen puhelin'}${haltija.otettu ? `, otettu ${haltija.otettu}` : ''}` : '';
   const ota = async () => {
-    if (toinen && !window.confirm('Otetaanko ryhmän kirjaus tälle puhelimelle? Toinen puhelin lopettaa kirjauksen, ja sen lähettämättömät merkinnät täydentävät tämän puhelimen kortteja.')) return;
     setOdottaa(true);
     setViesti('');
     const tulos = await onOta();
@@ -781,7 +782,8 @@ function RyhmanHaltija({ tyyppi, haltija, korvattu, lahettamatta, onOta, onPaivi
           <h2 className="text-lg font-bold text-amber-800">Ryhmää kirjaa toinen puhelin</h2>
           <p>Ryhmän tuloksia kirjaa {toinen || 'toinen puhelin'}. Yksi puhelin kirjaa ryhmää kerrallaan.</p>
           <p className="text-sm">Jos se puhelin on vielä käytössä, valitse siinä ☰ › <b>Luovuta ryhmä</b> ja paina tässä <b>Yritä uudelleen</b>.
-            Jos se on sammunut tai poissa, ota kirjaus tälle puhelimelle.</p>
+            Jos se on sammunut tai poissa, pyydä kilpailutoimistosta ryhmän vaihto-PIN. Toinen puhelin lopettaa kirjauksen, ja
+            sen lähettämättömät merkinnät täydentävät tämän puhelimen kortteja.</p>
         </>
       )}
       {tyyppi === 'korvattu' && (
@@ -799,10 +801,14 @@ function RyhmanHaltija({ tyyppi, haltija, korvattu, lahettamatta, onOta, onPaivi
           <p>Kaikki merkinnät on lähetetty. Seuraava puhelin skannaa ryhmän QR-koodin ja jatkaa.</p>
         </>
       )}
-      {viesti && <p className="text-sm text-red-700">{viesti}</p>}
-      <button type="button" disabled={odottaa} className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white disabled:opacity-50" onClick={ota}>
-        {odottaa ? 'Otetaan…' : tyyppi === 'varattu' ? 'Ota kirjaus tälle puhelimelle' : 'Ota ryhmä takaisin tälle puhelimelle'}
-      </button>
+      {toinen ? <PinLomake onOta={onOta} painike="Ota ryhmä PIN-koodilla" /> : (
+        <>
+          {viesti && <p className="text-sm text-red-700">{viesti}</p>}
+          <button type="button" disabled={odottaa} className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white disabled:opacity-50" onClick={ota}>
+            {odottaa ? 'Otetaan…' : tyyppi === 'varattu' ? 'Ota kirjaus tälle puhelimelle' : 'Ota ryhmä takaisin tälle puhelimelle'}
+          </button>
+        </>
+      )}
       <button type="button" className="rounded border border-slate-400 px-4 py-2" onClick={onPaivita}>Yritä uudelleen</button>
     </section>
   );

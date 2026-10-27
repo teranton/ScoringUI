@@ -273,8 +273,9 @@ Writes (created on the first save if missing):
   (`EI RYHMÄSSÄ …`). A tab narrower than the layout's targets is widened.
 - `MOBIILI_LOKI`: as above, `RATA` = `Layout N`, `HUOM` = `RYHMÄ <n>` (and `HYVÄKSYTTY`).
 - `MOBIILI_RYHMAT`: the phone holding each squad, header `RYHMÄ` then the same columns as `MOBIILI_LAITTEET` (squad n on
-  row n + 1). Another phone takes a held squad with a confirmation on the phone (no PIN: the code is on the squad's own
-  card). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
+  row n + 1). Another phone takes a held squad only after the holder releases it or with the squad's office PIN
+  (ScoringLib's Laitteen vaihto: PIN-koodit lists held squads; the PIN is `vaihtoPin` with `r<squad>` in place of the
+  layout, and `PIN-VIRHEET` counts wrong PINs as for layouts). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
 
 Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
 
