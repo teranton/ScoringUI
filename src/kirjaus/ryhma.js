@@ -26,8 +26,8 @@ export function asemaKiekolle(layout, i) {
 // Layoutin asemajako ("10,8,7", sama kuin api/_lib/kirjausRyhma.js asemaJako): lähtee kortin mukana.
 export const asemaJako = (layout) => layout.asemat.map((a) => a.kohteita).join(',');
 
-// Ampumajärjestys layoutilla: aikataulun kierros siirtää aloittajaa yhdellä per kierros, kuten paperikortissa
-// (ScoringLib ScoreCardFill.rotateShooters). Ilman kierrosta numerojärjestys.
+// Ampumajärjestys siirrettynä k paikkaa: aloittaja siirtyy yhdellä per layoutin kierros (kuten paperikortissa,
+// ScoringLib ScoreCardFill.rotateShooters) ja per asema. k = 0 tai puuttuva: numerojärjestys.
 export function kierrata(ampujat, kierros) {
   const k = ampujat.length && Number.isInteger(kierros) && kierros > 0 ? kierros % ampujat.length : 0;
   return [...ampujat.slice(k), ...ampujat.slice(0, k)];

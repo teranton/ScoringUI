@@ -25,7 +25,7 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   One device holds a layout at a time (`api/_lib/kirjausHaltija.js`, tab `MOBIILI_LAITTEET`): it hands over from its menu
   (release, or a QR transfer link when offline, `src/kirjaus/haltija.js`), or a new device takes over with the office's
   one-time PIN from ScoringLib. A replaced device's marks are handed to the holder, which fills its empty targets (only the holder writes cards); differences are logged.
-  A squad code (Sporting / FITASC / ESP, printed as a QR on the squad card) opens the squad phone (`src/kirjaus/RyhmaKirjaus.jsx`,
+  A squad code (Sporting / FITASC / ESP, from ScoringLib's Näytä ryhmäkoodit list, not printed on the cards) opens the squad phone (`src/kirjaus/RyhmaKirjaus.jsx`,
   `ryhma.js`, `api/_lib/kirjausRyhma.js`): targets station by station, then each shooter confirms the card; cards go to
   `MOBIILI Layout N`, the holding phone to `MOBIILI_RYHMAT`, and another phone takes the squad with a confirmation (no PIN).
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache

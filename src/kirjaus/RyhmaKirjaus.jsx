@@ -217,9 +217,10 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const ampujat = useMemo(() => avaus?.ampujat || [], [avaus]);
   const jarjestys = useMemo(() => layoutJarjestys(avaus?.layoutit), [avaus]);
   const layout = jarjestys.find((l) => l.nro === tila.layout) || aloitusLayout(jarjestys, ampujat, tila.kortit, tila.keskeyttaneet);
-  // Layoutin ampumajärjestys (aloittaja vaihtuu kierroksittain kuten paperikortissa).
-  const vuoro = useMemo(() => kierrata(ampujat, layout?.kierros), [ampujat, layout?.kierros]);
   const asema = layout ? Math.min(tila.asema ?? aloitusAsema(layout, ampujat, tila.kortit), layout.asemat.length - 1) : 0;
+  // Aseman ampumajärjestys: aloittaja siirtyy yhdellä per layoutin kierros (kuten paperikortissa) ja per asema
+  // (Sporting, ESP). FITASC-layoutissa on yksi asema, joten siinä järjestys vaihtuu vain layouteittain.
+  const vuoro = useMemo(() => kierrata(ampujat, (layout?.kierros || 0) + asema), [ampujat, layout?.kierros, asema]);
   const kohta = layout ? seuraavaKohta(layout, asema, vuoro, tila.kortit, tila.valittu, tila.keskeyttaneet) : null;
   const nimi = useCallback((nro) => ampujat.find((a) => a.nro === nro)?.nimi || '', [ampujat]);
 

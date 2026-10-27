@@ -6,7 +6,7 @@
   (`NRO`, `NIMI`, `RYHMÄ`), the `KISANSPEKSIT` layout names, `LAYOUT/KISA`, station table and `AIKATAULURYHMAKOKO`, and the
   group timetable on every `Aikataulu*` tab, with the writer account. New tabs written only by it: `MOBIILI Layout N`
   (card per shooter and layout: station hits and targets, `HYVÄKSYTTY`) and `MOBIILI_RYHMAT` (phone per squad).
-  ScoringLib makes the squad codes and prints them in the squad card's `{{QR}}` box. Additive: Compak entry is unchanged.
+  ScoringLib makes the squad codes and lists them in 📱 Mobiilikirjaus › Näytä ryhmäkoodit (not on the printed cards). Additive: Compak entry is unchanged.
 
 - Mobile score entry, change of device (phase 4): new tab `MOBIILI_LAITTEET` (one row per layout: generation, holding
   device, line state) and a new last column `HUOM` in `MOBIILI_LOKI` (changes of device, cards of a replaced device). Both

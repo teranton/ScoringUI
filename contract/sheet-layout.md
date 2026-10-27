@@ -245,10 +245,10 @@ Writes (created on the first save or change of device if missing):
 
 ### Squad phone (Sporting / FITASC / ESP)
 
-A squad code (payload `r` = squad number instead of `c`; ScoringLib prints it as a QR code in the squad card's `{{QR}}`
-box) opens the squad's card on one phone. Reads (writer account):
+A squad code (payload `r` = squad number instead of `c`; ScoringLib lists them as QR codes and links in
+📱 Mobiilikirjaus › Näytä ryhmäkoodit) opens the squad's card on one phone. Reads (writer account):
 - `OSALLISTUJAT+TULOKSET` (display values, header on row 1): `NRO`, `NIMI` and `RYHMÄ` by header (fallback columns A
-  and C). A row's squad is its `RYHMÄ` number, otherwise NRO / `AIKATAULURYHMAKOKO` rounded up (6 without the key).
+  and C). A row's squad is the first whole number in its `RYHMÄ` cell ("Ryhmä 3", "3,00" and 3 all give 3), otherwise NRO / `AIKATAULURYHMAKOKO` rounded up (6 without the key).
   A name equal to its own number is an empty seat. Same rule as ScoringLib's card printing (`ScoreCardFill.readSquads`).
 - `KISANSPEKSIT`: `RATAn_NIMI` (layouts in order, the n of the nth named layout; old place H3:H10), `LAYOUT/KISA`, the
   station table (id header `LAYOUT` / `ASEMA` / `RATA` / `LANE` / `STATION` with `MAX` / `MAKS` / `MAARA` / `COUNT` right next
