@@ -21,6 +21,31 @@ export function haeGoogleAsiakas() {
   return asiakasLupaus;
 }
 
+// Mobiilikirjauksen kirjoittaja: eri palvelutili (KIRJURI_*), joka on muokkaaja vain niissä kisoissa,
+// joissa mobiilikirjaus on käytössä. Lukutili pysyy vain luku -oikeuksisena.
+let kirjuriLupaus = null;
+
+export function onKirjuriMaaritetty() {
+  return Boolean(process.env.KIRJURI_CLIENT_EMAIL && process.env.KIRJURI_PRIVATE_KEY);
+}
+
+export function haeKirjuriAsiakas() {
+  if (!kirjuriLupaus) {
+    const auth = new GoogleAuth({
+      credentials: {
+        client_email: process.env.KIRJURI_CLIENT_EMAIL,
+        private_key: String(process.env.KIRJURI_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    kirjuriLupaus = auth.getClient().catch((error) => {
+      kirjuriLupaus = null;
+      throw error;
+    });
+  }
+  return kirjuriLupaus;
+}
+
 export function onKiintioVirhe(error) {
   return Number(error?.response?.status || error?.status || error?.code) === 429;
 }

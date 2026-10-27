@@ -31,6 +31,11 @@
 - Registry column I (optional): competition place, a town name or `lat, lon`. Upcoming and running
   competitions with a place show a weather forecast (Finnish Meteorological Institute open data, `api/saa.js`) in the competition box.
   Additive: an empty or missing column I shows no forecast.
+- Mobile score entry (Compak layout device): `api/kirjaus.js` reads `Aikataulu*` and the `KISANSPEKSIT` keys
+  `RATAn_NIMI` and `LAYOUT/PÄIVÄ`, and writes the new tabs `MOBIILI Rata N` and `MOBIILI_LOKI` with a separate writer
+  service account. Additive: no existing tab, header or key changes, and the public API does not serve the new tabs.
+  The device follows the Compak inline line and reads the optional key `RATAn_OHJELMA` (the layout's program
+  `SSSD`, `SDD` or `SSSSS`) and `TAUKO` rows in the lane as breaks. Additive.
 - Permanent test competitions: registry column H `TESTI` makes the UI and the API treat the competition as being on
   its competition day whatever its dates, so its timetable and results stay visible after its end date. Additive: no tab, header or key changes.
 - Season ranking: registry column H `RANKING` marks a season ranking, ordered by its end date. The UI reads

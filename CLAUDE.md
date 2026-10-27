@@ -7,7 +7,7 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
 
 - Serverless functions in `api/` read the competition spreadsheets directly with a Google service
   account (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`). There is no API to ScoringLib.
-- Squad editing (`src/RyhmaJako.jsx`) is the one write path: the organiser signs in with Google in the browser
+- Squad editing (`src/RyhmaJako.jsx`) is one of two write paths: the organiser signs in with Google in the browser
   (Google Identity Services, `VITE_GOOGLE_CLIENT_ID`, `spreadsheets` and `email` scopes, account chooser on every sign-in) and the browser reads and writes the
   sheet's `OSALLISTUJAT` rows with that token, so Google enforces editor access. Without `VITE_GOOGLE_CLIENT_ID`
   the feature is hidden. The service account stays read-only. Moves to a free place write the place number as the
@@ -16,6 +16,9 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   `contract/sheet-layout.md`. That file is the contract with ScoringLib (`teranton/ScoringLib`) and the
   sheet template.
 - Result tabs are filled by sheet formulas, not by ScoringLib code.
+- The other write path is mobile score entry (`kirjaus.html`, `src/kirjaus/`, `api/kirjaus.js`): a layout code signed with
+  `KIRJAUS_SALAISUUS` lets a device write `MOBIILI Rata N` / `MOBIILI_LOKI` with a separate writer service account
+  (`KIRJURI_CLIENT_EMAIL`, `KIRJURI_PRIVATE_KEY`), Editor only on sheets that use it. The reader account stays read-only.
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
   time follows the registry dates (finished 1 h, served stale up to 1 day in the 14-day correction window and 30 days after it; running 15 s; upcoming 60 s).
   With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.
