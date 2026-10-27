@@ -1,4 +1,5 @@
-// Mobiilikirjaus: Compak-radan laite kirjaa inline-linjan tulokset sarja kerrallaan (linja.js).
+// Mobiilikirjaus: Compak-radan laite kirjaa inline-linjan tulokset sarja kerrallaan (linja.js). Ryhmäkoodilla
+// aukeaa ryhmäpuhelin (RyhmaKirjaus.jsx, Sporting / FITASC / ESP).
 // Ratakoodi tulee QR-koodin linkistä (kirjaus.html#k=<koodi>) ja tallennetaan laitteelle.
 // Merkinnät tallennetaan heti laitteelle ja lähetetään taulukkoon taustalla (api/kirjaus.js). Ilman verkkoa
 // kirjaus jatkuu: sovellus aukeaa palvelutyöntekijän välimuistista ja kortit lähtevät, kun yhteys palaa.
@@ -23,9 +24,11 @@ import {
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
-import { onIos, pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
+import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
+import RyhmaNakyma from './RyhmaKirjaus.jsx';
+import { Asennus, SynkMerkki } from './Yhteiset.jsx';
 
 const SYNKRONOINTI_VALI_MS = 15000;
 // Ilman lähetettävää haltija tarkistaa radan näin usein: korvattujen laitteiden täydennykset ja oma korvaus.
@@ -73,6 +76,8 @@ export default function KirjausApp() {
   };
 
   if (!koodi) return <KoodiNakyma onKoodi={vaihdaKoodi} />;
+  // Ryhmäkoodi (Sporting / FITASC / ESP): ryhmäpuhelin; ratakoodi: Compak-radan laite.
+  if (lueKoodinSisalto(koodi)?.ryhma) return <RyhmaNakyma key={koodi} koodi={koodi} onVaihda={() => vaihdaKoodi('')} />;
   return <RataNakyma key={koodi} koodi={koodi} onVaihda={() => vaihdaKoodi('')} />;
 }
 
@@ -84,7 +89,7 @@ function KoodiNakyma({ onKoodi }) {
     const teksti = syote.trim();
     const k = kaytaLinkki(teksti.includes('#') ? teksti.slice(teksti.indexOf('#')) : `k=${teksti}`);
     if (!k) {
-      setVirhe('Koodi ei kelpaa. Skannaa radan QR-koodi tai liitä koko linkki.');
+      setVirhe('Koodi ei kelpaa. Skannaa radan tai ryhmän QR-koodi tai liitä koko linkki.');
       return;
     }
     onKoodi(k);
@@ -93,9 +98,9 @@ function KoodiNakyma({ onKoodi }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 bg-white p-6 text-slate-900">
       <h1 className="text-2xl font-bold">Mobiilikirjaus</h1>
-      <p>Skannaa radan QR-koodi puhelimen kameralla. Koodin saa kilpailutoimistosta.</p>
+      <p>Skannaa radan tai ryhmän QR-koodi puhelimen kameralla. Koodin saa kilpailutoimistosta.</p>
       <label className="flex flex-col gap-1 text-sm font-medium">
-        Tai liitä ratakoodi tai linkki
+        Tai liitä koodi tai linkki
         <textarea
           className="rounded border border-slate-400 p-2 font-mono text-xs"
           rows={4}
@@ -105,7 +110,7 @@ function KoodiNakyma({ onKoodi }) {
       </label>
       {virhe && <p className="text-sm text-red-700">{virhe}</p>}
       <button type="button" className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white" onClick={kayta}>
-        Avaa rata
+        Avaa
       </button>
     </main>
   );
@@ -1086,19 +1091,6 @@ function alkutila(tallessa) {
   return { ...t, lisatyt: t.lisatyt.map((l) => (typeof l === 'number' ? { nro: l } : l)) };
 }
 
-// Otsikon lähetystila: kaikki lähetetty / N korttia lähettämättä / ei yhteyttä N min (katko alkoi ensimmäisestä
-// epäonnistuneesta lähetyksestä).
-function SynkMerkki({ lahettamatta, virhe, katkesi, nyt }) {
-  if (lahettamatta === 0) return <span className="rounded bg-green-700 px-2 py-1 text-xs font-semibold">✓ Kaikki lähetetty</span>;
-  const minuutit = katkesi ? Math.max(0, Math.floor((nyt - katkesi) / 60000)) : 0;
-  const syy = virhe === 'Ei yhteyttä' ? `ei yhteyttä${minuutit > 0 ? ` ${minuutit} min` : ''}` : virhe;
-  return (
-    <span className={`rounded px-2 py-1 text-right text-xs leading-tight font-semibold ${virhe ? 'bg-red-700' : 'bg-amber-600'}`} title={virhe}>
-      {lahettamatta} {lahettamatta === 1 ? 'kortti' : 'korttia'} lähettämättä{syy ? <><br className="sm:hidden" /><span className="hidden sm:inline"> · </span>{syy}</> : ''}
-    </span>
-  );
-}
-
 function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, valmis, keskeyttanyt, onKeskeyta, onValitse }) {
   const aktiivinen = kohta !== null;
   const asemat = Array.from({ length: KOHTEITA / ASEMAN_KOHTEET }, (_, a) => a);
@@ -1254,30 +1246,6 @@ function Valikko({
           Tyhjennä rata laitteelta (testiversio)
         </button>
       )}
-    </div>
-  );
-}
-
-// Asennus aloitusnäytölle: ei osoiteriviä eikä välilehtiä, joten kirjaus ei sulkeudu vahingossa.
-function Asennus({ asennus, onKopioiKoodi }) {
-  if (asennus.asennettu) return <p className="text-slate-600">Käytössä asennettuna sovelluksena.</p>;
-  return (
-    <div className="flex flex-col gap-2 rounded border border-slate-300 p-2">
-      <div className="flex items-center justify-between gap-2">
-        <span><b>Asenna sovellukseksi</b>: aukeaa koko näytölle ilman osoiteriviä.</span>
-        {asennus.asenna && <button type="button" className="shrink-0 rounded bg-blue-800 px-3 py-2 text-white" onClick={asennus.asenna}>Asenna</button>}
-      </div>
-      {!asennus.asenna && (onIos() ? (
-        <>
-          <p className="text-slate-600">
-            Safarissa: Jaa ⎙ → Lisää Koti-valikkoon. Asennettu sovellus ei näe Safarin tietoja, joten kopioi ratakoodi
-            ensin ja liitä se sovellukseen. Lähettämättömät kortit lähtevät Safarista, kun avaat sen uudelleen.
-          </p>
-          <button type="button" className="self-start rounded border border-slate-400 px-3 py-2" onClick={onKopioiKoodi}>Kopioi ratakoodi</button>
-        </>
-      ) : (
-        <p className="text-slate-600">Selaimen valikosta: Asenna sovellus tai Lisää aloitusnäytölle.</p>
-      ))}
     </div>
   );
 }

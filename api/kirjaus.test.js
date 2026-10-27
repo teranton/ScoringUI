@@ -394,3 +394,112 @@ test('tallenna torjuu virheellisen rungon', async () => {
   assert.equal(res.statusCode, 400);
   assert.equal((await tallenna({ laite: 'laite-1', haltija: 'x', kortit: [], linja: 'roskaa' })).statusCode, 400);
 });
+
+// --- Ryhmäpuhelin ---
+
+const ryhmaAvain = (ryhma = 2) => luoAvain({ sheetId: ID, ryhma, voimassaAsti: Math.floor(Date.now() / 1000) + 3600 }, process.env.KIRJAUS_SALAISUUS);
+
+function alustaRyhma() {
+  alusta();
+  taulukko = {
+    KISANSPEKSIT: { id: 1, rivit: [
+      ['RATA1_NIMI', 'Metsä'], ['RATA2_NIMI', 'Järvi'], ['LAYOUT/KISA', 4], ['AIKATAULURYHMAKOKO', 3],
+      ['', '', '', 'Asema', 'Maks'], ['', '', '', '1', 10], ['', '', '', '2', 15], ['', '', '', '3', 12], ['', '', '', '4', 13]
+    ] },
+    'OSALLISTUJAT+TULOKSET': { id: 2, rivit: [
+      ['NRO', 'Ryhmä', 'NIMI'], [1, 1, 'Aalto A'], [2, 1, 'Berg B'], [3, 1, 'Ek E'], [4, 2, 'Dahl D'], [5, 2, 'Fors F'], [6, 2, '6']
+    ] },
+    Aikataulu: { id: 3, rivit: [['Lauantai'], ['Start', 'Järvi', 'Metsä'], ['09:00', 'Ryhmä 1', 'Ryhmä 2'], ['09:30', 'Ryhmä 2', 'Ryhmä 1']] }
+  };
+}
+
+const ryhmaKutsu = (opts) => kutsu({ token: ryhmaAvain(), ...opts });
+async function otaRyhma(laite = 'puhelin-1', lisa = {}) {
+  const res = await ryhmaKutsu({ method: 'POST', toiminto: 'ota', body: { laite, nimi: `Testi ${laite}`, ...lisa } });
+  return res.statusCode === 200 ? res.body.haltija : res;
+}
+const tallennaRyhma = (body) => ryhmaKutsu({ method: 'POST', toiminto: 'tallenna', body });
+const RYHMA_MERKIT = 'XXOXXXXXXO' + 'X'.repeat(15);
+
+test('ryhmä: avaus antaa ryhmän ampujat, layoutit asemineen ja vuorot', async () => {
+  alustaRyhma();
+  const res = await ryhmaKutsu({ laite: 'puhelin-1' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ryhma, 2);
+  assert.deepEqual(res.body.ampujat, [{ nro: 4, nimi: 'Dahl D' }, { nro: 5, nimi: 'Fors F' }]);
+  assert.deepEqual(res.body.layoutit.map((l) => [l.nro, l.nimi, l.kohteita, l.kierros, l.aika]), [[1, 'Metsä', 25, 0, '09:00'], [2, 'Järvi', 25, 1, '09:30']]);
+  assert.deepEqual(res.body.layoutit[1].asemat, [{ sarake: 3, id: '3', kohteita: 12 }, { sarake: 4, id: '4', kohteita: 13 }]);
+  assert.deepEqual(res.body.kortit, []);
+  assert.equal(res.body.haltija.vapaa, true);
+});
+
+test('ryhmä: tallennus kirjoittaa vain ryhmän kortit; hyväksyntä ja asemien tulokset riville', async () => {
+  alustaRyhma();
+  const h = await otaRyhma();
+  assert.match(h, /^h1\.1\./);
+  assert.equal(taulukko.MOBIILI_RYHMAT.rivit[2][2], 'puhelin-1');
+  assert.equal(taulukko.MOBIILI_RYHMAT.rivit[0][0], 'RYHMÄ');
+
+  const res = await tallennaRyhma({ laite: 'puhelin-1', haltija: h, kortit: [
+    { layout: 1, nro: 4, merkit: RYHMA_MERKIT, versio: VERSIO, hyvaksytty: Date.UTC(2026, 9, 27, 10) },
+    { layout: 1, nro: 1, merkit: RYHMA_MERKIT, versio: VERSIO },
+    { layout: 2, nro: 5, merkit: 'X', versio: VERSIO },
+    { layout: 3, nro: 5, merkit: 'X', versio: VERSIO }
+  ] });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.tallennetut, [{ layout: 1, nro: 4 }]);
+  assert.deepEqual(res.body.hylatyt, [{ layout: 1, nro: 1, syy: 'ryhma' }, { layout: 2, nro: 5, syy: 'layout' }, { layout: 3, nro: 5, syy: 'layout' }]);
+  const tab = taulukko['MOBIILI Layout 1'].rivit;
+  assert.deepEqual(tab[0].slice(6, 11), ['RYHMÄ', 'HYVÄKSYTTY', 'ASEMA 1', 'ASEMA 2', '1/1']);
+  assert.deepEqual(tab[4].slice(0, 3), [4, 'Dahl D', 23]);
+  assert.equal(tab[4][6], 2);
+  assert.match(tab[4][7], /27\.10\.2026/);
+  assert.deepEqual(tab[4].slice(8, 10), [8, 15]);
+  assert.equal(tab[1], undefined, 'toisen ryhmän ampujaa ei kirjoiteta');
+  const loki = taulukko.MOBIILI_LOKI.rivit;
+  assert.ok(loki.some((r) => r[1] === 'Layout 1' && r[2] === 4 && /HYVÄKSYTTY/.test(r[7])));
+  assert.ok(loki.some((r) => r[2] === 1 && /EI RYHMÄSSÄ 2/.test(r[7])));
+
+  // Välilehdet ovat jo olemassa: yksi luku ja yksi kirjoitus.
+  lukuja = 0;
+  kirjoitukset = 0;
+  const toinen = await tallennaRyhma({ laite: 'puhelin-1', haltija: h, kortit: [{ layout: 1, nro: 5, merkit: '-'.repeat(25).replace(/^-/, 'X'), versio: VERSIO }] });
+  assert.deepEqual(toinen.body.tallennetut, [{ layout: 1, nro: 5 }]);
+  assert.equal(lukuja, 1);
+  assert.equal(kirjoitukset, 1);
+
+  const avattu = await ryhmaKutsu({ laite: 'puhelin-1', haltija: h });
+  assert.deepEqual(avattu.body.kortit.find((k) => k.nro === 4), { layout: 1, nro: 4, merkit: RYHMA_MERKIT, versio: VERSIO, hyvaksytty: true });
+  assert.equal(avattu.body.haltija.oma, true);
+});
+
+test('ryhmä: toinen puhelin ottaa ryhmän vahvistuksella, korvatun merkinnät täydennyksiksi', async () => {
+  alustaRyhma();
+  const h1 = await otaRyhma('puhelin-1');
+  await tallennaRyhma({ laite: 'puhelin-1', haltija: h1, kortit: [{ layout: 1, nro: 4, merkit: 'XX' + '-'.repeat(23), versio: VERSIO }] });
+
+  const varattu = await otaRyhma('puhelin-2');
+  assert.equal(varattu.statusCode, 409);
+  assert.match(varattu.body.error, /toinen puhelin/);
+  // PIN ei koske ryhmiä.
+  assert.equal((await otaRyhma('puhelin-2', { pin: '1234' })).statusCode, 409);
+
+  const h2 = await otaRyhma('puhelin-2', { vahvista: true });
+  assert.match(h2, /^h1\.2\./);
+  assert.match(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], /RYHMÄ OTETTU: ryhmän koodi/);
+
+  const vanha = await tallennaRyhma({ laite: 'puhelin-1', haltija: h1, kortit: [{ layout: 1, nro: 4, merkit: 'XXOX' + '-'.repeat(21), versio: VERSIO + 5 }] });
+  assert.equal(vanha.statusCode, 409);
+  assert.equal(vanha.body.korvattu, true);
+  assert.equal(vanha.body.taydennetty, 1);
+  assert.deepEqual(JSON.parse(taulukko.MOBIILI_RYHMAT.rivit[2][9]), { '1:4': 'XXOX' + '-'.repeat(21) });
+  assert.equal(taulukko['MOBIILI Layout 1'].rivit[4][5], VERSIO, 'korvattu ei kirjoita korttia');
+
+  const avattu = await ryhmaKutsu({ laite: 'puhelin-2', haltija: h2 });
+  assert.deepEqual(avattu.body.taydennykset, { '1:4': 'XXOX' + '-'.repeat(21) });
+
+  // Vanha avain ei enää vapauta ryhmää.
+  assert.equal((await ryhmaKutsu({ method: 'POST', toiminto: 'vapauta', body: { laite: 'puhelin-2', haltija: h1 } })).statusCode, 409);
+  assert.equal((await ryhmaKutsu({ method: 'POST', toiminto: 'vapauta', body: { laite: 'puhelin-2', haltija: h2 } })).statusCode, 200);
+  assert.equal(taulukko.MOBIILI_RYHMAT.rivit[2][2], '');
+});

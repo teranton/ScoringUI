@@ -81,14 +81,17 @@ export function kuittaa(kortit, lahetetyt, { tallennetut = [], uudemmat = [] }) 
   return yhdistaPalvelimelta(tulos, uudemmat);
 }
 
-// Ratakoodin sisältö ilman tarkistusta (tarkistus tehdään palvelimella): { sheetId, sarake, voimassaAsti } tai null.
+// Koodin sisältö ilman tarkistusta (tarkistus tehdään palvelimella): ratakoodi { sheetId, sarake, voimassaAsti },
+// ryhmäkoodi { sheetId, ryhma, voimassaAsti } tai null.
 export function lueKoodi(koodi) {
   const osat = String(koodi || '').trim().split('.');
   if (osat.length !== 3 || osat[0] !== 'v1') return null;
   try {
     const base64 = osat[1].replace(/-/g, '+').replace(/_/g, '/');
     const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))));
-    if (typeof data?.s !== 'string' || !Number.isInteger(data?.c)) return null;
+    if (typeof data?.s !== 'string') return null;
+    if (Number.isInteger(data.r)) return { sheetId: data.s, ryhma: data.r, voimassaAsti: data.e };
+    if (!Number.isInteger(data.c)) return null;
     return { sheetId: data.s, sarake: data.c, voimassaAsti: data.e };
   } catch {
     return null;

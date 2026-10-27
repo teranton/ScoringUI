@@ -40,3 +40,18 @@ test('kiinteä koodi vastaa ScoringLibin tekemää', () => {
   assert.equal(luoAvain({ sheetId: ID, sarake: 3, voimassaAsti: 1800000000 }, SALAISUUS), koodi);
   assert.deepEqual(tarkistaAvain(koodi, SALAISUUS, 1000), { sheetId: ID, sarake: 3, voimassaAsti: 1800000000 });
 });
+
+test('ryhmäkoodi avautuu ryhmänä, ja virheellinen ryhmä torjutaan', () => {
+  const avain = luoAvain({ sheetId: ID, ryhma: 7, voimassaAsti: 2000 }, SALAISUUS);
+  assert.deepEqual(tarkistaAvain(avain, SALAISUUS, 1000), { sheetId: ID, ryhma: 7, voimassaAsti: 2000 });
+  for (const ryhma of [0, 201, 1.5, '2']) {
+    assert.ok(tarkistaAvain(luoAvain({ sheetId: ID, ryhma, voimassaAsti: 2000 }, SALAISUUS), SALAISUUS, 1000).virhe, String(ryhma));
+  }
+});
+
+// Sama kiinteä ryhmäkoodi on ScoringLibin testissä (tests/mobiilikirjaus.test.js).
+test('kiinteä ryhmäkoodi vastaa ScoringLibin tekemää', () => {
+  const koodi = 'v1.eyJzIjoiMXJzX1p3Q2NsWVV4ckR1ZUJJYzY1TS00OVpBaDRYcHhTRkdPUE5xRVUzaVUiLCJyIjo0LCJlIjoxODAwMDAwMDAwfQ.OAl1DuXHv323qk5N5WBBhkZr6RlChv2G8K42zruRwXw';
+  assert.equal(luoAvain({ sheetId: ID, ryhma: 4, voimassaAsti: 1800000000 }, SALAISUUS), koodi);
+  assert.deepEqual(tarkistaAvain(koodi, SALAISUUS, 1000), { sheetId: ID, ryhma: 4, voimassaAsti: 1800000000 });
+});

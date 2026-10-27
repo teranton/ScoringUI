@@ -152,15 +152,18 @@ function kaikkiRadat(db) {
 }
 
 // Radan lähettämättömät kortit API:n muodossa, tai [] jos laitteella ei ole rataa (ei haltija-avainta, korvattu
-// tai luovutettu: sivu ei silloinkaan lähetä). Sama sääntö kuin src/kirjaus/kortit.js lahettamattomat ja KirjausApp laheta.
+// tai luovutettu: sivu ei silloinkaan lähetä). Sama sääntö kuin src/kirjaus/kortit.js ja ryhma.js lahettamattomat.
 function lahetettavat(rivi) {
   const tila = rivi?.tila;
   if (!tila?.kortit || !rivi.koodi || !rivi.laite || !tila.haltija || tila.korvattu || tila.luovutettu) return [];
   const nimet = { ...tila.avaus?.nimet, ...rivi.nimet };
   return Object.entries(tila.kortit)
-    .filter(([, k]) => k && !k.lahetetty)
+    .filter(([, k]) => k && !k.lahetetty && !k.hylatty)
     .slice(0, MAKS_KORTTEJA)
-    .map(([nro, k]) => ({ nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '' }));
+    // Ryhmäpuhelimen kortissa on layout (src/kirjaus/ryhma.js lahettamattomat); nimen palvelin ottaa pääsivulta.
+    .map(([nro, k]) => (k.layout
+      ? { layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}) }
+      : { nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '' }));
 }
 
 // Korvatun laitteen tila takaisin tietokantaan (sama muoto kuin KirjausApp: haltija pois, korvattu-tieto).

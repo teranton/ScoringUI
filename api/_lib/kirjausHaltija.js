@@ -43,8 +43,13 @@ export function vaihtoPin({ sheetId, sarake, sukupolvi }, salaisuus) {
   return String(tavut.readUInt32BE(0) % 10000).padStart(4, '0');
 }
 
-// MOBIILI_LAITTEET-rivi → { sukupolvi, laite, nimi, otettu, tapa, pinVirheet, linja }. Puuttuva rivi on vapaa rata.
-export function lueLaiteRivi(rivi) {
+// Ryhmäpuhelimen haltijat (MOBIILI_RYHMAT, rivi = ryhmä + 1): samat sarakkeet, ensimmäisenä RYHMÄ. Ryhmän
+// täydennysten avain on "<layout>:<nro>" ja merkkejä on layoutin kiekkojen verran.
+export const RYHMAT_OTSIKKO = ['RYHMÄ', ...LAITTEET_OTSIKKO.slice(1)];
+
+// MOBIILI_LAITTEET- tai MOBIILI_RYHMAT-rivi → { sukupolvi, laite, nimi, otettu, tapa, pinVirheet, linja, taydennykset }.
+// Puuttuva rivi on vapaa rata tai ryhmä.
+export function lueLaiteRivi(rivi, { ryhma = false } = {}) {
   const r = Array.isArray(rivi) ? rivi : [];
   const luku = (v) => {
     const n = Number(v);
@@ -64,12 +69,12 @@ export function lueLaiteRivi(rivi) {
     tapa: String(r[5] ?? ''),
     pinVirheet: luku(r[6]),
     linja,
-    taydennykset: lueTaydennykset(r[TAYDENNYS_SARAKE])
+    taydennykset: lueTaydennykset(r[TAYDENNYS_SARAKE], ryhma)
   };
 }
 
 const TAYDENNYS_MERKIT = new RegExp(`^[XO-]{${KOHTEITA}}$`);
-function lueTaydennykset(arvo) {
+function lueTaydennykset(arvo, ryhma) {
   let olio;
   try {
     olio = arvo ? JSON.parse(String(arvo)) : null;
@@ -77,15 +82,19 @@ function lueTaydennykset(arvo) {
     olio = null;
   }
   if (!olio || typeof olio !== 'object' || Array.isArray(olio)) return {};
-  return Object.fromEntries(Object.entries(olio).filter(([nro, merkit]) => {
-    const n = Number(nro);
-    return Number.isInteger(n) && n >= 1 && n <= MAKS_NRO && typeof merkit === 'string' && TAYDENNYS_MERKIT.test(merkit);
-  }));
+  const kelpaa = ryhma
+    ? (avain, merkit) => /^\d{1,2}:\d{1,3}$/.test(avain) && typeof merkit === 'string' && /^[XO-]{1,200}$/.test(merkit)
+    : (avain, merkit) => {
+      const n = Number(avain);
+      return Number.isInteger(n) && n >= 1 && n <= MAKS_NRO && typeof merkit === 'string' && TAYDENNYS_MERKIT.test(merkit);
+    };
+  return Object.fromEntries(Object.entries(olio).filter(([avain, merkit]) => kelpaa(avain, merkit)));
 }
 
-// Lisää korvatun laitteen kortin täydennyksiin: uuden kortin merkinnät voittavat, aiemmin välitetyt jäävät muualle.
+// Lisää korvatun laitteen kortin täydennyksiin (avain: ampujan numero tai ryhmässä "<layout>:<nro>"): uuden kortin
+// merkinnät voittavat, aiemmin välitetyt jäävät muualle.
 export function lisaaTaydennys(taydennykset, nro, merkit) {
-  const vanha = taydennykset[nro] || '-'.repeat(KOHTEITA);
+  const vanha = taydennykset[nro]?.length === merkit.length ? taydennykset[nro] : '-'.repeat(merkit.length);
   const uusi = [...vanha].map((m, i) => (merkit[i] && merkit[i] !== '-' ? merkit[i] : m)).join('');
   return { ...taydennykset, [nro]: uusi };
 }
