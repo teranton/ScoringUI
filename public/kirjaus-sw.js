@@ -144,13 +144,11 @@ function kaikkiRadat(db) {
   });
 }
 
-// Radan lähettämättömät kortit API:n muodossa, tai [] jos rata odottaa toisen laitteen varoituksen kuittausta
-// (sivu ei silloinkaan lähetä). Sama sääntö kuin src/kirjaus/kortit.js lahettamattomat ja KirjausApp laheta.
+// Radan lähettämättömät kortit API:n muodossa, tai [] jos laitteella ei ole rataa (ei haltija-avainta, korvattu
+// tai luovutettu: sivu ei silloinkaan lähetä). Sama sääntö kuin src/kirjaus/kortit.js lahettamattomat ja KirjausApp laheta.
 function lahetettavat(rivi) {
   const tila = rivi?.tila;
-  if (!tila?.kortit || !rivi.koodi || !rivi.laite) return [];
-  const muu = tila.avaus?.muuLaite;
-  if (muu && tila.hyvaksyttyMuu !== `${muu.laite}|${muu.aika}`) return [];
+  if (!tila?.kortit || !rivi.koodi || !rivi.laite || !tila.haltija || tila.korvattu || tila.luovutettu) return [];
   const nimet = { ...tila.avaus?.nimet, ...rivi.nimet };
   return Object.entries(tila.kortit)
     .filter(([, k]) => k && !k.lahetetty)
@@ -171,9 +169,9 @@ async function lahetaKaikki() {
       const res = await fetch('/api/kirjaus?toiminto=tallenna', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${rivi.koodi}` },
-        body: JSON.stringify({ laite: rivi.laite, kortit })
+        body: JSON.stringify({ laite: rivi.laite, haltija: rivi.tila.haltija, kortit })
       });
-      // 5xx (ruuhka, Google) yritetään myöhemmin; 4xx (vanhentunut koodi ym.) näkyy sivulla, kun se avataan.
+      // 5xx (ruuhka, Google) yritetään myöhemmin; 4xx (vanhentunut koodi, laite korvattu ym.) näkyy sivulla, kun se avataan.
       if (res.status >= 500) verkkovirhe = new Error(`Virhe ${res.status}`);
     } catch (error) {
       verkkovirhe = error;

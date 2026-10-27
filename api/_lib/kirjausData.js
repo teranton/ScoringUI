@@ -13,7 +13,8 @@ export const META_SARAKKEITA = 6;
 
 export const KORTTI_OTSIKKO = ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO',
   ...Array.from({ length: KOHTEITA }, (_, i) => String(i + 1))];
-export const LOKI_OTSIKKO = ['AIKA', 'RATA', 'NRO', 'LAITE', 'VERSIO', 'ENNEN', 'JÄLKEEN'];
+// HUOM: tyhjä tavalliselle tallennukselle; haltijan vaihdot ja korvatun laitteen hylätyt kortit (ristiriidat).
+export const LOKI_OTSIKKO = ['AIKA', 'RATA', 'NRO', 'LAITE', 'VERSIO', 'ENNEN', 'JÄLKEEN', 'HUOM'];
 
 // Merkit: X osuma, O ohi, - ampumatta. Aina KOHTEITA merkkiä.
 const MERKIT = new RegExp(`^[XO-]{${KOHTEITA}}$`);
@@ -186,27 +187,8 @@ export function lueKorttiRivi(rivi) {
   return { nro, merkit, versio: Number.isFinite(versio) ? versio : 0, laite: String(rivi[4] ?? ''), aika: String(rivi[3] ?? '') };
 }
 
-// PÄIVITETTY-aikaleima ("19.10.2026 klo 19.47.26", palvelimen kello) vertailtavaksi luvuksi; 0 jos ei aikaleima.
-export function aikaArvo(aika) {
-  const m = String(aika || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})\D+(\d{1,2})[.:](\d{2})[.:](\d{2})/);
-  return m ? Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6])) : 0;
-}
-
-const TUORE_MS = 10 * 60 * 1000;
-
-// Kirjaako rataa toinen laite: toisen laitteen uusin tallennus (palvelimen aikaleiman mukaan, ei laitteen kellon)
-// on tämän laitteen uusinta myöhäisempi tai alle 10 minuutin takaa. Palauttaa { laite, aika } tai null.
-export function viimeisinMuuLaite(kortit, laite, nyt = aikaArvo(aikaleima())) {
-  const uusin = (lista) => lista.reduce((paras, k) => (aikaArvo(k.aika) > aikaArvo(paras?.aika) ? k : paras), null);
-  const muu = uusin(kortit.filter((k) => k.laite && k.laite !== laite));
-  if (!muu) return null;
-  const oma = uusin(kortit.filter((k) => k.laite === laite));
-  const muuAika = aikaArvo(muu.aika);
-  if (oma && muuAika <= aikaArvo(oma.aika) && nyt - muuAika >= TUORE_MS) return null;
-  return { laite: muu.laite, aika: muu.aika };
-}
-
-// Tarkistaa tallennuspyynnön rungon. Palauttaa { laite, kortit } tai { virhe }.
+// Tarkistaa tallennuspyynnön rungon. Palauttaa { laite, haltija, kortit, linja } tai { virhe }.
+// Korttilista saa olla tyhjä, kun mukana on linjan tila (linja tarkistetaan api/_lib/kirjausHaltija.js:ssä).
 export const MAKS_KORTTEJA = 30;
 const MAKS_NIMI = 80;
 export const onLaitetunnus = (laite) => typeof laite === 'string' && /^[A-Za-z0-9_-]{4,64}$/.test(laite);
@@ -214,8 +196,9 @@ export const onLaitetunnus = (laite) => typeof laite === 'string' && /^[A-Za-z0-
 export function tarkistaTallennus(runko) {
   const laite = typeof runko?.laite === 'string' ? runko.laite : '';
   if (!onLaitetunnus(laite)) return { virhe: 'Laitteen tunnus puuttuu' };
-  const kortit = runko?.kortit;
-  if (!Array.isArray(kortit) || kortit.length === 0) return { virhe: 'Ei kortteja' };
+  const haltija = typeof runko?.haltija === 'string' ? runko.haltija.slice(0, 200) : '';
+  const kortit = runko?.kortit ?? [];
+  if (!Array.isArray(kortit) || (kortit.length === 0 && runko?.linja === undefined)) return { virhe: 'Ei kortteja' };
   if (kortit.length > MAKS_KORTTEJA) return { virhe: `Enintään ${MAKS_KORTTEJA} korttia kerralla` };
   const nahty = new Set();
   for (const k of kortit) {
@@ -228,5 +211,10 @@ export function tarkistaTallennus(runko) {
   }
   // Nimi on vain näyttöä varten (laite tuntee sen aikataulusta): ohjausmerkit pois ja pituus rajattu.
   const nimi = (n) => [...String(n || '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, MAKS_NIMI);
-  return { laite, kortit: kortit.map((k) => ({ nro: k.nro, nimi: nimi(k.nimi), merkit: k.merkit, versio: k.versio })) };
+  return {
+    laite,
+    haltija,
+    kortit: kortit.map((k) => ({ nro: k.nro, nimi: nimi(k.nimi), merkit: k.merkit, versio: k.versio })),
+    linja: runko?.linja
+  };
 }

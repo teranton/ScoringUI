@@ -5,6 +5,7 @@
 // Tietokannan nimi ja rakenne ovat samat public/kirjaus-sw.js:ssä.
 const KOODI = 'scoringui:kirjaus:koodi';
 const LAITE = 'scoringui:kirjaus:laite';
+const SIIRTO = 'scoringui:kirjaus:siirto';
 const radanAvain = (sheetId, sarake) => `scoringui:kirjaus:${sheetId}:${sarake}`;
 
 const TIETOKANTA = 'scoringui-kirjaus';
@@ -33,6 +34,15 @@ function kirjoita(avain, arvo) {
 
 export const lueKoodi = () => lue(KOODI);
 export const tallennaKoodi = (koodi) => kirjoita(KOODI, koodi);
+
+// Toiselta laitteelta siirtolinkillä tullut rata ({ koodi, siirto }) odottaa, kunnes radan näkymä yhdistää sen.
+export const tallennaOdottavaSiirto = (arvo) => kirjoita(SIIRTO, arvo);
+export function otaOdottavaSiirto(koodi) {
+  const arvo = lue(SIIRTO);
+  if (!arvo || arvo.koodi !== koodi) return null;
+  kirjoita(SIIRTO, null);
+  return arvo.siirto;
+}
 
 // Tunnus pidetään myös muistissa, ettei se vaihdu sivun aikana, vaikka selain ei sallisi tallennusta.
 let muistissa = null;

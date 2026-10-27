@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, tarkistaTallennus,
-  aikaArvo, viimeisinMuuLaite
+  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, tarkistaTallennus
 } from './kirjausData.js';
 
 const MERKIT = 'XXXXO' + 'XOXXX' + '-'.repeat(15);
@@ -119,7 +118,9 @@ test('korttirivi menee ja tulee samana', () => {
 
 test('tallennuksen tarkistus', () => {
   const ok = { laite: 'laite-1234', kortit: [{ nro: 1, merkit: MERKIT, versio: 1, ylim: 1 }] };
-  assert.deepEqual(tarkistaTallennus(ok), { laite: 'laite-1234', kortit: [{ nro: 1, nimi: '', merkit: MERKIT, versio: 1 }] });
+  assert.deepEqual(tarkistaTallennus(ok), { laite: 'laite-1234', haltija: '', kortit: [{ nro: 1, nimi: '', merkit: MERKIT, versio: 1 }], linja: undefined });
+  // Pelkkä linjan tila käy ilman kortteja.
+  assert.deepEqual(tarkistaTallennus({ laite: 'laite-1234', haltija: 'h1.1.x', linja: {} }).kortit, []);
   const nimella = tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], nimi: ' Aho\u0007 Antti ' }] });
   assert.equal(nimella.kortit[0].nimi, 'Aho Antti');
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], nimi: 5 }] }).virhe);
@@ -130,20 +131,4 @@ test('tallennuksen tarkistus', () => {
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ nro: 1, merkit: MERKIT, versio: 0 }] }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, kortit: [ok.kortit[0], ok.kortit[0]] }).virhe);
   assert.ok(tarkistaTallennus(null).virhe);
-});
-
-test('viimeisin muu laite: palvelimen aikaleiman mukaan, tuore toinen laite aina', () => {
-  const nyt = aikaArvo('19.10.2026 klo 12.00.00');
-  const kortit = [
-    { versio: 999, laite: 'a', aika: '19.10.2026 klo 10.00.00' },
-    { versio: 5, laite: 'b', aika: '19.10.2026 klo 10.42.00' }
-  ];
-  // b tallensi myöhemmin (vaikka a:n kello antoi suuremman version).
-  assert.deepEqual(viimeisinMuuLaite(kortit, 'a', nyt), { laite: 'b', aika: '19.10.2026 klo 10.42.00' });
-  assert.equal(viimeisinMuuLaite(kortit, 'b', nyt), null);
-  // a tallensi juuri: b tallensi silti alle 10 min sitten, joten a:ta varoitetaan.
-  const tuore = [{ laite: 'a', aika: '19.10.2026 klo 11.59.00' }, { laite: 'b', aika: '19.10.2026 klo 11.55.00' }];
-  assert.equal(viimeisinMuuLaite(tuore, 'a', nyt).laite, 'b');
-  assert.equal(viimeisinMuuLaite([], 'a', nyt), null);
-  assert.equal(aikaArvo('roskaa'), 0);
 });

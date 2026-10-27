@@ -218,12 +218,25 @@ The device runs the Compak inline line: shooters enter stand 1 in queue order, t
 single or double each in stand order 1 → 5 until each has shot the 5 targets of their stand, then everyone moves one
 stand on. The card format does not depend on this; marks are still written per target.
 
-Writes (created on the first save if missing):
+Writes (created on the first save or change of device if missing):
 - `MOBIILI Rata N` (N = result column `1`..`N` of `OSALLISTUJAT+TULOKSET`): header row
   `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, 1..25`; the shooter with number n is on row n + 1. Marks `X` hit,
   `O` miss, empty not shot; `TULOS` counts the `X`s; `NIMI` is the name the device showed. A save with a version not
   newer than `VERSIO` writes nothing. The card row and its log row are written in one request.
-- `MOBIILI_LOKI`: one appended row per accepted save: `AIKA, RATA, NRO, LAITE, VERSIO, ENNEN, JÄLKEEN`.
+- `MOBIILI_LOKI`: one appended row per accepted save: `AIKA, RATA, NRO, LAITE, VERSIO, ENNEN, JÄLKEEN, HUOM`.
+  `HUOM` is empty on a save. A change of device adds a row with `RATA OTETTU: …` or `RATA LUOVUTETTU …` (no shooter).
+  A card from a replaced device is not saved: when it differs from the tab it is logged with
+  `KORVATTU LAITE: EI TALLENNETTU` for the office. A log made before `HUOM` existed (7 columns) is widened on the next
+  change of device or save.
+- `MOBIILI_LAITTEET`: the device holding each layout, so one device writes a layout at a time. Header
+  `RATA, SUKUPOLVI, LAITE, LAITTEEN NIMI, OTETTU, TAPA, PIN-VIRHEET, LINJA, LINJA PÄIVITETTY`; layout N is on row N + 1.
+  `SUKUPOLVI` grows on every change of device; a device's key is valid only for its own generation, so a replaced device
+  can no longer write. `LAITE` empty = free: the next device takes the layout without a PIN. A taken layout changes
+  device with the old device's key (its menu: release, or a QR transfer) or the takeover PIN, an HMAC of
+  `pin|sheetId|N|SUKUPOLVI` (ScoringLib shows it in 📱 Mobiilikirjaus › Laitteen vaihto: PIN-koodit). Ten wrong PINs lock
+  the takeover until ScoringLib shows the PINs again (it writes `PIN-VIRHEET` = 0). `LINJA` is the device's line state as
+  JSON (shooters added or skipped on the device, breaks, retired shooters, the device's program), so the next device
+  carries on the same line.
 
 Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
 
