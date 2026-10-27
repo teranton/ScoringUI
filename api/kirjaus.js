@@ -18,7 +18,8 @@ import { kohdistaValilehdet, valilehtiAlue } from './_lib/sheetsData.js';
 import { tarkistaAvain } from './_lib/kirjausAvain.js';
 import {
   AIKATAULU_VALILEHDET, KOHTEITA, KORTTI_OTSIKKO, LOKI_OTSIKKO, LOKI_VALILEHTI, MAKS_NRO, VIIMEINEN_SARAKE,
-  aikaleima, korttiRivi, lueKorttiRivi, mobiiliValilehti, onLaitetunnus, radanJono, solu, speksiArvo, tarkistaTallennus
+  aikaleima, korttiRivi, lueKorttiRivi, mobiiliValilehti, onLaitetunnus, radanJono, solu, speksiArvo, taydenna,
+  tarkistaTallennus
 } from './_lib/kirjausData.js';
 import {
   LAITTEET_OTSIKKO, LAITTEET_VALILEHTI, LINJA_SARAKE, MAKS_PIN_VIRHEET, haltijaAvain, haltijaRivi, julkinenHaltija,
@@ -195,14 +196,32 @@ async function varmistaValilehdet(request, sheetId, sarake) {
   };
 }
 
-// Korvatun laitteen kortit (haltija vaihtui): ei tallenneta, mutta taulukon kortista poikkeavat kirjataan lokiin
-// kilpailutoimistolle (paperikortti ratkaisee). Palauttaa lokirivit.
-function ristiriitaRivit(sarake, laite, kortit, tallessa, aika) {
-  return kortit.flatMap((kortti, i) => {
+// Korvatun laitteen kortit (haltija vaihtui, esim. akku loppui ja rata otettiin PIN-koodilla): taulukon kortin
+// ampumattomat kohteet täydennetään laitteen merkinnöillä, jotta yhtään ammuttua kiekkoa ei jää kirjaamatta.
+// Uuden laitteen merkinnät pysyvät; eri merkinnät kirjataan lokiin kilpailutoimiston tarkistettaviksi.
+// Palauttaa { requests, lokirivit, taydennetyt }.
+function korvatunKortit(tabit, sarake, laite, kortit, tallessa, aika) {
+  const requests = [];
+  const lokirivit = [];
+  let taydennetyt = 0;
+  kortit.forEach((kortti, i) => {
     const vanha = lueKorttiRivi((tallessa[i] || [])[0]);
-    if (vanha && vanha.merkit === kortti.merkit) return [];
-    return [[aika, sarake, kortti.nro, laite, kortti.versio, vanha?.merkit || '', kortti.merkit, 'KORVATTU LAITE: EI TALLENNETTU']];
+    const t = vanha ? taydenna(vanha.merkit, kortti.merkit) : { merkit: kortti.merkit, taytetty: 1, eri: 0 };
+    if (t.taytetty === 0 && t.eri === 0) return;
+    const huom = [
+      t.taytetty > 0 ? 'KORVATTU LAITE: TÄYDENNETTY' : 'KORVATTU LAITE',
+      t.eri > 0 ? `${t.eri} ERI MERKINTÄÄ, TAULUKON MERKINTÄ JÄI` : ''
+    ].filter(Boolean).join(', ');
+    // Versio taulukon versiota suurempi, jotta täydennys ei jää uudelleenlähetyksen alle; uuden laitteen seuraava
+    // tallennus täydentää omansa tästä (tallennaKerran), joten sen merkinnät eivät katoa.
+    const versio = vanha ? vanha.versio + 1 : kortti.versio;
+    if (t.taytetty > 0) {
+      requests.push(solut(tabit.kortit, kortti.nro, 0, korttiRivi({ ...kortti, merkit: t.merkit, versio, laite, aika })));
+      taydennetyt++;
+    }
+    lokirivit.push([aika, sarake, kortti.nro, laite, versio, vanha?.merkit || '', kortti.merkit, huom]);
   });
+  return { requests, lokirivit, taydennetyt };
 }
 
 async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, kortit, linja }) {
@@ -218,13 +237,19 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
     return { status: 409, body: { error: 'Päivitä sivu: kirjauksen uusi versio', paivita: true } };
   }
   if (!onHaltija(haltija, rivi, { sheetId, sarake, laite }, salaisuus())) {
-    const ristiriidat = ristiriitaRivit(sarake, laite, kortit, tallessa, aika);
-    if (ristiriidat.length > 0) {
-      await batchUpdate(request, sheetId, [{ appendCells: { sheetId: tabit.loki.id, rows: ristiriidat.map(riviSoluiksi), fields: 'userEnteredValue' } }]);
+    const korvattu = korvatunKortit(tabit, sarake, laite, kortit, tallessa, aika);
+    if (korvattu.lokirivit.length > 0) {
+      await batchUpdate(request, sheetId, [
+        ...korvattu.requests,
+        { appendCells: { sheetId: tabit.loki.id, rows: korvattu.lokirivit.map(riviSoluiksi), fields: 'userEnteredValue' } }
+      ]);
     }
     return { status: 409, body: {
       error: rivi.laite ? 'Rata on siirretty toiselle laitteelle' : 'Rata on luovutettu',
-      korvattu: true, kirjattu: ristiriidat.length, haltija: julkinenHaltija(rivi, laite)
+      korvattu: true,
+      taydennetty: korvattu.taydennetyt,
+      kirjattu: korvattu.lokirivit.length - korvattu.taydennetyt,
+      haltija: julkinenHaltija(rivi, laite)
     } };
   }
 
@@ -241,9 +266,15 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
       else uudemmat.push({ nro: kortti.nro, merkit: vanha.merkit, versio: vanha.versio, muuLaite: vanha.laite !== laite, aika: vanha.aika });
       return;
     }
-    requests.push(solut(tabit.kortit, kortti.nro, 0, korttiRivi({ ...kortti, laite, aika })));
-    lokirivit.push([aika, sarake, kortti.nro, laite, kortti.versio, vanha?.merkit || '', kortti.merkit, '']);
+    // Taulukon kortin on kirjoittanut toinen laite (korvatun laitteen täydennys tai edellinen haltija): sen merkinnät
+    // täyttävät tämän kortin ampumattomat kohteet. Tämä laite peruu vain omia merkintöjään, joten se ei tyhjennä niitä.
+    const t = vanha && vanha.laite && vanha.laite !== laite ? taydenna(kortti.merkit, vanha.merkit) : null;
+    const merkit = t?.taytetty ? t.merkit : kortti.merkit;
+    requests.push(solut(tabit.kortit, kortti.nro, 0, korttiRivi({ ...kortti, merkit, laite, aika })));
+    lokirivit.push([aika, sarake, kortti.nro, laite, kortti.versio, vanha?.merkit || '', merkit, t?.taytetty ? 'TÄYDENNETTY TAULUKOSTA' : '']);
     tallennetut.push(kortti.nro);
+    // Laite ottaa täydennetyn kortin käyttöön (sama versio, eri merkit: taulukko voittaa).
+    if (t?.taytetty) uudemmat.push({ nro: kortti.nro, merkit, versio: kortti.versio, muuLaite: false, aika });
   });
 
   if (lokirivit.length > 0) {

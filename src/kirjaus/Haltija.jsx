@@ -81,6 +81,12 @@ export function HaltijaNakyma({ tyyppi, haltija, korvattu, lahettamatta, laittee
             {korvattu?.vapaa || !toinen ? 'Rata on vapautettu toiselle laitteelle.' : `Rata on siirretty toiselle laitteelle (${toinen}).`}
             {' '}Tämä laite ei enää lähetä tuloksia.
           </p>
+          {korvattu?.taydennetty > 0 && (
+            <p className="text-sm">
+              {korvattu.taydennetty} {korvattu.taydennetty === 1 ? 'kortti' : 'korttia'} täydennettiin taulukkoon: tämän laitteen
+              merkinnät täyttivät kiekot, jotka taulukossa olivat vielä tyhjiä.
+            </p>
+          )}
           {korvattu?.kirjattu > 0 && (
             <p className="text-sm">
               {korvattu.kirjattu} {korvattu.kirjattu === 1 ? 'kortti poikkesi' : 'korttia poikkesi'} taulukosta: ne kirjattiin

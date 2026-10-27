@@ -165,6 +165,24 @@ export function radanJono({ aikataulut, sarake, ratojaPaivassa }) {
   return { aikataulu: paiva.nimi, kaista: kaista + 1, kierros, jono, nimet };
 }
 
+// Täydentää kortin toisen laitteen merkinnöillä: perus-kortin ampumattomat (-) kohteet saavat lisän merkin.
+// Molemmissa merkityt kohteet pysyvät perus-kortin mukaisina; eri: montako niistä poikkeaa.
+// Palauttaa { merkit, taytetty, eri }.
+export function taydenna(perus, lisa) {
+  let taytetty = 0;
+  let eri = 0;
+  const merkit = [...perus].map((m, i) => {
+    const l = lisa[i];
+    if (m === '-' && l !== '-') {
+      taytetty++;
+      return l;
+    }
+    if (m !== '-' && l !== '-' && m !== l) eri++;
+    return m;
+  }).join('');
+  return { merkit, taytetty, eri };
+}
+
 export function aikaleima(ms = Date.now()) {
   return new Date(ms).toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' });
 }

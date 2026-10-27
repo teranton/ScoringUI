@@ -217,7 +217,7 @@ test('tallenna: ilman haltija-avainta ei kirjoiteta', async () => {
   assert.equal(res2.statusCode, 409);
 });
 
-test('varattu rata: PIN-koodi vaihtaa laitteen, vanha laite korvataan ja sen kortit kirjataan ristiriitoina', async () => {
+test('varattu rata: PIN-koodi vaihtaa laitteen, palaavan vanhan laitteen kortit täydentävät ampumattomat kohteet', async () => {
   alusta();
   const h1 = await ota('laite-1');
   await tallenna({ laite: 'laite-1', haltija: h1, kortit: [{ nro: 3, merkit: MERKIT, versio: VERSIO }] });
@@ -238,23 +238,33 @@ test('varattu rata: PIN-koodi vaihtaa laitteen, vanha laite korvataan ja sen kor
   const uudelleen = await ota('laite-3', { pin });
   assert.equal(uudelleen.statusCode, 403);
 
-  // Vanha laite: kortit eivät mene taulukkoon, poikkeavat lokiin.
+  // Uusi laite jatkaa kortilla 3 (kiekot 6–7); vanhan laitteen lähettämättä jääneet kiekot 6–10 puuttuvat siltä.
+  const uudenMerkit = 'XXXXO' + 'OO' + '-'.repeat(18);
+  assert.deepEqual((await tallenna({ laite: 'laite-2', haltija: h2, kortit: [{ nro: 3, merkit: uudenMerkit, versio: VERSIO + 2 }] })).body.tallennetut, [3]);
+
+  // Vanha laite palaa (akku ladattu): sen kortit täydentävät ampumattomat kohteet, uuden laitteen merkinnät jäävät.
   const lokia = taulukko.MOBIILI_LOKI.rivit.length;
+  const vanhanMerkit = 'XXXXO' + 'XXXXX' + '-'.repeat(15);
   const vanha = await tallenna({ laite: 'laite-1', haltija: h1, kortit: [
-    { nro: 3, merkit: MERKIT, versio: VERSIO + 5 },
-    { nro: 4, merkit: MERKIT, versio: VERSIO + 5 }
+    { nro: 3, merkit: vanhanMerkit, versio: VERSIO + 1 },
+    { nro: 4, merkit: MERKIT, versio: VERSIO + 1 }
   ] });
   assert.equal(vanha.statusCode, 409);
   assert.equal(vanha.body.korvattu, true);
-  assert.equal(vanha.body.kirjattu, 1);
-  assert.equal(taulukko['MOBIILI Rata 2'].rivit[4], undefined);
-  const ristiriita = taulukko.MOBIILI_LOKI.rivit[lokia];
-  assert.deepEqual(ristiriita.slice(2, 8), [4, 'laite-1', VERSIO + 5, '', MERKIT, 'KORVATTU LAITE: EI TALLENNETTU']);
+  assert.equal(vanha.body.taydennetty, 2);
+  const kortti3 = taulukko['MOBIILI Rata 2'].rivit[3];
+  assert.equal(kortti3.slice(6, 6 + 10).join(''), 'XXXXOOOXXX', 'uuden laitteen 6–7 jäivät, 8–10 täydennettiin');
+  assert.equal(kortti3[5], VERSIO + 3);
+  assert.equal(taulukko['MOBIILI Rata 2'].rivit[4][2], 4, 'taulukosta puuttunut kortti tallennettiin');
+  assert.match(taulukko.MOBIILI_LOKI.rivit[lokia][7], /TÄYDENNETTY, 2 ERI MERKINTÄÄ/);
   assert.equal((await kutsu({ laite: 'laite-1', haltija: h1 })).body.haltija.oma, false);
 
-  // Uusi laite kirjoittaa.
-  const uusi = await tallenna({ laite: 'laite-2', haltija: h2, kortit: [{ nro: 4, merkit: MERKIT, versio: VERSIO + 6 }] });
-  assert.deepEqual(uusi.body.tallennetut, [4]);
+  // Uuden laitteen seuraava tallennus (vanhemmasta paikallisesta kortista) säilyttää täydennyksen ja palauttaa sen.
+  const jatko = 'XXXXO' + 'OOX' + '-'.repeat(17);
+  const uusi = await tallenna({ laite: 'laite-2', haltija: h2, kortit: [{ nro: 3, merkit: jatko, versio: VERSIO + 10 }] });
+  assert.deepEqual(uusi.body.tallennetut, [3]);
+  assert.equal(uusi.body.uudemmat[0].merkit, 'XXXXO' + 'OOXXX' + '-'.repeat(15));
+  assert.equal(taulukko['MOBIILI Rata 2'].rivit[3].slice(6, 16).join(''), 'XXXXOOOXXX');
 });
 
 test('PIN-koodin arvaus lukittuu', async () => {

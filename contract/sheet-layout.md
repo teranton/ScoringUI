@@ -225,8 +225,11 @@ Writes (created on the first save or change of device if missing):
   newer than `VERSIO` writes nothing. The card row and its log row are written in one request.
 - `MOBIILI_LOKI`: one appended row per accepted save: `AIKA, RATA, NRO, LAITE, VERSIO, ENNEN, JÄLKEEN, HUOM`.
   `HUOM` is empty on a save. A change of device adds a row with `RATA OTETTU: …` or `RATA LUOVUTETTU …` (no shooter).
-  A card from a replaced device is not saved: when it differs from the tab it is logged with
-  `KORVATTU LAITE: EI TALLENNETTU` for the office. A log made before `HUOM` existed (7 columns) is widened on the next
+  A card from a replaced device (e.g. its battery died and the layout was taken with a PIN) fills only the targets still
+  empty on the tab (`KORVATTU LAITE: TÄYDENNETTY`, the card's `VERSIO` grows by one); targets where it differs from the
+  tab are not written and the log row says `N ERI MERKINTÄÄ, TAULUKON MERKINTÄ JÄI` for the office. `JÄLKEEN` is the
+  replaced device's card. When the holder later saves a card that was filled this way, the tab's marks fill the holder's
+  empty targets too (`TÄYDENNETTY TAULUKOSTA`). A log made before `HUOM` existed (7 columns) is widened on the next
   change of device or save.
 - `MOBIILI_LAITTEET`: the device holding each layout, so one device writes a layout at a time. Header
   `RATA, SUKUPOLVI, LAITE, LAITTEEN NIMI, OTETTU, TAPA, PIN-VIRHEET, LINJA, LINJA PÄIVITETTY`; layout N is on row N + 1.

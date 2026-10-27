@@ -20,6 +20,7 @@ import {
 import { laitteenNimi, linjaTekstina, linjaTilasta, lueSiirto, otaLinja, siirtoLinkki, yhdistaSiirto } from './haltija.js';
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { useHereilla } from './useHereilla.js';
+import { useAkku } from './useAkku.js';
 import { onIos, pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
@@ -110,6 +111,7 @@ function RataNakyma({ koodi, onVaihda }) {
   const info = useMemo(() => lueKoodinSisalto(koodi), [koodi]);
   const laite = useMemo(() => laitteenTunnus(), []);
   const hereilla = useHereilla();
+  const akku = useAkku();
 
   const [tila, setTila] = useState(() => alkutila(lueRata(info.sheetId, info.sarake)));
   const [lataus, setLataus] = useState({ tila: 'ladataan', viesti: '', pysyva: false });
@@ -277,6 +279,8 @@ function RataNakyma({ koodi, onVaihda }) {
           siirtoAvain: null,
           korvattu: null,
           luovutettu: false,
+          // PIN-vaihdossa vanhan laitteen viimeiset merkinnät voivat puuttua: kirjaaja tarkistaa linjan.
+          ...(pin ? { tarkistaLinja: true } : {}),
           lahetettyLinja: otetaan ? linjaTekstina(linjalla) : t.lahetettyLinja,
           avaus: t.avaus ? { ...t.avaus, haltija: data.tila } : t.avaus
         };
@@ -324,7 +328,7 @@ function RataNakyma({ koodi, onVaihda }) {
         setTila((t) => ({
           ...t,
           haltija: null,
-          korvattu: korvausTieto(data.haltija, data.kirjattu),
+          korvattu: korvausTieto(data.haltija, data.kirjattu, data.taydennetty),
           avaus: t.avaus ? { ...t.avaus, haltija: data.haltija || t.avaus.haltija } : t.avaus
         }));
         setSynk({ virhe: '', viimeksi: null, katkesi: null });
@@ -849,6 +853,23 @@ function RataNakyma({ koodi, onVaihda }) {
           kun yhteys toimii, mutta sivun sulkeminen hävittää lähettämättömät. Käytä tarvittaessa paperikorttia.
         </div>
       )}
+      {tila.tarkistaLinja && (
+        <div className="flex shrink-0 items-center gap-2 bg-amber-100 px-3 py-2 text-sm text-amber-900">
+          <span className="min-w-0 flex-1">
+            Rata otettiin PIN-koodilla: edellisen laitteen viimeiset merkinnät voivat puuttua.
+            {vuorossa && kohta ? <> Vuorossa näkyy <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b>, asema {vuorossa.asema + 1}, kiekko {kohta.i + 1}.</> : ''}
+            {' '}Jos linja on jo pidemmällä, kirjaa ammutut kiekot ensin (tai korjaa ☰ › Korjaa merkintöjä).
+          </span>
+          <button type="button" className="rounded border border-amber-700 px-2 py-1" onClick={() => setTila((t) => ({ ...t, tarkistaLinja: false }))}>
+            Linja tarkistettu
+          </button>
+        </div>
+      )}
+      {akku.vahissa && (
+        <div className="shrink-0 bg-red-100 px-3 py-2 text-sm text-red-900">
+          Akku {akku.taso} %: kytke laturi. Jos laite ei jaksa kisan loppuun, vaihda laite ajoissa: ☰ › <b>Luovuta rata</b>.
+        </div>
+      )}
       {toinenLaite && (
         <div className="flex shrink-0 items-center gap-2 bg-amber-100 px-3 py-2 text-sm text-amber-900">
           <span className="min-w-0 flex-1">
@@ -1011,13 +1032,15 @@ function RataNakyma({ koodi, onVaihda }) {
 }
 
 // Korvatun laitteen näkymän tiedot: kuka rataa nyt kirjaa ja montako korttia kirjattiin lokiin ristiriitoina.
-const korvausTieto = (haltija, kirjattu) => ({ nimi: haltija?.nimi || '', otettu: haltija?.otettu || '', vapaa: Boolean(haltija?.vapaa), kirjattu: kirjattu || 0 });
+const korvausTieto = (haltija, kirjattu, taydennetty) => ({
+  nimi: haltija?.nimi || '', otettu: haltija?.otettu || '', vapaa: Boolean(haltija?.vapaa), kirjattu: kirjattu || 0, taydennetty: taydennetty || 0
+});
 
 // Laitteelle tallennettu tila; vanhan version lisätyt (pelkät numerot) menevät jonon loppuun.
 function alkutila(tallessa) {
   const t = {
     kortit: {}, historia: [], lisatyt: [], ohitetut: [], tauot: [], tauotPois: [], keskeyttaneet: [], ohjelma: null, avaus: null,
-    haltija: null, siirtoAvain: null, korvattu: null, luovutettu: false, lahetettyLinja: null,
+    haltija: null, siirtoAvain: null, korvattu: null, luovutettu: false, lahetettyLinja: null, tarkistaLinja: false,
     ...tallessa
   };
   return { ...t, lisatyt: t.lisatyt.map((l) => (typeof l === 'number' ? { nro: l } : l)) };

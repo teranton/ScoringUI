@@ -171,7 +171,7 @@ async function merkitseKorvatuksi(rivi, data) {
   const tila = {
     ...rivi.tila,
     haltija: null,
-    korvattu: { nimi: h.nimi || '', otettu: h.otettu || '', vapaa: Boolean(h.vapaa), kirjattu: data.kirjattu || 0 },
+    korvattu: { nimi: h.nimi || '', otettu: h.otettu || '', vapaa: Boolean(h.vapaa), kirjattu: data.kirjattu || 0, taydennetty: data.taydennetty || 0 },
     jarjestys: (rivi.tila.jarjestys || 0) + 1
   };
   const db = await avaaTietokanta();

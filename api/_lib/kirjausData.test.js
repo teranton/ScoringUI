@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, tarkistaTallennus
+  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, taydenna, tarkistaTallennus
 } from './kirjausData.js';
 
 const MERKIT = 'XXXXO' + 'XOXXX' + '-'.repeat(15);
@@ -131,4 +131,9 @@ test('tallennuksen tarkistus', () => {
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ nro: 1, merkit: MERKIT, versio: 0 }] }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, kortit: [ok.kortit[0], ok.kortit[0]] }).virhe);
   assert.ok(tarkistaTallennus(null).virhe);
+});
+
+test('täydennys: vain ampumattomat kohteet, eri merkinnät lasketaan', () => {
+  assert.deepEqual(taydenna('XO---', 'XXOO-'), { merkit: 'XOOO-', taytetty: 2, eri: 1 });
+  assert.deepEqual(taydenna('XO', 'XO'), { merkit: 'XO', taytetty: 0, eri: 0 });
 });
