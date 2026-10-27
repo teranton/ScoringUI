@@ -14,8 +14,8 @@
 // (haltijarivi ja korttirivit) ja yhden kirjoituksen (kortit ja lokirivit samassa batchUpdate-kutsussa, eli joko molemmat tai ei kumpaakaan);
 // välilehtien tunnukset pidetään muistissa.
 // Suora tulos (KISANSPEKSIT MOBIILI_TULOKSET = SUORAAN, api/_lib/kirjausTulokset.js): valmiin kortin tulos menee samassa
-// kirjoituksessa OSALLISTUJAT+TULOKSET-välilehden tyhjään tulossoluun. Silloin tallennus lukee lisäksi kohdesolut kaavoineen
-// (ja Compak-kortille pääsivun), mutta vain kun kortti on tai oli valmis.
+// kirjoituksessa OSALLISTUJAT+TULOKSET-välilehden tyhjään tulossoluun. Silloin tallennus lukee lisäksi pääsivun soluina, mutta
+// vain kun kortin valmis tulos muuttuu (tavallinen tallennus pysyy yhdessä luvussa).
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -36,7 +36,7 @@ import {
   PAA_VALILEHTI, RYHMAT_VALILEHTI, asemaJako, layoutValilehti, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko,
   ryhmaKorttiOtsikko, ryhmaKorttiRivi, ryhmanAmpujat, ryhmanVuorot, tarkistaRyhmaTallennus
 } from './_lib/kirjausRyhma.js';
-import { asemaTulokset, kompakTulos, muuttuvat, onSuoraan, soluA1, suoraTulos, tulosSolut } from './_lib/kirjausTulokset.js';
+import { asemaTulokset, kaavaSarakkeet, kompakTulos, muuttuvat, onSuoraan, paaSolut, suoraTulos, tulosSolut } from './_lib/kirjausTulokset.js';
 
 const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
 const META_TTL_MS = 5 * 60 * 1000;
@@ -323,7 +323,7 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
   // Linjan tila haltijariville: uusi laite jatkaa samoista lisäyksistä, ohituksista, tauoista ja keskeytyksistä.
   if (linja) requests.push(solut(tabit.laitteet, sarake, LINJA_SARAKE, [JSON.stringify(linja), aika]));
   const tulokset = onSuoraan(speksit)
-    ? await suoratTulokset(request, sheetId, tabit.meta, null, kirjattavat.map(({ kortti, vanha }) => ({
+    ? await suoratTulokset(request, sheetId, tabit.meta, kirjattavat.map(({ kortti, vanha }) => ({
       avain: kortti.nro, nro: kortti.nro, sarake, vanha: kompakTulos(vanha?.merkit), uusi: kompakTulos(kortti.merkit)
     })))
     : eiTuloksia();
@@ -556,7 +556,7 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
   }
   // Suora tulos: aseman tulos, kun sen kiekot on merkitty ja ampuja on kuitannut sen.
   const tulokset = onSuoraan(speksit)
-    ? await suoratTulokset(request, sheetId, meta, paaRivit, kirjattavat.flatMap(({ kortti, layout, vanha, hyvaksytty }) => {
+    ? await suoratTulokset(request, sheetId, meta, kirjattavat.flatMap(({ kortti, layout, vanha, hyvaksytty }) => {
       const vanhat = asemaTulokset(layout, vanha);
       return asemaTulokset(layout, { ...kortti, hyvaksytty }).map((a, j) => ({
         avain: ryhmanTunnus(kortti), nro: kortti.nro, sarake: a.sarake, vanha: vanhat[j].tulos, uusi: a.tulos
@@ -584,34 +584,38 @@ function hyvaksynta(hyvaksytty, vanha) {
 const eiTuloksia = () => ({ requests: [], huomiot: new Map() });
 
 // Tulossolujen kirjoitukset kohteille [{ avain, nro, sarake, vanha, uusi }] (vanha / uusi: kortin edellinen ja uusi valmis
-// tulos tai null). paaRivit: pääsivu muotoilemattomana, luetaan tarvittaessa. Kohdesolut luetaan kaavoineen, jotta kaavaa
-// tai paperilta kirjoitettua tulosta ei korvata. Palauttaa { requests, huomiot: Map(avain → [lokin huomautukset]) }.
-async function suoratTulokset(request, sheetId, meta, paaRivit, kohteet) {
+// tulos tai null). Pääsivu luetaan yhdellä spreadsheets.get-kutsulla soluina (syöte ja laskettu arvo), jotta kaavaa,
+// taulukkokaavan aluetta tai paperilta kirjoitettua tulosta ei korvata. Palauttaa { requests, huomiot: Map(avain →
+// [{ teksti, estetty? }]) }.
+async function suoratTulokset(request, sheetId, meta, kohteet) {
   const tulos = eiTuloksia();
   const lisaa = (avain, huom) => tulos.huomiot.set(avain, [...(tulos.huomiot.get(avain) || []), huom]);
   const valitut = muuttuvat(kohteet);
   if (valitut.length === 0) return tulos;
   const paa = etsiValilehti(meta, PAA_VALILEHTI);
   if (!paa) {
-    valitut.filter((k) => k.uusi !== null).forEach((k) => lisaa(k.avain, `TULOS ${k.uusi} EI KIRJOITETTU: VÄLILEHTEÄ ${PAA_VALILEHTI} EI LÖYDY`));
+    valitut.filter((k) => k.uusi !== null).forEach((k) => lisaa(k.avain, { teksti: `TULOS ${k.uusi} EI KIRJOITETTU: VÄLILEHTEÄ ${PAA_VALILEHTI} EI LÖYDY` }));
     return tulos;
   }
-  const rivit = paaRivit || (await batchGet(request, sheetId, [valilehtiAlue(paa.nimi)], 'UNFORMATTED_VALUE'))[0];
+  const params = new URLSearchParams({ ranges: valilehtiAlue(paa.nimi), fields: 'sheets(data(rowData(values(userEnteredValue,effectiveValue))))' });
+  const res = await request({ url: `${SHEETS}/${sheetId}?${params.toString()}` });
+  const { rivit, tiedot } = paaSolut(res.data?.sheets?.[0]?.data?.[0]?.rowData);
   const paikat = tulosSolut(rivit, valitut);
-  paikat.filter((k) => k.puuttuu && k.uusi !== null).forEach((k) => lisaa(k.avain, `TULOS ${k.uusi} EI KIRJOITETTU: ${k.puuttuu}`));
+  paikat.filter((k) => k.puuttuu && k.uusi !== null).forEach((k) => lisaa(k.avain, { teksti: `TULOS ${k.uusi} EI KIRJOITETTU: ${k.puuttuu}` }));
   const loydetyt = paikat.filter((k) => !k.puuttuu);
-  const kaavat = await batchGet(request, sheetId,
-    loydetyt.map((k) => `${valilehtiAlue(paa.nimi)}!${soluA1(k.rivi, k.sarakeIndeksi)}`), 'FORMULA');
-  loydetyt.forEach((k, i) => {
-    const p = suoraTulos({ solu: kaavat[i]?.[0]?.[0], vanha: k.vanha, uusi: k.uusi, sarake: k.sarake });
-    if (p.huom) lisaa(k.avain, p.huom);
+  const kaavoilla = kaavaSarakkeet(tiedot, [...new Set(loydetyt.map((k) => k.sarakeIndeksi))]);
+  loydetyt.forEach((k) => {
+    const solu = kaavoilla.has(k.sarakeIndeksi) ? { ...tiedot[k.rivi]?.[k.sarakeIndeksi], kaava: true } : tiedot[k.rivi]?.[k.sarakeIndeksi];
+    const p = suoraTulos({ solu, vanha: k.vanha, uusi: k.uusi, sarake: k.sarake });
+    if (p.huom) lisaa(k.avain, { teksti: p.huom, estetty: p.estetty });
     if (p.arvo !== undefined) tulos.requests.push(solut(paa, k.rivi, k.sarakeIndeksi, [p.arvo]));
   });
   return tulos;
 }
 
 // Kortit, tulossolut ja lokirivit yhdellä kirjoituksella. lokirivit(huomio) rakentaa lokirivit, huomio(avain) antaa kortin
-// tuloshuomautukset. Jos pääsivu on suojattu kirjaajalta (403), kortit tallennetaan silti ilman tuloksia ja loki kertoo sen.
+// tuloshuomautukset tekstinä. Jos pääsivun kirjoitus torjutaan (suojattu alue: Sheets vastaa 400 tai 403), kortit
+// tallennetaan silti ilman tuloksia ja loki kertoo sen; muu virhe toistuu uudelleenyrityksessä ja heitetään.
 async function kirjoitaTuloksin(request, sheetId, loki, requests, tulokset, lokirivit) {
   const kirjoita = (lisat, huomio) => {
     const rivit = lokirivit(huomio);
@@ -621,10 +625,11 @@ async function kirjoitaTuloksin(request, sheetId, loki, requests, tulokset, loki
   };
   const huomiot = (avain) => tulokset.huomiot.get(avain) || [];
   try {
-    await kirjoita(tulokset.requests, huomiot);
+    await kirjoita(tulokset.requests, (avain) => huomiot(avain).map((h) => h.teksti));
   } catch (error) {
-    if (tulokset.requests.length === 0 || googleStatus(error) !== 403) throw error;
-    await kirjoita([], (avain) => (huomiot(avain).length > 0 ? [...huomiot(avain), 'TULOSTA EI VOITU KIRJOITTAA (SUOJATTU)'] : []));
+    if (tulokset.requests.length === 0 || ![400, 403].includes(googleStatus(error))) throw error;
+    console.warn('[KIRJAUS] Tulossolujen kirjoitus torjuttiin, kortit tallennetaan ilman tuloksia:', googleViesti(error).slice(0, 300));
+    await kirjoita([], (avain) => huomiot(avain).map((h) => h.estetty || h.teksti));
   }
 }
 

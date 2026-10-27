@@ -28,6 +28,19 @@ const soluArvo = (s) => s.userEnteredValue?.numberValue ?? s.userEnteredValue?.s
 async function request({ url, method = 'GET', data }) {
   if (!jaettu) throw Object.assign(new Error('forbidden'), { response: { status: 403 } });
   const u = new URL(url);
+  if (method === 'GET' && u.pathname.endsWith(ID) && u.searchParams.has('ranges')) {
+    // spreadsheets.get soluina: { kaava, arvo } = kaavasolu, { taytetty } = taulukkokaavan täyttämä solu.
+    lukuja++;
+    const { tab } = alueenTiedot(u.searchParams.get('ranges'));
+    const arvo = (v) => (typeof v === 'number' ? { numberValue: v } : { stringValue: String(v) });
+    const solu = (v) => {
+      if (v && typeof v === 'object') return v.kaava !== undefined
+        ? { userEnteredValue: { formulaValue: v.kaava }, effectiveValue: arvo(v.arvo) }
+        : { effectiveValue: arvo(v.taytetty) };
+      return v === '' || v === undefined || v === null ? {} : { userEnteredValue: arvo(v), effectiveValue: arvo(v) };
+    };
+    return { data: { sheets: [{ data: [{ rowData: taulukko[tab].rivit.map((r) => ({ values: (r || []).map(solu) })) }] }] } };
+  }
   if (method === 'GET' && u.pathname.endsWith(ID)) {
     lukuja++;
     return { data: { properties: { title: 'Testikisa' }, sheets: Object.entries(taulukko).map(([title, t]) => ({
@@ -54,7 +67,7 @@ async function request({ url, method = 'GET', data }) {
     kirjoitukset++;
     const paaId = taulukko['OSALLISTUJAT+TULOKSET']?.id;
     if (suojattuPaa && data.requests.some((r) => r.updateCells?.start.sheetId === paaId)) {
-      throw Object.assign(new Error('protected'), { response: { status: 403 } });
+      throw Object.assign(new Error('protected'), { response: { status: 400, data: { error: { message: 'You are trying to edit a protected cell or object.' } } } });
     }
     // Kuten Sheets API: yksikin olemassa oleva välilehti kaataa koko pyynnön.
     if (data.requests.some((r) => r.addSheet && taulukko[r.addSheet.properties.title])) {
@@ -563,7 +576,7 @@ test('suora tulos: valmis Compak-kortti tyhjään tulossoluun, korjaus seuraa, p
   ] });
   assert.equal(res.statusCode, 200);
   assert.equal(kirjoitukset, 1, 'kortit, tulos ja loki yhdellä kirjoituksella');
-  assert.equal(lukuja, 3, 'kortit, pääsivu ja kohdesolut');
+  assert.equal(lukuja, 2, 'kortit ja pääsivu soluina');
   const paa = taulukko['OSALLISTUJAT+TULOKSET'].rivit;
   assert.equal(paa[2][4], 20);
   assert.equal(paa[3][4], 21, 'paperilta kirjoitettu tulos jää');
@@ -581,10 +594,25 @@ test('suora tulos: valmis Compak-kortti tyhjään tulossoluun, korjaus seuraa, p
   await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'X'.repeat(24) + 'O', versio: VERSIO + 3 }] });
   assert.equal(paa[2][4], 24);
   assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], '');
-  paa[2][4] = '=SUM(20)';
+  paa[2][4] = { kaava: '=SUM(24)', arvo: 24 };
   await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'X'.repeat(23) + 'OO', versio: VERSIO + 4 }] });
-  assert.equal(paa[2][4], '=SUM(20)');
+  assert.deepEqual(paa[2][4], { kaava: '=SUM(24)', arvo: 24 });
   assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], 'TULOS 23 EI KIRJOITETTU: SARAKKEESSA 2 ON KAAVA');
+
+  // Sama tulos uudelleen (merkinnät vaihtuivat): pääsivua ei lueta.
+  lukuja = 0;
+  await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'OX' + 'X'.repeat(21) + 'OX', versio: VERSIO + 5 }] });
+  assert.equal(lukuja, 1);
+
+  // Taulukkokaavan täyttämä sarake: tyhjäänkään soluun ei kirjoiteta.
+  paa[1][3] = { kaava: '=ARRAYFORMULA(1)', arvo: 20 };
+  paa[2][3] = '';
+  paa[3][3] = { taytetty: 7 };
+  taulukko['MOBIILI Rata 1'] = { id: 30, rivit: [] };
+  const rata1 = await kutsu({ method: 'POST', toiminto: 'ota', token: avain(1), body: { laite: 'laite-1', nimi: 'x' } });
+  await kutsu({ method: 'POST', toiminto: 'tallenna', token: avain(1), body: { laite: 'laite-1', haltija: rata1.body.haltija, kortit: [{ nro: 3, merkit: valmis, versio: VERSIO }] } });
+  assert.equal(paa[2][3], '');
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], 'TULOS 20 EI KIRJOITETTU: SARAKKEESSA 1 ON KAAVA');
 });
 
 test('suora tulos: suojattu pääsivu ei estä kortin tallennusta', async () => {
@@ -597,7 +625,7 @@ test('suora tulos: suojattu pääsivu ei estä kortin tallennusta', async () => 
   assert.equal(res.statusCode, 200);
   assert.equal(taulukko['MOBIILI Rata 2'].rivit[3][2], 25);
   assert.equal(taulukko['OSALLISTUJAT+TULOKSET'].rivit[1][4], '');
-  assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], 'TULOS 25 SARAKKEESEEN 2, TULOSTA EI VOITU KIRJOITTAA (SUOJATTU)');
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], 'TULOS 25 SARAKKEESEEN 2 EPÄONNISTUI (PÄÄSIVU SUOJATTU)');
 });
 
 test('suora tulos: TOIMISTO (oletus) ei kirjoita pääsivulle', async () => {
