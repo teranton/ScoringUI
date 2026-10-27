@@ -76,6 +76,11 @@ test('radan jono: LAYOUT/PÄIVÄ vie sarakkeet seuraavalle päivälle', () => {
   const tyhjaLa = [{ nimi: 'Aikataulu La', rivit: [['AIKATAULU']] }, { nimi: 'Aikataulu Su', rivit: SUNNUNTAI }];
   assert.equal(radanJono({ aikataulut: tyhjaLa, sarake: 1, ratojaPaivassa: 2 }).jono.length, 0);
   assert.deepEqual(radanJono({ aikataulut: tyhjaLa, sarake: 3, ratojaPaivassa: 2 }).jono.map((a) => a.nro), [19, 20, 55, 56]);
+  // Master-pohjan ohjeteksti-välilehti Aikataulu päivien välilehtien rinnalla ei ole päivä.
+  const ohjeella = [{ nimi: 'Aikataulu', rivit: [['Aikataulu tehdään arvonnan jälkeen.']] }, ...aikataulut];
+  assert.equal(radanJono({ aikataulut: ohjeella, sarake: 1, ratojaPaivassa: 2 }).aikataulu, 'Aikataulu La');
+  assert.equal(radanJono({ aikataulut: ohjeella, sarake: 3, ratojaPaivassa: 2 }).aikataulu, 'Aikataulu Su');
+  assert.equal(radanJono({ aikataulut: ohjeella, sarake: 3, ratojaPaivassa: 0 }).aikataulu, 'Aikataulu Su');
 });
 
 test('solu: luku, teksti ja tyhjä', () => {
@@ -92,10 +97,11 @@ test('radan jono: toinen kierros otsikosta RATA1 / RATA3', () => {
   assert.deepEqual(nelja.jono.map((a) => a.nro), [7, 8, 5, 6]);
 });
 
-test('speksiArvo lukee avaimen oikealta puolelta', () => {
-  const rivit = [['', 'LAYOUT/PÄIVÄ', '', '4'], ['RATA3_NIMI', 'Kolmonen']];
+test('speksiArvo lukee vain avaimen oikean naapurin (kuten ScoringLibin Speksit)', () => {
+  const rivit = [['Selite', 'LAYOUT/PÄIVÄ', '4', 'Ohje'], ['RATA3_NIMI', 'Kolmonen'], ['', 'RATA2_NIMI', '', '2. radan nimi']];
   assert.equal(speksiArvo(rivit, 'LAYOUT/PÄIVÄ'), '4');
   assert.equal(speksiArvo(rivit, 'RATA3_NIMI'), 'Kolmonen');
+  assert.equal(speksiArvo(rivit, 'RATA2_NIMI'), '', 'tyhjän arvon viereinen ohje ei ole arvo');
   assert.equal(speksiArvo(rivit, 'RATA4_NIMI'), '');
 });
 

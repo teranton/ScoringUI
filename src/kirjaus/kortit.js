@@ -39,13 +39,24 @@ export function peru({ kortit, historia }, nyt = Date.now()) {
   };
 }
 
-// Palvelimen kortit paikallisiin: uudempi versio voittaa, sama versio merkitään lähetetyksi.
-export function yhdistaPalvelimelta(kortit, palvelimen) {
+// Palvelimen kortit paikallisiin: uudempi versio voittaa, sama versio merkitään lähetetyksi (eri merkit samalla
+// versiolla, esim. taulukkoa korjattu käsin: taulukko voittaa). kaikki = palvelimen koko korttilista (avaus):
+// lähetetyksi merkitty kortti, jota taulukossa ei ole tai siellä on vanhempi versio, lähetetään uudelleen.
+export function yhdistaPalvelimelta(kortit, palvelimen, { kaikki = false } = {}) {
   let tulos = kortit;
+  const nahdyt = new Set();
   for (const p of palvelimen || []) {
+    nahdyt.add(String(p.nro));
     const oma = tulos[p.nro];
-    if (!oma || p.versio > oma.versio) tulos = { ...tulos, [p.nro]: { merkit: p.merkit, versio: p.versio, lahetetty: true } };
-    else if (p.versio === oma.versio && p.merkit === oma.merkit && !oma.lahetetty) tulos = { ...tulos, [p.nro]: { ...oma, lahetetty: true } };
+    if (!oma || p.versio > oma.versio || (p.versio === oma.versio && p.merkit !== oma.merkit)) {
+      tulos = { ...tulos, [p.nro]: { merkit: p.merkit, versio: p.versio, lahetetty: true } };
+    } else if (p.versio === oma.versio && !oma.lahetetty) tulos = { ...tulos, [p.nro]: { ...oma, lahetetty: true } };
+    else if (kaikki && p.versio < oma.versio && oma.lahetetty) tulos = { ...tulos, [p.nro]: { ...oma, lahetetty: false } };
+  }
+  if (kaikki) {
+    for (const [nro, oma] of Object.entries(tulos)) {
+      if (oma.lahetetty && !nahdyt.has(nro)) tulos = { ...tulos, [nro]: { ...oma, lahetetty: false } };
+    }
   }
   return tulos;
 }

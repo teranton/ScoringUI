@@ -139,7 +139,7 @@ function RataNakyma({ koodi, onVaihda }) {
           setLataus({ tila: 'virhe', viesti: data.error || `Virhe ${res.status}`, pysyva: res.status === 401 });
           return;
         }
-        setTila((t) => ({ ...t, avaus: data, kortit: yhdistaPalvelimelta(t.kortit, data.kortit) }));
+        setTila((t) => ({ ...t, avaus: data, kortit: yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }) }));
         setLataus({ tila: 'ok', viesti: '', pysyva: false });
       })
       .catch(() => {
@@ -320,7 +320,11 @@ function RataNakyma({ koodi, onVaihda }) {
     if (liianPian()) return;
     const p = peru(tila);
     if (!p) return;
-    setTila((t) => ({ ...t, kortit: p.kortit, historia: p.historia }));
+    // Peru lasketaan uudelleen tuoreimmasta tilasta, ettei välissä tullut kuittaus tai avaus katoa.
+    setTila((t) => {
+      const tuore = peru(t);
+      return tuore ? { ...t, kortit: tuore.kortit, historia: tuore.historia } : t;
+    });
     setKuittaus(`Peruttu: ${kohdeTeksti(p.kohta)}.`);
     if (tila.aanet !== false) soita('peru');
     setValinta(null);

@@ -8,10 +8,12 @@ export function useHereilla() {
   useEffect(() => {
     if (!('wakeLock' in navigator)) return undefined;
     let lukko = null;
+    let pyydetaan = false;
     let lopetettu = false;
 
     const pyyda = async () => {
-      if (document.visibilityState !== 'visible' || lukko) return;
+      if (document.visibilityState !== 'visible' || lukko || pyydetaan) return;
+      pyydetaan = true;
       try {
         lukko = await navigator.wakeLock.request('screen');
         if (lopetettu) {
@@ -25,6 +27,8 @@ export function useHereilla() {
         });
       } catch {
         setPaalla(false);
+      } finally {
+        pyydetaan = false;
       }
     };
 

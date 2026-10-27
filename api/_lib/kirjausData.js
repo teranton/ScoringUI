@@ -1,6 +1,6 @@
 // Mobiilikirjauksen puhtaat apufunktiot: radan ampujajono aikataulusta ja korttirivit MOBIILI-välilehdillä.
 // Ei Google-kutsuja, joten kaikki on testattu (kirjausData.test.js).
-import { asetusJoukko, haeAsetusSpekseista } from '../../src/utils/kisaAsetukset.js';
+import { normalisoiAsetus } from '../../src/utils/kisaAsetukset.js';
 import { isLaneHeader, isTimeLike, taukoTyyppi, tunnistaRataSarakkeet } from '../../src/utils/aikatauluRadat.js';
 
 export const KOHTEITA = 25;
@@ -34,9 +34,18 @@ export function sarakeKirjain(indeksi) {
 }
 export const VIIMEINEN_SARAKE = sarakeKirjain(META_SARAKKEITA + KOHTEITA - 1);
 
-// KISANSPEKSIT-avaimen arvo: avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu (kuten UI:n asetukset).
+// KISANSPEKSIT-avaimen arvo: avaimen oikealla puolella oleva solu, kuten ScoringLibin Speksit
+// (tyhjän arvon viereinen Ohje-sarake ei saa näkyä arvona).
 export function speksiArvo(rivit, avain) {
-  return haeAsetusSpekseista(rivit, asetusJoukko([avain]), (arvo) => arvo) || '';
+  const haettava = normalisoiAsetus(avain);
+  for (const rivi of Array.isArray(rivit) ? rivit : []) {
+    if (!Array.isArray(rivi)) continue;
+    const i = rivi.findIndex((s) => normalisoiAsetus(String(s ?? '').trim()) === haettava);
+    if (i === -1) continue;
+    const arvo = String(rivi[i + 1] ?? '').trim();
+    if (arvo) return arvo;
+  }
+  return '';
 }
 
 // Sheets API:n solu: luku numerona, tyhjä tyhjentää solun, muu tekstinä (ei kaavoja).
@@ -110,7 +119,10 @@ export function jasennaRataruudukko(rivit) {
 // Palauttaa { aikataulu, kaista, kierros, jono, nimet } tai null, jos rataa ei löydy.
 export function radanJono({ aikataulut, sarake, ratojaPaivassa }) {
   // Kaikki olemassa olevat aikataulut, myös ne, joissa ei (vielä) ole ruudukkoa: LAYOUT/PÄIVÄ laskee päivät niistä.
-  const paivat = aikataulut.map(({ nimi, rivit }) => ({ nimi, kaistat: jasennaRataruudukko(rivit) }));
+  // Master-pohjan ohjeteksti-välilehti Aikataulu ei ole päivä, jos päivien välilehdet (Aikataulu La/Su) ovat mukana.
+  const paivat = aikataulut
+    .map(({ nimi, rivit }) => ({ nimi, kaistat: jasennaRataruudukko(rivit) }))
+    .filter((p, _, kaikki) => !(p.nimi === 'Aikataulu' && p.kaistat.length === 0 && kaikki.length > 1));
 
   const nimet = {};
   paivat.forEach((p) => p.kaistat.forEach((k) => k.kierrokset.flat().forEach((a) => {

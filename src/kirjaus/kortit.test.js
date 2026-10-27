@@ -46,6 +46,24 @@ test('synkronointi: kuittaus, uudempi palvelimelta, lähettämättömät', () =>
   assert.equal(vanhempi[2].merkit, kortit[2].merkit);
 });
 
+test('yhdistaPalvelimelta: sama versio eri merkein ja avauksessa taulukosta puuttuva kortti', () => {
+  const kortit = {
+    1: { merkit: 'X'.repeat(25), versio: 5, lahetetty: false },
+    2: { merkit: 'X'.repeat(25), versio: 5, lahetetty: true },
+    3: { merkit: 'X'.repeat(25), versio: 5, lahetetty: true }
+  };
+  // Taulukkoa korjattu käsin samalla versiolla: taulukko voittaa, eikä korttia lähetetä loputtomasti.
+  const kasin = yhdistaPalvelimelta(kortit, [{ nro: 1, merkit: 'O'.repeat(25), versio: 5 }]);
+  assert.deepEqual(kasin[1], { merkit: 'O'.repeat(25), versio: 5, lahetetty: true });
+  // Tallennuksen vastaus ei koske muita kortteja.
+  assert.equal(kasin[3].lahetetty, true);
+  // Avaus: taulukossa vanhempi versio tai ei korttia lainkaan → lähetetään uudelleen.
+  const avaus = yhdistaPalvelimelta(kortit, [{ nro: 2, merkit: 'O'.repeat(25), versio: 4 }], { kaikki: true });
+  assert.equal(avaus[2].lahetetty, false);
+  assert.equal(avaus[2].merkit, 'X'.repeat(25));
+  assert.equal(avaus[3].lahetetty, false);
+});
+
 test('koodin luku', () => {
   const payload = Buffer.from(JSON.stringify({ s: 'abc', c: 2, e: 9 })).toString('base64url');
   assert.deepEqual(lueKoodi(`v1.${payload}.sig`), { sheetId: 'abc', sarake: 2, voimassaAsti: 9 });

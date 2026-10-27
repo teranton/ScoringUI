@@ -198,7 +198,7 @@ the library reads only that cell.
 
 ## Mobile score entry (`api/kirjaus.js`)
 
-The only part of ScoringUI that writes to a sheet. It uses a second service account (`KIRJURI_CLIENT_EMAIL`,
+One of ScoringUI's two write paths (the other is squad editing with the organiser's own Google sign-in). It uses a second service account (`KIRJURI_CLIENT_EMAIL`,
 `KIRJURI_PRIVATE_KEY`, scope `spreadsheets`) that is Editor only on the competitions that use mobile entry; a sheet
 not shared with it answers "Mobiilikirjaus ei ole käytössä". Access is a layout code signed with `KIRJAUS_SALAISUUS`
 (ScoringLib makes the same codes). Design: `design/mobile-score-entry.md` in the project files.
