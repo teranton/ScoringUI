@@ -330,7 +330,12 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       // Ampujan osuus asemalla (FITASC: sinkut tai tuplat) valmis: valinta pois, jotta seuraava tyhjä ampuja tulee vuoroon.
       const v = kohdanOsa(layout, asema, kohta.i);
       const valmis = !merkitOf(uusi.kortit, layout, kohta.nro).slice(v.alku, v.loppu).includes('-');
-      return { ...t, ...uusi, valittu: valmis ? null : kohta.nro };
+      // Asema valmis: aina seuraavalle kesken olevalle asemalle (myös PERUn tai asemavalinnan jälkeen); layoutin
+      // viimeinen jää näkyviin hyväksyntää varten.
+      const mukana = ampujat.filter((a) => !t.keskeyttaneet.includes(a.nro));
+      const asemaValmiiksi = !seuraavaKohta(layout, asema, mukana, uusi.kortit);
+      const seuraavaA = asemaValmiiksi ? seuraavaAsema(layout, asema, mukana, uusi.kortit) : null;
+      return { ...t, ...uusi, layout: layout.nro, asema: seuraavaA ?? asema, valittu: valmis || seuraavaA !== null ? null : kohta.nro };
     });
     setKuittaus(null);
     if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : 'nolla');
