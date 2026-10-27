@@ -135,27 +135,54 @@ function avaaTietokanta() {
   });
 }
 
+// Radat avaimineen ({ ...rivi, avain }), jotta korvatun laitteen tila voidaan kirjoittaa takaisin.
 function kaikkiRadat(db) {
   return new Promise((resolve, reject) => {
     if (!db.objectStoreNames.contains(RADAT)) return resolve([]);
-    const pyynto = db.transaction(RADAT, 'readonly').objectStore(RADAT).getAll();
-    pyynto.onsuccess = () => resolve(pyynto.result || []);
-    pyynto.onerror = () => reject(pyynto.error);
+    const radat = [];
+    const kursori = db.transaction(RADAT, 'readonly').objectStore(RADAT).openCursor();
+    kursori.onsuccess = () => {
+      const c = kursori.result;
+      if (!c) return resolve(radat);
+      radat.push({ ...c.value, avain: c.key });
+      c.continue();
+    };
+    kursori.onerror = () => reject(kursori.error);
   });
 }
 
-// Radan lähettämättömät kortit API:n muodossa, tai [] jos rata odottaa toisen laitteen varoituksen kuittausta
-// (sivu ei silloinkaan lähetä). Sama sääntö kuin src/kirjaus/kortit.js lahettamattomat ja KirjausApp laheta.
+// Radan lähettämättömät kortit API:n muodossa, tai [] jos laitteella ei ole rataa (ei haltija-avainta, korvattu
+// tai luovutettu: sivu ei silloinkaan lähetä). Sama sääntö kuin src/kirjaus/kortit.js lahettamattomat ja KirjausApp laheta.
 function lahetettavat(rivi) {
   const tila = rivi?.tila;
-  if (!tila?.kortit || !rivi.koodi || !rivi.laite) return [];
-  const muu = tila.avaus?.muuLaite;
-  if (muu && tila.hyvaksyttyMuu !== `${muu.laite}|${muu.aika}`) return [];
+  if (!tila?.kortit || !rivi.koodi || !rivi.laite || !tila.haltija || tila.korvattu || tila.luovutettu) return [];
   const nimet = { ...tila.avaus?.nimet, ...rivi.nimet };
   return Object.entries(tila.kortit)
     .filter(([, k]) => k && !k.lahetetty)
     .slice(0, MAKS_KORTTEJA)
     .map(([nro, k]) => ({ nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '' }));
+}
+
+// Korvatun laitteen tila takaisin tietokantaan (sama muoto kuin KirjausApp: haltija pois, korvattu-tieto).
+// Järjestysnumero kasvaa, joten sivu käyttää tätä kopiota avatessaan.
+async function merkitseKorvatuksi(rivi, data) {
+  if (!data?.korvattu) return;
+  const h = data.haltija || {};
+  const tila = {
+    ...rivi.tila,
+    haltija: null,
+    korvattu: { nimi: h.nimi || '', otettu: h.otettu || '', vapaa: Boolean(h.vapaa), kirjattu: data.kirjattu || 0, taydennetty: data.taydennetty || 0 },
+    jarjestys: (rivi.tila.jarjestys || 0) + 1
+  };
+  const db = await avaaTietokanta();
+  await new Promise((resolve) => {
+    const tx = db.transaction(RADAT, 'readwrite');
+    const { avain, ...tallennettava } = rivi;
+    tx.objectStore(RADAT).put({ ...tallennettava, tila, aika: Date.now() }, avain);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+    tx.onabort = resolve;
+  });
 }
 
 // Lähettää kaikkien ratojen kortit. Ei merkitse niitä lähetetyiksi: sivu saa kuittauksen avatessaan radan
@@ -171,10 +198,12 @@ async function lahetaKaikki() {
       const res = await fetch('/api/kirjaus?toiminto=tallenna', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${rivi.koodi}` },
-        body: JSON.stringify({ laite: rivi.laite, kortit })
+        body: JSON.stringify({ laite: rivi.laite, haltija: rivi.tila.haltija, kortit })
       });
       // 5xx (ruuhka, Google) yritetään myöhemmin; 4xx (vanhentunut koodi ym.) näkyy sivulla, kun se avataan.
       if (res.status >= 500) verkkovirhe = new Error(`Virhe ${res.status}`);
+      // Laite korvattu: merkitään radan tilaan, ettei sivu lähetä samoja kortteja (ja lokita niitä) uudelleen.
+      if (res.status === 409) await merkitseKorvatuksi(rivi, await res.json().catch(() => ({})));
     } catch (error) {
       verkkovirhe = error;
     }

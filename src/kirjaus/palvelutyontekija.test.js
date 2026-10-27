@@ -26,7 +26,7 @@ test('sivunTiedostot: omat skriptit, tyylit ja kuvakkeet, ei ulkoisia', () => {
   ]);
 });
 
-const rivi = (tila) => ({ koodi: 'v1.a.b', laite: 'laite-1', tila });
+const rivi = (tila) => ({ koodi: 'v1.a.b', laite: 'laite-1', tila: { haltija: 'h1.1.x', ...tila } });
 
 test('lahetettavat: vain lähettämättömät kortit nimineen', () => {
   const kortit = {
@@ -43,10 +43,11 @@ test('lahetettavat: sivun tallentamat nimet (myös laitteella lisätyt) ennen av
   assert.equal(lahetettavat({ ...rivi({ kortit, avaus: { nimet: {} } }), nimet: { 12: 'Lisätty Liisa' } })[0].nimi, 'Lisätty Liisa');
 });
 
-test('lahetettavat: ei mitään ilman koodia tai kun toisen laitteen varoitus on kuittaamatta', () => {
+test('lahetettavat: ei mitään ilman koodia tai haltija-avainta, eikä korvatulta tai luovuttaneelta laitteelta', () => {
   const kortit = { 3: { merkit: '-'.repeat(25), versio: 1, lahetetty: false } };
+  assert.equal(lahetettavat(rivi({ kortit })).length, 1);
   assert.deepEqual(lahetettavat({ ...rivi({ kortit }), koodi: '' }), []);
-  const muuLaite = { laite: 'toinen', aika: '12:00' };
-  assert.deepEqual(lahetettavat(rivi({ kortit, avaus: { muuLaite } })), []);
-  assert.equal(lahetettavat(rivi({ kortit, avaus: { muuLaite }, hyvaksyttyMuu: 'toinen|12:00' })).length, 1);
+  assert.deepEqual(lahetettavat(rivi({ kortit, haltija: null })), []);
+  assert.deepEqual(lahetettavat(rivi({ kortit, korvattu: { nimi: 'x' } })), []);
+  assert.deepEqual(lahetettavat(rivi({ kortit, luovutettu: true })), []);
 });
