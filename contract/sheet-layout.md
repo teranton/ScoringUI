@@ -277,7 +277,27 @@ Writes (created on the first save if missing):
   (ScoringLib's Laitteen vaihto: PIN-koodit lists held squads; the PIN is `vaihtoPin` with `r<squad>` in place of the
   layout, and `PIN-VIRHEET` counts wrong PINs as for layouts). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
 
-Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
+### Results into the result columns (`MOBIILI_TULOKSET`)
+
+`KISANSPEKSIT` key `MOBIILI_TULOKSET`: `TOIMISTO` (default, also when missing) or `SUORAAN`.
+
+- A result is complete when every target of a Compak card (`MOBIILI Rata N`, 25 targets) or of a squad card's station
+  (`MOBIILI Layout N`, targets `<k>/<1..>`) is marked. Its place is the main tab row whose `NRO` (by header, fallback
+  column A) is the shooter and the first header cell whose text is the result column: N for the Compak layout, k for the
+  station.
+- `TOIMISTO`: `api/kirjaus.js` writes nothing to the main tab. ScoringLib's 📱 Mobiilikirjaus › Tuo mobiilitulokset
+  tuloksiin copies complete results into empty result cells (`MobiiliTulokset.js`, reads the card tabs by header) and
+  lists differences, incomplete cards and squad cards without `HYVÄKSYTTY`.
+- `SUORAAN`: on a save that makes a result complete or changes a complete one, `api/kirjaus.js` reads the main tab
+  (unformatted; the squad save reads it anyway) and the target cells with `valueRenderOption=FORMULA`, and writes the
+  result in the same `batchUpdate` as the card. A squad station needs the shooter's confirmation too: its stand id in
+  `KUITATUT`, or `HYVÄKSYTTY` (always for FITASC pegs). Rules: an empty cell gets the result; a cell holding the card's
+  previous complete result (written by mobile) follows a corrected card, and is emptied when a correction makes the
+  station incomplete or unconfirmed; any other value or a formula is never changed and the save's `MOBIILI_LOKI` row
+  says so in `HUOM` (`TULOS 23 EI KIRJOITETTU: SARAKKEESSA 2 ON 21`). Written results are logged as
+  `TULOS 23 SARAKKEESEEN 2`. If the main tab is protected from the writer, the card is saved without the result
+  (`TULOSTA EI VOITU KIRJOITTAA (SUOJATTU)`). A paper result typed between the read and the write can be overwritten;
+  the window is under a second.
 
 ## To do
 

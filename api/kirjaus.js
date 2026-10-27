@@ -13,6 +13,9 @@
 // Google-kiintiö on 60 lukua ja 60 kirjoitusta minuutissa per tili, joten tallennus tekee yhden luvun
 // (haltijarivi ja korttirivit) ja yhden kirjoituksen (kortit ja lokirivit samassa batchUpdate-kutsussa, eli joko molemmat tai ei kumpaakaan);
 // välilehtien tunnukset pidetään muistissa.
+// Suora tulos (KISANSPEKSIT MOBIILI_TULOKSET = SUORAAN, api/_lib/kirjausTulokset.js): valmiin kortin tulos menee samassa
+// kirjoituksessa OSALLISTUJAT+TULOKSET-välilehden tyhjään tulossoluun. Silloin tallennus lukee lisäksi kohdesolut kaavoineen
+// (ja Compak-kortille pääsivun), mutta vain kun kortti on tai oli valmis.
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -33,6 +36,7 @@ import {
   PAA_VALILEHTI, RYHMAT_VALILEHTI, asemaJako, layoutValilehti, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko,
   ryhmaKorttiOtsikko, ryhmaKorttiRivi, ryhmanAmpujat, ryhmanVuorot, tarkistaRyhmaTallennus
 } from './_lib/kirjausRyhma.js';
+import { asemaTulokset, kompakTulos, muuttuvat, onSuoraan, soluA1, suoraTulos, tulosSolut } from './_lib/kirjausTulokset.js';
 
 const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
 const META_TTL_MS = 5 * 60 * 1000;
@@ -212,6 +216,7 @@ async function varmistaValilehdet(request, sheetId, sarake) {
     haltijaTarve(radanKohde({ sheetId, sarake }))
   ]);
   return {
+    meta,
     kortit: etsiValilehti(meta, mobiiliValilehti(sarake)),
     loki: etsiValilehti(meta, LOKI_VALILEHTI),
     laitteet: etsiValilehti(meta, LAITTEET_VALILEHTI)
@@ -279,8 +284,12 @@ async function korvatunTallennus(request, { sheetId, sarake }, tabit, laite, kor
 async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, kortit, linja }) {
   const tabit = await varmistaValilehdet(request, sheetId, sarake);
   const korttiAlue = (nro) => `${valilehtiAlue(tabit.kortit.nimi)}!A${nro + 1}:${VIIMEINEN_SARAKE}${nro + 1}`;
-  const [laiteRivit, ...tallessa] = await batchGet(request, sheetId,
-    [laiteAlue(tabit.laitteet, sarake), ...kortit.map((k) => korttiAlue(k.nro))], 'UNFORMATTED_VALUE');
+  const speksiTab = perusValilehdet(tabit.meta).speksit;
+  const [laiteRivit, ...luetut] = await batchGet(request, sheetId,
+    [laiteAlue(tabit.laitteet, sarake), ...kortit.map((k) => korttiAlue(k.nro)), ...(speksiTab ? [valilehtiAlue(speksiTab)] : [])],
+    'UNFORMATTED_VALUE');
+  const tallessa = luetut.slice(0, kortit.length);
+  const speksit = luetut[kortit.length] || [];
   const rivi = lueLaiteRivi((laiteRivit || [])[0]);
   const aika = aikaleima();
 
@@ -296,7 +305,7 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
   const tallennetut = [];
   const uudemmat = [];
   const requests = [];
-  const lokirivit = [];
+  const kirjattavat = [];
   kortit.forEach((kortti, i) => {
     const vanha = lueKorttiRivi((tallessa[i] || [])[0]);
     if (vanha && vanha.versio >= kortti.versio) {
@@ -307,16 +316,20 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
       return;
     }
     requests.push(solut(tabit.kortit, kortti.nro, 0, korttiRivi({ ...kortti, laite, aika })));
-    lokirivit.push([aika, sarake, kortti.nro, laite, kortti.versio, vanha?.merkit || '', kortti.merkit, '']);
+    kirjattavat.push({ kortti, vanha });
     tallennetut.push(kortti.nro);
   });
 
-  if (lokirivit.length > 0) {
-    requests.push({ appendCells: { sheetId: tabit.loki.id, rows: lokirivit.map(riviSoluiksi), fields: 'userEnteredValue' } });
-  }
   // Linjan tila haltijariville: uusi laite jatkaa samoista lisäyksistä, ohituksista, tauoista ja keskeytyksistä.
   if (linja) requests.push(solut(tabit.laitteet, sarake, LINJA_SARAKE, [JSON.stringify(linja), aika]));
-  if (requests.length > 0) await batchUpdate(request, sheetId, requests);
+  const tulokset = onSuoraan(speksit)
+    ? await suoratTulokset(request, sheetId, tabit.meta, null, kirjattavat.map(({ kortti, vanha }) => ({
+      avain: kortti.nro, nro: kortti.nro, sarake, vanha: kompakTulos(vanha?.merkit), uusi: kompakTulos(kortti.merkit)
+    })))
+    : eiTuloksia();
+  const lokirivit = (huomio) => kirjattavat.map(({ kortti, vanha }) => [aika, sarake, kortti.nro, laite, kortti.versio,
+    vanha?.merkit || '', kortti.merkit, huomio(kortti.nro).join(', ')]);
+  await kirjoitaTuloksin(request, sheetId, tabit.loki, requests, tulokset, lokirivit);
   const taydennykset = Object.keys(rivi.taydennykset).length > 0 ? { taydennykset: rivi.taydennykset } : {};
   return { status: 200, body: { tallennetut, uudemmat, ...taydennykset } };
 }
@@ -512,7 +525,7 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
   const otsikoidut = new Set();
   const tallennetut = [];
   const uudemmat = [];
-  const lokirivit = [...vieraat];
+  const kirjattavat = [];
   for (const { kortti, layout, vanha } of kelvot) {
     if (vanha && vanha.versio >= kortti.versio) {
       if (vanha.versio === kortti.versio && vanha.merkit === kortti.merkit) tallennetut.push({ layout: layout.nro, nro: kortti.nro });
@@ -534,17 +547,26 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
       otsikoidut.add(tab.id);
       requests.push(solut(tab, 0, 0, otsikko));
     }
+    const hyvaksytty = hyvaksynta(kortti.hyvaksytty, vanha);
     requests.push(solut(tab, kortti.nro, 0, ryhmaKorttiRivi(layout, {
-      ...kortti, nimi: ryhmassa.get(kortti.nro), laite, aika, ryhma, hyvaksytty: hyvaksynta(kortti.hyvaksytty, vanha)
+      ...kortti, nimi: ryhmassa.get(kortti.nro), laite, aika, ryhma, hyvaksytty
     })));
-    lokirivit.push([aika, `Layout ${layout.nro}`, kortti.nro, laite, kortti.versio, vanha?.merkit || '', kortti.merkit,
-      kortti.hyvaksytty ? `RYHMÄ ${ryhma}, HYVÄKSYTTY` : `RYHMÄ ${ryhma}`]);
+    kirjattavat.push({ kortti, layout, vanha, hyvaksytty });
     tallennetut.push({ layout: layout.nro, nro: kortti.nro });
   }
-  if (lokirivit.length > 0) {
-    requests.push({ appendCells: { sheetId: tabit.loki.id, rows: lokirivit.map(riviSoluiksi), fields: 'userEnteredValue' } });
-  }
-  if (requests.length > 0) await batchUpdate(request, sheetId, requests);
+  // Suora tulos: aseman tulos, kun sen kiekot on merkitty ja ampuja on kuitannut sen.
+  const tulokset = onSuoraan(speksit)
+    ? await suoratTulokset(request, sheetId, meta, paaRivit, kirjattavat.flatMap(({ kortti, layout, vanha, hyvaksytty }) => {
+      const vanhat = asemaTulokset(layout, vanha);
+      return asemaTulokset(layout, { ...kortti, hyvaksytty }).map((a, j) => ({
+        avain: ryhmanTunnus(kortti), nro: kortti.nro, sarake: a.sarake, vanha: vanhat[j].tulos, uusi: a.tulos
+      }));
+    }))
+    : eiTuloksia();
+  const lokirivit = (huomio) => [...vieraat, ...kirjattavat.map(({ kortti, layout, vanha }) => [aika, `Layout ${layout.nro}`,
+    kortti.nro, laite, kortti.versio, vanha?.merkit || '', kortti.merkit,
+    [`RYHMÄ ${ryhma}`, ...(kortti.hyvaksytty ? ['HYVÄKSYTTY'] : []), ...huomio(ryhmanTunnus(kortti))].join(', ')])];
+  await kirjoitaTuloksin(request, sheetId, tabit.loki, requests, tulokset, lokirivit);
   if (levennetyt.size > 0) metaMuisti.delete(sheetId);
   const taydennykset = Object.keys(rivi.taydennykset).length > 0 ? { taydennykset: rivi.taydennykset } : {};
   return { status: 200, body: { tallennetut, uudemmat, hylatyt, ...taydennykset } };
@@ -555,6 +577,55 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
 function hyvaksynta(hyvaksytty, vanha) {
   if (hyvaksytty === true) return vanha?.hyvaksytty || '';
   return hyvaksytty ? aikaleima(hyvaksytty) : '';
+}
+
+// --- Suora tulos (MOBIILI_TULOKSET = SUORAAN) ---
+
+const eiTuloksia = () => ({ requests: [], huomiot: new Map() });
+
+// Tulossolujen kirjoitukset kohteille [{ avain, nro, sarake, vanha, uusi }] (vanha / uusi: kortin edellinen ja uusi valmis
+// tulos tai null). paaRivit: pääsivu muotoilemattomana, luetaan tarvittaessa. Kohdesolut luetaan kaavoineen, jotta kaavaa
+// tai paperilta kirjoitettua tulosta ei korvata. Palauttaa { requests, huomiot: Map(avain → [lokin huomautukset]) }.
+async function suoratTulokset(request, sheetId, meta, paaRivit, kohteet) {
+  const tulos = eiTuloksia();
+  const lisaa = (avain, huom) => tulos.huomiot.set(avain, [...(tulos.huomiot.get(avain) || []), huom]);
+  const valitut = muuttuvat(kohteet);
+  if (valitut.length === 0) return tulos;
+  const paa = etsiValilehti(meta, PAA_VALILEHTI);
+  if (!paa) {
+    valitut.filter((k) => k.uusi !== null).forEach((k) => lisaa(k.avain, `TULOS ${k.uusi} EI KIRJOITETTU: VÄLILEHTEÄ ${PAA_VALILEHTI} EI LÖYDY`));
+    return tulos;
+  }
+  const rivit = paaRivit || (await batchGet(request, sheetId, [valilehtiAlue(paa.nimi)], 'UNFORMATTED_VALUE'))[0];
+  const paikat = tulosSolut(rivit, valitut);
+  paikat.filter((k) => k.puuttuu && k.uusi !== null).forEach((k) => lisaa(k.avain, `TULOS ${k.uusi} EI KIRJOITETTU: ${k.puuttuu}`));
+  const loydetyt = paikat.filter((k) => !k.puuttuu);
+  const kaavat = await batchGet(request, sheetId,
+    loydetyt.map((k) => `${valilehtiAlue(paa.nimi)}!${soluA1(k.rivi, k.sarakeIndeksi)}`), 'FORMULA');
+  loydetyt.forEach((k, i) => {
+    const p = suoraTulos({ solu: kaavat[i]?.[0]?.[0], vanha: k.vanha, uusi: k.uusi, sarake: k.sarake });
+    if (p.huom) lisaa(k.avain, p.huom);
+    if (p.arvo !== undefined) tulos.requests.push(solut(paa, k.rivi, k.sarakeIndeksi, [p.arvo]));
+  });
+  return tulos;
+}
+
+// Kortit, tulossolut ja lokirivit yhdellä kirjoituksella. lokirivit(huomio) rakentaa lokirivit, huomio(avain) antaa kortin
+// tuloshuomautukset. Jos pääsivu on suojattu kirjaajalta (403), kortit tallennetaan silti ilman tuloksia ja loki kertoo sen.
+async function kirjoitaTuloksin(request, sheetId, loki, requests, tulokset, lokirivit) {
+  const kirjoita = (lisat, huomio) => {
+    const rivit = lokirivit(huomio);
+    const kaikki = [...requests, ...lisat,
+      ...(rivit.length > 0 ? [{ appendCells: { sheetId: loki.id, rows: rivit.map(riviSoluiksi), fields: 'userEnteredValue' } }] : [])];
+    return kaikki.length > 0 ? batchUpdate(request, sheetId, kaikki) : null;
+  };
+  const huomiot = (avain) => tulokset.huomiot.get(avain) || [];
+  try {
+    await kirjoita(tulokset.requests, huomiot);
+  } catch (error) {
+    if (tulokset.requests.length === 0 || googleStatus(error) !== 403) throw error;
+    await kirjoita([], (avain) => (huomiot(avain).length > 0 ? [...huomiot(avain), 'TULOSTA EI VOITU KIRJOITTAA (SUOJATTU)'] : []));
+  }
 }
 
 async function tallennaRyhma(request, avain, req, res) {
