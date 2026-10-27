@@ -605,6 +605,11 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           );
         })}
       </nav>
+      {layout.alkuasema && !asemat.some((a) => String(a.id) === String(layout.alkuasema)) && (
+        <div className="shrink-0 bg-amber-100 px-3 py-1 text-sm text-amber-900">
+          Aikataulun lähtöasemaa {layout.alkuasema} ei löydy layoutin asemista: järjestys lasketaan asemalta {asemat[0]?.id}. Tarkista ampumajärjestys.
+        </div>
+      )}
       <div className="shrink-0 px-3 pt-1 text-sm text-slate-600">Asema {asemat[asema].id} · {asemat[asema].kohteita} kiekkoa · {layout.nimi} {layout.kohteita} kiekkoa</div>
 
       <section className={`${korjaustila ? 'bg-amber-50' : ''} flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-2 py-1.5`}>
