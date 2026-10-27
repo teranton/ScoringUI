@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { haltijaAvain, julkinenHaltija, lueLaiteRivi, onHaltija, tarkistaLinja, vaihtoPin } from './kirjausHaltija.js';
+import { haltijaAvain, julkinenHaltija, lisaaTaydennys, lueLaiteRivi, onHaltija, tarkistaLinja, vaihtoPin } from './kirjausHaltija.js';
 
 const SALAISUUS = 'testisalaisuus-joka-on-pitka';
 const ID = '1rs_ZwCclYUxrDueBIc65M-49ZAh4XpxSFGOPNqEU3iU';
@@ -46,4 +46,14 @@ test('linjan tila: vain tunnetut kentät', () => {
     lisatyt: [{ nro: 5, nimi: 'Uusi Ampuja', jalkeen: null, kierroksesta: 2 }],
     ohitetut: [1, 2], tauot: [], tauotPois: [], keskeyttaneet: [], ohjelma: null
   });
+});
+
+test('täydennykset: luku hylkää virheelliset, lisäys yhdistää uusimman merkinnät', () => {
+  const tyhja = '-'.repeat(25);
+  const rivi = lueLaiteRivi(['2', 1, 'l', '', '', '', 0, '', '', JSON.stringify({ 3: 'X'.repeat(25), 0: tyhja, x: tyhja, 4: 'XO' })]);
+  assert.deepEqual(rivi.taydennykset, { 3: 'X'.repeat(25) });
+  assert.deepEqual(lueLaiteRivi(['2', 1, 'l', '', '', '', 0, '', '', '{rikki']).taydennykset, {});
+  const t = lisaaTaydennys({ 3: 'XX' + '-'.repeat(23) }, 3, 'O-O' + '-'.repeat(22));
+  assert.equal(t[3], 'OXO' + '-'.repeat(22));
+  assert.equal(lisaaTaydennys({}, 5, 'X' + '-'.repeat(24))[5], 'X' + '-'.repeat(24));
 });

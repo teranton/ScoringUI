@@ -6,7 +6,7 @@
   device, line state) and a new last column `HUOM` in `MOBIILI_LOKI` (changes of device, cards of a replaced device). Both
   are written only by `api/kirjaus.js`; ScoringLib reads `MOBIILI_LAITTEET` (`RATA`, `SUKUPOLVI`, `LAITE`, `LAITTEEN NIMI`,
   `OTETTU`, `PIN-VIRHEET`) for the takeover PINs and resets `PIN-VIRHEET`. Saves now need the device's holder key. A replaced device's
-  cards fill only targets still empty on `MOBIILI Rata N`; differences are logged.
+  marks go to the holder (`MOBIILI_LAITTEET` column `TÄYDENNYKSET`), which fills its empty targets; differences are logged.
 
 - Squad editing for organisers (`RyhmaJako.jsx`): reads the main tab through the named range `OSALLISTUJAT` and swaps
   two shooters' entered values, with the organiser's own Google account (not the service account). Squads and

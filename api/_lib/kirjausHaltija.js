@@ -7,12 +7,15 @@
 // (ScoringLib laskee saman, Mobiilikirjaus.vaihtoPin), joten se kelpaa vain yhteen vaihtoon.
 // Puhtaat funktiot, ei Google-kutsuja (kirjausHaltija.test.js).
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { MAKS_NRO, puhdasTeksti } from './kirjausData.js';
+import { KOHTEITA, MAKS_NRO, puhdasTeksti } from './kirjausData.js';
 
 export const LAITTEET_VALILEHTI = 'MOBIILI_LAITTEET';
-export const LAITTEET_OTSIKKO = ['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY'];
+export const LAITTEET_OTSIKKO = ['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY', 'TÄYDENNYKSET'];
 // LINJA-sarakkeen indeksi: haltijan vaihto kirjoittaa sarakkeet ennen sitä, linjan tallennus vain LINJA-sarakkeet.
 export const LINJA_SARAKE = 7;
+// TÄYDENNYKSET: korvattujen laitteiden merkinnät { nro: merkit } radan haltijalle. Vain korvattu laite kirjoittaa
+// tämän solun (haltija ei), joten radan kortteja kirjoittaa edelleen vain haltija.
+export const TAYDENNYS_SARAKE = 9;
 export const MAKS_PIN_VIRHEET = 10;
 const MAKS_LAITTEEN_NIMI = 40;
 
@@ -60,8 +63,31 @@ export function lueLaiteRivi(rivi) {
     otettu: String(r[4] ?? ''),
     tapa: String(r[5] ?? ''),
     pinVirheet: luku(r[6]),
-    linja
+    linja,
+    taydennykset: lueTaydennykset(r[TAYDENNYS_SARAKE])
   };
+}
+
+const TAYDENNYS_MERKIT = new RegExp(`^[XO-]{${KOHTEITA}}$`);
+function lueTaydennykset(arvo) {
+  let olio;
+  try {
+    olio = arvo ? JSON.parse(String(arvo)) : null;
+  } catch {
+    olio = null;
+  }
+  if (!olio || typeof olio !== 'object' || Array.isArray(olio)) return {};
+  return Object.fromEntries(Object.entries(olio).filter(([nro, merkit]) => {
+    const n = Number(nro);
+    return Number.isInteger(n) && n >= 1 && n <= MAKS_NRO && typeof merkit === 'string' && TAYDENNYS_MERKIT.test(merkit);
+  }));
+}
+
+// Lisää korvatun laitteen kortin täydennyksiin: uuden kortin merkinnät voittavat, aiemmin välitetyt jäävät muualle.
+export function lisaaTaydennys(taydennykset, nro, merkit) {
+  const vanha = taydennykset[nro] || '-'.repeat(KOHTEITA);
+  const uusi = [...vanha].map((m, i) => (merkit[i] && merkit[i] !== '-' ? merkit[i] : m)).join('');
+  return { ...taydennykset, [nro]: uusi };
 }
 
 // Haltijan vaihdon rivi (sarakkeet ennen LINJA:a; linjan tila jää ennalleen).

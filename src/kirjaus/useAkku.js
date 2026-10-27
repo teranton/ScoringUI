@@ -16,6 +16,7 @@ export function useAkku() {
       setAkku({ vahissa: !tila.charging && tila.level <= AKKU_RAJA, taso: Math.round(tila.level * 100) });
     };
     navigator.getBattery().then((b) => {
+      if (lopetettu) return;
       tila = b;
       b.addEventListener('levelchange', paivita);
       b.addEventListener('chargingchange', paivita);

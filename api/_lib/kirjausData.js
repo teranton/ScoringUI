@@ -206,7 +206,8 @@ export function lueKorttiRivi(rivi) {
 }
 
 // Tarkistaa tallennuspyynnön rungon. Palauttaa { laite, haltija, kortit, linja } tai { virhe }.
-// Korttilista saa olla tyhjä, kun mukana on linjan tila (linja tarkistetaan api/_lib/kirjausHaltija.js:ssä).
+// Korttilista saa olla tyhjä: pelkkä linjan tila (tarkistetaan api/_lib/kirjausHaltija.js:ssä) tai haltijan tarkistus
+// (ei kirjoiteta; vastaus kertoo, onko laite yhä haltija, ja palauttaa korvattujen laitteiden täydennykset).
 export const MAKS_KORTTEJA = 30;
 const MAKS_NIMI = 80;
 // Näyttöteksti: ohjausmerkit pois ja pituus rajattu.
@@ -218,7 +219,7 @@ export function tarkistaTallennus(runko) {
   if (!onLaitetunnus(laite)) return { virhe: 'Laitteen tunnus puuttuu' };
   const haltija = typeof runko?.haltija === 'string' ? runko.haltija.slice(0, 200) : '';
   const kortit = runko?.kortit ?? [];
-  if (!Array.isArray(kortit) || (kortit.length === 0 && runko?.linja === undefined)) return { virhe: 'Ei kortteja' };
+  if (!Array.isArray(kortit)) return { virhe: 'Ei kortteja' };
   if (kortit.length > MAKS_KORTTEJA) return { virhe: `Enintään ${MAKS_KORTTEJA} korttia kerralla` };
   const nahty = new Set();
   for (const k of kortit) {

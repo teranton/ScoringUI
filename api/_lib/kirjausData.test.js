@@ -125,7 +125,8 @@ test('tallennuksen tarkistus', () => {
   assert.equal(nimella.kortit[0].nimi, 'Aho Antti');
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], nimi: 5 }] }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, laite: 'x' }).virhe);
-  assert.ok(tarkistaTallennus({ ...ok, kortit: [] }).virhe);
+  assert.deepEqual(tarkistaTallennus({ ...ok, kortit: [] }).kortit, [], 'tyhjä lista on haltijan tarkistus');
+  assert.ok(tarkistaTallennus({ ...ok, kortit: {} }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ nro: 0, merkit: MERKIT, versio: 1 }] }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ nro: 1, merkit: 'XX', versio: 1 }] }).virhe);
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ nro: 1, merkit: MERKIT, versio: 0 }] }).virhe);

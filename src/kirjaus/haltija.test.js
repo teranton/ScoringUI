@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { laitteenNimi, linjaTilasta, lueSiirto, otaLinja, siirtoLinkki, yhdistaSiirto } from './haltija.js';
+import { laitteenNimi, linjaTilasta, lueSiirto, otaLinja, otaTaydennykset, siirtoLinkki, yhdistaSiirto } from './haltija.js';
 
 const MERKIT = 'XXOXX' + 'XO' + '-'.repeat(18);
 
@@ -50,4 +50,22 @@ test('linjan tila ja laitteen nimi', () => {
   assert.deepEqual(otaLinja({ ohjelma: 'SDD', tauot: [1] }, { tauot: [] }), { ohjelma: null, tauot: [] });
   assert.equal(laitteenNimi('abcd-1234', 'Mozilla/5.0 (Linux; Android 14) AppleWebKit Chrome/130 Mobile Safari'), 'Android Chrome …1234');
   assert.equal(laitteenNimi('abcd-9f9f', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Version/18.0 Mobile/15E148 Safari/604.1'), 'iPhone Safari …9f9f');
+});
+
+test('täydennykset: vain tyhjät kiekot ja vain uudet merkinnät, perumat eivät palaa', () => {
+  const kortit = { 3: { merkit: 'XXOXX' + '-'.repeat(20), versio: 100, lahetetty: true } };
+  const t = 'OOOOO' + 'XXX' + '-'.repeat(17);
+  const eka = otaTaydennykset(kortit, { 3: t, 4: 'X' + '-'.repeat(24) }, {}, 25, 50);
+  assert.equal(eka.taytetyt, 2);
+  assert.deepEqual(eka.kortit[3], { merkit: 'XXOXX' + 'XXX' + '-'.repeat(17), versio: 101, lahetetty: false });
+  assert.equal(eka.kortit[4].merkit, 'X' + '-'.repeat(24));
+  // Sama täydennys uudelleen: ei muutosta, vaikka laite olisi perunut kiekon 8.
+  const peruttu = { ...eka.kortit, 3: { merkit: 'XXOXX' + 'XX' + '-'.repeat(18), versio: 102, lahetetty: true } };
+  const toka = otaTaydennykset(peruttu, { 3: t }, eka.sovelletut, 25, 60);
+  assert.equal(toka.taytetyt, 0);
+  assert.equal(toka.kortit, peruttu);
+  // Laajentunut täydennys tuo vain uudet kiekot.
+  const kolmas = otaTaydennykset(peruttu, { 3: 'OOOOO' + 'XXXX' + '-'.repeat(16) }, eka.sovelletut, 25, 200);
+  assert.equal(kolmas.kortit[3].merkit, 'XXOXX' + 'XX-X' + '-'.repeat(16));
+  assert.equal(kolmas.kortit[3].versio, 200);
 });

@@ -17,7 +17,9 @@ import {
   poistaRataTietokannasta, pyydaPysyvaTallennus, siivoaMerkinnat, tallennaKoodi, tallennaOdottavaSiirto, tallennaRata,
   tallennaRataTietokantaan
 } from './varasto.js';
-import { laitteenNimi, linjaTekstina, linjaTilasta, lueSiirto, otaLinja, siirtoLinkki, yhdistaSiirto } from './haltija.js';
+import {
+  laitteenNimi, linjaTekstina, linjaTilasta, lueSiirto, otaLinja, otaTaydennykset, siirtoLinkki, yhdistaSiirto
+} from './haltija.js';
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
@@ -26,6 +28,8 @@ import Lukitus from './Lukitus.jsx';
 import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
 
 const SYNKRONOINTI_VALI_MS = 15000;
+// Ilman lähetettävää haltija tarkistaa radan näin usein: korvattujen laitteiden täydennykset ja oma korvaus.
+const TARKISTUS_VALI_MS = 60000;
 // Valmis asema (5 kiekkoa) lähetetään heti; kesken olevat merkinnät kootaan, koska kirjuritilillä on
 // Googlen kiintiö (60 kirjoitusta minuutissa kaikille radoille yhteensä).
 const LAHETYS_VIIVE_MS = 1500;
@@ -150,6 +154,7 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const tilaRef = useRef(tila);
   const lahettaaRef = useRef(false);
+  const tarkistettuRef = useRef(Date.now());
   // Testiversion "Tyhjennä rata laitteelta": ei enää tallenneta eikä lähetetä ennen sivun uudelleenlatausta.
   const tyhjennettyRef = useRef(false);
   // Tallennusten järjestysnumero: kahdesta kopiosta (localStorage, IndexedDB) uudempi on se, jolla numero on suurempi.
@@ -220,9 +225,11 @@ function RataNakyma({ koodi, onVaihda }) {
         // Lähettämättömät kortit lähtevät vielä kerran, jolloin palvelin kirjaa poikkeavat lokiin.
         const korvattu = Boolean(tilaRef.current.haltija) && !data.haltija?.oma && !data.haltija?.tamaLaite;
         setTila((t) => ({
-          ...t,
-          avaus: data,
-          kortit: yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }),
+          ...taydennettyna(
+            { ...t, avaus: data, kortit: yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }) },
+            data.haltija?.oma ? data.taydennykset : null,
+            data.kohteita
+          ),
           ...(korvattu && lahettamattomat(t.kortit).length === 0 ? { haltija: null, korvattu: korvausTieto(data.haltija, 0) } : {})
         }));
         setLataus({ tila: 'ok', viesti: '', pysyva: false });
@@ -280,7 +287,7 @@ function RataNakyma({ koodi, onVaihda }) {
           korvattu: null,
           luovutettu: false,
           // PIN-vaihdossa vanhan laitteen viimeiset merkinnät voivat puuttua: kirjaaja tarkistaa linjan.
-          ...(pin ? { tarkistaLinja: true } : {}),
+          tarkistaLinja: Boolean(pin),
           lahetettyLinja: otetaan ? linjaTekstina(linjalla) : t.lahetettyLinja,
           avaus: t.avaus ? { ...t.avaus, haltija: data.tila } : t.avaus
         };
@@ -303,7 +310,8 @@ function RataNakyma({ koodi, onVaihda }) {
     const lahetetyt = lahettamattomat(tilaRef.current.kortit);
     const linja = linjaTekstina(tilaRef.current);
     const linjaMuuttui = linja !== tilaRef.current.lahetettyLinja;
-    if (lahetetyt.length === 0 && !linjaMuuttui) return;
+    const tarkistus = lahetetyt.length === 0 && !linjaMuuttui;
+    if (tarkistus && (!haltija || Date.now() - tarkistettuRef.current < TARKISTUS_VALI_MS)) return;
     // Ei vielä haltija: vapaa rata tai siirtolinkki otetaan ensin (varatulle radalle tarvitaan PIN näkymästä).
     if (!haltija) {
       if (avattu.haltija?.vapaa || siirtoAvain) await otaRata();
@@ -335,7 +343,11 @@ function RataNakyma({ koodi, onVaihda }) {
         return;
       }
       if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
-      setTila((t) => ({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data), ...(linjaMuuttui ? { lahetettyLinja: linja } : {}) }));
+      tarkistettuRef.current = Date.now();
+      setTila((t) => ({
+        ...taydennettyna({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }, data.taydennykset, t.avaus?.kohteita),
+        ...(linjaMuuttui ? { lahetettyLinja: linja } : {})
+      }));
       setSynk({ virhe: '', viimeksi: Date.now(), katkesi: null });
       taustaRef.current = false;
       // Taulukossa oli toisen laitteen uudempi kortti: kaksi laitetta kirjaa samaa rataa.
@@ -662,7 +674,12 @@ function RataNakyma({ koodi, onVaihda }) {
   const luovuta = async () => {
     setValikko(false);
     if (!window.confirm('Luovutetaanko rata toiselle laitteelle? Tämä laite lopettaa kirjauksen. Uusi laite skannaa radan QR-koodin ja jatkaa tästä.')) return;
-    await laheta();
+    // Käynnissä oleva lähetys odotetaan, ja vastauksen täydennykset lähetetään vielä (tila päivittyy piirrossa).
+    for (let kierros = 0; kierros < 20; kierros++) {
+      if (!lahettaaRef.current) await laheta();
+      await new Promise((r) => { setTimeout(r, 250); });
+      if (!lahettaaRef.current && lahettamattomat(tilaRef.current.kortit).length === 0) break;
+    }
     if (lahettamattomat(tilaRef.current.kortit).length > 0) {
       window.alert('Kaikkia kortteja ei saatu lähetettyä. Yritä uudelleen, kun yhteys toimii, tai käytä ☰ › Siirrä toiselle laitteelle QR-koodilla.');
       return;
@@ -853,7 +870,16 @@ function RataNakyma({ koodi, onVaihda }) {
           kun yhteys toimii, mutta sivun sulkeminen hävittää lähettämättömät. Käytä tarvittaessa paperikorttia.
         </div>
       )}
-      {tila.tarkistaLinja && (
+      {tila.taydennysIlmoitus > 0 && (
+        <div className="flex shrink-0 items-center gap-2 bg-amber-100 px-3 py-2 text-sm text-amber-900">
+          <span className="min-w-0 flex-1">
+            Edellisen laitteen merkinnät täydensivät {tila.taydennysIlmoitus} {tila.taydennysIlmoitus === 1 ? 'kortin' : 'korttia'} (vain
+            tyhjät kiekot). Tarkista vuorossa oleva ampuja.
+          </span>
+          <button type="button" className="rounded border border-amber-700 px-2 py-1" onClick={() => setTila((t) => ({ ...t, taydennysIlmoitus: 0 }))}>OK</button>
+        </div>
+      )}
+      {tila.tarkistaLinja && tila.haltija && (
         <div className="flex shrink-0 items-center gap-2 bg-amber-100 px-3 py-2 text-sm text-amber-900">
           <span className="min-w-0 flex-1">
             Rata otettiin PIN-koodilla: edellisen laitteen viimeiset merkinnät voivat puuttua.
@@ -1031,7 +1057,20 @@ function RataNakyma({ koodi, onVaihda }) {
   );
 }
 
-// Korvatun laitteen näkymän tiedot: kuka rataa nyt kirjaa ja montako korttia kirjattiin lokiin ristiriitoina.
+// Korvattujen laitteiden merkinnät tilan kortteihin (haltija.js otaTaydennykset); täytetyt kortit näkyvät ilmoituksena.
+function taydennettyna(t, taydennykset, kohteita) {
+  if (!taydennykset) return t;
+  const tulos = otaTaydennykset(t.kortit, taydennykset, t.sovelletutTaydennykset || {}, kohteita || 25);
+  return {
+    ...t,
+    kortit: tulos.kortit,
+    sovelletutTaydennykset: tulos.sovelletut,
+    taydennysIlmoitus: (t.taydennysIlmoitus || 0) + tulos.taytetyt
+  };
+}
+
+// Korvatun laitteen näkymän tiedot: kuka rataa nyt kirjaa, montako korttia välitettiin täydennyksiksi ja montako
+// kirjattiin lokiin ristiriitoina.
 const korvausTieto = (haltija, kirjattu, taydennetty) => ({
   nimi: haltija?.nimi || '', otettu: haltija?.otettu || '', vapaa: Boolean(haltija?.vapaa), kirjattu: kirjattu || 0, taydennetty: taydennetty || 0
 });
@@ -1041,6 +1080,7 @@ function alkutila(tallessa) {
   const t = {
     kortit: {}, historia: [], lisatyt: [], ohitetut: [], tauot: [], tauotPois: [], keskeyttaneet: [], ohjelma: null, avaus: null,
     haltija: null, siirtoAvain: null, korvattu: null, luovutettu: false, lahetettyLinja: null, tarkistaLinja: false,
+    sovelletutTaydennykset: {}, taydennysIlmoitus: 0,
     ...tallessa
   };
   return { ...t, lisatyt: t.lisatyt.map((l) => (typeof l === 'number' ? { nro: l } : l)) };

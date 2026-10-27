@@ -225,21 +225,23 @@ Writes (created on the first save or change of device if missing):
   newer than `VERSIO` writes nothing. The card row and its log row are written in one request.
 - `MOBIILI_LOKI`: one appended row per accepted save: `AIKA, RATA, NRO, LAITE, VERSIO, ENNEN, JÄLKEEN, HUOM`.
   `HUOM` is empty on a save. A change of device adds a row with `RATA OTETTU: …` or `RATA LUOVUTETTU …` (no shooter).
-  A card from a replaced device (e.g. its battery died and the layout was taken with a PIN) fills only the targets still
-  empty on the tab (`KORVATTU LAITE: TÄYDENNETTY`, the card's `VERSIO` grows by one); targets where it differs from the
-  tab are not written and the log row says `N ERI MERKINTÄÄ, TAULUKON MERKINTÄ JÄI` for the office. `JÄLKEEN` is the
-  replaced device's card. When the holder later saves a card that was filled this way, the tab's marks fill the holder's
-  empty targets too (`TÄYDENNETTY TAULUKOSTA`). A log made before `HUOM` existed (7 columns) is widened on the next
+  A replaced device (e.g. its battery died and the layout was taken with a PIN) never writes card rows: its marks on
+  targets still empty on the tab are handed to the holder in `MOBIILI_LAITTEET` `TÄYDENNYKSET` (log `KORVATTU LAITE:
+  VÄLITETTY RADAN LAITTEELLE`), and the holder fills its own empty targets with them and saves as usual. Targets where it
+  differs from the tab are logged as `N ERI MERKINTÄÄ, TAULUKON MERKINTÄ JÄI` for the office; `JÄLKEEN` is the replaced
+  device's card. A log made before `HUOM` existed (7 columns) is widened on the next
   change of device or save.
 - `MOBIILI_LAITTEET`: the device holding each layout, so one device writes a layout at a time. Header
-  `RATA, SUKUPOLVI, LAITE, LAITTEEN NIMI, OTETTU, TAPA, PIN-VIRHEET, LINJA, LINJA PÄIVITETTY`; layout N is on row N + 1.
+  `RATA, SUKUPOLVI, LAITE, LAITTEEN NIMI, OTETTU, TAPA, PIN-VIRHEET, LINJA, LINJA PÄIVITETTY, TÄYDENNYKSET`; layout N is
+  on row N + 1 (a tab made before `TÄYDENNYKSET` is widened).
   `SUKUPOLVI` grows on every change of device; a device's key is valid only for its own generation, so a replaced device
   can no longer write. `LAITE` empty = free: the next device takes the layout without a PIN. A taken layout changes
   device with the old device's key (its menu: release, or a QR transfer) or the takeover PIN, an HMAC of
   `pin|sheetId|N|SUKUPOLVI` (ScoringLib shows it in 📱 Mobiilikirjaus › Laitteen vaihto: PIN-koodit). Ten wrong PINs lock
   the takeover until ScoringLib shows the PINs again (it writes `PIN-VIRHEET` = 0). `LINJA` is the device's line state as
   JSON (shooters added or skipped on the device, breaks, retired shooters, the device's program), so the next device
-  carries on the same line.
+  carries on the same line. `TÄYDENNYKSET` is JSON `{ "<NRO>": "<25 marks X/O/->" }` from replaced devices, written only
+  by them.
 
 Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
 

@@ -83,8 +83,8 @@ export function HaltijaNakyma({ tyyppi, haltija, korvattu, lahettamatta, laittee
           </p>
           {korvattu?.taydennetty > 0 && (
             <p className="text-sm">
-              {korvattu.taydennetty} {korvattu.taydennetty === 1 ? 'kortti' : 'korttia'} täydennettiin taulukkoon: tämän laitteen
-              merkinnät täyttivät kiekot, jotka taulukossa olivat vielä tyhjiä.
+              {korvattu.taydennetty} {korvattu.taydennetty === 1 ? 'kortti' : 'korttia'} välitettiin radan nykyiselle laitteelle:
+              se täyttää tämän laitteen merkinnöillä kiekot, jotka siellä ovat vielä tyhjiä.
             </p>
           )}
           {korvattu?.kirjattu > 0 && (

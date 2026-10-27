@@ -1,6 +1,8 @@
 // Radan vaihto laitteelta toiselle: linjan tila, laitteen nimi ja siirtolinkki (QR-koodi vanhalta laitteelta uudelle).
 // Palvelin pitää kirjaa radan haltijalaitteesta (api/_lib/kirjausHaltija.js); tämä on laitteen puoli.
 
+import { uusiVersio } from './kortit.js';
+
 // Linjan tila, joka siirtyy uudelle laitteelle radan mukana (palvelin tallentaa sen MOBIILI_LAITTEET-välilehdelle).
 export const LINJAN_KENTAT = ['lisatyt', 'ohitetut', 'tauot', 'tauotPois', 'keskeyttaneet', 'ohjelma'];
 export const linjaTilasta = (tila) => Object.fromEntries(LINJAN_KENTAT.map((k) => [k, tila[k] ?? (k === 'ohjelma' ? null : [])]));
@@ -77,4 +79,31 @@ export function yhdistaSiirto(tila, siirto) {
   }
   // Laitteen oma vanha avain pois: rata otetaan siirtoavaimella, ei mahdollisesti vanhentuneella avaimella.
   return { ...otaLinja(tila, siirto.linja), kortit, haltija: null, siirtoAvain: siirto.haltija, luovutettu: false, korvattu: null };
+}
+
+// Korvattujen laitteiden merkinnät (palvelimen täydennykset { nro: merkit }) tämän laitteen kortteihin: vain tyhjiin
+// kiekkoihin ja vain merkinnät, joita ei ole jo otettu (sovelletut), jotta tämän laitteen perumat eivät palaa.
+// Täydennetyt kortit lähetetään tältä laitteelta, joten radan kortteja kirjoittaa edelleen vain haltija.
+export function otaTaydennykset(kortit, taydennykset, sovelletut = {}, kohteita = 25, nyt = Date.now()) {
+  let uudetKortit = kortit;
+  const uudetSovelletut = { ...sovelletut };
+  let taytetyt = 0;
+  for (const [nro, merkit] of Object.entries(taydennykset || {})) {
+    if (typeof merkit !== 'string' || merkit === sovelletut[nro]) continue;
+    const aiemmat = sovelletut[nro] || '';
+    const oma = uudetKortit[nro];
+    let muuttui = false;
+    const uudet = [...(oma?.merkit || '-'.repeat(kohteita))].map((m, i) => {
+      const t = merkit[i];
+      if (m !== '-' || !t || t === '-' || (aiemmat[i] && aiemmat[i] !== '-')) return m;
+      muuttui = true;
+      return t;
+    }).join('');
+    uudetSovelletut[nro] = merkit;
+    if (muuttui) {
+      uudetKortit = { ...uudetKortit, [nro]: { merkit: uudet, versio: uusiVersio(oma?.versio, nyt), lahetetty: false } };
+      taytetyt++;
+    }
+  }
+  return { kortit: uudetKortit, sovelletut: uudetSovelletut, taytetyt };
 }
