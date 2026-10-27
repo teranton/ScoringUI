@@ -51,3 +51,18 @@ test('lahetettavat: ei mitään ilman koodia tai haltija-avainta, eikä korvatul
   assert.deepEqual(lahetettavat(rivi({ kortit, korvattu: { nimi: 'x' } })), []);
   assert.deepEqual(lahetettavat(rivi({ kortit, luovutettu: true })), []);
 });
+
+test('lahetettavat: ryhmäpuhelimen kortit layoutin kanssa, hylätyt eivät lähde', () => {
+  const kortit = {
+    '1:4': { layout: 1, nro: 4, merkit: 'XO-', versio: 5, lahetetty: false, hyvaksytty: 1800000000000 },
+    '1:5': { layout: 1, nro: 5, merkit: 'XX-', versio: 6, lahetetty: false, hylatty: true },
+    '2:4': { layout: 2, nro: 4, merkit: 'X--', versio: 7, lahetetty: false, hyvaksytty: null }
+  };
+  assert.deepEqual(lahetettavat(rivi({ kortit })), [
+    { layout: 1, nro: 4, merkit: 'XO-', versio: 5, hyvaksytty: 1800000000000 },
+    { layout: 2, nro: 4, merkit: 'X--', versio: 7 }
+  ]);
+  // Asemajako avauksen layouteista, kuten sivulla (ryhma.js lahettamattomat).
+  const avaus = { layoutit: [{ nro: 1, asemat: [{ kohteita: 1 }, { kohteita: 2 }] }] };
+  assert.deepEqual(lahetettavat(rivi({ kortit, avaus })).map((k) => k.jako), ['1,2', undefined]);
+});

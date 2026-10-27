@@ -200,8 +200,8 @@ the library reads only that cell.
 
 One of ScoringUI's two write paths (the other is squad editing with the organiser's own Google sign-in). It uses a second service account (`KIRJURI_CLIENT_EMAIL`,
 `KIRJURI_PRIVATE_KEY`, scope `spreadsheets`) that is Editor only on the competitions that use mobile entry; a sheet
-not shared with it answers "Mobiilikirjaus ei ole käytössä". Access is a layout code signed with `KIRJAUS_SALAISUUS`
-(ScoringLib makes the same codes). Design: `design/mobile-score-entry.md` in the project files.
+not shared with it answers "Mobiilikirjaus ei ole käytössä". Access is a layout code (Compak) or a squad code
+(Sporting / FITASC / ESP, below) signed with `KIRJAUS_SALAISUUS` (ScoringLib makes the same codes). Design: `design/mobile-score-entry.md` in the project files.
 
 Reads (with the writer account):
 - `Aikataulu`, `Aikataulu La`, `Aikataulu Su` lane grids, as above. The lane header may sit above the time or the
@@ -242,6 +242,31 @@ Writes (created on the first save or change of device if missing):
   JSON (shooters added or skipped on the device, breaks, retired shooters, the device's program), so the next device
   carries on the same line. `TÄYDENNYKSET` is JSON `{ "<NRO>": "<25 marks X/O/->" }` from replaced devices, written only
   by them.
+
+### Squad phone (Sporting / FITASC / ESP)
+
+A squad code (payload `r` = squad number instead of `c`; ScoringLib lists them as QR codes and links in
+📱 Mobiilikirjaus › Näytä ryhmäkoodit) opens the squad's card on one phone. Reads (writer account):
+- `OSALLISTUJAT+TULOKSET` (display values, header on row 1): `NRO`, `NIMI` and `RYHMÄ` by header (fallback columns A
+  and C). A row's squad is the first whole number in its `RYHMÄ` cell ("Ryhmä 3", "3,00" and 3 all give 3), otherwise NRO / `AIKATAULURYHMAKOKO` rounded up (6 without the key).
+  A name equal to its own number is an empty seat. Same rule as ScoringLib's card printing (`ScoreCardFill.readSquads`).
+- `KISANSPEKSIT`: `RATAn_NIMI` (layouts in order, the n of the nth named layout; old place H3:H10), `LAYOUT/KISA`, the
+  station table (id header `LAYOUT` / `ASEMA` / `RATA` / `LANE` / `STATION` with `MAX` / `MAKS` / `MAARA` / `COUNT` right next
+  to it, 26 rows below; fallback J3:K28) and `AIKATAULURYHMAKOKO`. The `LAYOUT/KISA` stations are split evenly over the
+  layouts in order, as ScoringLib's `readLayouts`; station k overall is result column k on the main tab.
+- `Aikataulu*` (every tab whose name starts with `Aikataulu`, in tab order): the group timetable's header row with
+  `Start` and layout names, then time rows with `Ryhmä N` cells, gives each layout's round and start time for the squad.
+
+Writes (created on the first save if missing):
+- `MOBIILI Layout N` (N = layout 1..): header `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, RYHMÄ, HYVÄKSYTTY`, then
+  `ASEMA <k>` per station (hits on station k, k = result column) and the targets `<k>/<1..max>` station by station.
+  Shooter n on row n + 1; `NIMI` from the main tab; `HYVÄKSYTTY` is the time the shooter confirmed the card on the phone
+  (empty again after any change). Only the squad's own shooters are written; other cards are refused and logged
+  (`EI RYHMÄSSÄ …`). A tab narrower than the layout's targets is widened.
+- `MOBIILI_LOKI`: as above, `RATA` = `Layout N`, `HUOM` = `RYHMÄ <n>` (and `HYVÄKSYTTY`).
+- `MOBIILI_RYHMAT`: the phone holding each squad, header `RYHMÄ` then the same columns as `MOBIILI_LAITTEET` (squad n on
+  row n + 1). Another phone takes a held squad with a confirmation on the phone (no PIN: the code is on the squad's own
+  card). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
 
 Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
 
