@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  asemaRivit, asemienTulokset, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko, ryhmaKorttiOtsikko,
+  asemaRivit, asemienTulokset, fitascOhjelma, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko, ryhmaKorttiOtsikko,
   ryhmaKorttiRivi, ryhmanAmpujat, ryhmanVuorot, tarkistaRyhmaTallennus
 } from './kirjausRyhma.js';
 
@@ -35,6 +35,23 @@ test('layoutit: asemat jaetaan tasan nimetyille layouteille, tulossarake juoksee
   assert.equal(lueLayoutit([SPEKSIT[0], ...SPEKSIT.slice(4)]).layoutit[0].asemat.length, 4);
 });
 
+test('FITASC-ohjelma: pisteet pilkuilla, sinkut ja tuplat; layoutille vain kun kiekot täsmäävät', () => {
+  assert.deepEqual(fitascOhjelma('4S+2D, 4s+1d; 5S'), [{ sinkut: 4, tuplat: 2 }, { sinkut: 4, tuplat: 1 }, { sinkut: 5, tuplat: 0 }]);
+  assert.deepEqual(fitascOhjelma('2D'), [{ sinkut: 0, tuplat: 2 }]);
+  for (const huono of ['', 'SSSD', '4X', '0S+0D', null]) assert.equal(fitascOhjelma(huono), null);
+  const fitasc = [
+    ['RATA1_NIMI', 'A'], ['RATA2_NIMI', 'B'], ['LAYOUT/KISA', '2'],
+    ['RATA1_OHJELMA', '4S+2D, 4S+1D, 5S+1D, 2S+1D'], ['RATA2_OHJELMA', '4S+2D'],
+    ['', '', '', 'Asema', 'Maks'], ['', '', '', '1', '25'], ['', '', '', '2', '25']
+  ];
+  const { layoutit } = lueLayoutit(fitasc);
+  assert.equal(layoutit[0].ohjelma.length, 4);
+  // 4S+2D = 8 kiekkoa, ei 25: ohjelmaa ei käytetä.
+  assert.equal(layoutit[1].ohjelma, undefined);
+  // Monen aseman layoutille (Sporting) ohjelmaa ei lueta.
+  assert.equal(lueLayoutit([...SPEKSIT, ['RATA1_OHJELMA', '5S+5D']]).layoutit[0].ohjelma, undefined);
+});
+
 test('ryhmän ampujat: Ryhmä-sarake, muuten numero / ryhmäkoko; vapaa paikka ohitetaan', () => {
   const rivit = [
     ['NRO', 'Ryhmä', 'NIMI'],
@@ -60,6 +77,10 @@ test('ryhmän vuorot ryhmäaikataulusta: kierros, aika ja päivä', () => {
     1: { kierros: 0, aika: '09:00', paiva: 'Aikataulu' }
   });
   assert.deepEqual(ryhmanVuorot(aikataulut, layoutit, 9), {});
+  // Asemalähtö: ryhmä on solun ensimmäinen luku, lähtöasema sanan "asema" jälkeen.
+  const asemilta = [{ nimi: 'Aikataulu', rivit: [['Start', 'Metsä', 'Järvi'], ['8.30', 'Ryhmä 12 · asema 2', 'Ryhmä 2 · asema 4']] }];
+  assert.deepEqual(ryhmanVuorot(asemilta, layoutit, 2), { 2: { kierros: 0, aika: '8.30', paiva: 'Aikataulu', alkuasema: '4' } });
+  assert.deepEqual(ryhmanVuorot(asemilta, layoutit, 12)[1].alkuasema, '2');
   assert.deepEqual(ryhmanVuorot([], layoutit, 1), {});
 });
 

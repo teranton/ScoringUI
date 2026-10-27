@@ -6,7 +6,7 @@
 // edellisen puhelimen lähettämättömät merkinnät täydentävät uuden puhelimen tyhjiä kiekkoja.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  aloitusAsema, aloitusLayout, asemaKiekolle, asemanVali, hyvaksy, kierrata, korttiAvain, kuittaa, lahettamattomat,
+  aloitusAsema, aloitusLayout, asemaJarjestys, asemanSiirto, hyvaksy, kierrata, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, korttiAvain, kuittaa, lahettamattomat,
   layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
   yhdistaPalvelimelta
 } from './ryhma.js';
@@ -217,10 +217,13 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const ampujat = useMemo(() => avaus?.ampujat || [], [avaus]);
   const jarjestys = useMemo(() => layoutJarjestys(avaus?.layoutit), [avaus]);
   const layout = jarjestys.find((l) => l.nro === tila.layout) || aloitusLayout(jarjestys, ampujat, tila.kortit, tila.keskeyttaneet);
-  const asema = layout ? Math.min(tila.asema ?? aloitusAsema(layout, ampujat, tila.kortit), layout.asemat.length - 1) : 0;
+  // Puhelimen asemat: taulukon asemat, FITASCissa ohjelman pisteet (ryhma.js pisteet).
+  const asemat = useMemo(() => (layout ? pisteet(layout) : []), [layout]);
+  const asema = layout ? Math.min(tila.asema ?? aloitusAsema(layout, ampujat, tila.kortit), asemat.length - 1) : 0;
   // Aseman ampumajärjestys: aloittaja siirtyy yhdellä per layoutin kierros (kuten paperikortissa) ja per asema
-  // (Sporting, ESP). FITASC-layoutissa on yksi asema, joten siinä järjestys vaihtuu vain layouteittain.
-  const vuoro = useMemo(() => kierrata(ampujat, (layout?.kierros || 0) + asema), [ampujat, layout?.kierros, asema]);
+  // lähtöasemalta lukien. FITASCin tuplissa järjestys siirtyy vielä yhdellä (seuraavaKohta).
+  const siirto = layout ? asemanSiirto(layout, asema) : 0;
+  const vuoro = useMemo(() => kierrata(ampujat, siirto), [ampujat, siirto]);
   const kohta = layout ? seuraavaKohta(layout, asema, vuoro, tila.kortit, tila.valittu, tila.keskeyttaneet) : null;
   const nimi = useCallback((nro) => ampujat.find((a) => a.nro === nro)?.nimi || '', [ampujat]);
 
@@ -312,8 +315,8 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     return false;
   };
   const kiekkoTeksti = (l, nro, i) => {
-    const a = l.asemat.findIndex((_, k) => i < asemanVali(l, k).loppu);
-    return `${nro} ${nimi(nro)}, asema ${l.asemat[a]?.id ?? a + 1}, kiekko ${i - asemanVali(l, a).alku + 1}`;
+    const p = pisteet(l)[pisteKiekolle(l, i)];
+    return `${nro} ${nimi(nro)}, asema ${p?.id ?? ''}, kiekko ${i - (p?.alku ?? 0) + 1}`;
   };
   const kirjaa = (tapa, l, nro, i, ennen, jalkeen) => {
     kirjaaMerkinta(info.sheetId, tunnus, { laite, tapa, layout: l.nro, nro, kiekko: i + 1, ennen, jalkeen });
@@ -324,8 +327,8 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     kirjaa('merkintä', layout, kohta.nro, kohta.i, merkitOf(tila.kortit, layout, kohta.nro)[kohta.i], merkki);
     setTila((t) => {
       const uusi = merkitse(t, layout, kohta, merkki);
-      // Ampujan asema valmis: valinta pois, jotta seuraava tyhjä ampuja tulee vuoroon.
-      const v = asemanVali(layout, asema);
+      // Ampujan osuus asemalla (FITASC: sinkut tai tuplat) valmis: valinta pois, jotta seuraava tyhjä ampuja tulee vuoroon.
+      const v = kohdanOsa(layout, asema, kohta.i);
       const valmis = !merkitOf(uusi.kortit, layout, kohta.nro).slice(v.alku, v.loppu).includes('-');
       return { ...t, ...uusi, valittu: valmis ? null : kohta.nro };
     });
@@ -346,7 +349,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       const tl = avaus.layoutit.find((x) => x.nro === tuore.kohta.layout);
       return {
         ...t, kortit: tuore.kortit, historia: tuore.historia, layout: tuore.kohta.layout,
-        asema: tl ? asemaKiekolle(tl, tuore.kohta.i) : t.asema, valittu: tuore.kohta.nro
+        asema: tl ? pisteKiekolle(tl, tuore.kohta.i) : t.asema, valittu: tuore.kohta.nro
       };
     });
     setKuittaus(`Peruttu: ${kiekkoTeksti(l, p.kohta.nro, p.kohta.i)}.`);
@@ -550,7 +553,9 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     );
   }
 
-  const { alku, loppu } = asemanVali(layout, asema);
+  const { alku, loppu } = asemat[asema];
+  const seuraavaKesken = seuraavaAsema(layout, asema, ampujat.filter((a) => !tila.keskeyttaneet.includes(a.nro)), tila.kortit);
+  const osa = kohta && asemat[asema].osat.length > 1 ? kohdanOsa(layout, asema, kohta.i) : null;
   const layoutValmis = ampujat.every((a) => tila.keskeyttaneet.includes(a.nro) || taytetyt(merkitOf(tila.kortit, layout, a.nro)) === layout.kohteita);
   const viimeHistoria = tila.historia[tila.historia.length - 1];
 
@@ -588,11 +593,11 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
 
       {/* Asemat: valmiit vihreällä, valittu sinisellä. */}
       <nav className="flex shrink-0 gap-1 overflow-x-auto px-2 pt-2">
-        {layout.asemat.map((a, k) => {
-          const v = asemanVali(layout, k);
-          const valmis = ampujat.every((amp) => tila.keskeyttaneet.includes(amp.nro) || !merkitOf(tila.kortit, layout, amp.nro).slice(v.alku, v.loppu).includes('-'));
+        {asemaJarjestys(layout).map((k) => {
+          const a = asemat[k];
+          const valmis = ampujat.every((amp) => tila.keskeyttaneet.includes(amp.nro) || !merkitOf(tila.kortit, layout, amp.nro).slice(a.alku, a.loppu).includes('-'));
           return (
-            <button key={a.sarake} type="button" onClick={() => valitseAsema(k)}
+            <button key={k} type="button" onClick={() => valitseAsema(k)}
               className={`min-w-11 shrink-0 rounded-lg border-2 px-2 py-1 text-center ${k === asema ? 'border-blue-700 bg-blue-50' : valmis ? 'border-transparent bg-green-100' : 'border-transparent bg-white'}`}>
               <div className="text-[10px] uppercase text-slate-500">Asema</div>
               <div className="font-bold leading-tight">{a.id}</div>
@@ -600,7 +605,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           );
         })}
       </nav>
-      <div className="shrink-0 px-3 pt-1 text-sm text-slate-600">Asema {layout.asemat[asema].id} · {layout.asemat[asema].kohteita} kiekkoa · {layout.nimi} {layout.kohteita} kiekkoa</div>
+      <div className="shrink-0 px-3 pt-1 text-sm text-slate-600">Asema {asemat[asema].id} · {asemat[asema].kohteita} kiekkoa · {layout.nimi} {layout.kohteita} kiekkoa</div>
 
       <section className={`${korjaustila ? 'bg-amber-50' : ''} flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-2 py-1.5`}>
         {ampujat.length === 0 && <p className="rounded bg-white p-4">Ryhmässä ei ole ampujia.</p>}
@@ -653,10 +658,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                 <div key={a.nro} className="flex items-center gap-2 text-sm">
                   <span className="min-w-0 flex-1 truncate">{a.nro} {a.nimi}</span>
                   <span className="shrink-0 text-xs text-slate-500">
-                    {layout.asemat.map((s, k) => {
-                      const v = asemanVali(layout, k);
-                      return osumat(merkit.slice(v.alku, v.loppu));
-                    }).join(' + ')}
+                    {asemaJarjestys(layout).map((k) => osumat(merkit.slice(asemat[k].alku, asemat[k].loppu))).join(' + ')}
                   </span>
                   <b className="shrink-0">{osumat(merkit)}/{layout.kohteita}</b>
                   {kortti?.hyvaksytty
@@ -688,12 +690,12 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
             <div className={`mb-1 flex h-6 items-center gap-2 text-sm ${kuittaus ? 'rounded bg-amber-100 px-1 text-amber-900' : ''}`}>
               <span className="min-w-0 flex-1 truncate">
                 {kuittaus || (kohta
-                  ? <>Vuorossa <b>{kohta.nro} {nimi(kohta.nro)}</b> · kiekko {kohta.i - alku + 1}/{loppu - alku}</>
-                  : asema < layout.asemat.length - 1 ? 'Asema valmis.' : 'Layout valmis.')}
+                  ? <>Vuorossa <b>{kohta.nro} {nimi(kohta.nro)}</b>{osa ? ` · ${osa.nimi}` : ''} · kiekko {kohta.i - alku + 1}/{loppu - alku}</>
+                  : seuraavaKesken !== null ? 'Asema valmis.' : 'Layout valmis.')}
               </span>
               {kohta && <button type="button" className="shrink-0 rounded border border-slate-400 px-2 text-xs leading-6" onClick={seuraava}>Seuraava ampuja ›</button>}
-              {!kohta && asema < layout.asemat.length - 1 && (
-                <button type="button" className="shrink-0 rounded bg-blue-800 px-2 text-xs leading-6 text-white" onClick={() => valitseAsema(asema + 1)}>Asema {layout.asemat[asema + 1].id} ›</button>
+              {!kohta && seuraavaKesken !== null && (
+                <button type="button" className="shrink-0 rounded bg-blue-800 px-2 text-xs leading-6 text-white" onClick={() => valitseAsema(seuraavaKesken)}>Asema {asemat[seuraavaKesken].id} ›</button>
               )}
             </div>
             <div className="grid grid-cols-[1fr_2fr_2fr] gap-2">

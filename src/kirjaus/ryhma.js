@@ -27,7 +27,7 @@ export function asemaKiekolle(layout, i) {
 export const asemaJako = (layout) => layout.asemat.map((a) => a.kohteita).join(',');
 
 // Ampumajärjestys siirrettynä k paikkaa: aloittaja siirtyy yhdellä per layoutin kierros (kuten paperikortissa,
-// ScoringLib ScoreCardFill.rotateShooters) ja per asema. k = 0 tai puuttuva: numerojärjestys.
+// ScoringLib ScoreCardFill.rotateShooters) ja per asema (asemanSiirto). k = 0 tai puuttuva: numerojärjestys.
 export function kierrata(ampujat, kierros) {
   const k = ampujat.length && Number.isInteger(kierros) && kierros > 0 ? kierros % ampujat.length : 0;
   return [...ampujat.slice(k), ...ampujat.slice(0, k)];
@@ -62,39 +62,119 @@ export function aloitusLayout(jarjestys, ampujat, kortit, keskeyttaneet = []) {
   return jarjestys.find((l) => !layoutHyvaksytty(l, ampujat, kortit, keskeyttaneet)) || jarjestys[jarjestys.length - 1] || null;
 }
 
-// Ensimmäinen asema, jolla jonkun ampujan kiekko on merkitsemättä (muuten viimeinen).
-export function aloitusAsema(layout, ampujat, kortit) {
-  const i = layout.asemat.findIndex((_, a) => {
-    const { alku, loppu } = asemanVali(layout, a);
-    return ampujat.some((amp) => merkitOf(kortit, layout, amp.nro).slice(alku, loppu).includes('-'));
+// Puhelimen asemat (näkymä): [{ id, alku, loppu, kohteita, osat: [{ alku, loppu, siirto, nimi }] }]. Oletuksena taulukon
+// asemat, kukin yhtenä osana. FITASC-layoutissa (yksi taulukon asema, ohjelma RATAn_OHJELMA-avaimesta) asemat ovat
+// ohjelman pisteet 1..n: ensin sinkut, sitten tuplat, joissa ampumajärjestys siirtyy yhdellä (siirto 1).
+// Kortin kiekot ja tallennus pysyvät taulukon asemittain.
+export function pisteet(layout) {
+  if (layout.ohjelma?.length && layout.asemat.length === 1
+    && layout.ohjelma.reduce((s, p) => s + p.sinkut + 2 * p.tuplat, 0) === layout.kohteita) {
+    let alku = 0;
+    return layout.ohjelma.map((p, k) => {
+      const osat = [];
+      if (p.sinkut) osat.push({ alku, loppu: alku + p.sinkut, siirto: 0, nimi: 'sinkut' });
+      const tuplaAlku = alku + p.sinkut;
+      if (p.tuplat) osat.push({ alku: tuplaAlku, loppu: tuplaAlku + 2 * p.tuplat, siirto: p.sinkut ? 1 : 0, nimi: 'tuplat' });
+      const piste = { id: String(k + 1), alku, loppu: tuplaAlku + 2 * p.tuplat, kohteita: p.sinkut + 2 * p.tuplat, osat };
+      alku = piste.loppu;
+      return piste;
+    });
+  }
+  return layout.asemat.map((a, k) => {
+    const { alku, loppu } = asemanVali(layout, k);
+    return { id: a.id, alku, loppu, kohteita: a.kohteita, osat: [{ alku, loppu, siirto: 0, nimi: null }] };
   });
-  return i === -1 ? Math.max(0, layout.asemat.length - 1) : i;
 }
 
-// Seuraavaksi merkittävä kiekko asemalla: valitun ampujan ensimmäinen tyhjä kiekko, muuten ensimmäinen ampuja
-// (järjestyksessä valitusta eteenpäin), jolla on tyhjä kiekko. Palauttaa { nro, i } tai null (asema valmis).
-export function seuraavaKohta(layout, asema, ampujat, kortit, valittu = null, keskeyttaneet = []) {
-  const { alku, loppu } = asemanVali(layout, asema);
-  const mukana = ampujat.filter((a) => !keskeyttaneet.includes(a.nro));
-  const alkuI = Math.max(0, mukana.findIndex((a) => a.nro === valittu));
-  for (let k = 0; k < mukana.length; k++) {
-    const { nro } = mukana[(alkuI + k) % mukana.length];
-    const tyhja = merkitOf(kortit, layout, nro).indexOf('-', alku);
-    if (tyhja !== -1 && tyhja < loppu) return { nro, i: tyhja };
+// Puhelimen aseman indeksi kiekolle i.
+export function pisteKiekolle(layout, i) {
+  const p = pisteet(layout);
+  const k = p.findIndex((x) => i < x.loppu);
+  return k === -1 ? Math.max(0, p.length - 1) : k;
+}
+
+// Asemien ammuntajärjestys (indeksit): lähtöasemalta (aikataulun "asema S", layout.alkuasema) loppuun ja alusta sen eteen.
+export function asemaJarjestys(layout) {
+  const p = pisteet(layout);
+  const alku = Math.max(0, p.findIndex((x) => String(x.id) === String(layout.alkuasema ?? '')));
+  return p.map((_, k) => (alku + k) % p.length);
+}
+
+// Aseman ampumajärjestyksen siirto: layoutin kierros + aseman paikka ammuntajärjestyksessä (kuten paperikortissa).
+export function asemanSiirto(layout, asema) {
+  return (layout.kierros || 0) + Math.max(0, asemaJarjestys(layout).indexOf(asema));
+}
+
+const asemaKesken = (layout, asema, ampujat, kortit) => {
+  const { alku, loppu } = pisteet(layout)[asema] || { alku: 0, loppu: 0 };
+  return ampujat.some((amp) => merkitOf(kortit, layout, amp.nro).slice(alku, loppu).includes('-'));
+};
+
+// Ensimmäinen asema ammuntajärjestyksessä, jolla jonkun ampujan kiekko on merkitsemättä (muuten viimeinen). Tyhjä
+// layout avautuu lähtöasemalta.
+export function aloitusAsema(layout, ampujat, kortit) {
+  const jarjestys = asemaJarjestys(layout);
+  return jarjestys.find((a) => asemaKesken(layout, a, ampujat, kortit)) ?? jarjestys[jarjestys.length - 1] ?? 0;
+}
+
+// Seuraava kesken oleva asema ammuntajärjestyksessä nykyisen jälkeen (kiertäen), tai null.
+export function seuraavaAsema(layout, asema, ampujat, kortit) {
+  const jarjestys = asemaJarjestys(layout);
+  const i = jarjestys.indexOf(asema);
+  for (let k = 1; k < jarjestys.length; k++) {
+    const a = jarjestys[(i + k) % jarjestys.length];
+    if (asemaKesken(layout, a, ampujat, kortit)) return a;
   }
   return null;
 }
 
-// Seuraava ampuja valitun jälkeen, jolla on asemalla tyhjiä kiekkoja (FITASC: ampuja vaihtuu kesken aseman).
+const kesken = (layout, nro, kortit, { alku, loppu }) => {
+  const tyhja = merkitOf(kortit, layout, nro).indexOf('-', alku);
+  return tyhja !== -1 && tyhja < loppu ? tyhja : -1;
+};
+
+// Aseman osa, jota ammutaan: ensimmäinen, jossa jollakulla on tyhjä kiekko (FITASC: sinkut ennen tuplia). Ampujat
+// aseman järjestyksessä; osan järjestys siirtyy osan siirron verran. Palauttaa { osa, mukana } tai null (asema valmis).
+function nykyinenOsa(layout, asema, ampujat, kortit, keskeyttaneet) {
+  for (const osa of pisteet(layout)[asema]?.osat || []) {
+    const mukana = kierrata(ampujat, osa.siirto).filter((a) => !keskeyttaneet.includes(a.nro));
+    if (mukana.some((a) => kesken(layout, a.nro, kortit, osa) !== -1)) return { osa, mukana };
+  }
+  return null;
+}
+
+// Kiekon i osa asemalla: { alku, loppu, siirto, nimi }.
+export function kohdanOsa(layout, asema, i) {
+  const osat = pisteet(layout)[asema]?.osat || [];
+  return osat.find((o) => i >= o.alku && i < o.loppu) || osat[0] || null;
+}
+
+// Seuraavaksi merkittävä kiekko asemalla: valitun ampujan ensimmäinen tyhjä kiekko ammuttavassa osassa, muuten
+// ensimmäinen ampuja (järjestyksessä valitusta eteenpäin), jolla on siinä tyhjä kiekko. Palauttaa { nro, i } tai null
+// (asema valmis).
+export function seuraavaKohta(layout, asema, ampujat, kortit, valittu = null, keskeyttaneet = []) {
+  const nyt = nykyinenOsa(layout, asema, ampujat, kortit, keskeyttaneet);
+  if (!nyt) return null;
+  const { osa, mukana } = nyt;
+  const alkuI = Math.max(0, mukana.findIndex((a) => a.nro === valittu));
+  for (let k = 0; k < mukana.length; k++) {
+    const { nro } = mukana[(alkuI + k) % mukana.length];
+    const i = kesken(layout, nro, kortit, osa);
+    if (i !== -1) return { nro, i };
+  }
+  return null;
+}
+
+// Seuraava ampuja valitun jälkeen, jolla on ammuttavassa osassa tyhjiä kiekkoja (FITASC: ampuja vaihtuu kesken aseman).
 export function seuraavaAmpuja(layout, asema, ampujat, kortit, valittu, keskeyttaneet = []) {
-  const mukana = ampujat.filter((a) => !keskeyttaneet.includes(a.nro));
+  const nyt = nykyinenOsa(layout, asema, ampujat, kortit, keskeyttaneet);
+  if (!nyt) return null;
+  const { osa, mukana } = nyt;
   const i = mukana.findIndex((a) => a.nro === valittu);
   if (i === -1) return null;
-  const { alku, loppu } = asemanVali(layout, asema);
   for (let k = 1; k <= mukana.length; k++) {
     const { nro } = mukana[(i + k) % mukana.length];
-    const tyhja = merkitOf(kortit, layout, nro).indexOf('-', alku);
-    if (tyhja !== -1 && tyhja < loppu) return nro;
+    if (kesken(layout, nro, kortit, osa) !== -1) return nro;
   }
   return null;
 }

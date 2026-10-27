@@ -254,8 +254,14 @@ A squad code (payload `r` = squad number instead of `c`; ScoringLib lists them a
   station table (id header `LAYOUT` / `ASEMA` / `RATA` / `LANE` / `STATION` with `MAX` / `MAKS` / `MAARA` / `COUNT` right next
   to it, 26 rows below; fallback J3:K28) and `AIKATAULURYHMAKOKO`. The `LAYOUT/KISA` stations are split evenly over the
   layouts in order, as ScoringLib's `readLayouts`; station k overall is result column k on the main tab.
+  `RATAn_OHJELMA` on a one-station layout (FITASC): the pegs, comma separated, each `aS+bD` (`4S+2D, 4S+1D, 5S+1D`; a
+  double is 2 targets). Used only when the targets add up to the layout's; the phone then shows the pegs as stands
+  (singles first, then doubles with the order moved one place). Cards are still stored per sheet station.
 - `Aikataulu*` (every tab whose name starts with `Aikataulu`, in tab order): the group timetable's header row with
   `Start` and layout names, then time rows with `Ryhmä N` cells, gives each layout's round and start time for the squad.
+  The squad is the first number in the cell. With ScoringLib's `ALOITUSTAPA` = `ASEMILTA` (squads start on every stand)
+  the cell is `Ryhmä N · asema S`: S is the starting stand's id (station table id, FITASC peg number). The phone opens on
+  it, the stand order wraps from it and the first shooter moves one place per stand counted from it.
 
 Writes (created on the first save if missing):
 - `MOBIILI Layout N` (N = layout 1..): header `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, RYHMÄ, HYVÄKSYTTY`, then

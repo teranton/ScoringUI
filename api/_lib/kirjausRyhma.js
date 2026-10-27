@@ -52,8 +52,22 @@ function layoutNimet(rivit) {
   return Array.from({ length: 8 }, (_, i) => String(rivit[2 + i]?.[7] ?? '').trim()).filter(Boolean);
 }
 
-// Layoutit: [{ nro, nimi, asemat: [{ sarake, id, kohteita }], kohteita }]. Asemia on LAYOUT/KISA (muuten asemataulukon
+// FITASC-layoutin ohjelma RATAn_OHJELMA-avaimesta: pisteet pilkuilla, kukin "4S+2D" (sinkut ensin, tupla = 2 kiekkoa).
+// Palauttaa [{ sinkut, tuplat }] tai null (ei tätä muotoa, esim. Compakin "SSSD"). Sama kuin ScoringLib fitascOhjelma.
+export function fitascOhjelma(arvo) {
+  const teksti = String(arvo ?? '').trim().toUpperCase();
+  if (!teksti) return null;
+  const pisteet = teksti.split(/\s*[,;]\s*/).filter(Boolean).map((osa) => {
+    const m = osa.match(/^(?:(\d+)\s*S)?\s*\+?\s*(?:(\d+)\s*D)?$/);
+    if (!m || (m[1] === undefined && m[2] === undefined)) return null;
+    return { sinkut: Number(m[1] || 0), tuplat: Number(m[2] || 0) };
+  });
+  return pisteet.length && pisteet.length <= 20 && pisteet.every((p) => p && p.sinkut + p.tuplat > 0) ? pisteet : null;
+}
+
+// Layoutit: [{ nro, nimi, asemat: [{ sarake, id, kohteita }], kohteita, ohjelma? }]. Asemia on LAYOUT/KISA (muuten asemataulukon
 // asemat, joilla on maksimi), ja ne jaetaan tasan layouteille järjestyksessä. sarake on aseman tulossarake (1..) pääsivulla.
+// ohjelma: yhden aseman layoutille (FITASC) RATAn_OHJELMA-pisteet, kun niiden kiekot täsmäävät layoutiin.
 // Palauttaa { layoutit } tai { virhe }.
 export function lueLayoutit(rivit) {
   const nimet = layoutNimet(rivit);
@@ -66,7 +80,10 @@ export function lueLayoutit(rivit) {
   const per = maara / nimet.length;
   const layoutit = nimet.slice(0, MAKS_LAYOUT).map((nimi, i) => {
     const asemat = taulu.slice(i * per, (i + 1) * per).map((a, k) => ({ sarake: i * per + k + 1, id: a.id, kohteita: a.kohteita }));
-    return { nro: i + 1, nimi, asemat, kohteita: asemat.reduce((s, a) => s + a.kohteita, 0) };
+    const kohteita = asemat.reduce((s, a) => s + a.kohteita, 0);
+    const ohjelma = asemat.length === 1 ? fitascOhjelma(speksiArvo(rivit, `RATA${i + 1}_OHJELMA`)) : null;
+    const sopii = ohjelma && ohjelma.reduce((s, p) => s + p.sinkut + 2 * p.tuplat, 0) === kohteita;
+    return { nro: i + 1, nimi, asemat, kohteita, ...(sopii ? { ohjelma } : {}) };
   });
   if (layoutit.some((l) => l.kohteita < 1 || l.kohteita > MAKS_KOHTEITA)) {
     return { virhe: `KISANSPEKSIT: layoutin kiekkomäärä ei ole välillä 1–${MAKS_KOHTEITA}` };
@@ -128,9 +145,11 @@ const minuutit = (aika) => {
 };
 
 // Ryhmän vuorot ryhmäaikataulusta (Aikataulu-välilehdet välilehtijärjestyksessä): otsikkorivillä "Start" ja layoutien
-// nimet, sen alla aikarivit, joiden soluissa "Ryhmä N". Päivät välilehtien järjestyksessä ja ylhäältä alas, rinnakkaiset
-// istunnot lähtöajan mukaan (ScoringLib ScoreCardFill.squadRounds).
-// aikataulut: [{ nimi, rivit }]. Palauttaa { [layoutin nro]: { kierros (0..), aika, paiva } }; tyhjä, jos ryhmää ei löydy.
+// nimet, sen alla aikarivit, joiden soluissa "Ryhmä N" tai asemalähdössä "Ryhmä N · asema S" (ryhmä = solun ensimmäinen
+// luku, S = lähtöaseman tunnus). Päivät välilehtien järjestyksessä ja ylhäältä alas, rinnakkaiset istunnot lähtöajan
+// mukaan (ScoringLib ScoreCardFill.squadRounds).
+// aikataulut: [{ nimi, rivit }]. Palauttaa { [layoutin nro]: { kierros (0..), aika, paiva, alkuasema? } }; tyhjä, jos
+// ryhmää ei löydy.
 export function ryhmanVuorot(aikataulut, layoutit, ryhma) {
   const haetut = new Map(layoutit.map((l) => [n(l.nimi), l.nro]));
   const vuorot = [];
@@ -146,16 +165,20 @@ export function ryhmanVuorot(aikataulut, layoutit, ryhma) {
           const aika = minuutit(aikaRivi[sc]);
           if (aika === null) break;
           for (const { c, nro } of sarakkeet) {
-            const m = String(aikaRivi[c] ?? '').match(/(\d+)\s*$/);
+            const solu = String(aikaRivi[c] ?? '');
+            const m = solu.match(/(\d+)/);
             if (!m || Number(m[1]) !== ryhma || vuorot.some((x) => x.nro === nro)) continue;
-            vuorot.push({ nro, avain: [v, r, aika], aika: String(aikaRivi[sc]).trim(), paiva: nimi });
+            const asema = solu.match(/asema\s*([^\s·,;)]+)/i);
+            vuorot.push({ nro, avain: [v, r, aika], aika: String(aikaRivi[sc]).trim(), paiva: nimi, ...(asema ? { alkuasema: asema[1].slice(0, 20) } : {}) });
           }
         }
       });
     });
   });
   vuorot.sort((a, b) => a.avain[0] - b.avain[0] || a.avain[1] - b.avain[1] || a.avain[2] - b.avain[2]);
-  return Object.fromEntries(vuorot.map((x, kierros) => [x.nro, { kierros, aika: x.aika, paiva: x.paiva }]));
+  return Object.fromEntries(vuorot.map((x, kierros) => [x.nro, {
+    kierros, aika: x.aika, paiva: x.paiva, ...(x.alkuasema ? { alkuasema: x.alkuasema } : {})
+  }]));
 }
 
 // --- Kortit ---

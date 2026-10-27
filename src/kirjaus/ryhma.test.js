@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  aloitusAsema, aloitusLayout, asemaKiekolle, asemanVali, hyvaksy, kierrata, korttiAvain, kuittaa, lahettamattomat,
+  aloitusAsema, aloitusLayout, asemaJarjestys, asemaKiekolle, asemanSiirto, asemanVali, hyvaksy, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, kierrata, korttiAvain, kuittaa, lahettamattomat,
   layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, yhdistaPalvelimelta
 } from './ryhma.js';
 
@@ -30,6 +30,56 @@ test('kirjaus etenee ampuja kerrallaan aseman loppuun, valittu ampuja ensin', ()
   assert.equal(seuraavaAmpuja(L1, 1, AMPUJAT, t.kortit, 4), 5);
   assert.equal(merkitOf(t.kortit, L1, 4), 'XO---');
   assert.equal(t.historia.length, 2);
+});
+
+test('asemalähtö: puhelin avautuu lähtöasemalta, järjestys kiertää ja aloittaja siirtyy siitä lukien', () => {
+  const L3 = {
+    nro: 3, nimi: 'Pelto', kohteita: 6, kierros: 1, alkuasema: '3',
+    asemat: [1, 2, 3].map((k) => ({ sarake: k, id: String(k), kohteita: 2 }))
+  };
+  assert.deepEqual(asemaJarjestys(L3), [2, 0, 1]);
+  assert.deepEqual(asemaJarjestys({ ...L3, alkuasema: '9' }), [0, 1, 2], 'tuntematon lähtöasema: alusta');
+  assert.deepEqual([2, 0, 1].map((a) => asemanSiirto(L3, a)), [1, 2, 3]);
+  let t = tila();
+  assert.equal(aloitusAsema(L3, AMPUJAT, t.kortit), 2);
+  for (const nro of [4, 5]) for (const i of [4, 5]) t = merkitse(t, L3, { nro, i }, 'X', 1);
+  assert.equal(aloitusAsema(L3, AMPUJAT, t.kortit), 0);
+  assert.equal(seuraavaAsema(L3, 2, AMPUJAT, t.kortit), 0);
+  for (const nro of [4, 5]) for (const i of [0, 1, 2, 3]) t = merkitse(t, L3, { nro, i }, 'X', 2);
+  assert.equal(seuraavaAsema(L3, 1, AMPUJAT, t.kortit), null);
+  assert.equal(aloitusAsema(L3, AMPUJAT, t.kortit), 1, 'valmis layout: viimeinen ammuttu asema');
+});
+
+test('FITASC: ohjelman pisteet asemina, sinkut ensin ja tuplissa järjestys siirtyy yhdellä', () => {
+  const F = {
+    nro: 1, nimi: 'A', kohteita: 11, kierros: 0,
+    asemat: [{ sarake: 1, id: '1', kohteita: 11 }],
+    ohjelma: [{ sinkut: 2, tuplat: 1 }, { sinkut: 1, tuplat: 2 }, { sinkut: 0, tuplat: 1 }]
+  };
+  assert.deepEqual(pisteet(F).map((p) => [p.id, p.alku, p.loppu, p.osat.map((o) => `${o.nimi}${o.alku}-${o.loppu}/${o.siirto}`)]), [
+    ['1', 0, 4, ['sinkut0-2/0', 'tuplat2-4/1']],
+    ['2', 4, 9, ['sinkut4-5/0', 'tuplat5-9/1']],
+    ['3', 9, 11, ['tuplat9-11/0']]
+  ]);
+  assert.equal(pisteet({ ...F, kohteita: 12 }).length, 1, 'kiekot eivät täsmää: taulukon asema');
+  assert.deepEqual([0, 3, 4, 10].map((i) => pisteKiekolle(F, i)), [0, 0, 1, 2]);
+  assert.equal(kohdanOsa(F, 0, 3).nimi, 'tuplat');
+  const kolme = [{ nro: 1 }, { nro: 2 }, { nro: 3 }];
+  let t = tila();
+  // Sinkut: 1, 2, 3 kukin omansa loppuun.
+  const ammu = (odotettu) => {
+    const k = seuraavaKohta(F, 0, kolme, t.kortit);
+    assert.equal(k.nro, odotettu);
+    t = merkitse(t, F, k, 'X', 1);
+  };
+  for (const nro of [1, 1, 2, 2, 3, 3]) ammu(nro);
+  // Tuplat: 2, 3, 1.
+  for (const nro of [2, 2, 3, 3, 1, 1]) ammu(nro);
+  assert.equal(seuraavaKohta(F, 0, kolme, t.kortit), null);
+  // Seuraava piste: aloittaja siirtyy yhdellä (asemanSiirto), sinkut 2, 3, 1.
+  const vuoro = kierrata(kolme, asemanSiirto(F, 1));
+  assert.equal(seuraavaKohta(F, 1, vuoro, t.kortit).nro, 2);
+  assert.equal(seuraavaAmpuja(F, 1, vuoro, t.kortit, 2), 3);
 });
 
 test('peru palauttaa edellisen merkin; muutos poistaa hyväksynnän', () => {
