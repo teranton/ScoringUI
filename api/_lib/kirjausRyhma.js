@@ -62,7 +62,7 @@ export function fitascOhjelma(arvo) {
     if (!m || (m[1] === undefined && m[2] === undefined)) return null;
     return { sinkut: Number(m[1] || 0), tuplat: Number(m[2] || 0) };
   });
-  return pisteet.length && pisteet.length <= 20 && pisteet.every((p) => p && p.sinkut + p.tuplat > 0) ? pisteet : null;
+  return pisteet.length && pisteet.every((p) => p && p.sinkut + p.tuplat > 0) ? pisteet : null;
 }
 
 // Layoutit: [{ nro, nimi, asemat: [{ sarake, id, kohteita }], kohteita, ohjelma? }]. Asemia on LAYOUT/KISA (muuten asemataulukon
@@ -168,7 +168,7 @@ export function ryhmanVuorot(aikataulut, layoutit, ryhma) {
             const solu = String(aikaRivi[c] ?? '');
             const m = solu.match(/(\d+)/);
             if (!m || Number(m[1]) !== ryhma || vuorot.some((x) => x.nro === nro)) continue;
-            const asema = solu.match(/asema\s*([^\s·,;)]+)/i);
+            const asema = solu.match(/asema\s*(.+?)\s*$/i);
             vuorot.push({ nro, avain: [v, r, aika], aika: String(aikaRivi[sc]).trim(), paiva: nimi, ...(asema ? { alkuasema: asema[1].slice(0, 20) } : {}) });
           }
         }

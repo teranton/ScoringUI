@@ -81,6 +81,8 @@ test('ryhmän vuorot ryhmäaikataulusta: kierros, aika ja päivä', () => {
   const asemilta = [{ nimi: 'Aikataulu', rivit: [['Start', 'Metsä', 'Järvi'], ['8.30', 'Ryhmä 12 · asema 2', 'Ryhmä 2 · asema 4']] }];
   assert.deepEqual(ryhmanVuorot(asemilta, layoutit, 2), { 2: { kierros: 0, aika: '8.30', paiva: 'Aikataulu', alkuasema: '4' } });
   assert.deepEqual(ryhmanVuorot(asemilta, layoutit, 12)[1].alkuasema, '2');
+  const valilla = [{ nimi: 'Aikataulu', rivit: [['Start', 'Metsä'], ['8.30', 'Ryhmä 1 · asema P 3 ']] }];
+  assert.equal(ryhmanVuorot(valilla, layoutit, 1)[1].alkuasema, 'P 3', 'aseman tunnus sellaisenaan');
   assert.deepEqual(ryhmanVuorot([], layoutit, 1), {});
 });
 

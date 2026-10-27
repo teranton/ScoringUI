@@ -219,7 +219,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const layout = jarjestys.find((l) => l.nro === tila.layout) || aloitusLayout(jarjestys, ampujat, tila.kortit, tila.keskeyttaneet);
   // Puhelimen asemat: taulukon asemat, FITASCissa ohjelman pisteet (ryhma.js pisteet).
   const asemat = useMemo(() => (layout ? pisteet(layout) : []), [layout]);
-  const asema = layout ? Math.min(tila.asema ?? aloitusAsema(layout, ampujat, tila.kortit), asemat.length - 1) : 0;
+  const asema = layout ? Math.min(tila.asema ?? aloitusAsema(layout, ampujat, tila.kortit, tila.keskeyttaneet), asemat.length - 1) : 0;
   // Aseman ampumajärjestys: aloittaja siirtyy yhdellä per layoutin kierros (kuten paperikortissa) ja per asema
   // lähtöasemalta lukien. FITASCin tuplissa järjestys siirtyy vielä yhdellä (seuraavaKohta).
   const siirto = layout ? asemanSiirto(layout, asema) : 0;
@@ -384,7 +384,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
 
   const valitseLayout = (nro) => {
     const l = jarjestys.find((x) => x.nro === nro);
-    setTila((t) => ({ ...t, layout: nro, asema: l ? aloitusAsema(l, ampujat, t.kortit) : 0, valittu: null }));
+    setTila((t) => ({ ...t, layout: nro, asema: l ? aloitusAsema(l, ampujat, t.kortit, t.keskeyttaneet) : 0, valittu: null }));
     setValikko(false);
   };
   const valitseAsema = (a) => setTila((t) => ({ ...t, layout: layout?.nro ?? null, asema: a, valittu: null }));

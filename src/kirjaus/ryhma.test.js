@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  aloitusAsema, aloitusLayout, asemaJarjestys, asemaKiekolle, asemanSiirto, asemanVali, hyvaksy, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, kierrata, korttiAvain, kuittaa, lahettamattomat,
+  aloitusAsema, aloitusLayout, asemaJarjestys, asemanSiirto, asemanVali, hyvaksy, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, kierrata, korttiAvain, kuittaa, lahettamattomat,
   layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, yhdistaPalvelimelta
 } from './ryhma.js';
 
@@ -80,6 +80,18 @@ test('FITASC: ohjelman pisteet asemina, sinkut ensin ja tuplissa järjestys siir
   const vuoro = kierrata(kolme, asemanSiirto(F, 1));
   assert.equal(seuraavaKohta(F, 1, vuoro, t.kortit).nro, 2);
   assert.equal(seuraavaAmpuja(F, 1, vuoro, t.kortit, 2), 3);
+  // Valittu ampuja ensin, vaikka hänen tyhjänsä ovat tuplissa ja muilla on sinkkuja.
+  let u = tila();
+  for (const i of [0, 1]) u = merkitse(u, F, { nro: 1, i }, 'X', 1);
+  assert.deepEqual(seuraavaKohta(F, 0, kolme, u.kortit, 1), { nro: 1, i: 2 });
+  assert.deepEqual(seuraavaKohta(F, 0, kolme, u.kortit), { nro: 2, i: 0 });
+  // Keskeyttänyt (1): sinkut 2, 3 ja tuplat 3, 2.
+  let v = tila();
+  for (const nro of [2, 3]) for (const i of [0, 1]) v = merkitse(v, F, { nro, i }, 'X', 1);
+  assert.equal(seuraavaKohta(F, 0, kolme, v.kortit, null, [1]).nro, 3);
+  assert.equal(aloitusAsema(F, kolme, v.kortit, [1]), 0);
+  for (const nro of [2, 3]) for (const i of [2, 3]) v = merkitse(v, F, { nro, i }, 'X', 2);
+  assert.equal(aloitusAsema(F, kolme, v.kortit, [1]), 1, 'keskeyttäneen tyhjiä ei odoteta');
 });
 
 test('peru palauttaa edellisen merkin; muutos poistaa hyväksynnän', () => {
@@ -130,7 +142,7 @@ test('kierrätys, kiekon asema ja keskeyttäneet layoutin hyväksynnässä', () 
   assert.deepEqual(kierrata(kolme, 1).map((a) => a.nro), [2, 3, 1]);
   assert.deepEqual(kierrata(kolme, 4).map((a) => a.nro), [2, 3, 1]);
   assert.deepEqual(kierrata(kolme, undefined).map((a) => a.nro), [1, 2, 3]);
-  assert.deepEqual([0, 1, 2, 4].map((i) => asemaKiekolle(L1, i)), [0, 0, 1, 1]);
+  assert.deepEqual([0, 1, 2, 4].map((i) => pisteKiekolle(L1, i)), [0, 0, 1, 1]);
 
   // Ampuja 5 keskeytti: layout on hyväksytty, kun ampuja 4 hyväksyy.
   let t = tila();
