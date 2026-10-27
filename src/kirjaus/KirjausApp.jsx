@@ -1,6 +1,7 @@
 // Mobiilikirjaus: Compak-radan laite kirjaa inline-linjan tulokset sarja kerrallaan (linja.js).
 // Ratakoodi tulee QR-koodin linkistä (kirjaus.html#k=<koodi>) ja tallennetaan laitteelle.
-// Merkinnät tallennetaan heti laitteelle ja lähetetään taulukkoon taustalla (api/kirjaus.js).
+// Merkinnät tallennetaan heti laitteelle ja lähetetään taulukkoon taustalla (api/kirjaus.js). Ilman verkkoa
+// kirjaus jatkuu: sovellus aukeaa palvelutyöntekijän välimuistista ja kortit lähtevät, kun yhteys palaa.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ASEMAN_KOHTEET, KOHTEITA, kuittaa, lahettamattomat, lueKoodi as lueKoodinSisalto, merkitOf, merkitse,
@@ -9,8 +10,13 @@ import {
 import {
   ASEMIA, OHJELMAT, jasennaOhjelma, laskeVuorot, linjanTilanne, ohjelmaTekstiksi, radanLinjajono, tulevatAmpujat
 } from './linja.js';
-import { laitteenTunnus, lueKoodi, lueRata, tallennaKoodi, tallennaRata } from './varasto.js';
+import {
+  kirjaaMerkinta, laitteenTunnus, lueKoodi, lueMerkinnat, lueRata, lueRataTietokannasta, poistaRataTietokannasta,
+  pyydaPysyvaTallennus, siivoaMerkinnat, tallennaKoodi, tallennaRata, tallennaRataTietokantaan
+} from './varasto.js';
 import { useHereilla } from './useHereilla.js';
+import { onIos, pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
+import Lukitus from './Lukitus.jsx';
 import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
 
 const SYNKRONOINTI_VALI_MS = 15000;
@@ -21,6 +27,8 @@ const KESKEN_VIIVE_MS = 10000;
 const NAPAUTUSVALI_MS = 150;
 const KUITTAUS_MS = 6000;
 const VALAHDYS_MS = 2500;
+// Yhteyskatkon kesto otsikossa päivitetään puolen minuutin välein.
+const KELLO_MS = 30000;
 
 function alkuKoodi() {
   const k = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('k');
@@ -91,7 +99,12 @@ function RataNakyma({ koodi, onVaihda }) {
 
   const [tila, setTila] = useState(() => alkutila(lueRata(info.sheetId, info.sarake)));
   const [lataus, setLataus] = useState({ tila: 'ladataan', viesti: '', pysyva: false });
-  const [synk, setSynk] = useState({ virhe: '', viimeksi: null });
+  // katkesi: ensimmäisen epäonnistuneen lähetyksen aika viimeisen onnistuneen jälkeen (otsikon "ei yhteyttä 12 min").
+  const [synk, setSynk] = useState({ virhe: '', viimeksi: null, katkesi: null });
+  const [lukittu, setLukittu] = useState(false);
+  // Laitteelle tallennus: ok (ainakin toinen kopio onnistui), pysyva = selain lupasi olla poistamatta tietoja.
+  const [tallennus, setTallennus] = useState({ ok: true, pysyva: false });
+  const asennus = useAsennus();
   const [valinta, setValinta] = useState(null);
   const [naytetty, setNaytetty] = useState(null);
   // Korjauksen tai perumisen kuittaus hetken näytöllä: mitä muutettiin ja mistä jatketaan.
@@ -121,14 +134,49 @@ function RataNakyma({ koodi, onVaihda }) {
   const lahettaaRef = useRef(false);
   // Testiversion "Tyhjennä rata laitteelta": ei enää tallenneta eikä lähetetä ennen sivun uudelleenlatausta.
   const tyhjennettyRef = useRef(false);
+  // Tallennusten järjestysnumero: kahdesta kopiosta (localStorage, IndexedDB) uudempi on se, jolla numero on suurempi.
+  const jarjestysRef = useRef(tila.jarjestys || 0);
+  const alkuTilaRef = useRef(tila);
+  // IndexedDB-kopioon kirjoitetaan vasta, kun se on luettu ja verrattu (muuten avaus kirjoittaisi sen yli).
+  const [kopioLuettu, setKopioLuettu] = useState(false);
+
+  // Jos localStorage-kopio puuttuu tai on vanhempi (tallennus epäonnistui, selain tyhjensi sen), jatketaan
+  // IndexedDB:n kopiosta. Vain jos tällä sivulla ei ole vielä ehditty muuttaa mitään.
+  useEffect(() => {
+    let peruttu = false;
+    lueRataTietokannasta(info.sheetId, info.sarake).then((kopio) => {
+      if (peruttu) return;
+      if (kopio && (kopio.jarjestys || 0) > jarjestysRef.current && tilaRef.current === alkuTilaRef.current) {
+        jarjestysRef.current = kopio.jarjestys;
+        setTila(alkutila(kopio));
+      }
+      setKopioLuettu(true);
+    });
+    siivoaMerkinnat();
+    pyydaPysyvaTallennus().then((pysyva) => {
+      if (!peruttu) setTallennus((t) => ({ ...t, pysyva }));
+    });
+    return () => { peruttu = true; };
+  }, [info]);
 
   useEffect(() => {
     tilaRef.current = tila;
     if (tyhjennettyRef.current) return;
-    tallennaRata(info.sheetId, info.sarake, tila);
-  }, [tila, info]);
+    jarjestysRef.current += 1;
+    const tallennettava = { ...tila, jarjestys: jarjestysRef.current };
+    const paikallinen = tallennaRata(info.sheetId, info.sarake, tallennettava);
+    if (!kopioLuettu) {
+      if (!paikallinen) setTallennus((t) => (t.ok ? { ...t, ok: false } : t));
+      return;
+    }
+    tallennaRataTietokantaan(info.sheetId, info.sarake, { tila: tallennettava, koodi, laite }).then((kopio) => {
+      const ok = paikallinen || kopio;
+      setTallennus((t) => (t.ok === ok ? t : { ...t, ok }));
+    });
+  }, [tila, info, koodi, laite, kopioLuettu]);
 
-  // Radan tiedot ja taulukossa jo olevat kortit.
+  // Radan tiedot ja taulukossa jo olevat kortit. Ilman yhteyttä jatketaan laitteelle tallennetuilla tiedoilla
+  // ja yritetään uudelleen, kun yhteys palaa.
   useEffect(() => {
     let peruttu = false;
     fetch('/api/kirjaus?toiminto=avaa', { headers: { Authorization: `Bearer ${koodi}`, 'X-Kirjaus-Laite': laite }, cache: 'no-store' })
@@ -181,12 +229,15 @@ function RataNakyma({ koodi, onVaihda }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
       setTila((t) => ({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }));
-      setSynk({ virhe: '', viimeksi: Date.now() });
+      setSynk({ virhe: '', viimeksi: Date.now(), katkesi: null });
       // Taulukossa oli toisen laitteen uudempi kortti: kaksi laitetta kirjaa samaa rataa.
       const muu = (data.uudemmat || []).find((k) => k.laite && k.laite !== laite);
       if (muu) setToinenLaite({ aika: muu.aika, nro: muu.nro });
     } catch (error) {
-      setSynk((s) => ({ ...s, virhe: error instanceof TypeError ? 'Ei yhteyttä' : error.message }));
+      const verkko = error instanceof TypeError;
+      setSynk((s) => ({ ...s, virhe: verkko ? 'Ei yhteyttä' : error.message, katkesi: s.katkesi || Date.now() }));
+      // Selain lähettää taustalla, kun yhteys palaa, vaikka sivu suljettaisiin (Chrome/Android).
+      if (verkko) pyydaTaustalahetys();
     } finally {
       lahettaaRef.current = false;
     }
@@ -206,20 +257,59 @@ function RataNakyma({ koodi, onVaihda }) {
 
   useEffect(() => {
     const vali = setInterval(laheta, SYNKRONOINTI_VALI_MS);
-    const piilossa = () => {
-      if (document.visibilityState === 'hidden') laheta();
+    const nakyvyys = () => {
+      if (document.visibilityState === 'hidden') {
+        laheta();
+        if (lahettamattomat(tilaRef.current.kortit, 1).length > 0) pyydaTaustalahetys();
+      } else laheta();
     };
     window.addEventListener('online', laheta);
-    document.addEventListener('visibilitychange', piilossa);
+    document.addEventListener('visibilitychange', nakyvyys);
     return () => {
       clearInterval(vali);
       window.removeEventListener('online', laheta);
-      document.removeEventListener('visibilitychange', piilossa);
+      document.removeEventListener('visibilitychange', nakyvyys);
     };
   }, [laheta]);
 
+  // Radan tiedot haetaan uudelleen, kun yhteys palaa tai sovellus tulee näkyviin, jos edellinen haku epäonnistui.
+  const latausVirhe = lataus.tila === 'virhe' && !lataus.pysyva;
+  useEffect(() => {
+    if (!latausVirhe) return undefined;
+    const uudelleen = () => {
+      if (document.visibilityState === 'visible') setLatausKierros((n) => n + 1);
+    };
+    window.addEventListener('online', uudelleen);
+    document.addEventListener('visibilitychange', uudelleen);
+    return () => {
+      window.removeEventListener('online', uudelleen);
+      document.removeEventListener('visibilitychange', uudelleen);
+    };
+  }, [latausVirhe]);
+
+  // Kello yhteyskatkon kestoa varten, vain katkon aikana.
+  const [nyt, setNyt] = useState(() => Date.now());
+  useEffect(() => {
+    if (!synk.katkesi) return undefined;
+    const vali = setInterval(() => setNyt(Date.now()), KELLO_MS);
+    return () => clearInterval(vali);
+  }, [synk.katkesi]);
+
   // Selain kysyy ennen sulkemista, jos jotain on lähettämättä (mobiiliselaimet eivät aina kysy;
   // merkinnät ovat silti tallessa laitteella).
+  // Takaisin-painike: sulkee ensin valikon, lukittuna ei tee mitään, muuten kysyy ennen poistumista.
+  useTakaisinVahti(() => {
+    if (lukittu) return true;
+    if (valikko) {
+      setValikko(false);
+      return true;
+    }
+    const varoitus = lahettamatta > 0
+      ? ` ${lahettamatta} ${lahettamatta === 1 ? 'kortti on' : 'korttia on'} vielä lähettämättä; ne lähtevät, kun avaat kirjauksen uudelleen.`
+      : '';
+    return !window.confirm(`Poistutaanko kirjauksesta? Merkinnät ovat tallessa laitteella.${varoitus}`);
+  });
+
   useEffect(() => {
     if (lahettamatta === 0) return undefined;
     const kysy = (e) => {
@@ -292,8 +382,14 @@ function RataNakyma({ koodi, onVaihda }) {
   };
   const kohdeTeksti = ({ nro, i }) => `${nro} ${nimi(nro)}, asema ${Math.floor(i / ASEMAN_KOHTEET) + 1}, kiekko ${(i % ASEMAN_KOHTEET) + 1}`;
 
+  // Merkintäloki laitteelle (IndexedDB) ennen näytön päivitystä: jokainen napautus jää talteen tarkistusta varten.
+  const kirjaa = (tapa, { nro, i }, ennen, jalkeen) => {
+    kirjaaMerkinta(info.sheetId, info.sarake, { laite, tapa, nro, kiekko: i + 1, ennen, jalkeen });
+  };
+
   const merkitseKohta = (merkki) => {
     if (korjaustila || valinta || !tilanne || liianPian()) return;
+    kirjaa('merkintä', tilanne.kohta, merkitOf(tila.kortit, tilanne.kohta.nro)[tilanne.kohta.i], merkki);
     setTila((t) => ({ ...t, ...merkitse(t, tilanne.kohta, merkki) }));
     const { nro, asema, alku, loppu } = tilanne.vuoro;
     setValahdys({ nro, asema, alku, loppu, aika: Date.now() });
@@ -307,7 +403,9 @@ function RataNakyma({ koodi, onVaihda }) {
   // Korjaus vaihtaa jo merkityn kiekon osumasta nollaksi tai päinvastoin; ampumattomaan ei voi merkitä.
   const korjaa = () => {
     if (!valinta || liianPian()) return;
-    const uusi = merkitOf(tila.kortit, valinta.nro)[valinta.i] === 'X' ? 'O' : 'X';
+    const vanha = merkitOf(tila.kortit, valinta.nro)[valinta.i];
+    const uusi = vanha === 'X' ? 'O' : 'X';
+    kirjaa('korjaus', valinta, vanha, uusi);
     korjattiinRef.current = true;
     setTila((t) => ({ ...t, ...merkitse(t, valinta, uusi) }));
     setKuittaus(`Korjattu: ${kohdeTeksti(valinta)} → ${uusi === 'X' ? 'OSUMA' : 'NOLLA'}.`);
@@ -320,6 +418,7 @@ function RataNakyma({ koodi, onVaihda }) {
     if (liianPian()) return;
     const p = peru(tila);
     if (!p) return;
+    kirjaa('peru', p.kohta, merkitOf(tila.kortit, p.kohta.nro)[p.kohta.i], merkitOf(p.kortit, p.kohta.nro)[p.kohta.i]);
     // Peru lasketaan uudelleen tuoreimmasta tilasta, ettei välissä tullut kuittaus tai avaus katoa.
     setTila((t) => {
       const tuore = peru(t);
@@ -392,12 +491,37 @@ function RataNakyma({ koodi, onVaihda }) {
     setValinta(null);
   };
 
-  const tyhjennaRata = () => {
+  const tyhjennaRata = async () => {
     const varoitus = lahettamatta > 0 ? ` ${lahettamatta} lähettämätöntä korttia häviää.` : '';
     if (!window.confirm(`Tyhjennetäänkö radan ${info.sarake} tiedot tältä laitteelta?${varoitus} Taulukkoon tallennetut tulokset eivät muutu.`)) return;
     tyhjennettyRef.current = true;
     tallennaRata(info.sheetId, info.sarake, null);
+    // Merkintäloki jää; radan kopio poistetaan ennen uudelleenlatausta, ettei sitä palauteta.
+    await poistaRataTietokannasta(info.sheetId, info.sarake);
     window.location.reload();
+  };
+
+  // Laitteen merkintäloki tiedostona (esim. kilpailutoimistolle, jos tulosta joudutaan selvittämään).
+  const lataaLoki = async () => {
+    const rivit = await lueMerkinnat(info.sheetId, info.sarake);
+    const tiedosto = new Blob([JSON.stringify({ kisa: avaus?.kisa, rata: info.sarake, laite, merkinnat: rivit.map((r) => ({
+      ...r, aika: new Date(r.aika).toISOString()
+    })) }, null, 1)], { type: 'application/json' });
+    const linkki = document.createElement('a');
+    linkki.href = URL.createObjectURL(tiedosto);
+    linkki.download = `kirjaus-rata${info.sarake}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}.json`;
+    linkki.click();
+    setTimeout(() => URL.revokeObjectURL(linkki.href), 10000);
+  };
+
+  // Asennettu sovellus iPhonessa ei näe Safarin tallennuksia, joten koodi liitetään sinne erikseen.
+  const kopioiKoodi = async () => {
+    try {
+      await navigator.clipboard.writeText(koodi);
+      window.alert('Ratakoodi kopioitu. Liitä se asennetun sovelluksen aloitusnäkymään.');
+    } catch {
+      window.prompt('Kopioi ratakoodi:', koodi);
+    }
   };
 
   const vaihdaRata = () => {
@@ -433,7 +557,8 @@ function RataNakyma({ koodi, onVaihda }) {
         </div>
         <div className="hidden truncate text-xs opacity-80 sm:block">{avaus.kisa}{ohjelmaTeksti ? ` · ohjelma ${ohjelmaTeksti}` : ''}</div>
       </div>
-      <SynkMerkki lahettamatta={lahettamatta} virhe={synk.virhe} />
+      <SynkMerkki lahettamatta={lahettamatta} virhe={synk.virhe} katkesi={synk.katkesi} nyt={nyt} />
+      <button type="button" aria-label="Lukitse näyttö" className="rounded px-2 py-1 text-xl sm:py-2" onClick={() => { setValikko(false); setLukittu(true); }}>🔒</button>
       <button type="button" aria-label="Valikko" className="rounded px-3 py-1 text-xl sm:py-2" onClick={() => setValikko((v) => !v)}>☰</button>
     </header>
   );
@@ -461,6 +586,10 @@ function RataNakyma({ koodi, onVaihda }) {
       hereilla={hereilla}
       lataus={lataus}
       viimeksi={synk.viimeksi}
+      tallennus={tallennus}
+      asennus={asennus}
+      onKopioiKoodi={kopioiKoodi}
+      onLataaLoki={lataaLoki}
     />
   );
 
@@ -529,6 +658,13 @@ function RataNakyma({ koodi, onVaihda }) {
   return (
     <main className="flex h-screen supports-[height:100dvh]:h-[100dvh] flex-col overflow-hidden bg-slate-100 text-slate-900 select-none">
       {otsikko}
+      {lukittu && <Lukitus onAvaa={() => setLukittu(false)} />}
+      {!tallennus.ok && (
+        <div className="shrink-0 bg-red-700 px-3 py-2 text-sm font-semibold text-white">
+          Merkintöjä ei saada tallennettua laitteelle (selaimen tallennustila täynnä tai estetty). Ne lähtevät taulukkoon,
+          kun yhteys toimii, mutta sivun sulkeminen hävittää lähettämättömät. Käytä tarvittaessa paperikorttia.
+        </div>
+      )}
       {toinenLaite && (
         <div className="flex shrink-0 items-center gap-2 bg-amber-100 px-3 py-2 text-sm text-amber-900">
           <span className="min-w-0 flex-1">
@@ -701,11 +837,15 @@ function alkutila(tallessa) {
   return { ...t, lisatyt: t.lisatyt.map((l) => (typeof l === 'number' ? { nro: l } : l)) };
 }
 
-function SynkMerkki({ lahettamatta, virhe }) {
-  if (lahettamatta === 0) return <span className="rounded bg-green-700 px-2 py-1 text-xs font-semibold">✓ Tallennettu</span>;
+// Otsikon lähetystila: kaikki lähetetty / N korttia lähettämättä / ei yhteyttä N min (katko alkoi ensimmäisestä
+// epäonnistuneesta lähetyksestä).
+function SynkMerkki({ lahettamatta, virhe, katkesi, nyt }) {
+  if (lahettamatta === 0) return <span className="rounded bg-green-700 px-2 py-1 text-xs font-semibold">✓ Kaikki lähetetty</span>;
+  const minuutit = katkesi ? Math.max(0, Math.floor((nyt - katkesi) / 60000)) : 0;
+  const syy = virhe === 'Ei yhteyttä' ? `ei yhteyttä${minuutit > 0 ? ` ${minuutit} min` : ''}` : virhe;
   return (
-    <span className={`rounded px-2 py-1 text-xs font-semibold ${virhe ? 'bg-red-700' : 'bg-amber-600'}`} title={virhe}>
-      {lahettamatta} lähettämättä{virhe ? ` · ${virhe}` : ''}
+    <span className={`rounded px-2 py-1 text-right text-xs leading-tight font-semibold ${virhe ? 'bg-red-700' : 'bg-amber-600'}`} title={virhe}>
+      {lahettamatta} {lahettamatta === 1 ? 'kortti' : 'korttia'} lähettämättä{syy ? <><br className="sm:hidden" /><span className="hidden sm:inline"> · </span>{syy}</> : ''}
     </span>
   );
 }
@@ -790,7 +930,10 @@ function OhjelmaEditori({ alku, kisanArvo, kisanOhjelma, sarake, onTallenna, onP
   );
 }
 
-function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorjaa, aanet, onAanet, nollaAani, onNollaAani, onTyhjenna, hereilla, lataus, viimeksi }) {
+function Valikko({
+  ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorjaa, aanet, onAanet, nollaAani, onNollaAani, onTyhjenna,
+  hereilla, lataus, viimeksi, tallennus, asennus, onKopioiKoodi, onLataaLoki
+}) {
   const [nro, setNro] = useState('');
   return (
     <div className="flex flex-col gap-3 border-b border-slate-300 bg-white p-3 text-sm">
@@ -837,13 +980,42 @@ function Valikko({ ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorj
         {hereilla ? 'Näyttö pysyy päällä.' : 'Näytön päälläpito ei ole käytössä tällä selaimella.'}
         {lataus.tila === 'virhe' ? ` Radan tietoja ei saatu päivitettyä (${lataus.viesti}).` : ''}
         {viimeksi ? ` Viimeksi lähetetty klo ${new Date(viimeksi).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}.` : ''}
+        {' '}Merkinnät tallentuvat laitteelle ja toimivat ilman verkkoa{tallennus.pysyva ? '' : ' (selain voi poistaa ne, jos levytila loppuu)'}.
       </p>
-      <button type="button" className="self-start rounded border border-slate-400 px-3 py-2" onClick={onVaihdaRata}>Vaihda ratakoodi</button>
+      <Asennus asennus={asennus} onKopioiKoodi={onKopioiKoodi} />
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onVaihdaRata}>Vaihda ratakoodi</button>
+        <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onLataaLoki}>Lataa merkintäloki</button>
+      </div>
       {onTyhjenna && (
         <button type="button" className="self-start rounded border border-red-700 px-3 py-2 text-red-800" onClick={onTyhjenna}>
           Tyhjennä rata laitteelta (testiversio)
         </button>
       )}
+    </div>
+  );
+}
+
+// Asennus aloitusnäytölle: ei osoiteriviä eikä välilehtiä, joten kirjaus ei sulkeudu vahingossa.
+function Asennus({ asennus, onKopioiKoodi }) {
+  if (asennus.asennettu) return <p className="text-slate-600">Käytössä asennettuna sovelluksena.</p>;
+  return (
+    <div className="flex flex-col gap-2 rounded border border-slate-300 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span><b>Asenna sovellukseksi</b>: aukeaa koko näytölle ilman osoiteriviä.</span>
+        {asennus.asenna && <button type="button" className="shrink-0 rounded bg-blue-800 px-3 py-2 text-white" onClick={asennus.asenna}>Asenna</button>}
+      </div>
+      {!asennus.asenna && (onIos() ? (
+        <>
+          <p className="text-slate-600">
+            Safarissa: Jaa ⎙ → Lisää Koti-valikkoon. Asennettu sovellus ei näe Safarin tietoja, joten kopioi ratakoodi
+            ensin ja liitä se sovellukseen. Lähettämättömät kortit lähtevät Safarista, kun avaat sen uudelleen.
+          </p>
+          <button type="button" className="self-start rounded border border-slate-400 px-3 py-2" onClick={onKopioiKoodi}>Kopioi ratakoodi</button>
+        </>
+      ) : (
+        <p className="text-slate-600">Selaimen valikosta: Asenna sovellus tai Lisää aloitusnäytölle.</p>
+      ))}
     </div>
   );
 }
