@@ -295,11 +295,12 @@ Writes (created on the first save if missing):
   `KUITATUT`, or `HYVÄKSYTTY` (always for FITASC pegs). Rules: an empty cell gets the result; a cell holding the card's
   previous complete result (written by mobile) follows a corrected card, and is emptied when a correction makes the
   station incomplete or unconfirmed; any other value or a formula is never changed, nor is any cell of a result column
-  filled by an array formula (a spilled cell, or `ARRAYFORMULA`, `SEQUENCE` … below the header) and the save's `MOBIILI_LOKI` row
+  filled by an array formula (a spilled cell, `ARRAYFORMULA` anywhere in the column including the header row, or a formula starting with `{`, `SEQUENCE(`, `FILTER(` …) and the save's `MOBIILI_LOKI` row
   says so in `HUOM` (`TULOS 23 EI KIRJOITETTU: SARAKKEESSA 2 ON 21`). Written results are logged as
   `TULOS 23 SARAKKEESEEN 2`. If the write is refused (protected main tab: Sheets answers 400 or 403), the card
   is saved without the result and the note ends `EPÄONNISTUI (PÄÄSIVU SUOJATTU)`. NRO is matched by the normalised
-  header (`Nro.` = `NRO`); a squad station's id is compared as a number when it is one (`1,0` = `1`). A paper result typed between the read and the write can be overwritten;
+  header (`Nro.` = `NRO`), and a Compak card's `NIMI` must share a word with the main tab's `NIMI` (numbers can change
+  after a reshuffle; ScoringLib's import uses the same rule); a squad station's id is compared as a number when it is one (`1,0` = `1`). A paper result typed between the read and the write can be overwritten;
   the window is under a second.
 
 ## To do

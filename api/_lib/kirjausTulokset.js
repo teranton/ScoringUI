@@ -49,10 +49,21 @@ export function paaSarakkeet(otsikko) {
     if (/^\d+$/.test(x) && tulos[Number(x)] === undefined) tulos[Number(x)] = i;
   });
   const nro = h.findIndex((x) => normalisoiAsetus(x) === 'NRO');
-  return { nro: nro >= 0 ? nro : 0, tulos };
+  const nimi = h.findIndex((x) => normalisoiAsetus(x) === 'NIMI');
+  return { nro: nro >= 0 ? nro : 0, nimi: nimi >= 0 ? nimi : 2, tulos };
 }
 
-// Tulossolujen paikat: kohteet [{ nro, sarake, ... }] → sama lista, jossa rivi ja sarakeIndeksi (0-pohjaiset) tai puuttuu.
+// Sama ampuja: nimissä on yhteinen vähintään kahden kirjaimen sana (laite voi näyttää nimen eri muodossa kuin pääsivu,
+// esim. "Aaltonen A"). Tyhjä nimi ei estä. Sama kuin ScoringLibin MobiiliTulokset.samaAmpuja.
+export function samaAmpuja(a, b) {
+  const sanat = (x) => String(x || '').toLowerCase().replace(/\u200b/g, '').split(/[^a-zåäöüéè]+/).filter((w) => w.length >= 2);
+  const sa = sanat(a);
+  const sb = sanat(b);
+  return sa.length === 0 || sb.length === 0 || sa.some((w) => sb.includes(w));
+}
+
+// Tulossolujen paikat: kohteet [{ nro, sarake, nimi?, ... }] → sama lista, jossa rivi ja sarakeIndeksi (0-pohjaiset) tai
+// puuttuu. Kortin nimi (laitteen näyttämä) tarkistetaan pääsivun nimeä vasten: numerot ovat voineet vaihtua.
 export function tulosSolut(paaRivit, kohteet) {
   const s = paaSarakkeet(paaRivit?.[0]);
   const rivit = new Map();
@@ -66,6 +77,8 @@ export function tulosSolut(paaRivit, kohteet) {
     const sarakeIndeksi = s.tulos[k.sarake];
     if (rivi === undefined) return { ...k, puuttuu: 'AMPUJAA EI OLE PÄÄSIVULLA' };
     if (sarakeIndeksi === undefined) return { ...k, puuttuu: `TULOSSARAKETTA ${k.sarake} EI OLE` };
+    const paaNimi = String(paaRivit[rivi][s.nimi] ?? '').trim();
+    if (!samaAmpuja(k.nimi, paaNimi)) return { ...k, puuttuu: `NIMI EI TÄSMÄÄ PÄÄSIVUUN (${paaNimi})` };
     return { ...k, rivi, sarakeIndeksi };
   });
 }
@@ -87,13 +100,15 @@ export function paaSolut(rowData) {
   return { rivit: tiedot.map((r) => r.map((t) => t.arvo)), tiedot };
 }
 
-const TAULUKKOKAAVA = /\b(ARRAYFORMULA|SEQUENCE|MAP|BYROW|BYCOL|FILTER|QUERY|SORT|UNIQUE|FLATTEN|IMPORTRANGE)\s*\(|\{/i;
+// Aluetta täyttävä kaava (ankkurisolu): ARRAYFORMULA missä tahansa, tai kaava alkaa taulukolla tai levittyvällä funktiolla.
+// Yhden solun kaava, jonka sisällä on FILTER tms., ei lukitse saraketta. Sama kuin ScoringLibin MobiiliTulokset.TAULUKKOKAAVA.
+const TAULUKKOKAAVA = /ARRAYFORMULA\s*\(|^=\s*(\{|(SEQUENCE|MAP|BYROW|BYCOL|FILTER|QUERY|SORT|UNIQUE|FLATTEN|IMPORTRANGE)\s*\()/i;
 
-// Taulukkokaavan täyttämät tulossarakkeet (indeksit): sarakkeessa on täytetty solu tai taulukkokaava otsikon alla.
-// solut: paaSolut().tiedot.
+// Taulukkokaavan täyttämät tulossarakkeet (indeksit): sarakkeessa on täytetty solu tai taulukkokaava (myös otsikkorivillä,
+// esim. ={"1";ARRAYFORMULA(...)}). solut: paaSolut().tiedot.
 export function kaavaSarakkeet(solut, sarakeIndeksit) {
-  return new Set(sarakeIndeksit.filter((c) => (solut || []).some((r, i) => i > 0 && (r?.[c]?.taytetty
-    || TAULUKKOKAAVA.test(r?.[c]?.kaavaTeksti || '')))));
+  return new Set(sarakeIndeksit.filter((c) => (solut || []).some((r, i) => (i > 0 && r?.[c]?.taytetty)
+    || TAULUKKOKAAVA.test(r?.[c]?.kaavaTeksti || ''))));
 }
 
 // Yhden tulossolun päätös. solu: soluTieto, vanha: kortin edellinen valmis tulos tai null, uusi: valmis tulos tai null.

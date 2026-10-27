@@ -324,7 +324,7 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
   if (linja) requests.push(solut(tabit.laitteet, sarake, LINJA_SARAKE, [JSON.stringify(linja), aika]));
   const tulokset = onSuoraan(speksit)
     ? await suoratTulokset(request, sheetId, tabit.meta, kirjattavat.map(({ kortti, vanha }) => ({
-      avain: kortti.nro, nro: kortti.nro, sarake, vanha: kompakTulos(vanha?.merkit), uusi: kompakTulos(kortti.merkit)
+      avain: kortti.nro, nro: kortti.nro, nimi: kortti.nimi, sarake, vanha: kompakTulos(vanha?.merkit), uusi: kompakTulos(kortti.merkit)
     })))
     : eiTuloksia();
   const lokirivit = (huomio) => kirjattavat.map(({ kortti, vanha }) => [aika, sarake, kortti.nro, laite, kortti.versio,

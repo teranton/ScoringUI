@@ -33,12 +33,13 @@ test('ryhmäkortin asemat: valmis ja kuitattu asema, koko kortin hyväksyntä ku
 });
 
 test('tulossolut pääsivulta: NRO ja tulossarake otsikon mukaan', () => {
-  assert.deepEqual(paaSarakkeet(['Ryhmä', 'Nro.', 'NIMI', '1', 2, 'TULOS YHT.', '1']), { nro: 1, tulos: { 1: 3, 2: 4 } });
-  const rivit = [['NRO', 'NIMI', 1, 2], [5, 'A', '', ''], [7, 'B', '', '']];
-  assert.deepEqual(tulosSolut(rivit, [{ nro: 7, sarake: 2 }, { nro: 8, sarake: 1 }, { nro: 5, sarake: 3 }]), [
-    { nro: 7, sarake: 2, rivi: 2, sarakeIndeksi: 3 },
+  assert.deepEqual(paaSarakkeet(['Ryhmä', 'Nro.', 'NIMI', '1', 2, 'TULOS YHT.', '1']), { nro: 1, nimi: 2, tulos: { 1: 3, 2: 4 } });
+  const rivit = [['NRO', 'NIMI', 1, 2], [5, 'Aalto A', '', ''], [7, 'Berg B', '', '']];
+  assert.deepEqual(tulosSolut(rivit, [{ nro: 7, sarake: 2, nimi: 'Bertta Berg' }, { nro: 8, sarake: 1 }, { nro: 5, sarake: 3 }, { nro: 5, sarake: 1, nimi: 'Ek E' }]), [
+    { nro: 7, sarake: 2, nimi: 'Bertta Berg', rivi: 2, sarakeIndeksi: 3 },
     { nro: 8, sarake: 1, puuttuu: 'AMPUJAA EI OLE PÄÄSIVULLA' },
-    { nro: 5, sarake: 3, puuttuu: 'TULOSSARAKETTA 3 EI OLE' }
+    { nro: 5, sarake: 3, puuttuu: 'TULOSSARAKETTA 3 EI OLE' },
+    { nro: 5, sarake: 1, nimi: 'Ek E', puuttuu: 'NIMI EI TÄSMÄÄ PÄÄSIVUUN (Aalto A)' }
   ]);
 });
 
@@ -71,6 +72,10 @@ test('pääsivu soluina: kaava ja taulukkokaavan täyttämä sarake tunnistetaan
   assert.equal(tiedot[1][0].kaava, true);
   assert.equal(tiedot[1][1].taytetty, true);
   assert.deepEqual([...kaavaSarakkeet(tiedot, [0, 1, 2])], [1, 2]);
+  // Yhden solun kaava, jonka sisällä on FILTER, ei lukitse saraketta; otsikkorivin taulukkokaava lukitsee.
+  const kaava = (f) => ({ arvo: 1, kaava: true, kaavaTeksti: f, taytetty: false });
+  assert.deepEqual([...kaavaSarakkeet([[kaava('={"1";ARRAYFORMULA(A2:A)}')], [kaava('=INDEX(FILTER(A:A;A:A>0);1)')]], [0])], [0]);
+  assert.deepEqual([...kaavaSarakkeet([[{}], [kaava('=INDEX(FILTER(A:A;A:A>0);1)')]], [0])], []);
 });
 
 test('muuttuvat: vain kohteet, joiden valmis tulos muuttuu', () => {
