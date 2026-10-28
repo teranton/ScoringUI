@@ -31,6 +31,9 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   phone then moves to the next stand; cards go to
   `MOBIILI Layout N`, the holding phone to `MOBIILI_RYHMAT`, and another phone takes a held squad after a release or with the squad's
   office PIN (ScoringLib's PIN list, computed with `r<squad>` in place of the layout).
+  With `KISANSPEKSIT` `MOBIILI_TULOKSET` = `SUORAAN`, a save that completes a result (Compak card, or a squad station the
+  shooter confirmed) also writes it into an empty result cell of `OSALLISTUJAT+TULOKSET` (`api/_lib/kirjausTulokset.js`);
+  paper or formula cells are never changed. Default `TOIMISTO`: the office imports with ScoringLib's Tuo mobiilitulokset.
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
   time follows the registry dates (finished 1 h, served stale up to 1 day in the 14-day correction window and 30 days after it; running 15 s; upcoming 60 s).
   With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.

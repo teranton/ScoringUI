@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Mobile results into the result columns (phase 6): new `KISANSPEKSIT` key `MOBIILI_TULOKSET` (`TOIMISTO` default,
+  `SUORAAN`). With `SUORAAN`, `api/kirjaus.js` reads the main tab (`NRO` and the result column headers `1`..`N`) and
+  writes a complete result into an empty result cell of `OSALLISTUJAT+TULOKSET` (Compak card → column N, squad station k
+  → column k once the shooter confirmed it), in the same request as the card. A filled or formula cell is never
+  changed; differences go to `MOBIILI_LOKI` `HUOM`. With `TOIMISTO` nothing changes in ScoringUI: ScoringLib's
+  📱 Mobiilikirjaus › Tuo mobiilitulokset tuloksiin reads `MOBIILI Rata N` / `MOBIILI Layout N` and copies complete
+  results into empty cells. Additive: sheets without the key behave as before. ScoringLib copies get `TOIMISTO`.
+
 - Squad phone, stand starts and layout programs (phase 5b): group timetable cells may be `Ryhmä N · asema S`
   (ScoringLib's new library-only key `ALOITUSTAPA` = `ASEMILTA`); the squad is the cell's first number, S the starting
   stand. New optional key `RATAn_OHJELMA` for FITASC layouts (pegs `4S+2D, 4S+1D, …`), read by the squad phone; the

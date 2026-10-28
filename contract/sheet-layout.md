@@ -24,7 +24,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js` for Compak; `KilpailuPohja.js` menu "Luo aikataulu" for the group timetable, after registration; a new competition has only an instruction text in A1) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
-| `OSALLISTUJAT+TULOKSET` (named range `OSALLISTUJAT`) | Organiser, ScoringLib (`Distributor.js` shuffle), squad editor (`RyhmaJako.jsx`, organiser's own account) | `RyhmaJako.jsx` only, not through `api/` |
+| `OSALLISTUJAT+TULOKSET` (named range `OSALLISTUJAT`) | Organiser, ScoringLib (`Distributor.js` shuffle, `MobiiliTulokset.js` import of mobile results), squad editor (`RyhmaJako.jsx`, organiser's own account), mobile entry (`api/kirjaus.js`, writer account: result cells only with `MOBIILI_TULOKSET` = `SUORAAN`) | `RyhmaJako.jsx`; `api/kirjaus.js` with the writer account (squad phone, direct results), not through `api/kisa.js` |
 | `RANKING_vvvv` (season ranking sheet, e.g. `RANKING_2026`) | Sheet formulas from the ranking sheet's `TULOKSET` / `KISAT` tabs | `RankingTulokset.jsx`, `utils/rankingTulokset.js` |
 | `KISAT` (season ranking sheet) | Tero | `RankingTulokset.jsx`, `utils/rankingTulokset.js` (competition names) |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition; column I is the place for the weather forecast, `api/saa.js`) |
@@ -224,7 +224,7 @@ Writes (created on the first save or change of device if missing):
   `O` miss, empty not shot; `TULOS` counts the `X`s; `NIMI` is the name the device showed. A save with a version not
   newer than `VERSIO` writes nothing. The card row and its log row are written in one request.
 - `MOBIILI_LOKI`: one appended row per accepted save: `AIKA, RATA, NRO, LAITE, VERSIO, ENNEN, JÄLKEEN, HUOM`.
-  `HUOM` is empty on a save. A change of device adds a row with `RATA OTETTU: …` or `RATA LUOVUTETTU …` (no shooter).
+  `HUOM` on a save is empty or holds the direct result notes (`MOBIILI_TULOKSET` below). A change of device adds a row with `RATA OTETTU: …` or `RATA LUOVUTETTU …` (no shooter).
   A replaced device (e.g. its battery died and the layout was taken with a PIN) never writes card rows: its marks on
   targets still empty on the tab are handed to the holder in `MOBIILI_LAITTEET` `TÄYDENNYKSET` (log `KORVATTU LAITE:
   VÄLITETTY RADAN LAITTEELLE`), and the holder fills its own empty targets with them and saves as usual. Targets where it
@@ -277,7 +277,31 @@ Writes (created on the first save if missing):
   (ScoringLib's Laitteen vaihto: PIN-koodit lists held squads; the PIN is `vaihtoPin` with `r<squad>` in place of the
   layout, and `PIN-VIRHEET` counts wrong PINs as for layouts). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
 
-Nothing is written to `OSALLISTUJAT+TULOKSET` yet: the office copies the totals.
+### Results into the result columns (`MOBIILI_TULOKSET`)
+
+`KISANSPEKSIT` key `MOBIILI_TULOKSET`: `TOIMISTO` (default, also when missing) or `SUORAAN`.
+
+- A result is complete when every target of a Compak card (`MOBIILI Rata N`, 25 targets) or of a squad card's station
+  (`MOBIILI Layout N`, targets `<k>/<1..>`) is marked. Its place is the main tab row whose `NRO` (by header, fallback
+  column A) is the shooter and the first header cell whose text is the result column: N for the Compak layout, k for the
+  station.
+- `TOIMISTO`: `api/kirjaus.js` writes nothing to the main tab. ScoringLib's 📱 Mobiilikirjaus › Tuo mobiilitulokset
+  tuloksiin copies complete results into empty result cells (`MobiiliTulokset.js`, reads the card tabs by header) and
+  lists differences, incomplete cards and squad cards without `HYVÄKSYTTY`.
+- `SUORAAN`: on a save that changes a complete result (it became complete, changed, or stopped being complete),
+  `api/kirjaus.js` reads the main tab as cells (`spreadsheets.get`, `userEnteredValue` and `effectiveValue`) and writes
+  the result in the same `batchUpdate` as the card. A save that leaves the result as it was reads nothing more; results
+  completed before the key was set are imported with ScoringLib. A squad station needs the shooter's confirmation too: its stand id in
+  `KUITATUT`, or `HYVÄKSYTTY` (always for FITASC pegs). Rules: an empty cell gets the result; a cell holding the card's
+  previous complete result (written by mobile) follows a corrected card, and is emptied when a correction makes the
+  station incomplete or unconfirmed; any other value or a formula is never changed, nor is any cell of a result column
+  filled by an array formula (a spilled cell, `ARRAYFORMULA` anywhere in the column including the header row, or a formula starting with `{`, `SEQUENCE(`, `FILTER(` …) and the save's `MOBIILI_LOKI` row
+  says so in `HUOM` (`TULOS 23 EI KIRJOITETTU: SARAKKEESSA 2 ON 21`). Written results are logged as
+  `TULOS 23 SARAKKEESEEN 2`. If the write is refused (protected main tab: Sheets answers 400 or 403), the card
+  is saved without the result and the note ends `EPÄONNISTUI (PÄÄSIVU SUOJATTU)`. NRO is matched by the normalised
+  header (`Nro.` = `NRO`), and a Compak card's `NIMI` must share a word with the main tab's `NIMI` (numbers can change
+  after a reshuffle; ScoringLib's import uses the same rule); a squad station's id is compared as a number when it is one (`1,0` = `1`). A paper result typed between the read and the write can be overwritten;
+  the window is under a second.
 
 ## To do
 

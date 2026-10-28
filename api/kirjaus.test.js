@@ -10,9 +10,17 @@ let jaettu = true;
 let kirjoitukset = 0;
 let lukuja = 0;
 
+let suojattuPaa = false;
+
+const sarakeNumero = (kirjaimet) => [...kirjaimet].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1;
 function alueenTiedot(alue) {
-  const m = decodeURIComponent(alue).match(/^'((?:[^']|'')+)'(?:!A(\d+)(?::[A-Z]+(\d+))?)?/);
-  return { tab: m[1].replace(/''/g, "'"), alku: m[2] ? Number(m[2]) : 1, loppu: m[3] ? Number(m[3]) : null };
+  const m = decodeURIComponent(alue).match(/^'((?:[^']|'')+)'(?:!([A-Z]+)(\d+)(?::[A-Z]+(\d+))?)?/);
+  // Yksittäinen solu (esim. F3): vain sen sarake; muuten rivit sarakkeesta A alkaen.
+  const solu = Boolean(m[2]) && !m[4];
+  return {
+    tab: m[1].replace(/''/g, "'"), alku: m[3] ? Number(m[3]) : 1,
+    loppu: m[4] ? Number(m[4]) : (solu ? Number(m[3]) : null), sarake: solu ? sarakeNumero(m[2]) : null
+  };
 }
 const tabIdlla = (id) => Object.values(taulukko).find((t) => t.id === id);
 const soluArvo = (s) => s.userEnteredValue?.numberValue ?? s.userEnteredValue?.stringValue ?? '';
@@ -20,6 +28,19 @@ const soluArvo = (s) => s.userEnteredValue?.numberValue ?? s.userEnteredValue?.s
 async function request({ url, method = 'GET', data }) {
   if (!jaettu) throw Object.assign(new Error('forbidden'), { response: { status: 403 } });
   const u = new URL(url);
+  if (method === 'GET' && u.pathname.endsWith(ID) && u.searchParams.has('ranges')) {
+    // spreadsheets.get soluina: { kaava, arvo } = kaavasolu, { taytetty } = taulukkokaavan täyttämä solu.
+    lukuja++;
+    const { tab } = alueenTiedot(u.searchParams.get('ranges'));
+    const arvo = (v) => (typeof v === 'number' ? { numberValue: v } : { stringValue: String(v) });
+    const solu = (v) => {
+      if (v && typeof v === 'object') return v.kaava !== undefined
+        ? { userEnteredValue: { formulaValue: v.kaava }, effectiveValue: arvo(v.arvo) }
+        : { effectiveValue: arvo(v.taytetty) };
+      return v === '' || v === undefined || v === null ? {} : { userEnteredValue: arvo(v), effectiveValue: arvo(v) };
+    };
+    return { data: { sheets: [{ data: [{ rowData: taulukko[tab].rivit.map((r) => ({ values: (r || []).map(solu) })) }] }] } };
+  }
   if (method === 'GET' && u.pathname.endsWith(ID)) {
     lukuja++;
     return { data: { properties: { title: 'Testikisa' }, sheets: Object.entries(taulukko).map(([title, t]) => ({
@@ -30,16 +51,24 @@ async function request({ url, method = 'GET', data }) {
     lukuja++;
     const muotoiltu = u.searchParams.get('valueRenderOption') === 'FORMATTED_VALUE';
     return { data: { valueRanges: u.searchParams.getAll('ranges').map((alue) => {
-      const { tab, alku, loppu } = alueenTiedot(alue);
+      const { tab, alku, loppu, sarake } = alueenTiedot(alue);
       // Kuten Sheets API: puuttuva välilehti kaataa koko luvun.
       if (!taulukko[tab]) throw Object.assign(new Error('x'), { response: { status: 400, data: { error: { message: `Unable to parse range: ${tab}` } } } });
       const rivit = (taulukko[tab]?.rivit || []).slice(alku - 1, loppu ?? undefined)
         .map((r) => (r || []).map((v) => (muotoiltu && typeof v === 'number' && v > 1e11 ? v.toExponential(5) : v)));
+      if (sarake !== null) {
+        const v = rivit[0]?.[sarake];
+        return { values: v === undefined || v === '' ? [] : [[v]] };
+      }
       return { values: rivit };
     }) } };
   }
   if (u.pathname.endsWith(':batchUpdate')) {
     kirjoitukset++;
+    const paaId = taulukko['OSALLISTUJAT+TULOKSET']?.id;
+    if (suojattuPaa && data.requests.some((r) => r.updateCells?.start.sheetId === paaId)) {
+      throw Object.assign(new Error('protected'), { response: { status: 400, data: { error: { message: 'You are trying to edit a protected cell or object.' } } } });
+    }
     // Kuten Sheets API: yksikin olemassa oleva välilehti kaataa koko pyynnön.
     if (data.requests.some((r) => r.addSheet && taulukko[r.addSheet.properties.title])) {
       throw Object.assign(new Error('x'), { response: { status: 400, data: { error: { message: 'already exists' } } } });
@@ -108,6 +137,7 @@ function kutsu({ method = 'GET', toiminto = 'avaa', token = avain(), body, laite
 
 function alusta() {
   jaettu = true;
+  suojattuPaa = false;
   kirjoitukset = 0;
   lukuja = 0;
   tyhjennaKirjausMuisti();
@@ -519,4 +549,124 @@ test('ryhmä: toinen puhelin ottaa ryhmän PIN-koodilla, korvatun merkinnät tä
   assert.equal((await ryhmaKutsu({ method: 'POST', toiminto: 'vapauta', body: { laite: 'puhelin-2', haltija: h1 } })).statusCode, 409);
   assert.equal((await ryhmaKutsu({ method: 'POST', toiminto: 'vapauta', body: { laite: 'puhelin-2', haltija: h2 } })).statusCode, 200);
   assert.equal(taulukko.MOBIILI_RYHMAT.rivit[2][2], '');
+});
+
+// --- Suora tulos (MOBIILI_TULOKSET = SUORAAN) ---
+
+test('suora tulos: valmis Compak-kortti tyhjään tulossoluun, korjaus seuraa, paperin tulos jää', async () => {
+  alusta();
+  taulukko.KISANSPEKSIT.rivit.push(['MOBIILI_TULOKSET', 'Suoraan']);
+  taulukko['OSALLISTUJAT+TULOKSET'] = { id: 9, rivit: [
+    ['NRO', 'SARJA', 'NIMI', 1, 2, 'TULOS YHT.'], [1, 'Y', 'Aaltonen A', 20, '', 20], [3, 'Y', 'Cederberg C', '', '', 0],
+    [4, 'Y', 'Dahl D', '', 21, 21]
+  ] };
+  const h = await ota('laite-1');
+  const valmis = 'XXXXO'.repeat(5);
+
+  // Keskeneräinen kortti: pääsivua ei lueta eikä kirjoiteta.
+  lukuja = 0;
+  await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: MERKIT, versio: VERSIO }] });
+  assert.equal(lukuja, 1);
+  assert.equal(taulukko['OSALLISTUJAT+TULOKSET'].rivit[2][4], '');
+
+  lukuja = 0;
+  kirjoitukset = 0;
+  const res = await tallenna({ laite: 'laite-1', haltija: h, kortit: [
+    { nro: 3, merkit: valmis, versio: VERSIO + 1 }, { nro: 4, merkit: valmis, versio: VERSIO }
+  ] });
+  assert.equal(res.statusCode, 200);
+  assert.equal(kirjoitukset, 1, 'kortit, tulos ja loki yhdellä kirjoituksella');
+  assert.equal(lukuja, 2, 'kortit ja pääsivu soluina');
+  const paa = taulukko['OSALLISTUJAT+TULOKSET'].rivit;
+  assert.equal(paa[2][4], 20);
+  assert.equal(paa[3][4], 21, 'paperilta kirjoitettu tulos jää');
+  const loki = taulukko.MOBIILI_LOKI.rivit;
+  assert.equal(loki.at(-2)[7], 'TULOS 20 SARAKKEESEEN 2');
+  assert.equal(loki.at(-1)[7], 'TULOS 20 EI KIRJOITETTU: SARAKKEESSA 2 ON 21');
+
+  // Korjattu kortti: solussa on mobiilin oma edellinen tulos, joten se päivittyy.
+  await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'X'.repeat(25), versio: VERSIO + 2 }] });
+  assert.equal(paa[2][4], 25);
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], 'TULOS 20 → 25 SARAKKEESEEN 2');
+
+  // Paperilta sama tulos: ei kirjoiteta eikä huomauteta; kaavaa ei korvata.
+  paa[2][4] = 24;
+  await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'X'.repeat(24) + 'O', versio: VERSIO + 3 }] });
+  assert.equal(paa[2][4], 24);
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], '');
+  paa[2][4] = { kaava: '=SUM(24)', arvo: 24 };
+  await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'X'.repeat(23) + 'OO', versio: VERSIO + 4 }] });
+  assert.deepEqual(paa[2][4], { kaava: '=SUM(24)', arvo: 24 });
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], 'TULOS 23 EI KIRJOITETTU: SARAKKEESSA 2 ON KAAVA');
+
+  // Sama tulos uudelleen (merkinnät vaihtuivat): pääsivua ei lueta.
+  lukuja = 0;
+  await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'OX' + 'X'.repeat(21) + 'OX', versio: VERSIO + 5 }] });
+  assert.equal(lukuja, 1);
+
+  // Taulukkokaavan täyttämä sarake: tyhjäänkään soluun ei kirjoiteta.
+  paa[1][3] = { kaava: '=ARRAYFORMULA(1)', arvo: 20 };
+  paa[2][3] = '';
+  paa[3][3] = { taytetty: 7 };
+  taulukko['MOBIILI Rata 1'] = { id: 30, rivit: [] };
+  const rata1 = await kutsu({ method: 'POST', toiminto: 'ota', token: avain(1), body: { laite: 'laite-1', nimi: 'x' } });
+  await kutsu({ method: 'POST', toiminto: 'tallenna', token: avain(1), body: { laite: 'laite-1', haltija: rata1.body.haltija, kortit: [{ nro: 3, merkit: valmis, versio: VERSIO }] } });
+  assert.equal(paa[2][3], '');
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], 'TULOS 20 EI KIRJOITETTU: SARAKKEESSA 1 ON KAAVA');
+});
+
+test('suora tulos: suojattu pääsivu ei estä kortin tallennusta', async () => {
+  alusta();
+  taulukko.KISANSPEKSIT.rivit.push(['MOBIILI_TULOKSET', 'SUORAAN']);
+  taulukko['OSALLISTUJAT+TULOKSET'] = { id: 9, rivit: [['NRO', 'NIMI', 'X', 1, 2], [3, 'Cederberg C', '', '', '']] };
+  suojattuPaa = true;
+  const h = await ota('laite-1');
+  const res = await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'X'.repeat(25), versio: VERSIO }] });
+  assert.equal(res.statusCode, 200);
+  assert.equal(taulukko['MOBIILI Rata 2'].rivit[3][2], 25);
+  assert.equal(taulukko['OSALLISTUJAT+TULOKSET'].rivit[1][4], '');
+  assert.equal(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], 'TULOS 25 SARAKKEESEEN 2 EPÄONNISTUI (PÄÄSIVU SUOJATTU)');
+});
+
+test('suora tulos: TOIMISTO (oletus) ei kirjoita pääsivulle', async () => {
+  alusta();
+  taulukko['OSALLISTUJAT+TULOKSET'] = { id: 9, rivit: [['NRO', 'NIMI', 'X', 1, 2], [3, 'Cederberg C', '', '', '']] };
+  const h = await ota('laite-1');
+  lukuja = 0;
+  await tallenna({ laite: 'laite-1', haltija: h, kortit: [{ nro: 3, merkit: 'X'.repeat(25), versio: VERSIO }] });
+  assert.equal(lukuja, 1);
+  assert.equal(taulukko['OSALLISTUJAT+TULOKSET'].rivit[1][4], '');
+});
+
+test('suora tulos: ryhmäkortin kuitattu ja valmis asema omaan tulossarakkeeseensa', async () => {
+  alustaRyhma();
+  taulukko.KISANSPEKSIT.rivit.push(['MOBIILI_TULOKSET', 'SUORAAN']);
+  taulukko['OSALLISTUJAT+TULOKSET'].rivit = [
+    ['NRO', 'Ryhmä', 'NIMI', 1, 2, 3, 4], [4, 2, 'Dahl D', '', '', '', ''], [5, 2, 'Fors F', '', '', '', '']
+  ];
+  const h = await otaRyhma();
+  const res = await tallennaRyhma({ laite: 'puhelin-1', haltija: h, kortit: [
+    // Asema 1 kuitattu ja valmis, asema 2 kesken.
+    { layout: 1, nro: 4, merkit: 'XXOXXXXXXO' + 'X'.repeat(14) + '-', versio: VERSIO, kuitatut: ['1'] },
+    // Valmis mutta kuittaamatta: ei tulosta.
+    { layout: 1, nro: 5, merkit: RYHMA_MERKIT, versio: VERSIO }
+  ] });
+  assert.equal(res.statusCode, 200);
+  const paa = taulukko['OSALLISTUJAT+TULOKSET'].rivit;
+  assert.deepEqual(paa[1].slice(3), [8, '', '', '']);
+  assert.deepEqual(paa[2].slice(3), ['', '', '', '']);
+  assert.match(taulukko.MOBIILI_LOKI.rivit.find((r) => r[2] === 4 && r[1] === 'Layout 1')[7], /^RYHMÄ 2, TULOS 8 SARAKKEESEEN 1$/);
+
+  // Koko kortti hyväksytty: molemmat asemat.
+  await tallennaRyhma({ laite: 'puhelin-1', haltija: h, kortit: [
+    { layout: 1, nro: 5, merkit: RYHMA_MERKIT, versio: VERSIO + 1, hyvaksytty: Date.UTC(2026, 9, 27, 10), kuitatut: ['1', '2'] }
+  ] });
+  assert.deepEqual(paa[2].slice(3), [8, 15, '', '']);
+  assert.match(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], /^RYHMÄ 2, HYVÄKSYTTY, TULOS 8 SARAKKEESEEN 1, TULOS 15 SARAKKEESEEN 2$/);
+
+  // Korjaus poistaa kuittauksen: mobiilin oma tulos poistuu, kunnes ampuja kuittaa uudelleen.
+  await tallennaRyhma({ laite: 'puhelin-1', haltija: h, kortit: [
+    { layout: 1, nro: 5, merkit: 'X'.repeat(25), versio: VERSIO + 2, kuitatut: ['2'] }
+  ] });
+  assert.deepEqual(paa[2].slice(3, 5), ['', 15]);
 });
