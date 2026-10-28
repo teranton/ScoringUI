@@ -303,13 +303,14 @@ The signed entry link is never the public link.
 On the results page, a station score of a competition with squad phones can be tapped to show that station's targets
 from the squad phone's card (hidden by default).
 
-- Every competition request (running and finished) adds `MOBIILI_RYHMAT`, served with the `RYHMÄ` column only: a squad
-  row means the competition has squad cards, and station scores become tappable.
-- On the first tap the page reads `MOBIILI Layout 1`..`MOBIILI Layout 8` in one request (missing tabs are skipped), again
+- The running competition request adds `MOBIILI_RYHMAT`, served with the `RYHMÄ` column only: a squad row means the
+  competition has squad cards. A finished competition's request is unchanged (its stored snapshots stay valid); there
+  the cards are read when a shooter's card is opened, and only stations with targets on the card can be tapped.
+- When a shooter's card or a station is opened, the page reads `MOBIILI Layout 1`..`MOBIILI Layout 8` in one request (missing tabs are skipped), again
   at most once a minute. Served columns: `NRO`, `NIMI`, `ASEMA <k>` and the targets `<k>/<i>`; `LAITE`, `VERSIO`, `RYHMÄ`,
   `HYVÄKSYTTY`, `KUITATUT` are dropped.
 - `Tulokset Y` has no shooter number, so the card is matched by name (trimmed, spaces collapsed, case and U+200B ignored);
-  a name on two numbers is not shown. Station k is result column k. When the result differs from the card's hits, both
+  a name on two card numbers, or twice in `Tulokset Y`, is not shown. Station k is result column k. When the result differs from the card's hits, both
   are shown.
 
 ### Results into the result columns (`MOBIILI_TULOKSET`)

@@ -26,9 +26,10 @@ function rankingValilehti(kisa) {
 function sivutKisalle(kisa, onkoStaattinen) {
   if (kisa?.onkoRanking) return [rankingValilehti(kisa), 'KISAT', 'KISANSPEKSIT'];
   return onkoStaattinen
-    // MOBIILI_RYHMAT (vain ryhmien numerot): onko ryhmäpuhelimen kortteja tulosten kiekkonäkymään (HenkiloTulokset.jsx).
-    ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT', 'MOBIILI_RYHMAT']
+    ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
     // MOBIILI_LAITTEET (vain radat ja linjan tila): mobiilikirjauksen radat julkiseen ratanäkymään (LiveRadat.jsx).
+    // MOBIILI_RYHMAT (vain ryhmien numerot): onko ryhmäpuhelimen kortteja tulosten kiekkonäkymään (HenkiloTulokset.jsx).
+    // Päättyneen kisan joukkoa ei muuteta (tallennetut kuvat säilyvät); siellä kortit haetaan, kun ampuja avataan.
     : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT'];
 }
 
@@ -187,7 +188,7 @@ export function useKisaData({ kisat, valittuKisa }) {
         rankingCsvRaw: kisa.onkoRanking ? (csvByName[sivut[0]] || vanhaData.rankingCsvRaw || "") : "",
         rankingKisatCsvRaw: kisa.onkoRanking ? (csvByName['KISAT'] || vanhaData.rankingKisatCsvRaw || "") : "",
         speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
-        mobiiliRyhmatCsvRaw: csvByName['MOBIILI_RYHMAT'] || (onkoStaattinen ? vanhaData.mobiiliRyhmatCsvRaw || "" : ""),
+        mobiiliRyhmatCsvRaw: onkoStaattinen ? null : (csvByName['MOBIILI_RYHMAT'] || ""),
         mobiiliLaitteetCsvRaw: onkoStaattinen ? "" : (csvByName['MOBIILI_LAITTEET'] || ""),
         // Taulukossa olevat aikataulut (myös tyhjät) ratanäkymän päivien laskuun; null kun ei tiedetä.
         aikatauluValilehdet: onkoStaattinen ? null : sivut.filter((n) => n.startsWith('Aikataulu') && !(tulos.notFound || []).includes(n)),

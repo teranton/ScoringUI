@@ -329,9 +329,13 @@ export default function App() {
   // Radat live: mobiilikirjauksen Compak-radat (MOBIILI_LAITTEET), kun kisa on käynnissä.
   const mobiiliLaitteetCsvRaw = nykyisenKisanData?.mobiiliLaitteetCsvRaw || '';
   const onkoLiveRatoja = useMemo(() => lueRadanLaitteet(mobiiliLaitteetCsvRaw).length > 0, [mobiiliLaitteetCsvRaw]);
-  // Tulosten kiekkonäkymä: kisassa on ryhmäpuhelimen kortteja (Sporting / FITASC / ESP).
-  const mobiiliRyhmatCsvRaw = nykyisenKisanData?.mobiiliRyhmatCsvRaw || '';
-  const onkoRyhmaKiekkoja = useMemo(() => onkoRyhmaKortteja(mobiiliRyhmatCsvRaw), [mobiiliRyhmatCsvRaw]);
+  // Tulosten kiekkonäkymä: kisassa on ryhmäpuhelimen kortteja (Sporting / FITASC / ESP). Päättyneestä kisasta
+  // MOBIILI_RYHMAT ei tule (null): ei tiedossa, kortit haetaan ampujan kortin avauksessa.
+  const mobiiliRyhmatCsvRaw = nykyisenKisanData?.mobiiliRyhmatCsvRaw;
+  const onkoRyhmaKiekkoja = useMemo(
+    () => (typeof mobiiliRyhmatCsvRaw === 'string' ? onkoRyhmaKortteja(mobiiliRyhmatCsvRaw) : null),
+    [mobiiliRyhmatCsvRaw]
+  );
   const onkoLiveSallittu = onkoTuloksetSallittu && !onkoKisaPaattynyt && onkoLiveRatoja;
   // Kaikki taulukossa olevat aikataulut, myös tyhjät: LAYOUT/PÄIVÄ laskee päivät niistä kuten kirjauslaite.
   const aikatauluValilehdet = nykyisenKisanData?.aikatauluValilehdet;
@@ -596,6 +600,7 @@ export default function App() {
           {aktiivinenSivu === 'tulokset' && onkoTuloksetSallittu && nykyisenKisanData && (
             <div className="mx-auto w-full max-w-3xl">
               <HenkiloTulokset
+                key={valittuKisa.apiUrl}
                 rawCsv={nykyisenKisanData.henkilotCsvRaw}
                 speksitCsv={nykyisenKisanData.speksitCsvRaw}
                 rawRows={nykyisenKisanParsitutRivit.henkilotRows}
