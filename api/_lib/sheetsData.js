@@ -27,21 +27,22 @@ export function onRankingValilehti(nimi) {
   return RANKING_VALILEHTI.test(normalisoitu) || normalisoitu === 'kisat';
 }
 
-// Mobiilikirjauksen välilehdet julkiselle ratanäkymälle (src/LiveRadat.jsx), vain alla luetellut sarakkeet:
-// kortit (MOBIILI Rata N) ilman laitetta ja versiota, radan laitteista (MOBIILI_LAITTEET) vain linjan tila.
-// Laitteiden tunnukset, haltijan nimi, PIN-virheet ja korvattujen laitteiden täydennykset eivät lähde API:sta.
-const MOBIILI_RATA = /^mobiili rata \d{1,3}$/;
-const MOBIILI_LAITTEET = 'mobiili_laitteet';
-const JULKISET_SARAKKEET = {
-  rata: new Set(['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', ...Array.from({ length: 25 }, (_, i) => String(i + 1))]),
-  laitteet: new Set(['RATA', 'LINJA', 'LINJA PÄIVITETTY'])
-};
+// Mobiilikirjauksen välilehdet julkisiin näkymiin vain alla luetelluin sarakkein (otsikon mukaan):
+// Compak-kortit (MOBIILI Rata N) ilman laitetta ja versiota ratanäkymälle (src/LiveRadat.jsx), radan laitteista
+// (MOBIILI_LAITTEET) vain linjan tila, ryhmäkorteista (MOBIILI Layout N) numero, nimi, asemien osumat ja kiekot
+// tulosten kiekkonäkymälle (src/HenkiloTulokset.jsx) ja ryhmäpuhelimista (MOBIILI_RYHMAT) vain ryhmän numero
+// (onko ryhmäkortteja). Laitteiden tunnukset, haltijan nimi, PIN-virheet ja täydennykset eivät lähde API:sta.
+const KOHDE = Array.from({ length: 25 }, (_, i) => String(i + 1));
+const JULKISET_SARAKKEET = [
+  { valilehti: /^mobiili rata \d{1,3}$/, sarake: (o) => ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', ...KOHDE].includes(o) },
+  { valilehti: /^mobiili_laitteet$/, sarake: (o) => ['RATA', 'LINJA', 'LINJA PÄIVITETTY'].includes(o) },
+  { valilehti: /^mobiili layout \d{1,2}$/, sarake: (o) => o === 'NRO' || o === 'NIMI' || /^ASEMA \d+$/.test(o) || /^\d+\/\d+$/.test(o) },
+  { valilehti: /^mobiili_ryhmat$/, sarake: (o) => o === 'RYHMÄ' }
+];
 
 function julkisetSarakkeetValilehdelle(nimi) {
   const normalisoitu = normalisoi(nimi);
-  if (MOBIILI_RATA.test(normalisoitu)) return JULKISET_SARAKKEET.rata;
-  if (normalisoitu === MOBIILI_LAITTEET) return JULKISET_SARAKKEET.laitteet;
-  return null;
+  return JULKISET_SARAKKEET.find((j) => j.valilehti.test(normalisoitu))?.sarake || null;
 }
 
 export function onSallittuValilehti(nimi) {
@@ -54,7 +55,7 @@ export function julkisetSarakkeet(nimi, rivit) {
   if (!sallitut || !Array.isArray(rivit) || rivit.length === 0) return rivit;
   const otsikko = Array.isArray(rivit[0]) ? rivit[0] : [];
   const pidettavat = otsikko
-    .map((solu, i) => (sallitut.has(String(solu ?? '').trim().toUpperCase()) ? i : -1))
+    .map((solu, i) => (sallitut(String(solu ?? '').trim().toUpperCase()) ? i : -1))
     .filter((i) => i !== -1);
   return rivit.map((rivi) => pidettavat.map((i) => (Array.isArray(rivi) ? rivi[i] ?? '' : '')));
 }

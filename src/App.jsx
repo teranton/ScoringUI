@@ -13,6 +13,7 @@ import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { lueRadanLaitteet } from './utils/mobiiliLive';
+import { onkoRyhmaKortteja } from './utils/mobiiliKiekot';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
 import {
   laskeKisanPaivaStatus,
@@ -328,6 +329,9 @@ export default function App() {
   // Radat live: mobiilikirjauksen Compak-radat (MOBIILI_LAITTEET), kun kisa on käynnissä.
   const mobiiliLaitteetCsvRaw = nykyisenKisanData?.mobiiliLaitteetCsvRaw || '';
   const onkoLiveRatoja = useMemo(() => lueRadanLaitteet(mobiiliLaitteetCsvRaw).length > 0, [mobiiliLaitteetCsvRaw]);
+  // Tulosten kiekkonäkymä: kisassa on ryhmäpuhelimen kortteja (Sporting / FITASC / ESP).
+  const mobiiliRyhmatCsvRaw = nykyisenKisanData?.mobiiliRyhmatCsvRaw || '';
+  const onkoRyhmaKiekkoja = useMemo(() => onkoRyhmaKortteja(mobiiliRyhmatCsvRaw), [mobiiliRyhmatCsvRaw]);
   const onkoLiveSallittu = onkoTuloksetSallittu && !onkoKisaPaattynyt && onkoLiveRatoja;
   // Kaikki taulukossa olevat aikataulut, myös tyhjät: LAYOUT/PÄIVÄ laskee päivät niistä kuten kirjauslaite.
   const aikatauluValilehdet = nykyisenKisanData?.aikatauluValilehdet;
@@ -597,6 +601,8 @@ export default function App() {
                 rawRows={nykyisenKisanParsitutRivit.henkilotRows}
                 parsedSpeksit={nykyisenKisanSpeksit}
                 kisaStatus={kisanStatusInfo.status}
+                sheetId={valittuKisa.apiUrl}
+                kiekotKaytossa={onkoRyhmaKiekkoja}
                 locale={locale}
               />
             </div>

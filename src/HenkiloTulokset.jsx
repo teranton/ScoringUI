@@ -21,10 +21,16 @@ import { Card, CardContent } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
+import { asemanKiekot } from './utils/mobiiliKiekot';
+import { useRyhmaKiekot } from './hooks/useRyhmaKiekot';
 
-export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
+// kiekotKaytossa: kisassa on ryhmäpuhelimen kortteja (MOBIILI_RYHMAT); aseman tulosta napauttamalla näkyvät sen kiekot.
+export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, sheetId, kiekotKaytossa = false, locale = 'fi' }) {
   const tx = haeTekstit('henkiloTulokset', locale);
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
+  // Avattu aseman kiekkonäkymä: { ampujaId, asema } tai null.
+  const [avattuAsema, setAvattuAsema] = useState(null);
+  const kiekot = useRyhmaKiekot(kiekotKaytossa ? sheetId : null);
   const [valittuSarja, setSarjaSuodatin] = useState(KAIKKI_SARJAT);
   const [jarjestysValinta, setJarjestysValinta] = useState('total');
   const sarjaScrollRef = useRef(null);
@@ -416,7 +422,12 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                     const laskettuSarakkeet = Math.ceil(sarjatParillisena.length / tavoiteRivit);
                     const sarakkeet = Math.max(2, Math.min(12, laskettuSarakkeet));
 
+                    const avattu = avattuAsema?.ampujaId === ampuja.id ? avattuAsema.asema : null;
+                    const avatunTulos = avattu ? ampuja.sarjat.find((s) => s.numero === avattu)?.tulos : '';
+                    const avatunKiekot = avattu ? asemanKiekot(kiekot.kortit, ampuja.nimi, avattu) : null;
+
                     return (
+                      <>
                       <div
                         className="grid w-full justify-items-stretch gap-1"
                         style={{ gridTemplateColumns: `repeat(${sarakkeet}, minmax(0, 1fr))` }}
@@ -439,10 +450,25 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                           const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
                           const onkoToiseksiParasOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && naytaToiseksiParas && ampujaTulosNum === (maksimiTulos - 1);
 
+                          const kiekotNapautettavissa = kiekotKaytossa && !isNaN(ampujaTulosNum);
+                          const Solu = kiekotNapautettavissa ? 'button' : 'div';
                           return (
-                            <div
+                            <Solu
                               key={`${ampuja.id}-${s.numero}-${sIdx}`}
-                                className="flex min-w-0 flex-col items-center justify-center rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center"
+                              {...(kiekotNapautettavissa ? {
+                                type: 'button',
+                                'aria-expanded': avattu === s.numero,
+                                'aria-label': `${tx.stage} ${s.numero}: ${tx.showShots}`,
+                                onClick: () => {
+                                  setAvattuAsema(avattu === s.numero ? null : { ampujaId: ampuja.id, asema: s.numero });
+                                  kiekot.lataa();
+                                }
+                              } : {})}
+                              className={cn(
+                                'flex min-w-0 flex-col items-center justify-center rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center',
+                                kiekotNapautettavissa && 'cursor-pointer hover:border-slate-400',
+                                avattu === s.numero && 'border-slate-700 ring-1 ring-slate-700'
+                              )}
                             >
                               <div className="text-[10px] text-slate-500">S{s.numero}</div>
                               <div
@@ -457,10 +483,20 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                               >
                                 {s.tulos}
                               </div>
-                            </div>
+                            </Solu>
                           );
                         })}
                       </div>
+                      {avattu && (
+                        <AsemanKiekot
+                          asema={avattu}
+                          tulos={avatunTulos}
+                          kiekot={avatunKiekot}
+                          tila={kiekot.tila}
+                          tx={tx}
+                        />
+                      )}
+                      </>
                     );
                   })()}
                 </CardContent>
@@ -469,6 +505,42 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Aseman kiekot ryhmäpuhelimen kortilta: X osuma, 0 ohi. Jos taulukon tulos on eri kuin kortin osumat
+// (esim. tulos korjattu paperikortilta), molemmat näytetään.
+function AsemanKiekot({ asema, tulos, kiekot, tila, tx }) {
+  const tulosNum = Number.parseInt(tulos, 10);
+  return (
+    <div className="mt-2 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 text-sm" aria-live="polite">
+      <div className="mb-1 text-xs font-semibold text-slate-500">{tx.stage} {asema}</div>
+      {!kiekot && (tila === 'ladataan' || tila === 'ei') && <div className="text-slate-500">{tx.shotsLoading}</div>}
+      {!kiekot && tila === 'virhe' && <div className="text-rose-700">{tx.shotsError}</div>}
+      {!kiekot && tila === 'ok' && <div className="text-slate-500">{tx.shotsNone}</div>}
+      {kiekot && (
+        <>
+          <div className="flex flex-wrap gap-1">
+            {[...kiekot.merkit].map((m, i) => (
+              <span
+                key={i}
+                title={`${i + 1}`}
+                className={cn(
+                  'flex h-7 w-7 items-center justify-center rounded-sm text-xs font-bold',
+                  m === 'X' ? 'bg-green-700 text-white' : m === 'O' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-400'
+                )}
+              >
+                {m === 'X' ? 'X' : m === 'O' ? '0' : ''}
+              </span>
+            ))}
+          </div>
+          <div className="mt-1 text-xs text-slate-500">
+            {kiekot.osumat} / {kiekot.merkit.length}
+            {!Number.isNaN(tulosNum) && tulosNum !== kiekot.osumat && ` · ${tx.shotsDiffer.replace('{tulos}', tulosNum)}`}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js` for Compak; `KilpailuPohja.js` menu "Luo aikataulu" for the group timetable, after registration; a new competition has only an instruction text in A1) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
 | `OSALLISTUJAT+TULOKSET` (named range `OSALLISTUJAT`) | Organiser, ScoringLib (`Distributor.js` shuffle, `MobiiliTulokset.js` import of mobile results), squad editor (`RyhmaJako.jsx`, organiser's own account), mobile entry (`api/kirjaus.js`, writer account: result cells only with `MOBIILI_TULOKSET` = `SUORAAN`) | `RyhmaJako.jsx`; `api/kirjaus.js` with the writer account (squad phone, direct results), not through `api/kisa.js` |
 | `MOBIILI Rata N`, `MOBIILI_LAITTEET` | Mobile entry (`api/kirjaus.js`, writer account), see "Mobile score entry" | `LiveRadat.jsx`, `utils/mobiiliLive.js` through `api/kisa.js`, only the public columns (see "Public live view") |
+| `MOBIILI Layout N`, `MOBIILI_RYHMAT` | Squad phone (`api/kirjaus.js`, writer account) | `HenkiloTulokset.jsx`, `utils/mobiiliKiekot.js` through `api/kisa.js`, only the public columns (see "Targets in the results") |
 | `RANKING_vvvv` (season ranking sheet, e.g. `RANKING_2026`) | Sheet formulas from the ranking sheet's `TULOKSET` / `KISAT` tabs | `RankingTulokset.jsx`, `utils/rankingTulokset.js` |
 | `KISAT` (season ranking sheet) | Tero | `RankingTulokset.jsx`, `utils/rankingTulokset.js` (competition names) |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition; column I is the place for the weather forecast, `api/saa.js`) |
@@ -34,7 +35,7 @@ Tab names are matched case-insensitively, ignoring leading and trailing spaces (
 
 The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`, plus any tab named
 `RANKING_` and a four-digit year, and `KISAT`, on sheets marked `RANKING` in the registry, and the column-filtered
-`MOBIILI Rata N` / `MOBIILI_LAITTEET` of the public live view); any other tab (`MOBIILI_LOKI`, `MOBIILI_RYHMAT`, `MOBIILI Layout N`,
+`MOBIILI Rata N` / `MOBIILI_LAITTEET` / `MOBIILI Layout N` / `MOBIILI_RYHMAT` of the public views); any other tab (`MOBIILI_LOKI`,
 `Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
 
 Access: the sheets and the registry are read only with the service account (`spreadsheets.readonly` scope),
@@ -295,7 +296,21 @@ The signed entry link is never the public link.
 - The line is computed as on the device (`src/kirjaus/linja.js`): the queue from the `Aikataulu*` lane grid (as above,
   with `LAYOUT/PÄIVÄ`), the device's `LINJA` (added / skipped shooters, breaks, retired, program), the program from
   `LINJA`, else `RATAn_OHJELMA`, else `SSSD`, and the marks on the cards. The layout name is `RATAn_NIMI`.
-- Squad cards (`MOBIILI Layout N`) are not shown yet.
+- Squad cards are not in the live view (their results reach the result columns after every stand); see below.
+
+### Targets in the results (`api/kisa.js`)
+
+On the results page, a station score of a competition with squad phones can be tapped to show that station's targets
+from the squad phone's card (hidden by default).
+
+- Every competition request (running and finished) adds `MOBIILI_RYHMAT`, served with the `RYHMÄ` column only: a squad
+  row means the competition has squad cards, and station scores become tappable.
+- On the first tap the page reads `MOBIILI Layout 1`..`MOBIILI Layout 8` in one request (missing tabs are skipped), again
+  at most once a minute. Served columns: `NRO`, `NIMI`, `ASEMA <k>` and the targets `<k>/<i>`; `LAITE`, `VERSIO`, `RYHMÄ`,
+  `HYVÄKSYTTY`, `KUITATUT` are dropped.
+- `Tulokset Y` has no shooter number, so the card is matched by name (trimmed, spaces collapsed, case and U+200B ignored);
+  a name on two numbers is not shown. Station k is result column k. When the result differs from the card's hits, both
+  are shown.
 
 ### Results into the result columns (`MOBIILI_TULOKSET`)
 

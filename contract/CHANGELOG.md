@@ -7,6 +7,9 @@
   competition request adds `MOBIILI_LAITTEET`; the new "Radat live" tab reads `MOBIILI Rata N` and the timetable,
   `RATAn_NIMI`, `RATAn_OHJELMA` and `LAYOUT/PÄIVÄ` as the device does. No sheet change; ScoringLib must keep these
   headers (they are written only by `api/kirjaus.js`).
+- Targets in the results: `api/kisa.js` also serves `MOBIILI Layout N` (`NRO`, `NIMI`, `ASEMA <k>`, `<k>/<i>`) and
+  `MOBIILI_RYHMAT` (`RYHMÄ` only). Every competition request adds `MOBIILI_RYHMAT`; tapping a station score reads the
+  squad cards. No sheet change.
 
 - Mobile results into the result columns (phase 6): new `KISANSPEKSIT` key `MOBIILI_TULOKSET` (`TOIMISTO` default,
   `SUORAAN`). With `SUORAAN`, `api/kirjaus.js` reads the main tab (`NRO` and the result column headers `1`..`N`) and

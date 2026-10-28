@@ -121,13 +121,14 @@ test('onSallittuValilehti sallii kisan välilehdet ja kauden rankingin, ei muita
   assert.equal(onSallittuValilehti('Suomisport Import'), false);
 });
 
-test('mobiilikirjauksen välilehdet: vain kortit ja radan laitteet, ei muita MOBIILI-välilehtiä', () => {
+test('mobiilikirjauksen välilehdet: kortit, laitteet ja ryhmät, ei lokia', () => {
   assert.equal(onSallittuValilehti('MOBIILI Rata 3'), true);
   assert.equal(onSallittuValilehti('mobiili rata 12'), true);
   assert.equal(onSallittuValilehti('MOBIILI_LAITTEET'), true);
   assert.equal(onSallittuValilehti('MOBIILI_LOKI'), false);
-  assert.equal(onSallittuValilehti('MOBIILI_RYHMAT'), false);
-  assert.equal(onSallittuValilehti('MOBIILI Layout 1'), false);
+  assert.equal(onSallittuValilehti('MOBIILI_RYHMAT'), true);
+  assert.equal(onSallittuValilehti('MOBIILI Layout 1'), true);
+  assert.equal(onSallittuValilehti('MOBIILI Layout'), false);
   assert.equal(onSallittuValilehti('MOBIILI Rata'), false);
 });
 
@@ -150,6 +151,12 @@ test('julkisetSarakkeet jättää laitteen tunnukset, PIN-virheet ja täydennyks
     ['RATA', 'LINJA', 'LINJA PÄIVITETTY'],
     [1, '{"ohitetut":[4]}', '28.10.2026 10.01']
   ]);
+  const ryhmaKortit = [
+    ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', 'RYHMÄ', 'HYVÄKSYTTY', 'ASEMA 3', '3/1', '3/2', 'KUITATUT'],
+    [5, 'Matti', 1, 'x', 'laite-abc', 7, 2, '', 1, 'X', 'O', '3']
+  ];
+  assert.deepEqual(julkisetSarakkeet('MOBIILI Layout 2', ryhmaKortit), [['NRO', 'NIMI', 'ASEMA 3', '3/1', '3/2'], [5, 'Matti', 1, 'X', 'O']]);
+  assert.deepEqual(julkisetSarakkeet('MOBIILI_RYHMAT', [['RYHMÄ', 'SUKUPOLVI', 'LAITE'], [1, 2, 'salainen']]), [['RYHMÄ'], [1]]);
   const muu = [['a', 'b']];
   assert.equal(julkisetSarakkeet('Tulokset Y', muu), muu);
 });

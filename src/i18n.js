@@ -172,7 +172,12 @@ const TEKSTIT = jaadyta({
       day: 'Päivä',
       sort: 'Järjestä',
       total: 'Kokonaistulos',
-      stage: 'Asema'
+      stage: 'Asema',
+      showShots: 'näytä kiekot',
+      shotsLoading: 'Haetaan kiekkoja…',
+      shotsNone: 'Asemalle ei ole mobiilikirjauksen kiekkotietoja.',
+      shotsError: 'Kiekkojen haku epäonnistui. Yritä hetken päästä uudelleen.',
+      shotsDiffer: 'tuloksissa {tulos}'
     },
     rankingTulokset: {
       noResults: 'Rankingin tuloksia ei löytynyt.',
@@ -442,7 +447,12 @@ const TEKSTIT = jaadyta({
       day: 'Day',
       sort: 'Sort by',
       total: 'Total score',
-      stage: 'Stage'
+      stage: 'Stage',
+      showShots: 'show targets',
+      shotsLoading: 'Loading targets…',
+      shotsError: 'Could not load the targets. Try again shortly.',
+      shotsNone: 'No mobile scoring targets for this stage.',
+      shotsDiffer: 'results show {tulos}'
     },
     rankingTulokset: {
       noResults: 'No ranking results found.',
