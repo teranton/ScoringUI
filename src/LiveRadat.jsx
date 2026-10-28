@@ -31,8 +31,12 @@ function useRadanData(sheetId, sarake) {
     if (!sheetId || !sarake) return undefined;
     let peruttu = false;
     let ajastin = null;
+    // Yksi haku kerrallaan: näkyviin palaaminen kesken haun ei aloita toista päivityskierrosta.
+    let kesken = false;
     const hae = async () => {
       clearTimeout(ajastin);
+      if (kesken) return;
+      kesken = true;
       try {
         const res = await fetch(liveUrl(sheetId, sarake));
         if (!res.ok) throw new Error(`Status ${res.status}`);
@@ -40,8 +44,11 @@ function useRadanData(sheetId, sarake) {
         if (!peruttu) setTila({ avain, data: json.csvByName || {}, virhe: false, haettu: new Date() });
       } catch (error) {
         console.error('[LIVE] Radan haku epäonnistui:', error?.message);
-        if (!peruttu) setTila((t) => ({ ...t, avain, virhe: true }));
+        // Toisen radan vanhaa dataa ja hakuaikaa ei näytetä tämän radan tietoina.
+        if (!peruttu) setTila((t) => (t.avain === avain ? { ...t, virhe: true } : { avain, data: null, virhe: true, haettu: null }));
       }
+      kesken = false;
+      clearTimeout(ajastin);
       if (!peruttu && document.visibilityState === 'visible') ajastin = setTimeout(hae, PAIVITYS_VALI_MS);
     };
     const nakyvyys = () => {
@@ -62,8 +69,9 @@ function useRadanData(sheetId, sarake) {
 
 const kello = (aika) => aika.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-// aikataulut: [{ nimi, raw }] järjestyksessä Aikataulu, Aikataulu La, Aikataulu Su (olemassa olevat).
-export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetCsv, locale }) {
+// aikataulut: [{ nimi, raw }] järjestyksessä Aikataulu, Aikataulu La, Aikataulu Su (olemassa olevat välilehdet).
+// naytaJono: aikataulu on julkinen (AIKATAULU_NAKYVYYS); muuten seuraavia ampujia ja aikoja ei näytetä.
+export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetCsv, naytaJono, locale }) {
   const tx = haeTekstit('liveRadat', locale);
   const aikatauluRivit = useMemo(
     () => aikataulut.map(({ nimi, raw }) => ({ nimi, rivit: parseCsvRows(raw || '') })),
@@ -164,7 +172,7 @@ export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetC
               </div>
             </div>
 
-            {seuraava && (
+            {naytaJono && seuraava && (
               <div className="mx-2 mt-1.5 rounded-lg bg-white px-2 py-1 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="shrink-0 text-xs font-semibold text-slate-500">{tx.next}</span>
@@ -181,9 +189,11 @@ export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetC
 
             <div className="flex flex-col gap-1 px-2 py-2 sm:gap-2">
               {eiKortteja && <p className="rounded bg-white p-3 text-sm">{tx.noScores}</p>}
-              {!tila.tilanne && tila.jono.length === 0 && !eiKortteja && <p className="rounded bg-white p-3 text-sm">{tx.noQueue}</p>}
-              {!tila.tilanne && tila.jono.length > 0 && <p className="rounded bg-white p-3 font-semibold text-green-800">{tx.allDone}</p>}
+              {tila.kesken && !eiKortteja && <p className="rounded bg-white p-3 text-sm">{tx.noProgram}</p>}
+              {!tila.kesken && !tila.tilanne && tila.jono.length === 0 && !eiKortteja && <p className="rounded bg-white p-3 text-sm">{tx.noQueue}</p>}
+              {!tila.kesken && !tila.tilanne && tila.jono.length > 0 && <p className="rounded bg-white p-3 font-semibold text-green-800">{tx.allDone}</p>}
               {tila.linja.map((l) => kortti(l.nro))}
+              {(tila.kesken || []).map((nro) => kortti(nro))}
 
               {tila.valmiit.length > 0 && (
                 <div className="mt-1 flex flex-col gap-2">

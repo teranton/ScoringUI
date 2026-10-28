@@ -329,11 +329,14 @@ export default function App() {
   const mobiiliLaitteetCsvRaw = nykyisenKisanData?.mobiiliLaitteetCsvRaw || '';
   const onkoLiveRatoja = useMemo(() => lueRadanLaitteet(mobiiliLaitteetCsvRaw).length > 0, [mobiiliLaitteetCsvRaw]);
   const onkoLiveSallittu = onkoTuloksetSallittu && !onkoKisaPaattynyt && onkoLiveRatoja;
+  // Kaikki taulukossa olevat aikataulut, myös tyhjät: LAYOUT/PÄIVÄ laskee päivät niistä kuten kirjauslaite.
+  const aikatauluValilehdet = nykyisenKisanData?.aikatauluValilehdet;
   const liveAikataulut = useMemo(() => [
     { nimi: 'Aikataulu', raw: aikatauluCsvRaw },
     { nimi: 'Aikataulu La', raw: aikatauluLaCsvRaw },
     { nimi: 'Aikataulu Su', raw: aikatauluSuCsvRaw }
-  ].filter((a) => String(a.raw || '').trim()), [aikatauluCsvRaw, aikatauluLaCsvRaw, aikatauluSuCsvRaw]);
+  ].filter((a) => (aikatauluValilehdet ? aikatauluValilehdet.includes(a.nimi) : String(a.raw || '').trim())),
+  [aikatauluCsvRaw, aikatauluLaCsvRaw, aikatauluSuCsvRaw, aikatauluValilehdet]);
 
   // Jos valittu välilehti ei ole sallittu, vaihdetaan se jo renderöinnin aikana (ei ylimääräistä effect-kierrosta).
   const seuraavaAktiivinenSivu = laskeSeuraavaAktiivinenSivu({
@@ -676,6 +679,7 @@ export default function App() {
                   speksitRivit={nykyisenKisanParsitutRivit.speksitRows}
                   aikataulut={liveAikataulut}
                   laitteetCsv={mobiiliLaitteetCsvRaw}
+                  naytaJono={onkoAikatauluSallittu}
                   locale={locale}
                 />
               </Suspense>

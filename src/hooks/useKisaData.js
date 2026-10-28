@@ -187,6 +187,8 @@ export function useKisaData({ kisat, valittuKisa }) {
         rankingKisatCsvRaw: kisa.onkoRanking ? (csvByName['KISAT'] || vanhaData.rankingKisatCsvRaw || "") : "",
         speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
         mobiiliLaitteetCsvRaw: onkoStaattinen ? "" : (csvByName['MOBIILI_LAITTEET'] || ""),
+        // Taulukossa olevat aikataulut (myös tyhjät) ratanäkymän päivien laskuun; null kun ei tiedetä.
+        aikatauluValilehdet: onkoStaattinen ? null : sivut.filter((n) => n.startsWith('Aikataulu') && !(tulos.notFound || []).includes(n)),
         speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0),
         haettu: Date.now()
       };

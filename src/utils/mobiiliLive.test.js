@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { lueAika, lueRadanKortit, lueRadanLaitteet, radanLiveTila } from './mobiiliLive.js';
 
-// Lane grid as on the dev sheet: two lanes, layout 2's queue is its own starters, then lane 1's.
+// Rata-ruudukko kuten kehitystaulukossa: kaksi kaistaa, radan 2 jono on sen omat aloittajat ja sitten radan 1.
 const AIKATAULU = [
   ['AIKATAULU | 1.11.2026'],
   ['RATA1', '', '', 'RATA2'],
@@ -37,7 +37,7 @@ test('lueAika: suomalainen aikaleima vertailtavaksi', () => {
 test('lueRadanLaitteet: linjan tila radoittain, virheellinen JSON ohitetaan', () => {
   const csv = [
     'RATA,LINJA,LINJA PÄIVITETTY',
-    '1,"{""ohitetut"":[2,""x""],""keskeyttaneet"":[3],""ohjelma"":""SSSD""}",28.10.2026 klo 9.00.00',
+    '1,"{""ohitetut"":[2,2,""x""],""keskeyttaneet"":[3],""ohjelma"":""SSSD""}",28.10.2026 klo 9.00.00',
     '',
     '3,{rikki,',
     '2,,'
@@ -76,10 +76,14 @@ test('radanLiveTila: linja, vuorossa oleva, seuraavat ja ampuneet korteista', ()
   assert.deepEqual(myohemmin.linja.find((l) => l.nro === 3), { nro: 3, asema: 4 });
 });
 
-test('radanLiveTila: radalla ei aikataulua, ohjelma puuttuu', () => {
-  const tila = radanLiveTila({ sarake: 4, kortit: { 7: { merkit: merkit(3) } }, korttiNimet: { 7: 'Laitteella lisätty' } });
+test('radanLiveTila: radalla ei aikataulua, ohjelma puuttuu: vuoroja ei arvata', () => {
+  const kortit = { 7: { merkit: merkit(3) }, 2: { merkit: merkit(25) }, 5: { merkit: merkit(1) } };
+  const tila = radanLiveTila({ sarake: 4, kortit, korttiNimet: { 7: 'Laitteella lisätty' } });
   assert.equal(tila.loytyi, false);
   assert.equal(tila.ohjelma, '');
   assert.equal(tila.tilanne, null);
+  assert.deepEqual(tila.linja, []);
+  assert.deepEqual(tila.kesken, [5, 7]);
+  assert.deepEqual(tila.valmiit, [2]);
   assert.equal(tila.nimet[7], 'Laitteella lisätty');
 });

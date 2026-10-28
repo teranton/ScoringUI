@@ -2,10 +2,10 @@
 // näytöllä. Lähteet api/kisa.js:n kautta: MOBIILI Rata N (kortit), MOBIILI_LAITTEET (linjan tila; API antaa vain
 // sarakkeet RATA, LINJA ja LINJA PÄIVITETTY), aikataulut ja KISANSPEKSIT. Puhtaita funktioita (mobiiliLive.test.js).
 import { parseCsvRows } from './csv.js';
-import { radanJono, speksiArvo } from './radanJono.js';
-import { KOHTEITA } from '../kirjaus/kortit.js';
+import { radanJono, speksiArvo, tarkistaLinja } from './radanJono.js';
+import { KOHTEITA, taytetyt } from '../kirjaus/kortit.js';
 import {
-  OHJELMAT, jasennaOhjelma, laskeVuorot, linjanJono, linjanTilanne, ohjelmaTekstiksi, seuraavatAmpujat, valmiitAmpujat
+  jasennaOhjelma, laskeVuorot, linjanJono, linjanTilanne, ohjelmaTekstiksi, seuraavatAmpujat, valmiitAmpujat
 } from '../kirjaus/linja.js';
 
 export const mobiiliValilehti = (sarake) => `MOBIILI Rata ${sarake}`;
@@ -25,26 +25,6 @@ export function lueAika(teksti) {
   return { arvo: (((vuosi * 100 + kk) * 100 + pv) * 100 + h) * 10000 + min * 100 + (s || 0), kello: `${h}.${String(min).padStart(2, '0')}` };
 }
 
-// Laitteen tallentama linja: vain tunnetut kentät ja numerot (sama muoto kuin api/_lib/kirjausHaltija.js tarkistaLinja).
-function siistiLinja(olio) {
-  if (!olio || typeof olio !== 'object' || Array.isArray(olio)) return null;
-  const nro = (n) => Number.isInteger(n) && n > 0;
-  const numerot = (lista) => (Array.isArray(lista) ? lista.filter(nro) : []);
-  return {
-    lisatyt: (Array.isArray(olio.lisatyt) ? olio.lisatyt : []).filter((l) => l && nro(l.nro)).map((l) => ({
-      nro: l.nro,
-      ...(typeof l.nimi === 'string' ? { nimi: l.nimi } : {}),
-      ...(l.jalkeen === null || nro(l.jalkeen) ? { jalkeen: l.jalkeen } : {}),
-      ...(Number.isInteger(l.kierroksesta) ? { kierroksesta: l.kierroksesta } : {})
-    })),
-    ohitetut: numerot(olio.ohitetut),
-    tauot: numerot(olio.tauot),
-    tauotPois: numerot(olio.tauotPois),
-    keskeyttaneet: numerot(olio.keskeyttaneet),
-    ohjelma: typeof olio.ohjelma === 'string' ? olio.ohjelma : null
-  };
-}
-
 // MOBIILI_LAITTEET → [{ sarake, linja, paivitetty }] radan mukaan. Rivi on radalla, jolla on ollut laite.
 export function lueRadanLaitteet(csv) {
   const rivit = parseCsvRows(csv || '');
@@ -59,7 +39,7 @@ export function lueRadanLaitteet(csv) {
     if (!sarake || radat.has(sarake)) return;
     let linja;
     try {
-      linja = iLinja === -1 || !rivi[iLinja] ? null : siistiLinja(JSON.parse(rivi[iLinja]));
+      linja = iLinja === -1 || !rivi[iLinja] ? null : tarkistaLinja(JSON.parse(rivi[iLinja])).linja || null;
     } catch {
       linja = null;
     }
@@ -98,31 +78,38 @@ export function lueRadanKortit(csv) {
 }
 
 // Radan tilanne kuten kirjauslaitteella: jono aikataulusta ja laitteen linjan tilasta, vuorot ohjelmasta
-// (laitteella valittu, muuten RATAn_OHJELMA, muuten SSSD), tilanne korttien merkinnöistä.
-// aikataulut: [{ nimi, rivit }] järjestyksessä Aikataulu, Aikataulu La, Aikataulu Su.
+// (laitteella valittu, muuten RATAn_OHJELMA), tilanne korttien merkinnöistä. Ilman ohjelmaa vuoroja ei lasketa
+// (laitekaan ei kirjaa ennen kuin ohjelma on valittu): kesken = keskeneräiset kortit numerojärjestyksessä.
+// aikataulut: [{ nimi, rivit }] järjestyksessä Aikataulu, Aikataulu La, Aikataulu Su (olemassa olevat välilehdet).
 export function radanLiveTila({ speksitRivit = [], aikataulut = [], sarake, kortit = {}, korttiNimet = {}, linja = null }) {
   const ratojaPaivassa = Number.parseInt(speksiArvo(speksitRivit, 'LAYOUT/PÄIVÄ'), 10) || 0;
   const tiedot = radanJono({ aikataulut, sarake, ratojaPaivassa });
-  const omaOhjelma = jasennaOhjelma(linja?.ohjelma) || jasennaOhjelma(speksiArvo(speksitRivit, `RATA${sarake}_OHJELMA`));
-  const ohjelma = omaOhjelma || OHJELMAT[0];
+  const ohjelma = jasennaOhjelma(linja?.ohjelma) || jasennaOhjelma(speksiArvo(speksitRivit, `RATA${sarake}_OHJELMA`));
   const keskeyttaneet = linja?.keskeyttaneet || [];
-  const jono = linjanJono(tiedot.jono, linja || {}, { ...tiedot.nimet, ...korttiNimet });
-  const vuorot = laskeVuorot(jono, ohjelma);
-  const tilanne = linjanTilanne(vuorot, kortit, keskeyttaneet);
   const nimet = { ...tiedot.nimet, ...korttiNimet };
+  const jono = linjanJono(tiedot.jono, linja || {}, nimet);
   jono.forEach((a) => {
     if (a.nimi) nimet[a.nro] = a.nimi;
   });
+  const perus = { rataNimi: speksiArvo(speksitRivit, `RATA${sarake}_NIMI`), loytyi: tiedot.aikataulu !== null, jono, keskeyttaneet, nimet };
+  if (!ohjelma) {
+    const numerot = Object.keys(kortit).map(Number).sort((a, b) => a - b);
+    const valmis = (nro) => taytetyt(kortit[nro].merkit) === KOHTEITA || keskeyttaneet.includes(nro);
+    return {
+      ...perus, ohjelma: '', tilanne: null, linja: [], tulevat: [],
+      kesken: numerot.filter((nro) => !valmis(nro)),
+      valmiit: numerot.filter(valmis).reverse()
+    };
+  }
+  const vuorot = laskeVuorot(jono, ohjelma);
+  const tilanne = linjanTilanne(vuorot, kortit, keskeyttaneet);
   return {
-    rataNimi: speksiArvo(speksitRivit, `RATA${sarake}_NIMI`),
-    ohjelma: omaOhjelma ? ohjelmaTekstiksi(omaOhjelma) : '',
-    loytyi: tiedot.aikataulu !== null,
-    jono,
+    ...perus,
+    ohjelma: ohjelmaTekstiksi(ohjelma),
     tilanne,
     linja: tilanne?.linja || [],
+    kesken: null,
     tulevat: seuraavatAmpujat(jono, vuorot, tilanne, kortit, keskeyttaneet),
-    valmiit: valmiitAmpujat(vuorot, tilanne, kortit, keskeyttaneet),
-    keskeyttaneet,
-    nimet
+    valmiit: valmiitAmpujat(vuorot, tilanne, kortit, keskeyttaneet)
   };
 }

@@ -1,7 +1,13 @@
-// Compak-radan ampujajono aikataulusta ja KISANSPEKSIT-avainten arvot. Yhteiset mobiilikirjauksen API:lle
-// (api/_lib/kirjausData.js) ja julkiselle ratanäkymälle (src/LiveRadat.jsx). Puhtaita funktioita.
+// Compak-radan ampujajono aikataulusta, KISANSPEKSIT-avainten arvot ja laitteen linjan tilan tarkistus.
+// Yhteiset mobiilikirjauksen API:lle (api/_lib/kirjausData.js) ja julkiselle ratanäkymälle (src/LiveRadat.jsx).
+// Puhtaita funktioita.
 import { normalisoiAsetus } from './kisaAsetukset.js';
 import { isLaneHeader, isTimeLike, taukoTyyppi, tunnistaRataSarakkeet } from './aikatauluRadat.js';
+
+// Suurin ampujan numero (MOBIILI-välilehden rivi = numero + 1).
+export const MAKS_NRO = 999;
+// Näyttöteksti: ohjausmerkit pois ja pituus rajattu.
+export const puhdasTeksti = (t, maks) => [...String(t ?? '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, maks);
 
 // KISANSPEKSIT-avaimen arvo: avaimen oikealla puolella oleva solu, kuten ScoringLibin Speksit
 // (tyhjän arvon viereinen Ohje-sarake ei saa näkyä arvona).
@@ -124,4 +130,34 @@ export function radanJono({ aikataulut, sarake, ratojaPaivassa }) {
     });
   }
   return { aikataulu: paiva.nimi, kaista: kaista + 1, kierros, jono, nimet };
+}
+
+// Linjan tila, jonka uusi laite saa radan mukana: laitteella lisätyt ja ohitetut ampujat, tauot, keskeyttäneet
+// ja laitteella valittu ohjelma (src/kirjaus/KirjausApp.jsx). API tarkistaa tallennuksen
+// (api/_lib/kirjausHaltija.js), julkinen ratanäkymä lukee MOBIILI_LAITTEET-välilehden LINJA-solun samalla funktiolla. Palauttaa { linja } (siistitty) tai { virhe }.
+const MAKS_LISTA = 300;
+export function tarkistaLinja(linja) {
+  if (!linja || typeof linja !== 'object' || Array.isArray(linja)) return { virhe: 'Virheellinen linjan tila' };
+  const nro = (n) => Number.isInteger(n) && n >= 1 && n <= MAKS_NRO;
+  const numerot = (lista) => (Array.isArray(lista) ? [...new Set(lista.filter(nro))].slice(0, MAKS_LISTA) : []);
+  const lisatyt = (Array.isArray(linja.lisatyt) ? linja.lisatyt : [])
+    .filter((l) => l && nro(l.nro))
+    .slice(0, MAKS_LISTA)
+    .map((l) => ({
+      nro: l.nro,
+      ...(typeof l.nimi === 'string' && l.nimi ? { nimi: puhdasTeksti(l.nimi, 80) } : {}),
+      ...(l.jalkeen === null || nro(l.jalkeen) ? { jalkeen: l.jalkeen } : {}),
+      ...(Number.isInteger(l.kierroksesta) && l.kierroksesta >= 0 && l.kierroksesta <= 1000 ? { kierroksesta: l.kierroksesta } : {})
+    }));
+  const ohjelma = typeof linja.ohjelma === 'string' && /^[SD]{1,10}$/.test(linja.ohjelma) ? linja.ohjelma : null;
+  return {
+    linja: {
+      lisatyt,
+      ohitetut: numerot(linja.ohitetut),
+      tauot: numerot(linja.tauot),
+      tauotPois: numerot(linja.tauotPois),
+      keskeyttaneet: numerot(linja.keskeyttaneet),
+      ohjelma
+    }
+  };
 }

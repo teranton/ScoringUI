@@ -1,14 +1,14 @@
 // Mobiilikirjauksen puhtaat apufunktiot: radan ampujajono aikataulusta ja korttirivit MOBIILI-välilehdillä.
 // Ei Google-kutsuja, joten kaikki on testattu (kirjausData.test.js).
 // Aikataulun jäsennys ja KISANSPEKSIT-arvot ovat src/utils/radanJono.js:ssä, koska julkinen ratanäkymä käyttää samoja.
-export { jasennaRataruudukko, radanJono, speksiArvo } from '../../src/utils/radanJono.js';
+export { MAKS_NRO, jasennaRataruudukko, puhdasTeksti, radanJono, speksiArvo, tarkistaLinja } from '../../src/utils/radanJono.js';
+import { MAKS_NRO, puhdasTeksti } from '../../src/utils/radanJono.js';
 
 export const KOHTEITA = 25;
 export const AIKATAULU_VALILEHDET = ['Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
 export const LOKI_VALILEHTI = 'MOBIILI_LOKI';
 export const mobiiliValilehti = (sarake) => `MOBIILI Rata ${sarake}`;
-// Rivi = ampujan numero + 1 (rivi 1 on otsikko), joten jokaisella kortilla on kiinteä osoite.
-export const MAKS_NRO = 999;
+// Rivi = ampujan numero + 1 (rivi 1 on otsikko), joten jokaisella kortilla on kiinteä osoite (MAKS_NRO: radanJono.js).
 export const META_SARAKKEITA = 6;
 
 export const KORTTI_OTSIKKO = ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO',
@@ -87,8 +87,6 @@ export function lueKorttiRivi(rivi) {
 // (ei kirjoiteta; vastaus kertoo, onko laite yhä haltija, ja palauttaa korvattujen laitteiden täydennykset).
 export const MAKS_KORTTEJA = 30;
 const MAKS_NIMI = 80;
-// Näyttöteksti: ohjausmerkit pois ja pituus rajattu.
-export const puhdasTeksti = (t, maks) => [...String(t ?? '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, maks);
 export const onLaitetunnus = (laite) => typeof laite === 'string' && /^[A-Za-z0-9_-]{4,64}$/.test(laite);
 
 export function tarkistaTallennus(runko) {
