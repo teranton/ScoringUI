@@ -177,7 +177,8 @@ const TEKSTIT = jaadyta({
       shotsLoading: 'Haetaan kiekkoja…',
       shotsNone: 'Asemalle ei ole mobiilikirjauksen kiekkotietoja.',
       shotsError: 'Kiekkojen haku epäonnistui. Yritä hetken päästä uudelleen.',
-      shotsDiffer: 'tuloksissa {tulos}'
+      shotsDiffer: 'tuloksissa {tulos}',
+      layout: 'Rata'
     },
     rankingTulokset: {
       noResults: 'Rankingin tuloksia ei löytynyt.',
@@ -452,7 +453,8 @@ const TEKSTIT = jaadyta({
       shotsLoading: 'Loading targets…',
       shotsError: 'Could not load the targets. Try again shortly.',
       shotsNone: 'No mobile scoring targets for this stage.',
-      shotsDiffer: 'results show {tulos}'
+      shotsDiffer: 'results show {tulos}',
+      layout: 'Layout'
     },
     rankingTulokset: {
       noResults: 'No ranking results found.',

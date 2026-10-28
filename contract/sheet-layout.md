@@ -296,19 +296,25 @@ The signed entry link is never the public link.
 - The line is computed as on the device (`src/kirjaus/linja.js`): the queue from the `Aikataulu*` lane grid (as above,
   with `LAYOUT/PÄIVÄ`), the device's `LINJA` (added / skipped shooters, breaks, retired, program), the program from
   `LINJA`, else `RATAn_OHJELMA`, else `SSSD`, and the marks on the cards. The layout name is `RATAn_NIMI`.
+- The device creates the `MOBIILI` tabs during the competition. A requested `MOBIILI` tab missing from an API server's
+  cached tab list makes it fetch the list again when the list is over 1 min old (other tabs: 10 min), and the page
+  keeps the last value of a tab the response reports missing, so the live tab doesn't come and go.
 - Squad cards are not in the live view (their results reach the result columns after every stand); see below.
 
 ### Targets in the results (`api/kisa.js`)
 
-On the results page, a station score of a competition with squad phones can be tapped to show that station's targets
-from the squad phone's card (hidden by default).
+On the results page, a station score of a competition with mobile score entry can be tapped to show that station's
+targets (hidden by default): from the squad phone's card (Sporting / FITASC / ESP) or from the Compak device's card
+(result column N is `MOBIILI Rata N`, shown as five stands of five targets).
 
 - The running competition request adds `MOBIILI_RYHMAT`, served with the `RYHMÄ` column only: a squad row means the
-  competition has squad cards. A finished competition's request is unchanged (its stored snapshots stay valid); there
-  the cards are read when a shooter's card is opened, and only stations with targets on the card can be tapped.
-- When a shooter's card or a station is opened, the page reads `MOBIILI Layout 1`..`MOBIILI Layout 8` in one request (missing tabs are skipped), again
-  at most once a minute. Served columns: `NRO`, `NIMI`, `ASEMA <k>` and the targets `<k>/<i>`; `LAITE`, `VERSIO`, `RYHMÄ`,
-  `HYVÄKSYTTY`, `KUITATUT` are dropped.
+  competition has squad cards. A `MOBIILI_LAITTEET` layout row (already read for the live view) means it has Compak
+  cards. A finished competition's request is unchanged (its stored snapshots stay valid); there both kinds of cards are
+  read when a shooter's card is opened, and only stations with targets on a card can be tapped.
+- When a shooter's card or a station is opened, the page reads `MOBIILI Layout 1`..`MOBIILI Layout 8` and/or
+  `MOBIILI Rata 1`..`MOBIILI Rata N` (N = the competition's result columns, at most 24; 12 tabs per request, missing
+  tabs are skipped), again at most once a minute. Served columns: `NRO`, `NIMI`, `ASEMA <k>` and the targets `<k>/<i>`
+  (`LAITE`, `VERSIO`, `RYHMÄ`, `HYVÄKSYTTY`, `KUITATUT` are dropped), and for `MOBIILI Rata N` as in the live view.
 - `Tulokset Y` has no shooter number, so the card is matched by name (trimmed, spaces collapsed, case and U+200B ignored);
   a name on two card numbers, or twice in `Tulokset Y`, is not shown. Station k is result column k. When the result differs from the card's hits, both
   are shown.

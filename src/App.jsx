@@ -332,10 +332,10 @@ export default function App() {
   // Tulosten kiekkonäkymä: kisassa on ryhmäpuhelimen kortteja (Sporting / FITASC / ESP). Päättyneestä kisasta
   // MOBIILI_RYHMAT ei tule (null): ei tiedossa, kortit haetaan ampujan kortin avauksessa.
   const mobiiliRyhmatCsvRaw = nykyisenKisanData?.mobiiliRyhmatCsvRaw;
-  const onkoRyhmaKiekkoja = useMemo(
-    () => (typeof mobiiliRyhmatCsvRaw === 'string' ? onkoRyhmaKortteja(mobiiliRyhmatCsvRaw) : null),
-    [mobiiliRyhmatCsvRaw]
-  );
+  // Compak-radan kortit (MOBIILI Rata N): kisassa on kirjauslaitteen ratoja (MOBIILI_LAITTEET), päättyneessä ei tiedossa.
+  const kiekkoLahteet = useMemo(() => (typeof mobiiliRyhmatCsvRaw === 'string'
+    ? { ryhma: onkoRyhmaKortteja(mobiiliRyhmatCsvRaw), compak: onkoLiveRatoja }
+    : { ryhma: null, compak: null }), [mobiiliRyhmatCsvRaw, onkoLiveRatoja]);
   const onkoLiveSallittu = onkoTuloksetSallittu && !onkoKisaPaattynyt && onkoLiveRatoja;
   // Kaikki taulukossa olevat aikataulut, myös tyhjät: LAYOUT/PÄIVÄ laskee päivät niistä kuten kirjauslaite.
   const aikatauluValilehdet = nykyisenKisanData?.aikatauluValilehdet;
@@ -607,7 +607,7 @@ export default function App() {
                 parsedSpeksit={nykyisenKisanSpeksit}
                 kisaStatus={kisanStatusInfo.status}
                 sheetId={valittuKisa.apiUrl}
-                kiekotKaytossa={onkoRyhmaKiekkoja}
+                kiekkoLahteet={kiekkoLahteet}
                 locale={locale}
               />
             </div>
