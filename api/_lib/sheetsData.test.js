@@ -94,6 +94,20 @@ test('välilehtilista muistissa: ei listahakua, vain yksi batchGet', async () =>
   assert.equal(kutsut.length, 1);
 });
 
+test('kesken kisan luotu MOBIILI-välilehti: vanha lista haetaan uudelleen minuutin jälkeen', async () => {
+  await tyhjennaValilehtiCache();
+  const valilehdet = ['Tulokset Y'];
+  const { request } = luoGoogle(valilehdet, { 'Tulokset Y': [['A']], MOBIILI_LAITTEET: [['RATA'], ['1']] });
+  const nimet = ['Tulokset Y', 'MOBIILI_LAITTEET'];
+  const alku = Date.now();
+  await haeValilehdetCsv({ request, sheetId: `${SHEET}9`, nimet, nyt: alku });
+  valilehdet.push('MOBIILI_LAITTEET');
+  const heti = await haeValilehdetCsv({ request, sheetId: `${SHEET}9`, nimet, nyt: alku + 30 * 1000 });
+  assert.deepEqual(heti.notFound, ['MOBIILI_LAITTEET']);
+  const myohemmin = await haeValilehdetCsv({ request, sheetId: `${SHEET}9`, nimet, nyt: alku + 61 * 1000 });
+  assert.deepEqual(myohemmin, { csvByName: { 'Tulokset Y': 'A', MOBIILI_LAITTEET: 'RATA\n1' }, notFound: [] });
+});
+
 test('muu kuin aluevirhe heitetään eteenpäin', async () => {
   await tyhjennaValilehtiCache();
   const request = async () => { const e = new Error('kielletty'); e.response = { status: 403 }; throw e; };

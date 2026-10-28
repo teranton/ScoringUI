@@ -7,6 +7,11 @@ const VALILEHTI_TTL_MS = 10 * 60 * 1000;
 // Pienet joukot (päättyneen kisan 3 välilehteä, pelkkä KISANSPEKSIT) löytyvät lähes aina, joten ne pyydetään
 // suoraan. Live-joukossa on aikataulujen vaihtoehtoisia nimiä, joista osa puuttuu aina: se odottaa välilehtilistaa.
 const SUORA_HAKU_MAKS = 4;
+// Mobiilikirjaus luo MOBIILI-välilehdet kesken kisan (api/kirjaus.js). Jos pyydetty MOBIILI-välilehti puuttuu
+// listasta, lista haetaan uudelleen, kun se on tätä vanhempi: muuten instanssi, jonka lista on vanha, antaa
+// välilehden puuttuvana vielä 10 min, ja Radat live välkkyy eri instanssien vastausten välillä.
+const MOBIILI_LISTA_MS = 60 * 1000;
+const onMobiiliValilehti = (nimi) => /^mobiili[ _]/i.test(String(nimi || '').trim());
 const valilehtiCache = luoValimuisti('valilehdet');
 
 const normalisoi = (nimi) => String(nimi || '').trim().toLowerCase();
@@ -127,7 +132,12 @@ const onAlueVirhe = (error) => Number(error?.response?.status || error?.status |
 // pienet joukot pyydetään samalla suoraan, ja puuttuva välilehti (400) haetaan uudelleen listan avulla.
 export async function haeValilehdetCsv({ request, sheetId, nimet, nyt = Date.now() }) {
   const muistissa = await valilehtiCache.hae(sheetId);
-  const tuoreLista = muistissa && (nyt - muistissa.tallennettu) < VALILEHTI_TTL_MS ? muistissa.arvo : null;
+  let tuoreLista = muistissa && (nyt - muistissa.tallennettu) < VALILEHTI_TTL_MS ? muistissa.arvo : null;
+
+  const mobiiliPuuttuu = (lista) => kohdistaValilehdet(nimet, lista).puuttuvat.some(onMobiiliValilehti);
+  if (tuoreLista && mobiiliPuuttuu(tuoreLista) && (nyt - muistissa.tallennettu) >= MOBIILI_LISTA_MS) {
+    tuoreLista = null;
+  }
 
   if (tuoreLista) {
     const { loydetyt, puuttuvat } = kohdistaValilehdet(nimet, tuoreLista);

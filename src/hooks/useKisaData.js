@@ -188,8 +188,10 @@ export function useKisaData({ kisat, valittuKisa }) {
         rankingCsvRaw: kisa.onkoRanking ? (csvByName[sivut[0]] || vanhaData.rankingCsvRaw || "") : "",
         rankingKisatCsvRaw: kisa.onkoRanking ? (csvByName['KISAT'] || vanhaData.rankingKisatCsvRaw || "") : "",
         speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
-        mobiiliRyhmatCsvRaw: onkoStaattinen ? null : (csvByName['MOBIILI_RYHMAT'] || ""),
-        mobiiliLaitteetCsvRaw: onkoStaattinen ? "" : (csvByName['MOBIILI_LAITTEET'] || ""),
+        // Puuttuvaksi kerrottu MOBIILI-välilehti pidetään entisellään: kirjaus luo sen kesken kisan, eikä se katoa,
+        // mutta palvelimen vanha välilehtilista voi hetken kertoa sen puuttuvan (Radat live ei saa välkkyä).
+        mobiiliRyhmatCsvRaw: onkoStaattinen ? null : (csvByName['MOBIILI_RYHMAT'] ?? (vanhaData.mobiiliRyhmatCsvRaw || "")),
+        mobiiliLaitteetCsvRaw: onkoStaattinen ? "" : (csvByName['MOBIILI_LAITTEET'] ?? (vanhaData.mobiiliLaitteetCsvRaw || "")),
         // Taulukossa olevat aikataulut (myös tyhjät) ratanäkymän päivien laskuun; null kun ei tiedetä.
         aikatauluValilehdet: onkoStaattinen ? null : sivut.filter((n) => n.startsWith('Aikataulu') && !(tulos.notFound || []).includes(n)),
         speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0),

@@ -41,7 +41,15 @@ function useRadanData(sheetId, sarake) {
         const res = await fetch(liveUrl(sheetId, sarake));
         if (!res.ok) throw new Error(`Status ${res.status}`);
         const json = await res.json();
-        if (!peruttu) setTila({ avain, data: json.csvByName || {}, virhe: false, haettu: new Date() });
+        // Puuttuvaksi kerrottu välilehti pidetään entisellään (palvelimen vanha välilehtilista, ks. sheetsData.js).
+        if (!peruttu) {
+          setTila((t) => ({
+            avain,
+            data: { ...(t.avain === avain ? t.data : {}), ...(json.csvByName || {}) },
+            virhe: false,
+            haettu: new Date()
+          }));
+        }
       } catch (error) {
         console.error('[LIVE] Radan haku epäonnistui:', error?.message);
         // Toisen radan vanhaa dataa ja hakuaikaa ei näytetä tämän radan tietoina.
