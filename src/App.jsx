@@ -12,6 +12,7 @@ import { parseCsvRows } from './utils/csv';
 import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
+import { lueRadanLaitteet } from './utils/mobiiliLive';
 import { laskeSeuraavaAktiivinenSivu } from './utils/competitionView';
 import {
   laskeKisanPaivaStatus,
@@ -34,7 +35,7 @@ import {
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer } from 'lucide-react';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer, Radio } from 'lucide-react';
 import { haeTekstit } from './i18n';
 import SaaEnnuste from './components/SaaEnnuste';
 import { lataaAnalytiikka, trackAnalyticsEvent } from './utils/analytiikka';
@@ -56,6 +57,8 @@ const HenkiloTaulukko = lazy(NAKYMAPALAT.taulukko);
 const AikatauluNakyma = lazy(NAKYMAPALAT.aikataulu);
 const AikatauluRyhmaNakyma = lazy(NAKYMAPALAT.ryhmaAikataulu);
 const TulosteAikataulu = lazy(NAKYMAPALAT.tulosteAikataulu);
+// Ratanäkymä vain kisoille, joissa on mobiilikirjauksen ratoja, joten sitä ei esiladata.
+const LiveRadat = lazy(() => import('./LiveRadat'));
 // Tulosluettelo renderöidään suoraan ladatusta moduulista (ei lazy), koska print() kutsutaan heti renderöinnin
 // jälkeen eikä React.lazy ehdi renderöidä ensimmäisellä kerralla.
 const ladatutModuulit = {};
@@ -322,6 +325,16 @@ export default function App() {
     && onkoJoukkueTuloksetSallittu
     && nykyisenKisanParsitutRivit.joukkueRows.length >= 2;
 
+  // Radat live: mobiilikirjauksen Compak-radat (MOBIILI_LAITTEET), kun kisa on käynnissä.
+  const mobiiliLaitteetCsvRaw = nykyisenKisanData?.mobiiliLaitteetCsvRaw || '';
+  const onkoLiveRatoja = useMemo(() => lueRadanLaitteet(mobiiliLaitteetCsvRaw).length > 0, [mobiiliLaitteetCsvRaw]);
+  const onkoLiveSallittu = onkoTuloksetSallittu && !onkoKisaPaattynyt && onkoLiveRatoja;
+  const liveAikataulut = useMemo(() => [
+    { nimi: 'Aikataulu', raw: aikatauluCsvRaw },
+    { nimi: 'Aikataulu La', raw: aikatauluLaCsvRaw },
+    { nimi: 'Aikataulu Su', raw: aikatauluSuCsvRaw }
+  ].filter((a) => String(a.raw || '').trim()), [aikatauluCsvRaw, aikatauluLaCsvRaw, aikatauluSuCsvRaw]);
+
   // Jos valittu välilehti ei ole sallittu, vaihdetaan se jo renderöinnin aikana (ei ylimääräistä effect-kierrosta).
   const seuraavaAktiivinenSivu = laskeSeuraavaAktiivinenSivu({
     valittuKisa,
@@ -334,7 +347,8 @@ export default function App() {
     onkoKisaTulossa,
     onkoTaulukkoSallittu,
     onkoTuloksetSallittu,
-    onkoRyhmaMuokkausSallittu
+    onkoRyhmaMuokkausSallittu,
+    onkoLiveSallittu
   });
   if (seuraavaAktiivinenSivu !== aktiivinenSivu) {
     setAktiivinenSivu(seuraavaAktiivinenSivu);
@@ -536,6 +550,12 @@ export default function App() {
             {tx.timetable}
           </Button>
         )}
+        {onkoLiveSallittu && (
+          <Button onClick={() => setAktiivinenSivu('live')} variant={aktiivinenSivu === 'live' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Radio className="h-4 w-4" aria-hidden="true" />
+            {tx.liveLanes}
+          </Button>
+        )}
         {onkoMateriaaleja && (
           <Button onClick={() => setAktiivinenSivu('materiaalit')} variant={aktiivinenSivu === 'materiaalit' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <FileText className="h-4 w-4" aria-hidden="true" />
@@ -647,6 +667,19 @@ export default function App() {
                 </NakymaVirheRaja>
               )}
             </div>
+          )}
+          {aktiivinenSivu === 'live' && onkoLiveSallittu && (
+            <NakymaVirheRaja tx={tx}>
+              <Suspense fallback={<IlmoitusLaatikko>{tx.loadingView}</IlmoitusLaatikko>}>
+                <LiveRadat
+                  sheetId={valittuKisa.apiUrl}
+                  speksitRivit={nykyisenKisanParsitutRivit.speksitRows}
+                  aikataulut={liveAikataulut}
+                  laitteetCsv={mobiiliLaitteetCsvRaw}
+                  locale={locale}
+                />
+              </Suspense>
+            </NakymaVirheRaja>
           )}
           {aktiivinenSivu === 'ryhmat' && onkoRyhmaMuokkausSallittu && (
             <RyhmaJako

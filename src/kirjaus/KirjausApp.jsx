@@ -11,7 +11,7 @@ import {
   osumat, peru, taytetyt, yhdistaPalvelimelta
 } from './kortit.js';
 import {
-  ASEMIA, OHJELMAT, jasennaOhjelma, laskeVuorot, linjanTilanne, ohjelmaTekstiksi, radanLinjajono, tulevatAmpujat
+  ASEMIA, OHJELMAT, jasennaOhjelma, laskeVuorot, linjanJono, linjanTilanne, ohjelmaTekstiksi, seuraavatAmpujat, valmiitAmpujat
 } from './linja.js';
 import {
   kirjaaMerkinta, laitteenTunnus, lueKoodi, lueMerkinnat, lueRata, lueRataTietokannasta, otaOdottavaSiirto,
@@ -26,6 +26,7 @@ import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
+import AmpujaRivi from './AmpujaRivi.jsx';
 import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
 import RyhmaNakyma from './RyhmaKirjaus.jsx';
 import { Asennus, SynkMerkki } from './Yhteiset.jsx';
@@ -246,15 +247,11 @@ function RataNakyma({ koodi, onVaihda }) {
   }, [koodi, laite, latausKierros, kopioLuettu]);
 
   const avaus = tila.avaus;
-  const jono = useMemo(() => {
-    const perus = radanLinjajono(avaus?.jono || [], { lisatyt: tila.lisatyt, ohitetut: tila.ohitetut });
-    // Tauot: aikataulun TAUKO-rivit ja laitteella lisätyt, miinus laitteella perutut.
-    return perus.map((a) => ({
-      ...a,
-      nimi: a.nimi || avaus?.nimet?.[a.nro] || '',
-      taukoEnnen: tila.tauot.includes(a.nro) || (Boolean(a.taukoEnnen) && !tila.tauotPois.includes(a.nro))
-    }));
-  }, [avaus, tila.lisatyt, tila.ohitetut, tila.tauot, tila.tauotPois]);
+  // Tauot: aikataulun TAUKO-rivit ja laitteella lisätyt, miinus laitteella perutut.
+  const jono = useMemo(
+    () => linjanJono(avaus?.jono || [], { lisatyt: tila.lisatyt, ohitetut: tila.ohitetut, tauot: tila.tauot, tauotPois: tila.tauotPois }, avaus?.nimet),
+    [avaus, tila.lisatyt, tila.ohitetut, tila.tauot, tila.tauotPois]
+  );
   const nimi = useCallback((nro) => jono.find((a) => a.nro === nro)?.nimi || avaus?.nimet?.[nro] || '', [jono, avaus]);
   const nimiRef = useRef(nimi);
   useEffect(() => { nimiRef.current = nimi; }, [nimi]);
@@ -469,27 +466,15 @@ function RataNakyma({ koodi, onVaihda }) {
   const vuorot = useMemo(() => (ohjelma ? laskeVuorot(jono, ohjelma) : []), [jono, ohjelma]);
   const tilanne = useMemo(() => linjanTilanne(vuorot, tila.kortit, tila.keskeyttaneet), [vuorot, tila.kortit, tila.keskeyttaneet]);
   // Seuraavaksi: kierroksen uusi tulija asemalla 1, jos hän ei ole vielä ampunut (voi ohittaa tai pitää tauon), ja jono.
-  const tulevat = useMemo(() => {
-    if (!tilanne) return [];
-    const tulija = tilanne.linja.find((l) => l.asema === 0);
-    const odottaa = tulija && taytetyt(merkitOf(tila.kortit, tulija.nro)) === 0 && !tila.keskeyttaneet.includes(tulija.nro);
-    const alussa = odottaa ? jono.filter((a) => a.nro === tulija.nro) : [];
-    return [...alussa, ...tulevatAmpujat(jono, vuorot, tilanne.vuoro.kierros)];
-  }, [jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
+  const tulevat = useMemo(
+    () => seuraavatAmpujat(jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet),
+    [jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet]
+  );
   // Radan ampuneet (tai keskeyttäneet), uusin ensin: ampuja voi tarkistaa tuloksensa näytöltä.
-  const valmiit = useMemo(() => {
-    const linjalla = new Set((tilanne?.linja || []).map((l) => l.nro));
-    // Järjestys linjaan tulon mukaan (ensimmäinen vuoro), viimeksi tullut ensin.
-    const tulo = new Map();
-    vuorot.forEach((v, i) => {
-      if (!tulo.has(v.nro)) tulo.set(v.nro, i);
-    });
-    return [...tulo.entries()]
-      .filter(([nro]) => !linjalla.has(nro)
-        && (taytetyt(merkitOf(tila.kortit, nro)) === KOHTEITA || tila.keskeyttaneet.includes(nro)))
-      .sort((a, b) => b[1] - a[1])
-      .map(([nro]) => nro);
-  }, [vuorot, tilanne, tila.kortit, tila.keskeyttaneet]);
+  const valmiit = useMemo(
+    () => valmiitAmpujat(vuorot, tilanne, tila.kortit, tila.keskeyttaneet),
+    [vuorot, tilanne, tila.kortit, tila.keskeyttaneet]
+  );
   const kohta = valinta || tilanne?.kohta || null;
   const vuorossa = tilanne && !valinta ? tilanne.vuoro : null;
 
@@ -1089,55 +1074,6 @@ function alkutila(tallessa) {
     ...tallessa
   };
   return { ...t, lisatyt: t.lisatyt.map((l) => (typeof l === 'number' ? { nro: l } : l)) };
-}
-
-function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, valmis, keskeyttanyt, onKeskeyta, onValitse }) {
-  const aktiivinen = kohta !== null;
-  const asemat = Array.from({ length: KOHTEITA / ASEMAN_KOHTEET }, (_, a) => a);
-  const reuna = korostus === 'korjaus' ? 'border-amber-600' : aktiivinen ? 'border-blue-700' : 'border-transparent';
-  return (
-    <div data-nro={ampuja.nro} className={`shrink-0 rounded-lg border-2 px-1.5 py-0.5 sm:p-2 ${valmis ? 'bg-slate-300' : 'bg-white'} ${reuna}`}>
-      <div className="flex w-full items-center justify-between gap-2 text-left">
-        <span className="min-w-0 truncate text-sm font-semibold sm:text-base">
-          <span className="mr-2 inline-block min-w-8 rounded bg-slate-200 px-1 text-center">{ampuja.nro}</span>
-          {ampuja.nimi || '(ei nimeä)'}
-        </span>
-        {/* Keskeytys vain korjaustilassa, ettei sitä paineta vahingossa kesken kirjauksen. */}
-        {onKeskeyta ? (
-          <button type="button" className={`shrink-0 rounded px-2 text-[11px] leading-5 sm:py-0.5 sm:text-xs ${keskeyttanyt ? 'bg-slate-700 text-white' : 'border border-slate-300 text-slate-600'}`} onClick={onKeskeyta}>
-            {keskeyttanyt ? 'Keskeytti · peru' : 'Keskeytti'}
-          </button>
-        ) : keskeyttanyt && (
-          <span className="shrink-0 rounded bg-slate-700 px-2 text-[11px] leading-5 text-white sm:text-xs">Keskeytti</span>
-        )}
-        <span className="shrink-0 text-lg leading-tight font-bold sm:text-xl">
-          {osumat(merkit)}
-          <span className="text-sm font-normal text-slate-500"> / {taytetyt(merkit)}{lahetetty ? '' : ' •'}</span>
-        </span>
-      </div>
-      <div className="mt-1 grid grid-cols-5 gap-1.5 sm:mt-2 sm:gap-2">
-        {asemat.map((a) => (
-          <div key={a} className="grid grid-cols-5 gap-0.5">
-            {Array.from({ length: ASEMAN_KOHTEET }, (_, k) => {
-              const i = a * ASEMAN_KOHTEET + k;
-              const m = merkit[i];
-              const vari = m === 'X' ? 'bg-green-700 text-white' : m === 'O' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-400';
-              const luokat = `flex h-5 items-center justify-center rounded-sm text-xs font-bold sm:h-8 ${vari} ${kohta === i ? 'ring-2 ring-blue-700 ring-offset-1' : ''}`;
-              const teksti = m === 'X' ? 'X' : m === 'O' ? '0' : '';
-              // Kiekkoa voi napauttaa vain korjaustilassa ja vain, jos se on jo merkitty.
-              return onValitse && m !== '-' ? (
-                <button key={i} type="button" aria-label={`Korjaa asema ${a + 1}, kiekko ${k + 1}`} className={`${luokat} ring-1 ring-amber-500`} onClick={() => onValitse(i)}>
-                  {teksti}
-                </button>
-              ) : (
-                <div key={i} className={luokat}>{teksti}</div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 const OHJELMAN_NIMET = { SSSD: '3 yksittäistä + tupla', SDD: 'yksittäinen + 2 tuplaa', SSSSS: '5 yksittäistä' };

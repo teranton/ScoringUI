@@ -30,7 +30,28 @@ const TEKSTIT = jaadyta({
       loadingView: 'Ladataan näkymää...',
       viewLoadFailed: 'Näkymän lataus epäonnistui.',
       viewLoadFailedOffline: 'Näkymää ei voi ladata ilman verkkoyhteyttä.',
-      reloadPage: 'Lataa sivu uudelleen'
+      reloadPage: 'Lataa sivu uudelleen',
+      liveLanes: 'Radat live'
+    },
+    liveRadat: {
+      lane: 'Rata',
+      stand: 'Asema',
+      done: 'Valmis',
+      retiredShort: 'kesk.',
+      next: 'Seuraava',
+      then: 'Sitten',
+      finished: 'Ampuneet',
+      showAll: 'Näytä kaikki',
+      showLatest: 'Näytä vain viimeisimmät',
+      allDone: 'Kaikki jonon ampujat ovat ampuneet radan.',
+      noScores: 'Radalla ei ole vielä mobiilikirjauksen tuloksia.',
+      noQueue: 'Radan aikataulusta ei löytynyt ampujia.',
+      program: 'ohjelma',
+      loading: 'Ladataan rataa…',
+      error: 'Radan tietojen päivitys epäonnistui. Yritetään uudelleen.',
+      delay: 'Noin 15–30 s viiveellä',
+      fetched: 'haettu',
+      lastScore: 'viimeisin merkintä'
     },
     kisaStatus: {
       kaynnissa: 'Käynnissä',
@@ -278,7 +299,28 @@ const TEKSTIT = jaadyta({
       loadingView: 'Loading view...',
       viewLoadFailed: 'Loading the view failed.',
       viewLoadFailedOffline: 'The view cannot be loaded without a network connection.',
-      reloadPage: 'Reload page'
+      reloadPage: 'Reload page',
+      liveLanes: 'Live layouts'
+    },
+    liveRadat: {
+      lane: 'Layout',
+      stand: 'Stand',
+      done: 'Done',
+      retiredShort: 'ret.',
+      next: 'Next',
+      then: 'Then',
+      finished: 'Finished',
+      showAll: 'Show all',
+      showLatest: 'Show latest only',
+      allDone: 'Every shooter in the queue has finished this layout.',
+      noScores: 'No mobile scores on this layout yet.',
+      noQueue: 'No shooters found in this layout’s timetable.',
+      program: 'program',
+      loading: 'Loading layout…',
+      error: 'Could not update the layout. Retrying.',
+      delay: 'About 15–30 s behind',
+      fetched: 'fetched',
+      lastScore: 'last score'
     },
     kisaStatus: {
       kaynnissa: 'Ongoing',

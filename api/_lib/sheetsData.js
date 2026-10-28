@@ -27,8 +27,36 @@ export function onRankingValilehti(nimi) {
   return RANKING_VALILEHTI.test(normalisoitu) || normalisoitu === 'kisat';
 }
 
+// Mobiilikirjauksen välilehdet julkiselle ratanäkymälle (src/LiveRadat.jsx), vain alla luetellut sarakkeet:
+// kortit (MOBIILI Rata N) ilman laitetta ja versiota, radan laitteista (MOBIILI_LAITTEET) vain linjan tila.
+// Laitteiden tunnukset, haltijan nimi, PIN-virheet ja korvattujen laitteiden täydennykset eivät lähde API:sta.
+const MOBIILI_RATA = /^mobiili rata \d{1,3}$/;
+const MOBIILI_LAITTEET = 'mobiili_laitteet';
+const JULKISET_SARAKKEET = {
+  rata: new Set(['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', ...Array.from({ length: 25 }, (_, i) => String(i + 1))]),
+  laitteet: new Set(['RATA', 'LINJA', 'LINJA PÄIVITETTY'])
+};
+
+function julkisetSarakkeetValilehdelle(nimi) {
+  const normalisoitu = normalisoi(nimi);
+  if (MOBIILI_RATA.test(normalisoitu)) return JULKISET_SARAKKEET.rata;
+  if (normalisoitu === MOBIILI_LAITTEET) return JULKISET_SARAKKEET.laitteet;
+  return null;
+}
+
 export function onSallittuValilehti(nimi) {
-  return sallitutNormalisoituna.has(normalisoi(nimi)) || onRankingValilehti(nimi);
+  return sallitutNormalisoituna.has(normalisoi(nimi)) || onRankingValilehti(nimi) || Boolean(julkisetSarakkeetValilehdelle(nimi));
+}
+
+// Rajatun välilehden rivit vain julkisin sarakkein (otsikkorivin mukaan, järjestys säilyy). Muut sellaisinaan.
+export function julkisetSarakkeet(nimi, rivit) {
+  const sallitut = julkisetSarakkeetValilehdelle(nimi);
+  if (!sallitut || !Array.isArray(rivit) || rivit.length === 0) return rivit;
+  const otsikko = Array.isArray(rivit[0]) ? rivit[0] : [];
+  const pidettavat = otsikko
+    .map((solu, i) => (sallitut.has(String(solu ?? '').trim().toUpperCase()) ? i : -1))
+    .filter((i) => i !== -1);
+  return rivit.map((rivi) => pidettavat.map((i) => (Array.isArray(rivi) ? rivi[i] ?? '' : '')));
 }
 
 function csvKentta(arvo) {
@@ -87,7 +115,7 @@ async function batchGet(request, sheetId, kohteet) {
   const valueRanges = res.data.valueRanges || [];
   const csvByName = {};
   kohteet.forEach(({ pyydetty }, i) => {
-    csvByName[pyydetty] = rivitCsvksi(valueRanges[i]?.values || []);
+    csvByName[pyydetty] = rivitCsvksi(julkisetSarakkeet(pyydetty, valueRanges[i]?.values || []));
   });
   return csvByName;
 }

@@ -25,6 +25,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js` for Compak; `KilpailuPohja.js` menu "Luo aikataulu" for the group timetable, after registration; a new competition has only an instruction text in A1) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
 | `OSALLISTUJAT+TULOKSET` (named range `OSALLISTUJAT`) | Organiser, ScoringLib (`Distributor.js` shuffle, `MobiiliTulokset.js` import of mobile results), squad editor (`RyhmaJako.jsx`, organiser's own account), mobile entry (`api/kirjaus.js`, writer account: result cells only with `MOBIILI_TULOKSET` = `SUORAAN`) | `RyhmaJako.jsx`; `api/kirjaus.js` with the writer account (squad phone, direct results), not through `api/kisa.js` |
+| `MOBIILI Rata N`, `MOBIILI_LAITTEET` | Mobile entry (`api/kirjaus.js`, writer account), see "Mobile score entry" | `LiveRadat.jsx`, `utils/mobiiliLive.js` through `api/kisa.js`, only the public columns (see "Public live view") |
 | `RANKING_vvvv` (season ranking sheet, e.g. `RANKING_2026`) | Sheet formulas from the ranking sheet's `TULOKSET` / `KISAT` tabs | `RankingTulokset.jsx`, `utils/rankingTulokset.js` |
 | `KISAT` (season ranking sheet) | Tero | `RankingTulokset.jsx`, `utils/rankingTulokset.js` (competition names) |
 | Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition; column I is the place for the weather forecast, `api/saa.js`) |
@@ -32,8 +33,9 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
 
 The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`, plus any tab named
-`RANKING_` and a four-digit year, and `KISAT`, on sheets marked `RANKING` in the registry); any other tab
-(`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
+`RANKING_` and a four-digit year, and `KISAT`, on sheets marked `RANKING` in the registry, and the column-filtered
+`MOBIILI Rata N` / `MOBIILI_LAITTEET` of the public live view); any other tab (`MOBIILI_LOKI`, `MOBIILI_RYHMAT`, `MOBIILI Layout N`,
+`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
 
 Access: the sheets and the registry are read only with the service account (`spreadsheets.readonly` scope),
 so each of them must be shared with it (Viewer is enough). They don't need "anyone with the link" sharing.
@@ -276,6 +278,24 @@ Writes (created on the first save if missing):
   row n + 1). Another phone takes a held squad only after the holder releases it or with the squad's office PIN
   (ScoringLib's Laitteen vaihto: PIN-koodit lists held squads; the PIN is `vaihtoPin` with `r<squad>` in place of the
   layout, and `PIN-VIRHEET` counts wrong PINs as for layouts). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
+
+### Public live view (`api/kisa.js`)
+
+A running competition's page has a "Radat live" tab when `MOBIILI_LAITTEET` has a layout row: a read-only mirror of the
+Compak entry screen per layout (stands 1–5 with the latest finished shooter, the next shooter, the cards on the line,
+the finished shooters). It reads with the reader account through `api/kisa.js`, so the CDN cache (15 s while running)
+keeps Google reads at a few per minute per layout whatever the number of viewers; it is about 15–30 s behind the device.
+The signed entry link is never the public link.
+
+- The competition page's live request adds `MOBIILI_LAITTEET`; the tab polls `MOBIILI Rata N` + `MOBIILI_LAITTEET`
+  every 15 s while visible. Both are served **only with these columns** (by header, others dropped in
+  `api/_lib/sheetsData.js` `julkisetSarakkeet`, also in every cache and snapshot): `MOBIILI Rata N`: `NRO`, `NIMI`,
+  `TULOS`, `PÄIVITETTY`, `1`..`25`; `MOBIILI_LAITTEET`: `RATA`, `LINJA`, `LINJA PÄIVITETTY`. Device ids, the holder's
+  name, PIN errors and `TÄYDENNYKSET` never leave the API.
+- The line is computed as on the device (`src/kirjaus/linja.js`): the queue from the `Aikataulu*` lane grid (as above,
+  with `LAYOUT/PÄIVÄ`), the device's `LINJA` (added / skipped shooters, breaks, retired, program), the program from
+  `LINJA`, else `RATAn_OHJELMA`, else `SSSD`, and the marks on the cards. The layout name is `RATAn_NIMI`.
+- Squad cards (`MOBIILI Layout N`) are not shown yet.
 
 ### Results into the result columns (`MOBIILI_TULOKSET`)
 

@@ -27,7 +27,8 @@ function sivutKisalle(kisa, onkoStaattinen) {
   if (kisa?.onkoRanking) return [rankingValilehti(kisa), 'KISAT', 'KISANSPEKSIT'];
   return onkoStaattinen
     ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
-    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
+    // MOBIILI_LAITTEET (vain radat ja linjan tila): mobiilikirjauksen radat julkiseen ratanäkymään (LiveRadat.jsx).
+    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET'];
 }
 
 function kisaDataUrl(sheetId, sivut) {
@@ -185,6 +186,7 @@ export function useKisaData({ kisat, valittuKisa }) {
         rankingCsvRaw: kisa.onkoRanking ? (csvByName[sivut[0]] || vanhaData.rankingCsvRaw || "") : "",
         rankingKisatCsvRaw: kisa.onkoRanking ? (csvByName['KISAT'] || vanhaData.rankingKisatCsvRaw || "") : "",
         speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
+        mobiiliLaitteetCsvRaw: onkoStaattinen ? "" : (csvByName['MOBIILI_LAITTEET'] || ""),
         speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0),
         haettu: Date.now()
       };

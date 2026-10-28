@@ -65,3 +65,9 @@ test('ryhmien muokkaus pysyy auki tulevassa kisassa ja suljetaan, kun se ei ole 
   assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, aktiivinenSivu: 'ryhmat', onkoRyhmaMuokkausSallittu: false }), 'tulokset');
   assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, onkoKisaTulossa: true, onkoTuloksetSallittu: false, aktiivinenSivu: 'ryhmat', onkoRyhmaMuokkausSallittu: false }), 'ilmoittautuneet');
 });
+
+test('radat live pysyy auki vain, kun se on sallittu', () => {
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, aktiivinenSivu: 'live', onkoLiveSallittu: true }), 'live');
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, aktiivinenSivu: 'live', onkoLiveSallittu: false }), 'tulokset');
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, aktiivinenSivu: 'live' }), 'tulokset');
+});

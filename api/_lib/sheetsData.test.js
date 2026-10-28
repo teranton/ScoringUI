@@ -9,6 +9,7 @@ import { parseCsvRows } from '../../src/utils/csv.js';
 process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = await mkdtemp(path.join(tmpdir(), 'scoringui-testi-'));
 const {
   haeValilehdetCsv,
+  julkisetSarakkeet,
   kohdistaValilehdet,
   onSallittuValilehti,
   rivitCsvksi,
@@ -118,4 +119,46 @@ test('onSallittuValilehti sallii kisan välilehdet ja kauden rankingin, ei muita
   assert.equal(onSallittuValilehti('RANKING_2026_vanha'), false);
   assert.equal(onSallittuValilehti('LASKENTA'), false);
   assert.equal(onSallittuValilehti('Suomisport Import'), false);
+});
+
+test('mobiilikirjauksen välilehdet: vain kortit ja radan laitteet, ei muita MOBIILI-välilehtiä', () => {
+  assert.equal(onSallittuValilehti('MOBIILI Rata 3'), true);
+  assert.equal(onSallittuValilehti('mobiili rata 12'), true);
+  assert.equal(onSallittuValilehti('MOBIILI_LAITTEET'), true);
+  assert.equal(onSallittuValilehti('MOBIILI_LOKI'), false);
+  assert.equal(onSallittuValilehti('MOBIILI_RYHMAT'), false);
+  assert.equal(onSallittuValilehti('MOBIILI Layout 1'), false);
+  assert.equal(onSallittuValilehti('MOBIILI Rata'), false);
+});
+
+test('julkisetSarakkeet jättää laitteen tunnukset, PIN-virheet ja täydennykset pois', () => {
+  const kortit = [
+    ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', '1', '2'],
+    [],
+    [2, 'Matti', 1, '28.10.2026 10.00', 'laite-abc', 1761638400000, 'X', 'O']
+  ];
+  assert.deepEqual(julkisetSarakkeet('MOBIILI Rata 1', kortit), [
+    ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', '1', '2'],
+    ['', '', '', '', '', ''],
+    [2, 'Matti', 1, '28.10.2026 10.00', 'X', 'O']
+  ]);
+  const laitteet = [
+    ['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY', 'TÄYDENNYKSET'],
+    [1, 3, 'laite-abc', 'Android Chrome …1234', '28.10.2026', 'PIN', 2, '{"ohitetut":[4]}', '28.10.2026 10.01', '{"5":"XX"}']
+  ];
+  assert.deepEqual(julkisetSarakkeet('MOBIILI_LAITTEET', laitteet), [
+    ['RATA', 'LINJA', 'LINJA PÄIVITETTY'],
+    [1, '{"ohitetut":[4]}', '28.10.2026 10.01']
+  ]);
+  const muu = [['a', 'b']];
+  assert.equal(julkisetSarakkeet('Tulokset Y', muu), muu);
+});
+
+test('haeValilehdetCsv antaa mobiilivälilehdet rajattuina', async () => {
+  const request = async ({ url }) => {
+    if (!url.includes('batchGet')) return { data: { sheets: [{ properties: { title: 'MOBIILI_LAITTEET' } }] } };
+    return { data: { valueRanges: [{ values: [['RATA', 'LAITE', 'LINJA'], [1, 'salainen', '{}']] }] } };
+  };
+  const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}M`, nimet: ['MOBIILI_LAITTEET'] });
+  assert.equal(tulos.csvByName.MOBIILI_LAITTEET, 'RATA,LINJA\n1,{}');
 });

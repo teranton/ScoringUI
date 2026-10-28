@@ -34,6 +34,11 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   With `KISANSPEKSIT` `MOBIILI_TULOKSET` = `SUORAAN`, a save that completes a result (Compak card, or a squad station the
   shooter confirmed) also writes it into an empty result cell of `OSALLISTUJAT+TULOKSET` (`api/_lib/kirjausTulokset.js`);
   paper or formula cells are never changed. Default `TOIMISTO`: the office imports with ScoringLib's Tuo mobiilitulokset.
+- Public live view ("Radat live" tab, `src/LiveRadat.jsx`, `src/utils/mobiiliLive.js`): a read-only mirror of the Compak
+  entry screen per layout, shown for a running competition whose `MOBIILI_LAITTEET` has layouts. It reads `MOBIILI Rata N`
+  and `MOBIILI_LAITTEET` through `api/kisa.js` with the reader account; the API serves only their public columns
+  (`julkisetSarakkeet` in `api/_lib/sheetsData.js`: no device ids, PINs or hand-over marks). The line is computed with the
+  device's own `src/kirjaus/linja.js` and the timetable parser `src/utils/radanJono.js` (shared with `api/kirjaus.js`).
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
   time follows the registry dates (finished 1 h, served stale up to 1 day in the 14-day correction window and 30 days after it; running 15 s; upcoming 60 s).
   With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.
