@@ -34,7 +34,7 @@ mock.module('./_lib/googleAuth.js', { namedExports: {
 
 mock.module('./_lib/kisaKuva.js', { namedExports: {
   onkoKuvatKaytossa: () => true,
-  kuvanPolku: (id, nimet) => `kisat/${id}/${[...nimet].sort().join('|')}`,
+  kuvanPolku: (id, nimet) => `kisat/${id}/${[...nimet].map((n) => n.toLowerCase()).sort().join('|')}`,
   datanVersio: (c) => createHash('sha1').update(JSON.stringify(c || {})).digest('hex').slice(0, 16),
   lueKuva: async (polku) => blob.get(polku) || null,
   tallennaKuva: async (polku, kuva) => {
@@ -86,7 +86,7 @@ test('Google-haun jälkeen kuva tallennetaan vastauksen jälkeen', async () => {
 
 test('korjausajan jälkeen vanha kuva annetaan heti ja päivitetään taustalla', async () => {
   taustat = [];
-  blob.set(`kisat/${VANHA}/NEW_Joukkue`, kuva(3 * PAIVA, 'vanha'));
+  blob.set(`kisat/${VANHA}/new_joukkue`, kuva(3 * PAIVA, 'vanha'));
   const hautEnnen = googleHaut;
   const r = await hae(VANHA, 'NEW_Joukkue');
   assert.equal(r.b.timing.source, 'snapshot-stale');
@@ -95,13 +95,13 @@ test('korjausajan jälkeen vanha kuva annetaan heti ja päivitetään taustalla'
   assert.equal(taustat.length, 1);
   await odotaTaustat();
   assert.ok(googleHaut > hautEnnen);
-  assert.match(blob.get(`kisat/${VANHA}/NEW_Joukkue`).csvByName.NEW_Joukkue, /uusi/);
+  assert.match(blob.get(`kisat/${VANHA}/new_joukkue`).csvByName.NEW_Joukkue, /uusi/);
   assert.equal((await hae(VANHA, 'NEW_Joukkue')).b.timing.source, 'server-cache');
 });
 
 test('tuore kuva ei hae Googlesta', async () => {
   taustat = [];
-  blob.set(`kisat/${VANHA}/Ryhmäjako`, kuva(5 * 60 * 60 * 1000, 'tuore'));
+  blob.set(`kisat/${VANHA}/ryhmäjako`, kuva(5 * 60 * 60 * 1000, 'tuore'));
   const hautEnnen = googleHaut;
   const r = await hae(VANHA, 'Ryhmäjako');
   assert.equal(r.b.timing.source, 'snapshot');
@@ -112,7 +112,7 @@ test('tuore kuva ei hae Googlesta', async () => {
 test('korjausaika lasketaan rekisterin nykyisistä päivistä, ei kuvaan tallennetuista', async () => {
   taustat = [];
   // Kuvassa on vanhat (väärät) päivät, mutta rekisterin mukaan kisa on korjausajassa.
-  blob.set(`kisat/${KORJATTAVA}/NEW_Joukkue`, kuva(3 * PAIVA, 'vanha'));
+  blob.set(`kisat/${KORJATTAVA}/new_joukkue`, kuva(3 * PAIVA, 'vanha'));
   const r = await hae(KORJATTAVA, 'NEW_Joukkue');
   assert.equal(r.b.timing.source, 'google');
   assert.match(r.b.csvByName.NEW_Joukkue, /uusi/);
@@ -140,7 +140,18 @@ test('eri kirjoitusasu ei täytä välimuistia avaimilla, joita frontend ei löy
   const frontend = await hae(KORJATTAVA, 'Ryhmäjako');
   assert.equal(frontend.b.timing.source, 'server-cache');
   assert.ok(frontend.b.csvByName['Ryhmäjako']);
-  assert.ok(blob.get(`kisat/${KORJATTAVA}/Ryhmäjako`).csvByName['Ryhmäjako']);
+  assert.ok(blob.get(`kisat/${KORJATTAVA}/ryhmäjako`).csvByName['Ryhmäjako']);
+});
+
+test('NFD-muotoinen nimi kelpaa', async () => {
+  assert.equal((await hae(KORJATTAVA, 'Ryhmäjako'.normalize('NFD'))).s, 200);
+});
+
+test('raja lasketaan eri välilehdistä, ei kirjoitusasuista', async () => {
+  const r = vastaus();
+  const nimet = Array.from({ length: 13 }, (_, i) => (i % 2 ? 'NEW_Joukkue' : 'new_joukkue') + ' '.repeat(i));
+  await handler({ query: { sheetId: VANHA, sheetNames: nimet }, headers: {} }, r);
+  assert.equal(r.s, 200);
 });
 
 test('saman välilehden eri kirjoitusasut haetaan kerran', async () => {

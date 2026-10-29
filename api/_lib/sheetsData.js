@@ -9,7 +9,7 @@ const VALILEHTI_TTL_MS = 10 * 60 * 1000;
 const SUORA_HAKU_MAKS = 4;
 const valilehtiCache = luoValimuisti('valilehdet');
 
-const normalisoi = (nimi) => String(nimi || '').trim().toLowerCase();
+const normalisoi = (nimi) => String(nimi || '').normalize('NFC').trim().toLowerCase();
 
 // Välilehdet, joita frontend lukee (contract/sheet-layout.md). API ei anna muita välilehtiä,
 // koska taulukoissa on myös tietoja, joita ei julkaista (esim. Suomisport-tuonti ja Sportti-ID:t).
@@ -27,10 +27,6 @@ export function onRankingValilehti(nimi) {
   return RANKING_VALILEHTI.test(normalisoitu) || normalisoitu === 'kisat';
 }
 
-export function onSallittuValilehti(nimi) {
-  return sallitutNormalisoituna.has(normalisoi(nimi)) || onRankingValilehti(nimi);
-}
-
 // Sallitun välilehden nimi frontendin kirjoitusasussa ('tulokset y ' → 'Tulokset Y', 'ranking_2026' → 'RANKING_2026'),
 // muuten tyhjä. Vastauksen avaimet ovat tätä muotoa, joten eri kirjoitusasulla tehty pyyntö ei täytä välimuistia
 // ja Blob-kuvaa avaimilla, joita frontend ei löydä.
@@ -38,6 +34,10 @@ export function kanoninenValilehti(nimi) {
   const normalisoitu = normalisoi(nimi);
   if (sallitutNormalisoituna.has(normalisoitu)) return sallitutNormalisoituna.get(normalisoitu);
   return onRankingValilehti(nimi) ? normalisoitu.toUpperCase() : '';
+}
+
+export function onSallittuValilehti(nimi) {
+  return Boolean(kanoninenValilehti(nimi));
 }
 
 function csvKentta(arvo) {

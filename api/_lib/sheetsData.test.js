@@ -126,5 +126,6 @@ test('kanoninenValilehti antaa frontendin kirjoitusasun tai tyhjän', () => {
   assert.equal(kanoninenValilehti('RYHMÄJAKO'), 'Ryhmäjako');
   assert.equal(kanoninenValilehti('ranking_2027'), 'RANKING_2027');
   assert.equal(kanoninenValilehti('kisat'), 'KISAT');
+  assert.equal(kanoninenValilehti('Ryhmäjako'.normalize('NFD')), 'Ryhmäjako');
   assert.equal(kanoninenValilehti('Suomisport Import'), '');
 });

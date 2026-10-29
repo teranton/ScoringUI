@@ -104,21 +104,22 @@ export default async function handler(req, res) {
   const alku = Date.now();
   const { sheetId } = req.query;
   const raakaNimet = req.query.sheetNames;
-  const pyydetyt = [...new Set((Array.isArray(raakaNimet) ? raakaNimet : [raakaNimet])
+  const pyydetyt = (Array.isArray(raakaNimet) ? raakaNimet : [raakaNimet])
     .map(decodeQueryValue)
     .map((n) => n.trim())
-    .filter(Boolean))];
+    .filter(Boolean);
 
   if (!sheetId || normalisoiSheetId(sheetId) !== sheetId) return lahetaVirhe(res, 400, { error: 'sheetId vaaditaan' });
-  if (pyydetyt.length === 0 || pyydetyt.length > MAKS_VALILEHDET) {
-    return lahetaVirhe(res, 400, { error: `sheetNames: 1–${MAKS_VALILEHDET} välilehteä` });
-  }
   // Muita välilehtiä ei julkaista. Jos frontend pyytää vain niitä, pyyntö torjutaan; muuten ne jätetään pois.
   // Sallitut nimet muutetaan frontendin kirjoitusasuun, jotta välimuistin ja Blob-kuvan avaimet ovat aina samat.
-  const eiSallitut = pyydetyt.filter((n) => !kanoninenValilehti(n));
-  if (eiSallitut.length === pyydetyt.length) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
+  const kanoniset = pyydetyt.map(kanoninenValilehti);
+  const eiSallitut = [...new Set(pyydetyt.filter((_, i) => !kanoniset[i]))];
+  const nimet = [...new Set(kanoniset.filter(Boolean))];
+  if (pyydetyt.length === 0 || nimet.length > MAKS_VALILEHDET) {
+    return lahetaVirhe(res, 400, { error: `sheetNames: 1–${MAKS_VALILEHDET} välilehteä` });
+  }
+  if (nimet.length === 0) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
   if (eiSallitut.length) console.error('[KISA] Ohitetaan välilehdet, joita ei julkaista:', eiSallitut);
-  const nimet = [...new Set(pyydetyt.map(kanoninenValilehti).filter(Boolean))];
 
   const polku = kuvanPolku(sheetId, nimet);
   const tallessa = await vastausValimuisti.hae(polku);
