@@ -51,8 +51,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   Blob writes never delay the response.
   Vercel strips `s-maxage` from the response it forwards, so cached API responses also carry
   `Cloudflare-CDN-Cache-Control` with the same times (`api/_lib/cdnOtsikot.js`) for a Cloudflare cache in front of Vercel.
-  Running competitions are cached only by Cloudflare (`Vercel-CDN-Cache-Control: no-store`), so the two CDN copies don't
-  stack; the server cache still limits Google reads (it gives Cloudflare only the remaining time).
+  Running competitions are kept only 5 s in Vercel's CDN (`Vercel-CDN-Cache-Control: max-age=5`), so the two CDN copies
+  don't stack; Vercel still merges requests, and the server cache gives Cloudflare only the remaining time.
   The API also keeps responses, the registry and tab lists in memory and in files under the OS temp dir
   (`api/_lib/valimuisti.js`), so `vercel dev`, where every request runs in a new process, doesn't hit Google
   on every request. Google 429s are retried once, then old data is served if there is any.

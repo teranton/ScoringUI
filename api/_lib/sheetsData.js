@@ -38,25 +38,21 @@ export function onRankingValilehti(nimi) {
 // tulosten kiekkonäkymälle (src/HenkiloTulokset.jsx) ja ryhmäpuhelimista (MOBIILI_RYHMAT) vain ryhmän numero
 // (onko ryhmäkortteja). Laitteiden tunnukset, haltijan nimi, PIN-virheet ja täydennykset eivät lähde API:sta.
 const KOHDE = Array.from({ length: 25 }, (_, i) => String(i + 1));
+// nimi: välilehden nimi frontendin kirjoitusasussa (src/utils/mobiiliLive.js, src/utils/mobiiliKiekot.js).
 const JULKISET_SARAKKEET = [
-  { valilehti: /^mobiili rata \d{1,3}$/, sarake: (o) => ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', ...KOHDE].includes(o) },
-  { valilehti: /^mobiili_laitteet$/, sarake: (o) => ['RATA', 'LINJA', 'LINJA PÄIVITETTY'].includes(o) },
-  { valilehti: /^mobiili layout \d{1,2}$/, sarake: (o) => o === 'NRO' || o === 'NIMI' || /^ASEMA \d+$/.test(o) || /^\d+\/\d+$/.test(o) },
-  { valilehti: /^mobiili_ryhmat$/, sarake: (o) => o === 'RYHMÄ' }
+  { valilehti: /^mobiili rata (\d{1,3})$/, nimi: (n) => `MOBIILI Rata ${Number(n)}`,
+    sarake: (o) => ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', ...KOHDE].includes(o) },
+  { valilehti: /^mobiili_laitteet$/, nimi: () => 'MOBIILI_LAITTEET', sarake: (o) => ['RATA', 'LINJA', 'LINJA PÄIVITETTY'].includes(o) },
+  { valilehti: /^mobiili layout (\d{1,2})$/, nimi: (n) => `MOBIILI Layout ${Number(n)}`,
+    sarake: (o) => o === 'NRO' || o === 'NIMI' || /^ASEMA \d+$/.test(o) || /^\d+\/\d+$/.test(o) },
+  { valilehti: /^mobiili_ryhmat$/, nimi: () => 'MOBIILI_RYHMAT', sarake: (o) => o === 'RYHMÄ' }
 ];
+
+const julkinenValilehti = (normalisoitu) => JULKISET_SARAKKEET.find((j) => j.valilehti.test(normalisoitu)) || null;
 
 function julkisetSarakkeetValilehdelle(nimi) {
-  const normalisoitu = normalisoi(nimi);
-  return JULKISET_SARAKKEET.find((j) => j.valilehti.test(normalisoitu))?.sarake || null;
+  return julkinenValilehti(normalisoi(nimi))?.sarake || null;
 }
-
-// Mobiilikirjauksen välilehtien nimet frontendin kirjoitusasussa (src/utils/mobiiliLive.js, HenkiloTulokset.jsx).
-const MOBIILI_NIMET = [
-  [/^mobiili rata (\d{1,3})$/, (n) => `MOBIILI Rata ${Number(n)}`],
-  [/^mobiili layout (\d{1,2})$/, (n) => `MOBIILI Layout ${Number(n)}`],
-  [/^mobiili_laitteet$/, () => 'MOBIILI_LAITTEET'],
-  [/^mobiili_ryhmat$/, () => 'MOBIILI_RYHMAT']
-];
 
 // Sallitun välilehden nimi frontendin kirjoitusasussa ('tulokset y ' → 'Tulokset Y', 'ranking_2026' → 'RANKING_2026',
 // 'mobiili rata 3' → 'MOBIILI Rata 3'), muuten tyhjä. Vastauksen avaimet ovat tätä muotoa, joten eri kirjoitusasulla
@@ -65,11 +61,8 @@ export function kanoninenValilehti(nimi) {
   const normalisoitu = normalisoi(nimi);
   if (sallitutNormalisoituna.has(normalisoitu)) return sallitutNormalisoituna.get(normalisoitu);
   if (onRankingValilehti(nimi)) return normalisoitu.toUpperCase();
-  for (const [kuvio, nimeksi] of MOBIILI_NIMET) {
-    const osuma = normalisoitu.match(kuvio);
-    if (osuma && julkisetSarakkeetValilehdelle(nimi)) return nimeksi(osuma[1]);
-  }
-  return '';
+  const julkinen = julkinenValilehti(normalisoitu);
+  return julkinen ? julkinen.nimi(normalisoitu.match(julkinen.valilehti)[1]) : '';
 }
 
 export function onSallittuValilehti(nimi) {

@@ -17,6 +17,10 @@ import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
 import { asetaValimuisti } from './_lib/cdnOtsikot.js';
 
 const MAKS_VALILEHDET = 12;
+// Pyydettyjä nimiä (myös julkaisemattomia ja eri kirjoitusasuja) korkeintaan näin monta.
+const MAKS_PYYDETYT = 4 * MAKS_VALILEHDET;
+// Käynnissä olevan kisan vastaus Vercelin CDN:ssä enintään näin kauan (s), Cloudflaressa CDN-otsikon mukaan.
+const VERCEL_LIVE_S = 5;
 // Näin vanhaa vastausta käytetään vielä, jos Google ei vastaa (esim. kiintiö täynnä).
 const VARALLA_MAKS_IKA_MS = 24 * 60 * 60 * 1000;
 
@@ -42,8 +46,8 @@ function lahetaData(req, res, { csvByName, notFound, cacheControl, timing, paiva
   const versio = datanVersio(csvByName);
   const etag = `W/"${versio}"`;
   res.setHeader('Content-Type', 'application/json');
-  // Käynnissä olevan kisan vastaus vain Cloudflaren välimuistiin (api/_lib/cdnOtsikot.js).
-  asetaValimuisti(res, cacheControl, { vainCloudflare: paivaTila === 'kaynnissa' });
+  // Käynnissä olevan kisan vastaus Vercelin CDN:ssä vain hetken, ettei se kasaudu Cloudflaren kanssa (api/_lib/cdnOtsikot.js).
+  asetaValimuisti(res, cacheControl, { vercelEnintaan: paivaTila === 'kaynnissa' ? VERCEL_LIVE_S : undefined });
   res.setHeader('ETag', etag);
   res.setHeader('X-ScoringUI-Lahde', timing.source);
   if (req.headers?.['if-none-match'] === etag) return res.status(304).end();
@@ -111,6 +115,7 @@ export default async function handler(req, res) {
     .filter(Boolean);
 
   if (!sheetId || normalisoiSheetId(sheetId) !== sheetId) return lahetaVirhe(res, 400, { error: 'sheetId vaaditaan' });
+  if (pyydetyt.length > MAKS_PYYDETYT) return lahetaVirhe(res, 400, { error: `sheetNames: 1–${MAKS_VALILEHDET} välilehteä` });
   // Muita välilehtiä ei julkaista. Jos frontend pyytää vain niitä, pyyntö torjutaan; muuten ne jätetään pois.
   // Sallitut nimet muutetaan frontendin kirjoitusasuun, jotta välimuistin ja Blob-kuvan avaimet ovat aina samat.
   const kanoniset = pyydetyt.map(kanoninenValilehti);
@@ -164,7 +169,7 @@ export default async function handler(req, res) {
       csvByName: tallessa.arvo.csvByName,
       notFound: tallessa.arvo.notFound || [],
       cacheControl: cdnOtsikko(tallessa.arvo.paivaTila, tallessa.arvo.kisa, Date.now(), tallessaIka),
-      paivaTila: tallessa.arvo.paivaTila,
+      paivaTila,
       timing: { total_ms: Date.now() - alku, source: 'server-cache', cache_age_ms: tallessaIka, generated_at_ms: tallessa.tallennettu }
     });
   }
@@ -201,6 +206,7 @@ export default async function handler(req, res) {
         csvByName: varalla.csvByName,
         notFound: varalla.notFound || [],
         cacheControl: VARALLA_OTSIKKO,
+        paivaTila,
         timing: { total_ms: Date.now() - alku, source: varalla.source, generated_at_ms: varalla.tallennettu }
       });
     }

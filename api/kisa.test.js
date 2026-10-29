@@ -150,9 +150,17 @@ test('NFD-muotoinen nimi kelpaa', async () => {
 
 test('raja lasketaan eri välilehdistä, ei kirjoitusasuista', async () => {
   const r = vastaus();
-  const nimet = Array.from({ length: 13 }, (_, i) => (i % 2 ? 'NEW_Joukkue' : 'new_joukkue') + ' '.repeat(i));
+  // 13 eri kirjoitusasua samasta välilehdestä (vanha koodi laski ne 13 välilehdeksi).
+  const nimet = Array.from({ length: 13 }, (_, i) => [...'new_joukkue'].map((c, j) => ([0, 1, 2, 4].indexOf(j) >= 0 && (i >> [0, 1, 2, 4].indexOf(j)) & 1 ? c.toUpperCase() : c)).join(''));
+  assert.equal(new Set(nimet).size, 13);
   await handler({ query: { sheetId: VANHA, sheetNames: nimet }, headers: {} }, r);
   assert.equal(r.s, 200);
+});
+
+test('liian monta pyydettyä nimeä torjutaan', async () => {
+  const r = vastaus();
+  await handler({ query: { sheetId: VANHA, sheetNames: ['KISANSPEKSIT', ...Array.from({ length: 60 }, (_, i) => `roska${i}`)] }, headers: {} }, r);
+  assert.equal(r.s, 400);
 });
 
 test('saman välilehden eri kirjoitusasut haetaan kerran', async () => {
@@ -178,7 +186,7 @@ test('rankingin välilehti annetaan vain rankingiksi merkitystä taulukosta', as
   assert.ok(rankingista.b.csvByName.RANKING_2026);
   assert.match(rankingista.h['Cache-Control'], /s-maxage=15,/);
   // Käynnissä: vain Cloudflare välimuistittaa, ettei Vercelin ja Cloudflaren kopiot kasaudu.
-  assert.equal(rankingista.h['Vercel-CDN-Cache-Control'], 'no-store');
+  assert.equal(rankingista.h['Vercel-CDN-Cache-Control'], 'max-age=5');
   assert.equal(rankingista.h['Cloudflare-CDN-Cache-Control'], 'max-age=15, stale-while-revalidate=15');
   assert.equal(kisasta.h['Vercel-CDN-Cache-Control'], undefined);
   assert.equal((await hae(RANKING, 'KISAT')).s, 200);
