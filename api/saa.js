@@ -7,6 +7,7 @@ dotenv.config();
 
 import { haeRekisteriCsv, onSallittuSheetId, parseRekisterinKisat, torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
 import { luoSaaHaku } from './_lib/saaHaku.js';
+import { asetaValimuisti } from './_lib/cdnOtsikot.js';
 
 export const SAA_OTSIKOT = {
   ennuste: 'public, s-maxage=1800, stale-while-revalidate=3600',
@@ -19,7 +20,7 @@ const kisanSaa = luoSaaHaku();
 
 function laheta(res, status, cacheControl, body) {
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Cache-Control', cacheControl);
+  asetaValimuisti(res, cacheControl);
   return res.status(status).json(body);
 }
 

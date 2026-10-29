@@ -14,6 +14,7 @@ import { haeValilehdetCsv, onRankingValilehti, onSallittuValilehti } from './_li
 import { VANHA_KUVA_OTSIKKO, VARALLA_OTSIKKO, cdnOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
 import { datanVersio, kuvanPolku, lueKuva, onkoKuvatKaytossa, tallennaKuva } from './_lib/kisaKuva.js';
 import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
+import { asetaValimuisti } from './_lib/cdnOtsikot.js';
 
 const MAKS_VALILEHDET = 12;
 // Näin vanhaa vastausta käytetään vielä, jos Google ei vastaa (esim. kiintiö täynnä).
@@ -41,7 +42,7 @@ function lahetaData(req, res, { csvByName, notFound, cacheControl, timing }) {
   const versio = datanVersio(csvByName);
   const etag = `W/"${versio}"`;
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Cache-Control', cacheControl);
+  asetaValimuisti(res, cacheControl);
   res.setHeader('ETag', etag);
   res.setHeader('X-ScoringUI-Lahde', timing.source);
   if (req.headers?.['if-none-match'] === etag) return res.status(304).end();
