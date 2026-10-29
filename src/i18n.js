@@ -35,9 +35,6 @@ const TEKSTIT = jaadyta({
     },
     liveRadat: {
       lane: 'Rata',
-      stand: 'Asema',
-      done: 'Valmis',
-      retiredShort: 'kesk.',
       next: 'Seuraava',
       then: 'Sitten',
       finished: 'Ampuneet',
@@ -311,9 +308,6 @@ const TEKSTIT = jaadyta({
     },
     liveRadat: {
       lane: 'Layout',
-      stand: 'Stand',
-      done: 'Done',
-      retiredShort: 'ret.',
       next: 'Next',
       then: 'Then',
       finished: 'Finished',

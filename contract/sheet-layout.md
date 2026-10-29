@@ -283,7 +283,7 @@ Writes (created on the first save if missing):
 ### Public live view (`api/kisa.js`)
 
 A running competition's page has a "Radat live" tab when `MOBIILI_LAITTEET` has a layout row: a read-only mirror of the
-Compak entry screen per layout (stands 1–5 with the latest finished shooter, the next shooter, the cards on the line,
+Compak entry screen per layout without its stand row (the next shooter, the score lines of the cards on the line and
 the finished shooters). It reads with the reader account through `api/kisa.js`, so the CDN cache (15 s while running)
 keeps Google reads at a few per minute per layout whatever the number of viewers; it is about 15–30 s behind the device.
 The signed entry link is never the public link.
