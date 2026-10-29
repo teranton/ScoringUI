@@ -110,11 +110,12 @@ const rekisteriValimuisti = luoValimuisti('rekisteri');
 const yhdistaRekisteri = luoYhdistaja();
 
 // Rekisterin ensimmäinen välilehti Sheets API:lla palvelutilin oikeuksin (ei vaadi linkkijakoa).
-// Alue ilman välilehden nimeä tarkoittaa ensimmäistä välilehteä, kuten CSV-viennissä.
+// Alue ilman välilehden nimeä tarkoittaa ensimmäistä välilehteä, kuten CSV-viennissä. Vain sarakkeet A–I, joita
+// sovellus käyttää, jotta myöhemmin lisätty yksityinen sarake (yhteystiedot, muistiinpanot) ei päädy julkiseksi.
 async function haeRekisteriGooglesta() {
   const asiakas = await haeGoogleAsiakas();
   const res = await pyyntoUudelleenyrittaen((opts) => asiakas.request(opts), {
-    url: `https://sheets.googleapis.com/v4/spreadsheets/${REKISTERI_SHEET_ID}/values/A:Z?valueRenderOption=FORMATTED_VALUE`
+    url: `https://sheets.googleapis.com/v4/spreadsheets/${REKISTERI_SHEET_ID}/values/A:I?valueRenderOption=FORMATTED_VALUE`
   });
   return rivitCsvksi(res.data.values || []);
 }

@@ -22,7 +22,7 @@ mock.module('./_lib/googleAuth.js', { namedExports: {
   onKiintioVirhe: () => false,
   pyyntoUudelleenyrittaen: (request, opts) => request(opts),
   haeGoogleAsiakas: async () => ({ request: async ({ url }) => {
-    if (url.includes('/values/A:Z')) {
+    if (url.includes('/values/A:I')) {
       return { data: { values: [['ID', 'Nimi', 'Alku', 'Loppu', 'Sheet'], ['1', 'Vanha', '2025-07-05', '2025-07-06', VANHA], ['2', 'Korjattava', kolmePaivaaSitten, kolmePaivaaSitten, KORJATTAVA], ['3', 'Ranking', '2026-03-01', '', RANKING, '', '', 'RANKING']] } };
     }
     googleHaut++;
