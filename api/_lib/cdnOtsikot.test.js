@@ -20,3 +20,14 @@ test('asetaValimuisti: Cloudflare-otsikko vain, kun Vercel saa välimuistittaa',
   asetaValimuisti({ setHeader: (k, v) => { ei[k] = v; } }, 'no-store');
   assert.equal(ei['Cloudflare-CDN-Cache-Control'], undefined);
 });
+
+test('asetaValimuisti vainCloudflare: Vercelin CDN ei pidä vastausta, Cloudflare pitää', () => {
+  const otsikot = {};
+  asetaValimuisti({ setHeader: (k, v) => { otsikot[k] = v; } }, 'public, s-maxage=15, stale-while-revalidate=15', { vainCloudflare: true });
+  assert.equal(otsikot['Vercel-CDN-Cache-Control'], 'no-store');
+  assert.equal(otsikot['Cloudflare-CDN-Cache-Control'], 'max-age=15, stale-while-revalidate=15');
+
+  const ilman = {};
+  asetaValimuisti({ setHeader: (k, v) => { ilman[k] = v; } }, 'public, s-maxage=3600');
+  assert.equal(ilman['Vercel-CDN-Cache-Control'], undefined);
+});

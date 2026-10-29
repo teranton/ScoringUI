@@ -129,6 +129,7 @@ test('muita kuin julkaistavia välilehtiä ei anneta', async () => {
 test('välilehden nimen kirjainkoolla ei ole väliä', async () => {
   const r = await hae(VANHA, ' tulokset y ');
   assert.equal(r.s, 200);
+  assert.equal(r.h['Vercel-CDN-Cache-Control'], undefined);
   assert.deepEqual(Object.keys(r.b.csvByName), ['Tulokset Y']);
 });
 
@@ -176,5 +177,9 @@ test('rankingin välilehti annetaan vain rankingiksi merkitystä taulukosta', as
   assert.equal(rankingista.s, 200);
   assert.ok(rankingista.b.csvByName.RANKING_2026);
   assert.match(rankingista.h['Cache-Control'], /s-maxage=15,/);
+  // Käynnissä: vain Cloudflare välimuistittaa, ettei Vercelin ja Cloudflaren kopiot kasaudu.
+  assert.equal(rankingista.h['Vercel-CDN-Cache-Control'], 'no-store');
+  assert.equal(rankingista.h['Cloudflare-CDN-Cache-Control'], 'max-age=15, stale-while-revalidate=15');
+  assert.equal(kisasta.h['Vercel-CDN-Cache-Control'], undefined);
   assert.equal((await hae(RANKING, 'KISAT')).s, 200);
 });

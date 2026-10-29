@@ -38,11 +38,12 @@ function lahetaVirhe(res, status, body) {
   return res.status(status).json(body);
 }
 
-function lahetaData(req, res, { csvByName, notFound, cacheControl, timing }) {
+function lahetaData(req, res, { csvByName, notFound, cacheControl, timing, paivaTila }) {
   const versio = datanVersio(csvByName);
   const etag = `W/"${versio}"`;
   res.setHeader('Content-Type', 'application/json');
-  asetaValimuisti(res, cacheControl);
+  // Käynnissä olevan kisan vastaus vain Cloudflaren välimuistiin (api/_lib/cdnOtsikot.js).
+  asetaValimuisti(res, cacheControl, { vainCloudflare: paivaTila === 'kaynnissa' });
   res.setHeader('ETag', etag);
   res.setHeader('X-ScoringUI-Lahde', timing.source);
   if (req.headers?.['if-none-match'] === etag) return res.status(304).end();
@@ -163,6 +164,7 @@ export default async function handler(req, res) {
       csvByName: tallessa.arvo.csvByName,
       notFound: tallessa.arvo.notFound || [],
       cacheControl: cdnOtsikko(tallessa.arvo.paivaTila, tallessa.arvo.kisa, Date.now(), tallessaIka),
+      paivaTila: tallessa.arvo.paivaTila,
       timing: { total_ms: Date.now() - alku, source: 'server-cache', cache_age_ms: tallessaIka, generated_at_ms: tallessa.tallennettu }
     });
   }
@@ -217,6 +219,7 @@ export default async function handler(req, res) {
     csvByName: google.csvByName,
     notFound: google.notFound,
     cacheControl: cdnOtsikko(paivaTila, kisa),
+    paivaTila,
     timing: { total_ms: total, google_ms: google.google_ms, source: 'google', generated_at_ms: Date.now() }
   });
 }
