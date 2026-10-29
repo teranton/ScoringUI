@@ -13,9 +13,11 @@ function blobPaasy() {
   return process.env.BLOB_ACCESS === 'public' ? 'public' : 'private';
 }
 
-// Sama välilehtijoukko samassa järjestyksessä antaa saman polun.
+// Sama välilehtijoukko samassa järjestyksessä antaa saman polun. Avaimen alussa oleva versio vaihtaa polut:
+// v2 hylkää kuvat, joihin on voitu tallentaa muu kuin frontendin kirjoitusasu (ennen kanoninenValilehti-muutosta).
+const POLUN_VERSIO = 'v2';
 export function kuvanPolku(sheetId, nimet) {
-  const avain = [...nimet].map((n) => String(n).trim().toLowerCase()).sort().join('|');
+  const avain = [POLUN_VERSIO, ...[...nimet].map((n) => String(n).trim().toLowerCase()).sort()].join('|');
   const tiiviste = createHash('sha1').update(avain).digest('hex').slice(0, 12);
   return `kisat/${sheetId}/${tiiviste}.json`;
 }

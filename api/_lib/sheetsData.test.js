@@ -9,6 +9,7 @@ import { parseCsvRows } from '../../src/utils/csv.js';
 process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = await mkdtemp(path.join(tmpdir(), 'scoringui-testi-'));
 const {
   haeValilehdetCsv,
+  kanoninenValilehti,
   julkisetSarakkeet,
   kohdistaValilehdet,
   onSallittuValilehti,
@@ -133,6 +134,18 @@ test('onSallittuValilehti sallii kisan välilehdet ja kauden rankingin, ei muita
   assert.equal(onSallittuValilehti('RANKING_2026_vanha'), false);
   assert.equal(onSallittuValilehti('LASKENTA'), false);
   assert.equal(onSallittuValilehti('Suomisport Import'), false);
+});
+
+test('kanoninenValilehti antaa frontendin kirjoitusasun tai tyhjän', () => {
+  assert.equal(kanoninenValilehti(' tulokset y '), 'Tulokset Y');
+  assert.equal(kanoninenValilehti('RYHMÄJAKO'), 'Ryhmäjako');
+  assert.equal(kanoninenValilehti('ranking_2027'), 'RANKING_2027');
+  assert.equal(kanoninenValilehti('kisat'), 'KISAT');
+  assert.equal(kanoninenValilehti('Ryhmäjako'.normalize('NFD')), 'Ryhmäjako');
+  assert.equal(kanoninenValilehti('Suomisport Import'), '');
+  assert.equal(kanoninenValilehti('mobiili rata 03'), 'MOBIILI Rata 3');
+  assert.equal(kanoninenValilehti('mobiili_laitteet'), 'MOBIILI_LAITTEET');
+  assert.equal(kanoninenValilehti('MOBIILI_LOKI'), '');
 });
 
 test('mobiilikirjauksen välilehdet: kortit, laitteet ja ryhmät, ei lokia', () => {

@@ -10,13 +10,17 @@ import { waitUntil } from '@vercel/functions';
 
 import { normalisoiSheetId, onSallittuSheetId } from './_lib/sheetAllowlist.js';
 import { haeGoogleAsiakas, onKiintioVirhe, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
-import { haeValilehdetCsv, onRankingValilehti, onSallittuValilehti } from './_lib/sheetsData.js';
+import { haeValilehdetCsv, kanoninenValilehti, onRankingValilehti } from './_lib/sheetsData.js';
 import { VANHA_KUVA_OTSIKKO, VARALLA_OTSIKKO, cdnOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
 import { datanVersio, kuvanPolku, lueKuva, onkoKuvatKaytossa, tallennaKuva } from './_lib/kisaKuva.js';
 import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
 import { asetaValimuisti } from './_lib/cdnOtsikot.js';
 
 const MAKS_VALILEHDET = 12;
+// Pyydettyjä nimiä (myös julkaisemattomia ja eri kirjoitusasuja) korkeintaan näin monta.
+const MAKS_PYYDETYT = 4 * MAKS_VALILEHDET;
+// Käynnissä olevan kisan vastaus Vercelin CDN:ssä enintään näin kauan (s), Cloudflaressa CDN-otsikon mukaan.
+const VERCEL_LIVE_S = 5;
 // Näin vanhaa vastausta käytetään vielä, jos Google ei vastaa (esim. kiintiö täynnä).
 const VARALLA_MAKS_IKA_MS = 24 * 60 * 60 * 1000;
 
@@ -38,11 +42,12 @@ function lahetaVirhe(res, status, body) {
   return res.status(status).json(body);
 }
 
-function lahetaData(req, res, { csvByName, notFound, cacheControl, timing }) {
+function lahetaData(req, res, { csvByName, notFound, cacheControl, timing, paivaTila }) {
   const versio = datanVersio(csvByName);
   const etag = `W/"${versio}"`;
   res.setHeader('Content-Type', 'application/json');
-  asetaValimuisti(res, cacheControl);
+  // Käynnissä olevan kisan vastaus Vercelin CDN:ssä vain hetken, ettei se kasaudu Cloudflaren kanssa (api/_lib/cdnOtsikot.js).
+  asetaValimuisti(res, cacheControl, { vercelEnintaan: paivaTila === 'kaynnissa' ? VERCEL_LIVE_S : undefined });
   res.setHeader('ETag', etag);
   res.setHeader('X-ScoringUI-Lahde', timing.source);
   if (req.headers?.['if-none-match'] === etag) return res.status(304).end();
@@ -104,22 +109,23 @@ export default async function handler(req, res) {
   const alku = Date.now();
   const { sheetId } = req.query;
   const raakaNimet = req.query.sheetNames;
-  let nimet = [...new Set((Array.isArray(raakaNimet) ? raakaNimet : [raakaNimet])
+  const pyydetyt = (Array.isArray(raakaNimet) ? raakaNimet : [raakaNimet])
     .map(decodeQueryValue)
     .map((n) => n.trim())
-    .filter(Boolean))];
+    .filter(Boolean);
 
   if (!sheetId || normalisoiSheetId(sheetId) !== sheetId) return lahetaVirhe(res, 400, { error: 'sheetId vaaditaan' });
-  if (nimet.length === 0 || nimet.length > MAKS_VALILEHDET) {
+  if (pyydetyt.length > MAKS_PYYDETYT) return lahetaVirhe(res, 400, { error: `sheetNames: 1–${MAKS_VALILEHDET} välilehteä` });
+  // Muita välilehtiä ei julkaista. Jos frontend pyytää vain niitä, pyyntö torjutaan; muuten ne jätetään pois.
+  // Sallitut nimet muutetaan frontendin kirjoitusasuun, jotta välimuistin ja Blob-kuvan avaimet ovat aina samat.
+  const kanoniset = pyydetyt.map(kanoninenValilehti);
+  const eiSallitut = [...new Set(pyydetyt.filter((_, i) => !kanoniset[i]))];
+  const nimet = [...new Set(kanoniset.filter(Boolean))];
+  if (pyydetyt.length === 0 || nimet.length > MAKS_VALILEHDET) {
     return lahetaVirhe(res, 400, { error: `sheetNames: 1–${MAKS_VALILEHDET} välilehteä` });
   }
-  // Muita välilehtiä ei julkaista. Jos frontend pyytää vain niitä, pyyntö torjutaan; muuten ne jätetään pois.
-  const eiSallitut = nimet.filter((n) => !onSallittuValilehti(n));
-  if (eiSallitut.length === nimet.length) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
-  if (eiSallitut.length) {
-    console.error('[KISA] Ohitetaan välilehdet, joita ei julkaista:', eiSallitut);
-    nimet = nimet.filter(onSallittuValilehti);
-  }
+  if (nimet.length === 0) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
+  if (eiSallitut.length) console.error('[KISA] Ohitetaan välilehdet, joita ei julkaista:', eiSallitut);
 
   const polku = kuvanPolku(sheetId, nimet);
   const tallessa = await vastausValimuisti.hae(polku);
@@ -163,6 +169,7 @@ export default async function handler(req, res) {
       csvByName: tallessa.arvo.csvByName,
       notFound: tallessa.arvo.notFound || [],
       cacheControl: cdnOtsikko(tallessa.arvo.paivaTila, tallessa.arvo.kisa, Date.now(), tallessaIka),
+      paivaTila,
       timing: { total_ms: Date.now() - alku, source: 'server-cache', cache_age_ms: tallessaIka, generated_at_ms: tallessa.tallennettu }
     });
   }
@@ -199,6 +206,7 @@ export default async function handler(req, res) {
         csvByName: varalla.csvByName,
         notFound: varalla.notFound || [],
         cacheControl: VARALLA_OTSIKKO,
+        paivaTila,
         timing: { total_ms: Date.now() - alku, source: varalla.source, generated_at_ms: varalla.tallennettu }
       });
     }
@@ -217,6 +225,7 @@ export default async function handler(req, res) {
     csvByName: google.csvByName,
     notFound: google.notFound,
     cacheControl: cdnOtsikko(paivaTila, kisa),
+    paivaTila,
     timing: { total_ms: total, google_ms: google.google_ms, source: 'google', generated_at_ms: Date.now() }
   });
 }

@@ -14,7 +14,7 @@ const MOBIILI_LISTA_MS = 60 * 1000;
 const onMobiiliValilehti = (nimi) => /^mobiili[ _]/i.test(String(nimi || '').trim());
 const valilehtiCache = luoValimuisti('valilehdet');
 
-const normalisoi = (nimi) => String(nimi || '').trim().toLowerCase();
+const normalisoi = (nimi) => String(nimi || '').normalize('NFC').trim().toLowerCase();
 
 // Välilehdet, joita frontend lukee (contract/sheet-layout.md). API ei anna muita välilehtiä,
 // koska taulukoissa on myös tietoja, joita ei julkaista (esim. Suomisport-tuonti ja Sportti-ID:t).
@@ -22,7 +22,7 @@ export const SALLITUT_VALILEHDET = [
   'KISANSPEKSIT', 'Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet',
   'Aikataulu', 'Aikataulu La', 'Aikataulu Su'
 ];
-const sallitutNormalisoituna = new Set(SALLITUT_VALILEHDET.map(normalisoi));
+const sallitutNormalisoituna = new Map(SALLITUT_VALILEHDET.map((nimi) => [normalisoi(nimi), nimi]));
 // Kauden rankingin välilehdet: tulokset (RANKING_2026 ...) ja kisojen nimet (KISAT).
 // api/kisa.js antaa ne vain rekisterissä rankingiksi (H = RANKING) merkitystä taulukosta.
 const RANKING_VALILEHTI = /^ranking_\d{4}$/;
@@ -38,20 +38,35 @@ export function onRankingValilehti(nimi) {
 // tulosten kiekkonäkymälle (src/HenkiloTulokset.jsx) ja ryhmäpuhelimista (MOBIILI_RYHMAT) vain ryhmän numero
 // (onko ryhmäkortteja). Laitteiden tunnukset, haltijan nimi, PIN-virheet ja täydennykset eivät lähde API:sta.
 const KOHDE = Array.from({ length: 25 }, (_, i) => String(i + 1));
+// nimi: välilehden nimi frontendin kirjoitusasussa (src/utils/mobiiliLive.js, src/utils/mobiiliKiekot.js).
 const JULKISET_SARAKKEET = [
-  { valilehti: /^mobiili rata \d{1,3}$/, sarake: (o) => ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', ...KOHDE].includes(o) },
-  { valilehti: /^mobiili_laitteet$/, sarake: (o) => ['RATA', 'LINJA', 'LINJA PÄIVITETTY'].includes(o) },
-  { valilehti: /^mobiili layout \d{1,2}$/, sarake: (o) => o === 'NRO' || o === 'NIMI' || /^ASEMA \d+$/.test(o) || /^\d+\/\d+$/.test(o) },
-  { valilehti: /^mobiili_ryhmat$/, sarake: (o) => o === 'RYHMÄ' }
+  { valilehti: /^mobiili rata (\d{1,3})$/, nimi: (n) => `MOBIILI Rata ${Number(n)}`,
+    sarake: (o) => ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', ...KOHDE].includes(o) },
+  { valilehti: /^mobiili_laitteet$/, nimi: () => 'MOBIILI_LAITTEET', sarake: (o) => ['RATA', 'LINJA', 'LINJA PÄIVITETTY'].includes(o) },
+  { valilehti: /^mobiili layout (\d{1,2})$/, nimi: (n) => `MOBIILI Layout ${Number(n)}`,
+    sarake: (o) => o === 'NRO' || o === 'NIMI' || /^ASEMA \d+$/.test(o) || /^\d+\/\d+$/.test(o) },
+  { valilehti: /^mobiili_ryhmat$/, nimi: () => 'MOBIILI_RYHMAT', sarake: (o) => o === 'RYHMÄ' }
 ];
 
+const julkinenValilehti = (normalisoitu) => JULKISET_SARAKKEET.find((j) => j.valilehti.test(normalisoitu)) || null;
+
 function julkisetSarakkeetValilehdelle(nimi) {
+  return julkinenValilehti(normalisoi(nimi))?.sarake || null;
+}
+
+// Sallitun välilehden nimi frontendin kirjoitusasussa ('tulokset y ' → 'Tulokset Y', 'ranking_2026' → 'RANKING_2026',
+// 'mobiili rata 3' → 'MOBIILI Rata 3'), muuten tyhjä. Vastauksen avaimet ovat tätä muotoa, joten eri kirjoitusasulla
+// tehty pyyntö ei täytä välimuistia ja Blob-kuvaa avaimilla, joita frontend ei löydä.
+export function kanoninenValilehti(nimi) {
   const normalisoitu = normalisoi(nimi);
-  return JULKISET_SARAKKEET.find((j) => j.valilehti.test(normalisoitu))?.sarake || null;
+  if (sallitutNormalisoituna.has(normalisoitu)) return sallitutNormalisoituna.get(normalisoitu);
+  if (onRankingValilehti(nimi)) return normalisoitu.toUpperCase();
+  const julkinen = julkinenValilehti(normalisoitu);
+  return julkinen ? julkinen.nimi(normalisoitu.match(julkinen.valilehti)[1]) : '';
 }
 
 export function onSallittuValilehti(nimi) {
-  return sallitutNormalisoituna.has(normalisoi(nimi)) || onRankingValilehti(nimi) || Boolean(julkisetSarakkeetValilehdelle(nimi));
+  return Boolean(kanoninenValilehti(nimi));
 }
 
 // Rajatun välilehden rivit vain julkisin sarakkein (otsikkorivin mukaan, järjestys säilyy). Muut sellaisinaan.
