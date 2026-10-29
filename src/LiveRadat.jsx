@@ -1,12 +1,11 @@
-// Julkinen ratanäkymä: Compak-radan tilanne mobiilikirjauksen korteista kuten kirjauslaitteen näytöllä (asemat 1–5 ja
-// viimeksi valmistunut, seuraava, linjan kortit, ampuneet), ilman nappeja. Lukee MOBIILI Rata N- ja MOBIILI_LAITTEET-
+// Julkinen ratanäkymä: Compak-radan tilanne mobiilikirjauksen korteista kuten kirjauslaitteen näytöllä (seuraava, linjan
+// kortit, ampuneet), ilman nappeja ja ilman asemarivin numeroita ja nimiä: tulosrivit riittävät. Lukee MOBIILI Rata N- ja MOBIILI_LAITTEET-
 // välilehdet api/kisa.js:n kautta lukijatilillä, joten CDN:n välimuisti (käynnissä 15 s) pitää Google-haut vähäisinä
 // katsojien määrästä riippumatta. Näkymä on noin 15–30 s laitetta jäljessä. Kirjauksen allekirjoitettu linkki ei
 // ole koskaan tämä julkinen näkymä.
 import { useEffect, useMemo, useState } from 'react';
 import AmpujaRivi from './kirjaus/AmpujaRivi.jsx';
-import { ASEMAN_KOHTEET, KOHTEITA, merkitOf, osumat } from './kirjaus/kortit.js';
-import { ASEMIA } from './kirjaus/linja.js';
+import { merkitOf } from './kirjaus/kortit.js';
 import { parseCsvRows } from './utils/csv';
 import { LAITTEET_VALILEHTI, lueRadanKortit, lueRadanLaitteet, mobiiliValilehti, radanLiveTila } from './utils/mobiiliLive';
 import { haeTekstit } from './i18n';
@@ -123,9 +122,7 @@ export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetC
 
   if (!sarake || !tila) return null;
   const nimi = (nro) => tila.nimet[nro] || '';
-  const vuorossa = tila.tilanne?.vuoro || null;
   const kohta = tila.tilanne?.kohta || null;
-  const viimeisinValmis = tila.valmiit[0] ?? null;
   const seuraava = tila.tulevat[0];
   const naytettavatValmiit = kaikkiValmiit ? tila.valmiit : tila.valmiit.slice(0, VALMIITA_ALUKSI);
   const ladattu = Boolean(data);
@@ -156,32 +153,8 @@ export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetC
 
         {ladattu && (
           <>
-            {/* Asemat 1–5 ja viimeksi valmistunut, kuten kirjauslaitteella. */}
-            <div className="grid grid-cols-6 gap-1 px-2 pt-2">
-              {Array.from({ length: ASEMIA }, (_, a) => {
-                const ampuja = tila.linja.find((l) => l.asema === a);
-                const aktiivinen = vuorossa && ampuja?.nro === vuorossa.nro;
-                const merkit = ampuja ? merkitOf(radanKortit.kortit, ampuja.nro).slice(a * ASEMAN_KOHTEET, (a + 1) * ASEMAN_KOHTEET) : '';
-                return (
-                  <div key={a} className={`min-w-0 rounded-lg border-2 p-0.5 text-center sm:p-1 ${aktiivinen ? 'border-blue-700 bg-blue-50' : 'border-transparent bg-white'}`}>
-                    <div className="whitespace-nowrap text-[10px] uppercase text-slate-500">{tx.stand} {a + 1}</div>
-                    <div className="text-lg font-bold leading-tight sm:text-xl">{ampuja ? ampuja.nro : '–'}</div>
-                    <div className="truncate text-[11px]">{ampuja ? nimi(ampuja.nro).split(' ')[0] : ''}</div>
-                    {ampuja && <div className="font-mono text-xs">{[...merkit].map((m) => (m === 'X' ? 'X' : m === 'O' ? '0' : '·')).join('')}</div>}
-                  </div>
-                );
-              })}
-              <div className="min-w-0 rounded-lg border-2 border-transparent bg-slate-700 p-0.5 text-center text-white sm:p-1">
-                <div className="whitespace-nowrap text-[10px] uppercase opacity-80">{tx.done}</div>
-                <div className="whitespace-nowrap text-base leading-7 font-bold sm:text-xl">
-                  {viimeisinValmis === null ? '–' : tila.keskeyttaneet.includes(viimeisinValmis) ? tx.retiredShort : `${osumat(merkitOf(radanKortit.kortit, viimeisinValmis))}/${KOHTEITA}`}
-                </div>
-                <div className="truncate text-[11px]">{viimeisinValmis ? `${viimeisinValmis} ${nimi(viimeisinValmis).split(' ')[0]}` : ''}</div>
-              </div>
-            </div>
-
             {naytaJono && seuraava && (
-              <div className="mx-2 mt-1.5 rounded-lg bg-white px-2 py-1 text-sm">
+              <div className="mx-2 mt-2 rounded-lg bg-white px-2 py-1 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="shrink-0 text-xs font-semibold text-slate-500">{tx.next}</span>
                   <span className="min-w-8 rounded bg-slate-200 px-1 text-center">{seuraava.nro}</span>
