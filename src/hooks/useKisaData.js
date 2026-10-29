@@ -27,7 +27,10 @@ function sivutKisalle(kisa, onkoStaattinen) {
   if (kisa?.onkoRanking) return [rankingValilehti(kisa), 'KISAT', 'KISANSPEKSIT'];
   return onkoStaattinen
     ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
-    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
+    // MOBIILI_LAITTEET (vain radat ja linjan tila): mobiilikirjauksen radat julkiseen ratanäkymään (LiveRadat.jsx).
+    // MOBIILI_RYHMAT (vain ryhmien numerot): onko ryhmäpuhelimen kortteja tulosten kiekkonäkymään (HenkiloTulokset.jsx).
+    // Päättyneen kisan joukkoa ei muuteta (tallennetut kuvat säilyvät); siellä kortit haetaan, kun ampuja avataan.
+    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT'];
 }
 
 function kisaDataUrl(sheetId, sivut) {
@@ -185,6 +188,12 @@ export function useKisaData({ kisat, valittuKisa }) {
         rankingCsvRaw: kisa.onkoRanking ? (csvByName[sivut[0]] || vanhaData.rankingCsvRaw || "") : "",
         rankingKisatCsvRaw: kisa.onkoRanking ? (csvByName['KISAT'] || vanhaData.rankingKisatCsvRaw || "") : "",
         speksitCsvRaw: csvByName['KISANSPEKSIT'] || vanhaData.speksitCsvRaw || "",
+        // Puuttuvaksi kerrottu MOBIILI-välilehti pidetään entisellään: kirjaus luo sen kesken kisan, eikä se katoa,
+        // mutta palvelimen vanha välilehtilista voi hetken kertoa sen puuttuvan (Radat live ei saa välkkyä).
+        mobiiliRyhmatCsvRaw: onkoStaattinen ? null : (csvByName['MOBIILI_RYHMAT'] ?? (vanhaData.mobiiliRyhmatCsvRaw || "")),
+        mobiiliLaitteetCsvRaw: onkoStaattinen ? "" : (csvByName['MOBIILI_LAITTEET'] ?? (vanhaData.mobiiliLaitteetCsvRaw || "")),
+        // Taulukossa olevat aikataulut (myös tyhjät) ratanäkymän päivien laskuun; null kun ei tiedetä.
+        aikatauluValilehdet: onkoStaattinen ? null : sivut.filter((n) => n.startsWith('Aikataulu') && !(tulos.notFound || []).includes(n)),
         speksitFetchedAt: csvByName['KISANSPEKSIT'] ? Date.now() : (vanhaData.speksitFetchedAt || 0),
         haettu: Date.now()
       };

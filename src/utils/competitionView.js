@@ -11,12 +11,18 @@ function seuraavaSivuYhdenKierroksen({
   onkoKisaTulossa,
   onkoTaulukkoSallittu,
   onkoTuloksetSallittu,
-  onkoRyhmaMuokkausSallittu
+  onkoRyhmaMuokkausSallittu,
+  onkoLiveSallittu = false
 }) {
   // Ryhmien muokkaus avataan erikseen, ja se on auki myös ennen kisaa, vaikka aikataulu olisi vielä piilossa.
   if (aktiivinenSivu === 'ryhmat') {
     if (onkoRyhmaMuokkausSallittu) return 'ryhmat';
     return onkoTuloksetSallittu ? 'tulokset' : 'ilmoittautuneet';
+  }
+
+  // Radat live vain käynnissä olevassa kisassa, jossa on mobiilikirjauksen ratoja.
+  if (aktiivinenSivu === 'live' && !onkoLiveSallittu) {
+    return 'tulokset';
   }
 
   if (onkoKisaTulossa && aktiivinenSivu !== 'ilmoittautuneet' && aktiivinenSivu !== 'aikataulu' && aktiivinenSivu !== 'materiaalit') {

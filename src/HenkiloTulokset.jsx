@@ -21,10 +21,20 @@ import { Card, CardContent } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
+import { RYHMAKORTTI_VALILEHDET, asemanKiekot, compakKorttiValilehdet, nimiAvaimeksi } from './utils/mobiiliKiekot';
+import { useMobiiliKiekot } from './hooks/useMobiiliKiekot';
 
-export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, locale = 'fi' }) {
+// Aseman tulosta napauttamalla näkyvät sen kiekot mobiilikirjauksen kortilta. kiekkoLahteet: { ryhma, compak },
+// kumpikin true = kisassa on ryhmäpuhelimen kortteja (MOBIILI_RYHMAT) / Compak-kirjauslaitteen ratoja (MOBIILI_LAITTEET),
+// false = ei, null = ei tiedossa (päättynyt kisa): kortit haetaan, kun ampujan kortti avataan, ja vain asemat,
+// joilla on kiekkoja, ovat napautettavia.
+const EI_KIEKKOJA = { ryhma: false, compak: false };
+
+export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpeksit, kisaStatus, sheetId, kiekkoLahteet = EI_KIEKKOJA, locale = 'fi' }) {
   const tx = haeTekstit('henkiloTulokset', locale);
   const [valittuAmpujaId, setValittuAmpujaId] = useState(null);
+  // Avattu aseman kiekkonäkymä: { ampujaId, asema } tai null.
+  const [avattuAsema, setAvattuAsema] = useState(null);
   const [valittuSarja, setSarjaSuodatin] = useState(KAIKKI_SARJAT);
   const [jarjestysValinta, setJarjestysValinta] = useState('total');
   const sarjaScrollRef = useRef(null);
@@ -87,6 +97,14 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
   // 3. LASKETAAN RATKO-SARAKKEEN PAIKKA DYNAAMISESTI ALOITUSPISTEESTÄ
   const kisanRatojenMaara = laskeRatojenMaara(asemaMaksimit);
+  // true: kisassa on kortteja, false: ei, null: ei tiedossa (haetaan molemmat).
+  const kiekotKaytossa = kiekkoLahteet.ryhma || kiekkoLahteet.compak ? true
+    : (kiekkoLahteet.ryhma === false && kiekkoLahteet.compak === false ? false : null);
+  const kiekkoValilehdet = useMemo(() => [
+    ...(kiekkoLahteet.ryhma !== false ? RYHMAKORTTI_VALILEHDET : []),
+    ...(kiekkoLahteet.compak !== false ? compakKorttiValilehdet(kisanRatojenMaara) : [])
+  ], [kiekkoLahteet.ryhma, kiekkoLahteet.compak, kisanRatojenMaara]);
+  const kiekot = useMobiiliKiekot(kiekotKaytossa !== false ? sheetId : null, kiekkoValilehdet);
 
   // Ensisijaisesti etsitään RATKO otsikosta, koska rata-/speksimäärä voi vaihdella eri kisoissa.
   const idxRatkoOtsikko = etsiSarakkeenIndeksi([(h) => h === 'RATKO', (h) => h.startsWith('RATKO')]);
@@ -159,6 +177,18 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
     return parsedAmpujat;
   }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
+
+  // Kiekot haetaan nimellä (Tulokset Y:ssä ei ole numeroa): tuloksissa useammin kuin kerran oleva nimi ei saa kiekkoja.
+  const nimiMonesti = useMemo(() => {
+    const nahty = new Set();
+    const monesti = new Set();
+    ampujat.forEach((a) => {
+      const avain = nimiAvaimeksi(a.nimi);
+      if (nahty.has(avain)) monesti.add(avain);
+      nahty.add(avain);
+    });
+    return monesti;
+  }, [ampujat]);
 
   // Kaikkien ampujien sarja on Y tai Y (OPEN), luokkakilpailussa sitä ei ole (KISANSPEKSIT: OPEN_SARJA).
   // High Gun -nappi, kun KISANSPEKSIT: HIGH_GUN > 0.
@@ -307,7 +337,11 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         <select
           id="henkilo-tulokset-sort"
           value={jarjestysValinta}
-          onChange={(event) => setJarjestysValinta(event.target.value)}
+          onChange={(event) => {
+            setJarjestysValinta(event.target.value);
+            // Asemajärjestys avaa kaikki kortit: kiekot haetaan samalla.
+            if (event.target.value.startsWith('stage-')) kiekot.lataa();
+          }}
           className="max-w-[11rem] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 shadow-sm"
         >
           <option value="total">{tx.total}</option>
@@ -345,7 +379,10 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                   'flex min-h-[52px] w-full items-center px-3 py-3 text-left transition-colors',
                   onAuki ? 'bg-slate-50' : 'bg-white'
                 )}
-                onClick={() => setValittuAmpujaId(onAuki ? null : ampuja.id)}
+                onClick={() => {
+                  setValittuAmpujaId(onAuki ? null : ampuja.id);
+                  if (!onAuki) kiekot.lataa();
+                }}
               >
                 <div className="mr-3 flex h-9 w-9 min-w-9 items-center justify-center rounded-full bg-slate-100 text-base font-extrabold text-slate-700">
                   {ampuja.laskettuSija}
@@ -416,7 +453,12 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                     const laskettuSarakkeet = Math.ceil(sarjatParillisena.length / tavoiteRivit);
                     const sarakkeet = Math.max(2, Math.min(12, laskettuSarakkeet));
 
+                    const avattu = avattuAsema?.ampujaId === ampuja.id ? avattuAsema.asema : null;
+                    const avatunTulos = avattu ? ampuja.sarjat.find((s) => s.numero === avattu)?.tulos : '';
+                    const avatunKiekot = avattu ? asemanKiekot(kiekot.kortit, ampuja.nimi, avattu) : null;
+
                     return (
+                      <>
                       <div
                         className="grid w-full justify-items-stretch gap-1"
                         style={{ gridTemplateColumns: `repeat(${sarakkeet}, minmax(0, 1fr))` }}
@@ -439,10 +481,32 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                           const onkoMaksimiOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && ampujaTulosNum === maksimiTulos;
                           const onkoToiseksiParasOsuma = !isNaN(ampujaTulosNum) && maksimiTulos !== undefined && naytaToiseksiParas && ampujaTulosNum === (maksimiTulos - 1);
 
+                          // Ennen korttien latausta napautettavissa vain, jos kisassa tiedetään olevan mobiilikortteja;
+                          // latauksen jälkeen vain asemat, joilla on kiekkoja (ei tyhjiä paneeleja).
+                          const kiekotNapautettavissa = kiekotKaytossa !== false && !isNaN(ampujaTulosNum) && !nimiMonesti.has(nimiAvaimeksi(ampuja.nimi))
+                            && (kiekot.kortit ? Boolean(asemanKiekot(kiekot.kortit, ampuja.nimi, s.numero)) : kiekotKaytossa === true);
+                          const Solu = kiekotNapautettavissa ? 'button' : 'div';
                           return (
-                            <div
+                            <Solu
                               key={`${ampuja.id}-${s.numero}-${sIdx}`}
-                                className="flex min-w-0 flex-col items-center justify-center rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center"
+                              {...(kiekotNapautettavissa ? {
+                                type: 'button',
+                                'aria-expanded': avattu === s.numero,
+                                'aria-label': `${tx.stage} ${s.numero}: ${tx.showShots}`,
+                                onClick: () => {
+                                  if (avattu === s.numero) {
+                                    setAvattuAsema(null);
+                                    return;
+                                  }
+                                  setAvattuAsema({ ampujaId: ampuja.id, asema: s.numero });
+                                  kiekot.lataa();
+                                }
+                              } : {})}
+                              className={cn(
+                                'flex min-w-0 flex-col items-center justify-center rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-1 py-0.5 text-center',
+                                kiekotNapautettavissa && 'cursor-pointer hover:border-slate-400',
+                                avattu === s.numero && 'border-slate-700 ring-1 ring-slate-700'
+                              )}
                             >
                               <div className="text-[10px] text-slate-500">S{s.numero}</div>
                               <div
@@ -457,10 +521,20 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                               >
                                 {s.tulos}
                               </div>
-                            </div>
+                            </Solu>
                           );
                         })}
                       </div>
+                      {avattu && (
+                        <AsemanKiekot
+                          asema={avattu}
+                          tulos={avatunTulos}
+                          kiekot={avatunKiekot}
+                          tila={kiekot.tila}
+                          tx={tx}
+                        />
+                      )}
+                      </>
                     );
                   })()}
                 </CardContent>
@@ -469,6 +543,51 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
           );
         })}
       </div>
+    </div>
+  );
+}
+
+const kiekkoRyhmat = ({ merkit, compak }) => (compak
+  ? Array.from({ length: Math.ceil(merkit.length / 5) }, (_, i) => ({ alku: i * 5, merkit: merkit.slice(i * 5, i * 5 + 5) }))
+  : [{ alku: 0, merkit }]);
+
+// Aseman kiekot ryhmäpuhelimen tai Compak-kirjauslaitteen kortilta: X osuma, 0 ohi. Jos taulukon tulos on eri kuin kortin osumat
+// (esim. tulos korjattu paperikortilta), molemmat näytetään.
+function AsemanKiekot({ asema, tulos, kiekot, tila, tx }) {
+  const tulosNum = Number.parseInt(tulos, 10);
+  return (
+    <div className="mt-2 rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 text-sm" aria-live="polite">
+      <div className="mb-1 text-xs font-semibold text-slate-500">{kiekot?.compak ? tx.layout : tx.stage} {asema}</div>
+      {!kiekot && (tila === 'ladataan' || tila === 'ei') && <div className="text-slate-500">{tx.shotsLoading}</div>}
+      {!kiekot && tila === 'virhe' && <div className="text-rose-700">{tx.shotsError}</div>}
+      {!kiekot && tila === 'ok' && <div className="text-slate-500">{tx.shotsNone}</div>}
+      {kiekot && (
+        <>
+          {/* Compak-kortti asemittain (5 × 5 kohdetta), ryhmäkortin asema yhtenä ryhmänä. */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {kiekkoRyhmat(kiekot).map(({ alku, merkit }) => (
+              <div key={alku} className="flex gap-1">
+                {[...merkit].map((m, j) => (
+                  <span
+                    key={alku + j}
+                    title={`${alku + j + 1}`}
+                    className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded-sm text-xs font-bold',
+                      m === 'X' ? 'bg-green-700 text-white' : m === 'O' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-400'
+                    )}
+                  >
+                    {m === 'X' ? 'X' : m === 'O' ? '0' : ''}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="mt-1 text-xs text-slate-500">
+            {kiekot.osumat} / {kiekot.merkit.length}
+            {!Number.isNaN(tulosNum) && tulosNum !== kiekot.osumat && ` · ${tx.shotsDiffer.replace('{tulos}', tulosNum)}`}
+          </div>
+        </>
+      )}
     </div>
   );
 }

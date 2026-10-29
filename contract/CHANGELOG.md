@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Public live view (phase 7): `api/kisa.js` now also serves `MOBIILI Rata N` and `MOBIILI_LAITTEET`, filtered to public
+  columns by header (`NRO`, `NIMI`, `TULOS`, `PÄIVITETTY`, `1`..`25`; `RATA`, `LINJA`, `LINJA PÄIVITETTY`). The running
+  competition request adds `MOBIILI_LAITTEET`; the new "Radat live" tab reads `MOBIILI Rata N` and the timetable,
+  `RATAn_NIMI`, `RATAn_OHJELMA` and `LAYOUT/PÄIVÄ` as the device does. No sheet change; ScoringLib must keep these
+  headers (they are written only by `api/kirjaus.js`).
+- Targets in the results: `api/kisa.js` also serves `MOBIILI Layout N` (`NRO`, `NIMI`, `ASEMA <k>`, `<k>/<i>`) and
+  `MOBIILI_RYHMAT` (`RYHMÄ` only). The running competition request adds `MOBIILI_RYHMAT`; opening a shooter or a
+  station reads the squad cards. No sheet change.
+- Compak targets in the results: tapping a Compak result opens that column's targets from `MOBIILI Rata N` (same
+  public columns as the live view). A finished competition reads both card kinds when a shooter is opened. No sheet change.
+
 - Mobile results into the result columns (phase 6): new `KISANSPEKSIT` key `MOBIILI_TULOKSET` (`TOIMISTO` default,
   `SUORAAN`). With `SUORAAN`, `api/kirjaus.js` reads the main tab (`NRO` and the result column headers `1`..`N`) and
   writes a complete result into an empty result cell of `OSALLISTUJAT+TULOKSET` (Compak card → column N, squad station k
