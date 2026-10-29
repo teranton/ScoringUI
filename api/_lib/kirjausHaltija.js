@@ -7,7 +7,9 @@
 // (ScoringLib laskee saman, Mobiilikirjaus.vaihtoPin), joten se kelpaa vain yhteen vaihtoon.
 // Puhtaat funktiot, ei Google-kutsuja (kirjausHaltija.test.js).
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { KOHTEITA, MAKS_NRO, puhdasTeksti } from './kirjausData.js';
+import { KOHTEITA, MAKS_NRO, puhdasTeksti, tarkistaLinja } from './kirjausData.js';
+
+export { tarkistaLinja };
 
 export const LAITTEET_VALILEHTI = 'MOBIILI_LAITTEET';
 export const LAITTEET_OTSIKKO = ['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY', 'TÄYDENNYKSET'];
@@ -119,31 +121,3 @@ export function julkinenHaltija(rivi, laite) {
 
 export const laitteenNimi = (nimi) => puhdasTeksti(nimi, MAKS_LAITTEEN_NIMI);
 
-// Linjan tila, jonka uusi laite saa radan mukana: laitteella lisätyt ja ohitetut ampujat, tauot, keskeyttäneet
-// ja laitteella valittu ohjelma (src/kirjaus/KirjausApp.jsx). Palauttaa { linja } (siistitty) tai { virhe }.
-const MAKS_LISTA = 300;
-export function tarkistaLinja(linja) {
-  if (!linja || typeof linja !== 'object' || Array.isArray(linja)) return { virhe: 'Virheellinen linjan tila' };
-  const nro = (n) => Number.isInteger(n) && n >= 1 && n <= MAKS_NRO;
-  const numerot = (lista) => (Array.isArray(lista) ? [...new Set(lista.filter(nro))].slice(0, MAKS_LISTA) : []);
-  const lisatyt = (Array.isArray(linja.lisatyt) ? linja.lisatyt : [])
-    .filter((l) => l && nro(l.nro))
-    .slice(0, MAKS_LISTA)
-    .map((l) => ({
-      nro: l.nro,
-      ...(typeof l.nimi === 'string' && l.nimi ? { nimi: puhdasTeksti(l.nimi, 80) } : {}),
-      ...(l.jalkeen === null || nro(l.jalkeen) ? { jalkeen: l.jalkeen } : {}),
-      ...(Number.isInteger(l.kierroksesta) && l.kierroksesta >= 0 && l.kierroksesta <= 1000 ? { kierroksesta: l.kierroksesta } : {})
-    }));
-  const ohjelma = typeof linja.ohjelma === 'string' && /^[SD]{1,10}$/.test(linja.ohjelma) ? linja.ohjelma : null;
-  return {
-    linja: {
-      lisatyt,
-      ohitetut: numerot(linja.ohitetut),
-      tauot: numerot(linja.tauot),
-      tauotPois: numerot(linja.tauotPois),
-      keskeyttaneet: numerot(linja.keskeyttaneet),
-      ohjelma
-    }
-  };
-}

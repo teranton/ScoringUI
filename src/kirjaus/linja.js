@@ -6,7 +6,7 @@
 // Koko päivän vuorot lasketaan jonosta, ohjelmasta ja laitteen muutoksista (lisätyt, ohitetut, tauot,
 // keskeyttäneet), joten seuraava vuoro selviää merkinnöistä myös uudelleenlatauksen ja perumisen jälkeen.
 // Laitteen muutokset ovat vain tällä laitteella; laitteen vaihto on oma vaiheensa (design-dokumentin vaihe 4).
-import { ASEMAN_KOHTEET, KOHTEITA, merkitOf } from './kortit.js';
+import { ASEMAN_KOHTEET, KOHTEITA, merkitOf, taytetyt } from './kortit.js';
 
 export const ASEMIA = KOHTEITA / ASEMAN_KOHTEET;
 const SARJAT = { S: 1, Y: 1, D: 2, T: 2 };
@@ -130,4 +130,37 @@ export function linjanTilanne(vuorot, kortit, keskeyttaneet = []) {
 export function tulevatAmpujat(jono, vuorot, kierros) {
   const tulleet = new Set(vuorot.filter((v) => v.kierros <= kierros).map((v) => v.nro));
   return jono.filter((a) => !tulleet.has(a.nro));
+}
+
+// Radan jono laitteen linjan tilalla (lisätyt, ohitetut, laitteella lisätyt ja perutut tauot); puuttuvat nimet
+// aikataulun nimistä. Sama laitteella (KirjausApp.jsx) ja julkisessa ratanäkymässä (MOBIILI_LAITTEET LINJA).
+export function linjanJono(perusJono, { lisatyt = [], ohitetut = [], tauot = [], tauotPois = [] } = {}, nimet = {}) {
+  return radanLinjajono(perusJono, { lisatyt, ohitetut }).map((a) => ({
+    ...a,
+    nimi: a.nimi || nimet?.[a.nro] || '',
+    taukoEnnen: tauot.includes(a.nro) || (Boolean(a.taukoEnnen) && !tauotPois.includes(a.nro))
+  }));
+}
+
+// Seuraavaksi: kierroksen uusi tulija asemalla 1, jos hän ei ole vielä ampunut, ja sitten jono.
+export function seuraavatAmpujat(jono, vuorot, tilanne, kortit, keskeyttaneet = []) {
+  if (!tilanne) return [];
+  const tulija = tilanne.linja.find((l) => l.asema === 0);
+  const odottaa = tulija && taytetyt(merkitOf(kortit, tulija.nro)) === 0 && !keskeyttaneet.includes(tulija.nro);
+  const alussa = odottaa ? jono.filter((a) => a.nro === tulija.nro) : [];
+  return [...alussa, ...tulevatAmpujat(jono, vuorot, tilanne.vuoro.kierros)];
+}
+
+// Radan ampuneet (tai keskeyttäneet), jotka eivät ole enää linjalla: viimeksi linjaan tullut ensin.
+export function valmiitAmpujat(vuorot, tilanne, kortit, keskeyttaneet = []) {
+  const linjalla = new Set((tilanne?.linja || []).map((l) => l.nro));
+  const tulo = new Map();
+  vuorot.forEach((v, i) => {
+    if (!tulo.has(v.nro)) tulo.set(v.nro, i);
+  });
+  return [...tulo.entries()]
+    .filter(([nro]) => !linjalla.has(nro)
+      && (taytetyt(merkitOf(kortit, nro)) === KOHTEITA || keskeyttaneet.includes(nro)))
+    .sort((a, b) => b[1] - a[1])
+    .map(([nro]) => nro);
 }

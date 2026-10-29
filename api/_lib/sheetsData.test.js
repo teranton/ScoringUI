@@ -9,6 +9,7 @@ import { parseCsvRows } from '../../src/utils/csv.js';
 process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = await mkdtemp(path.join(tmpdir(), 'scoringui-testi-'));
 const {
   haeValilehdetCsv,
+  julkisetSarakkeet,
   kohdistaValilehdet,
   onSallittuValilehti,
   rivitCsvksi,
@@ -93,6 +94,20 @@ test('välilehtilista muistissa: ei listahakua, vain yksi batchGet', async () =>
   assert.equal(kutsut.length, 1);
 });
 
+test('kesken kisan luotu MOBIILI-välilehti: vanha lista haetaan uudelleen minuutin jälkeen', async () => {
+  await tyhjennaValilehtiCache();
+  const valilehdet = ['Tulokset Y'];
+  const { request } = luoGoogle(valilehdet, { 'Tulokset Y': [['A']], MOBIILI_LAITTEET: [['RATA'], ['1']] });
+  const nimet = ['Tulokset Y', 'MOBIILI_LAITTEET'];
+  const alku = Date.now();
+  await haeValilehdetCsv({ request, sheetId: `${SHEET}9`, nimet, nyt: alku });
+  valilehdet.push('MOBIILI_LAITTEET');
+  const heti = await haeValilehdetCsv({ request, sheetId: `${SHEET}9`, nimet, nyt: alku + 30 * 1000 });
+  assert.deepEqual(heti.notFound, ['MOBIILI_LAITTEET']);
+  const myohemmin = await haeValilehdetCsv({ request, sheetId: `${SHEET}9`, nimet, nyt: alku + 61 * 1000 });
+  assert.deepEqual(myohemmin, { csvByName: { 'Tulokset Y': 'A', MOBIILI_LAITTEET: 'RATA\n1' }, notFound: [] });
+});
+
 test('muu kuin aluevirhe heitetään eteenpäin', async () => {
   await tyhjennaValilehtiCache();
   const request = async () => { const e = new Error('kielletty'); e.response = { status: 403 }; throw e; };
@@ -118,4 +133,53 @@ test('onSallittuValilehti sallii kisan välilehdet ja kauden rankingin, ei muita
   assert.equal(onSallittuValilehti('RANKING_2026_vanha'), false);
   assert.equal(onSallittuValilehti('LASKENTA'), false);
   assert.equal(onSallittuValilehti('Suomisport Import'), false);
+});
+
+test('mobiilikirjauksen välilehdet: kortit, laitteet ja ryhmät, ei lokia', () => {
+  assert.equal(onSallittuValilehti('MOBIILI Rata 3'), true);
+  assert.equal(onSallittuValilehti('mobiili rata 12'), true);
+  assert.equal(onSallittuValilehti('MOBIILI_LAITTEET'), true);
+  assert.equal(onSallittuValilehti('MOBIILI_LOKI'), false);
+  assert.equal(onSallittuValilehti('MOBIILI_RYHMAT'), true);
+  assert.equal(onSallittuValilehti('MOBIILI Layout 1'), true);
+  assert.equal(onSallittuValilehti('MOBIILI Layout'), false);
+  assert.equal(onSallittuValilehti('MOBIILI Rata'), false);
+});
+
+test('julkisetSarakkeet jättää laitteen tunnukset, PIN-virheet ja täydennykset pois', () => {
+  const kortit = [
+    ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', '1', '2'],
+    [],
+    [2, 'Matti', 1, '28.10.2026 10.00', 'laite-abc', 1761638400000, 'X', 'O']
+  ];
+  assert.deepEqual(julkisetSarakkeet('MOBIILI Rata 1', kortit), [
+    ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', '1', '2'],
+    ['', '', '', '', '', ''],
+    [2, 'Matti', 1, '28.10.2026 10.00', 'X', 'O']
+  ]);
+  const laitteet = [
+    ['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY', 'TÄYDENNYKSET'],
+    [1, 3, 'laite-abc', 'Android Chrome …1234', '28.10.2026', 'PIN', 2, '{"ohitetut":[4]}', '28.10.2026 10.01', '{"5":"XX"}']
+  ];
+  assert.deepEqual(julkisetSarakkeet('MOBIILI_LAITTEET', laitteet), [
+    ['RATA', 'LINJA', 'LINJA PÄIVITETTY'],
+    [1, '{"ohitetut":[4]}', '28.10.2026 10.01']
+  ]);
+  const ryhmaKortit = [
+    ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', 'RYHMÄ', 'HYVÄKSYTTY', 'ASEMA 3', '3/1', '3/2', 'KUITATUT'],
+    [5, 'Matti', 1, 'x', 'laite-abc', 7, 2, '', 1, 'X', 'O', '3']
+  ];
+  assert.deepEqual(julkisetSarakkeet('MOBIILI Layout 2', ryhmaKortit), [['NRO', 'NIMI', 'ASEMA 3', '3/1', '3/2'], [5, 'Matti', 1, 'X', 'O']]);
+  assert.deepEqual(julkisetSarakkeet('MOBIILI_RYHMAT', [['RYHMÄ', 'SUKUPOLVI', 'LAITE'], [1, 2, 'salainen']]), [['RYHMÄ'], [1]]);
+  const muu = [['a', 'b']];
+  assert.equal(julkisetSarakkeet('Tulokset Y', muu), muu);
+});
+
+test('haeValilehdetCsv antaa mobiilivälilehdet rajattuina', async () => {
+  const request = async ({ url }) => {
+    if (!url.includes('batchGet')) return { data: { sheets: [{ properties: { title: 'MOBIILI_LAITTEET' } }] } };
+    return { data: { valueRanges: [{ values: [['RATA', 'LAITE', 'LINJA'], [1, 'salainen', '{}']] }] } };
+  };
+  const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}M`, nimet: ['MOBIILI_LAITTEET'] });
+  assert.equal(tulos.csvByName.MOBIILI_LAITTEET, 'RATA,LINJA\n1,{}');
 });
