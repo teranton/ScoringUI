@@ -129,6 +129,25 @@ test('muita kuin julkaistavia välilehtiä ei anneta', async () => {
 test('välilehden nimen kirjainkoolla ei ole väliä', async () => {
   const r = await hae(VANHA, ' tulokset y ');
   assert.equal(r.s, 200);
+  assert.deepEqual(Object.keys(r.b.csvByName), ['Tulokset Y']);
+});
+
+test('eri kirjoitusasu ei täytä välimuistia avaimilla, joita frontend ei löydä', async () => {
+  taustat = [];
+  const pienella = await hae(KORJATTAVA, 'ryhmäjako');
+  assert.deepEqual(Object.keys(pienella.b.csvByName), ['Ryhmäjako']);
+  await odotaTaustat();
+  const frontend = await hae(KORJATTAVA, 'Ryhmäjako');
+  assert.equal(frontend.b.timing.source, 'server-cache');
+  assert.ok(frontend.b.csvByName['Ryhmäjako']);
+  assert.ok(blob.get(`kisat/${KORJATTAVA}/Ryhmäjako`).csvByName['Ryhmäjako']);
+});
+
+test('saman välilehden eri kirjoitusasut haetaan kerran', async () => {
+  const r = vastaus();
+  await handler({ query: { sheetId: VANHA, sheetNames: ['NEW_Joukkue', 'new_joukkue'] }, headers: {} }, r);
+  assert.equal(r.s, 200);
+  assert.deepEqual(Object.keys(r.b.csvByName), ['NEW_Joukkue']);
 });
 
 test('julkaistavat välilehdet annetaan, vaikka mukana olisi muita', async () => {

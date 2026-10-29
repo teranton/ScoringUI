@@ -10,7 +10,7 @@ import { waitUntil } from '@vercel/functions';
 
 import { normalisoiSheetId, onSallittuSheetId } from './_lib/sheetAllowlist.js';
 import { haeGoogleAsiakas, onKiintioVirhe, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
-import { haeValilehdetCsv, onRankingValilehti, onSallittuValilehti } from './_lib/sheetsData.js';
+import { haeValilehdetCsv, kanoninenValilehti, onRankingValilehti } from './_lib/sheetsData.js';
 import { VANHA_KUVA_OTSIKKO, VARALLA_OTSIKKO, cdnOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
 import { datanVersio, kuvanPolku, lueKuva, onkoKuvatKaytossa, tallennaKuva } from './_lib/kisaKuva.js';
 import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
@@ -104,22 +104,21 @@ export default async function handler(req, res) {
   const alku = Date.now();
   const { sheetId } = req.query;
   const raakaNimet = req.query.sheetNames;
-  let nimet = [...new Set((Array.isArray(raakaNimet) ? raakaNimet : [raakaNimet])
+  const pyydetyt = [...new Set((Array.isArray(raakaNimet) ? raakaNimet : [raakaNimet])
     .map(decodeQueryValue)
     .map((n) => n.trim())
     .filter(Boolean))];
 
   if (!sheetId || normalisoiSheetId(sheetId) !== sheetId) return lahetaVirhe(res, 400, { error: 'sheetId vaaditaan' });
-  if (nimet.length === 0 || nimet.length > MAKS_VALILEHDET) {
+  if (pyydetyt.length === 0 || pyydetyt.length > MAKS_VALILEHDET) {
     return lahetaVirhe(res, 400, { error: `sheetNames: 1–${MAKS_VALILEHDET} välilehteä` });
   }
   // Muita välilehtiä ei julkaista. Jos frontend pyytää vain niitä, pyyntö torjutaan; muuten ne jätetään pois.
-  const eiSallitut = nimet.filter((n) => !onSallittuValilehti(n));
-  if (eiSallitut.length === nimet.length) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
-  if (eiSallitut.length) {
-    console.error('[KISA] Ohitetaan välilehdet, joita ei julkaista:', eiSallitut);
-    nimet = nimet.filter(onSallittuValilehti);
-  }
+  // Sallitut nimet muutetaan frontendin kirjoitusasuun, jotta välimuistin ja Blob-kuvan avaimet ovat aina samat.
+  const eiSallitut = pyydetyt.filter((n) => !kanoninenValilehti(n));
+  if (eiSallitut.length === pyydetyt.length) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
+  if (eiSallitut.length) console.error('[KISA] Ohitetaan välilehdet, joita ei julkaista:', eiSallitut);
+  const nimet = [...new Set(pyydetyt.map(kanoninenValilehti).filter(Boolean))];
 
   const polku = kuvanPolku(sheetId, nimet);
   const tallessa = await vastausValimuisti.hae(polku);

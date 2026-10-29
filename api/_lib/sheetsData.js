@@ -17,7 +17,7 @@ export const SALLITUT_VALILEHDET = [
   'KISANSPEKSIT', 'Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet',
   'Aikataulu', 'Aikataulu La', 'Aikataulu Su'
 ];
-const sallitutNormalisoituna = new Set(SALLITUT_VALILEHDET.map(normalisoi));
+const sallitutNormalisoituna = new Map(SALLITUT_VALILEHDET.map((nimi) => [normalisoi(nimi), nimi]));
 // Kauden rankingin välilehdet: tulokset (RANKING_2026 ...) ja kisojen nimet (KISAT).
 // api/kisa.js antaa ne vain rekisterissä rankingiksi (H = RANKING) merkitystä taulukosta.
 const RANKING_VALILEHTI = /^ranking_\d{4}$/;
@@ -29,6 +29,15 @@ export function onRankingValilehti(nimi) {
 
 export function onSallittuValilehti(nimi) {
   return sallitutNormalisoituna.has(normalisoi(nimi)) || onRankingValilehti(nimi);
+}
+
+// Sallitun välilehden nimi frontendin kirjoitusasussa ('tulokset y ' → 'Tulokset Y', 'ranking_2026' → 'RANKING_2026'),
+// muuten tyhjä. Vastauksen avaimet ovat tätä muotoa, joten eri kirjoitusasulla tehty pyyntö ei täytä välimuistia
+// ja Blob-kuvaa avaimilla, joita frontend ei löydä.
+export function kanoninenValilehti(nimi) {
+  const normalisoitu = normalisoi(nimi);
+  if (sallitutNormalisoituna.has(normalisoitu)) return sallitutNormalisoituna.get(normalisoitu);
+  return onRankingValilehti(nimi) ? normalisoitu.toUpperCase() : '';
 }
 
 function csvKentta(arvo) {
