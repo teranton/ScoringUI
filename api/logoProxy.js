@@ -19,18 +19,22 @@ const MAX_CACHE_BYTES = Number.isFinite(Number(process.env.LOGO_PROXY_CACHE_BYTE
   ? Number(process.env.LOGO_PROXY_CACHE_BYTES)
   : 50 * 1024 * 1024;
 
-// Oletuksena vain Googlen Drive-osoitteet: kisojen LOGO-linkit ovat Drive-kuvia. 'public' sallii minkä tahansa
-// julkisen osoitteen (LOGO_PROXY_HOST_POLICY=public).
-const HOST_POLICY = String(process.env.LOGO_PROXY_HOST_POLICY || 'strict').trim().toLowerCase();
+// Oletuksena vain Googlen Drive-osoitteet: kisojen LOGO-linkit ovat Drive-kuvia. Vain LOGO_PROXY_HOST_POLICY=public
+// sallii minkä tahansa julkisen osoitteen; muu arvo (myös kirjoitusvirhe) on 'strict'.
+const HOST_POLICY = String(process.env.LOGO_PROXY_HOST_POLICY || '').trim().toLowerCase() === 'public' ? 'public' : 'strict';
 
 const CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800';
 
+// Vain Driven omat osoitteet: koko googleusercontent.com sallisi myös esim. Apps Scriptin ja Sitesin sisällön.
 const DEFAULT_ALLOWED_HOSTS = [
   'drive.google.com',
+  // Driven pikkukuvat (drive.google.com/thumbnail?id=...) ohjautuvat näihin
   'lh3.googleusercontent.com',
-  'googleusercontent.com',
+  'lh4.googleusercontent.com',
+  'lh5.googleusercontent.com',
+  'lh6.googleusercontent.com',
   // Drive-linkit (drive.google.com/uc?id=...) ohjautuvat tänne
-  'usercontent.google.com'
+  'drive.usercontent.google.com'
 ];
 
 function getAllowedHosts() {
@@ -93,7 +97,7 @@ function tallennaValimuistiin(key, entry) {
   if (entry.buffer.length > MAX_CACHE_BYTES) return;
   logoCache.set(key, entry);
   logoCacheBytes += entry.buffer.length;
-  while (logoCacheBytes > MAX_CACHE_BYTES) poistaValimuistista(logoCache.keys().next().value);
+  while (logoCacheBytes > MAX_CACHE_BYTES && logoCache.size > 0) poistaValimuistista(logoCache.keys().next().value);
 }
 
 export function logoValimuistinKoko() {

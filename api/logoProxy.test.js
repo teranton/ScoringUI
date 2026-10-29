@@ -16,6 +16,9 @@ mock.module('./_lib/safeFetch.js', { namedExports: {
   turvallinenHaku: async (url, { hostSallittu }) => {
     haut.push(url);
     if (!hostSallittu(new URL(url).hostname)) throw new EstettyHakuError(`Estetty: ${url} -> 10.0.0.1`);
+    // Uudelleenohjaus: turvallinenHaku tarkistaa jokaisen hypyn samalla hostSallittu-funktiolla.
+    const ohjaus = new URL(url).searchParams.get('ohjaus');
+    if (ohjaus && !hostSallittu(new URL(ohjaus).hostname)) throw new EstettyHakuError(`Estetty uudelleenohjaus: ${ohjaus}`);
     if (seuraava) {
       const virhe = seuraava;
       seuraava = null;
@@ -56,6 +59,16 @@ test('oletuksena vain Drive-osoitteet sallitaan', async () => {
 
   const lh3 = await pyyda('https://lh3.googleusercontent.com/d/abc');
   assert.equal(lh3.status, 200);
+
+  // Muu googleusercontent-sisältö (Apps Script, Sites) ei ole Driven kuva.
+  const skripti = await pyyda('https://script.googleusercontent.com/macros/echo?x=1');
+  assert.equal(skripti.status, 403);
+});
+
+test('sallitulta osoitteelta muualle ohjaava haku torjutaan kertomatta syytä', async () => {
+  const res = await pyyda(`${drive('ohjattu')}&ohjaus=${encodeURIComponent('https://example.com/kuva.png')}`);
+  assert.equal(res.status, 403);
+  assert.deepEqual(res.body, { error: 'Host is not allowed' });
 });
 
 test('muistivälimuisti pysyy tavurajan sisällä ja poistaa vanhimman', async () => {
