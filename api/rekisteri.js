@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { haeRekisteriCsv } from './_lib/sheetAllowlist.js';
+import { asetaValimuisti } from './_lib/cdnOtsikot.js';
 
 export default async function handler(req, res) {
   try {
@@ -10,7 +11,7 @@ export default async function handler(req, res) {
     const csvText = await haeRekisteriCsv();
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400');
+    asetaValimuisti(res, 'public, s-maxage=300, stale-while-revalidate=86400');
     return res.status(200).send(csvText);
 
   } catch (error) {

@@ -41,6 +41,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   refreshed from Google in the background (`waitUntil`; awaited when there is no Vercel request context, e.g. `vercel dev`).
   The correction window is judged from the current registry dates; during it only a copy under 1 h old is used.
   Blob writes never delay the response.
+  Vercel strips `s-maxage` from the response it forwards, so cached API responses also carry
+  `Cloudflare-CDN-Cache-Control` with the same times (`api/_lib/cdnOtsikot.js`) for a Cloudflare cache in front of Vercel.
   The API also keeps responses, the registry and tab lists in memory and in files under the OS temp dir
   (`api/_lib/valimuisti.js`), so `vercel dev`, where every request runs in a new process, doesn't hit Google
   on every request. Google 429s are retried once, then old data is served if there is any.
