@@ -65,8 +65,11 @@ export function haeKirjuriAsiakas(indeksi = 0) {
   return kirjuriLupaukset.get(indeksi);
 }
 
+export const googleStatus = (error) => Number(error?.response?.status || error?.status || error?.code);
+export const googleViesti = (error) => JSON.stringify(error?.response?.data || error?.message || '');
+
 export function onKiintioVirhe(error) {
-  return Number(error?.response?.status || error?.status || error?.code) === 429;
+  return googleStatus(error) === 429;
 }
 
 const odota = (ms) => new Promise((ratkaise) => setTimeout(ratkaise, ms));

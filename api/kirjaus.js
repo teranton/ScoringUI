@@ -20,7 +20,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
-import { haeKirjuriAsiakas, kirjurienMaara, onKiintioVirhe, onKirjuriMaaritetty } from './_lib/googleAuth.js';
+import { googleStatus, googleViesti, haeKirjuriAsiakas, kirjurienMaara, onKiintioVirhe, onKirjuriMaaritetty } from './_lib/googleAuth.js';
 import { luoKirjuriValitsin } from './_lib/kirjuriTilit.js';
 import { kohdistaValilehdet, valilehtiAlue } from './_lib/sheetsData.js';
 import { tarkistaAvain } from './_lib/kirjausAvain.js';
@@ -49,8 +49,6 @@ function laheta(res, status, body) {
   return res.status(status).json(body);
 }
 
-const googleStatus = (error) => Number(error?.response?.status || error?.status || error?.code);
-const googleViesti = (error) => JSON.stringify(error?.response?.data || error?.message || '');
 
 function lahetaGoogleVirhe(res, error, vaihe) {
   const status = googleStatus(error);
@@ -818,7 +816,7 @@ export default async function handler(req, res) {
   try {
     const ryhmalle = avain.ryhma !== undefined;
     // Rata tai ryhmä käyttää aina samaa kirjuritiliä, jotta kisan laitteet jakautuvat tilien kiintiöille.
-    const request = kirjuriValitsin()(avain.sheetId, ryhmalle ? `r${avain.ryhma}` : avain.sarake);
+    const request = kirjuriValitsin()(avain.sheetId, ryhmalle ? avain.ryhma : avain.sarake);
     if (toiminto === 'avaa') {
       const laite = String(req.headers?.['x-kirjaus-laite'] || '');
       const haltija = String(req.headers?.['x-kirjaus-haltija'] || '');

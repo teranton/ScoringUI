@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EI_JAETTU_MS, kirjurinIndeksi, luoKirjuriValitsin, onPaasyVirhe } from './kirjuriTilit.js';
+import { EI_KAYTETTAVISSA_MS, kirjurinIndeksi, luoKirjuriValitsin, onPaasyVirhe } from './kirjuriTilit.js';
 import { kirjurienMaara } from './googleAuth.js';
 
 const ID = '1dDFHggKRym2rfg2G2BrHb4VOD4c4LVL321inL7mguMk';
@@ -34,13 +34,14 @@ test('tilien määrä ympäristömuuttujista: numerot peräkkäin', () => {
   assert.equal(kirjurienMaara({ KIRJURI_CLIENT_EMAIL: 'a', KIRJURI_PRIVATE_KEY: 'k', KIRJURI_CLIENT_EMAIL_2: 'b' }), 1);
 });
 
-test('rata ja ryhmä käyttävät aina samaa tiliä, ja radat jakautuvat tileille', () => {
+test('rata ja ryhmä käyttävät aina samaa tiliä, ja peräkkäiset numerot jakautuvat tileille tasan', () => {
   assert.equal(kirjurinIndeksi(ID, 3, 1), 0);
   assert.equal(kirjurinIndeksi(ID, 3, 3), kirjurinIndeksi(ID, 3, 3));
-  const kaytetyt = new Set(Array.from({ length: 8 }, (_, k) => kirjurinIndeksi(ID, k + 1, 2)));
-  assert.equal(kaytetyt.size, 2);
-  const ryhmat = new Set(Array.from({ length: 12 }, (_, k) => kirjurinIndeksi(ID, `r${k + 1}`, 3)));
-  assert.ok(ryhmat.size >= 2);
+  for (const maara of [2, 3, 4]) {
+    const maarat = new Array(maara).fill(0);
+    for (let n = 1; n <= maara * 2; n++) maarat[kirjurinIndeksi(ID, n, maara)]++;
+    assert.deepEqual(maarat, new Array(maara).fill(2));
+  }
 });
 
 test('yksi tili: kaikki pyynnöt sillä, virhe sellaisenaan', async () => {
@@ -59,17 +60,19 @@ test('taulukkoa ei ole jaettu valitulle tilille: tili 1, ja se muistetaan', asyn
   assert.deepEqual(kutsut, [[1, 'a'], [0, 'a']]);
   await pyynto({ url: 'b' });
   assert.deepEqual(kutsut.slice(2), [[0, 'b']]);
-  aika += EI_JAETTU_MS;
+  aika += EI_KAYTETTAVISSA_MS;
   await pyynto({ url: 'c' });
   assert.deepEqual(kutsut.slice(3), [[1, 'c'], [0, 'c']]);
 });
 
-test('suojattu alue ei ole jako-ongelma: virhe heitetään eikä toista tiliä yritetä', async () => {
+test('suojattu alue: tili 1, mutta lisätili pysyy käytössä', async () => {
   const suojattu = virhe(403, 'You are trying to edit a protected cell or object.');
   const { kutsut, haeAsiakas } = tilit(['ok', suojattu]);
   const pyynto = luoKirjuriValitsin({ haeAsiakas, maara: 2 })(ID, rataTilille(1, 2));
-  await assert.rejects(pyynto({ url: 'a' }), (e) => e === suojattu);
-  assert.deepEqual(kutsut, [[1, 'a']]);
+  // Suojaus voi sallia vain tilin 1: yritetään sillä, mutta tiliä 2 ei merkitä käyttökelvottomaksi.
+  assert.deepEqual((await pyynto({ url: 'a' })).data, { tili: 0 });
+  await pyynto({ url: 'b' });
+  assert.deepEqual(kutsut, [[1, 'a'], [0, 'a'], [1, 'b'], [0, 'b']]);
   assert.equal(onPaasyVirhe(suojattu), false);
   assert.equal(onPaasyVirhe(virhe(404)), true);
 });
@@ -78,8 +81,8 @@ test('täysi kiintiö: pyyntö kerran toisella tilillä', async () => {
   const { kutsut, haeAsiakas } = tilit([virhe(429), 'ok']);
   const pyynto = luoKirjuriValitsin({ haeAsiakas, maara: 2 })(ID, rataTilille(0, 2));
   assert.deepEqual((await pyynto({ url: 'a' })).data, { tili: 1 });
-  // Ensin tavallinen uudelleenyritys samalla tilillä (pyyntoUudelleenyrittaen), sitten toinen tili.
-  assert.deepEqual(kutsut, [[0, 'a'], [0, 'a'], [1, 'a']]);
+  // Useammalla tilillä ei odoteta samaa tiliä, vaan siirrytään heti toiselle.
+  assert.deepEqual(kutsut, [[0, 'a'], [1, 'a']]);
 });
 
 test('täysi kiintiö ja toiselle tilille ei jaettu: alkuperäinen 429', async () => {
@@ -89,5 +92,26 @@ test('täysi kiintiö ja toiselle tilille ei jaettu: alkuperäinen 429', async (
   await assert.rejects(pyynto({ url: 'a' }), (e) => e === taynna);
   await assert.rejects(pyynto({ url: 'b' }), (e) => e === taynna);
   // Toista tiliä ei yritetä enää, kun tiedetään, ettei sille ole jaettu.
-  assert.deepEqual(kutsut, [[0, 'a'], [0, 'a'], [1, 'a'], [0, 'b'], [0, 'b']]);
+  assert.deepEqual(kutsut, [[0, 'a'], [1, 'a'], [0, 'b']]);
+});
+
+test('lisätilin tunnukset eivät toimi: tili 1', async () => {
+  const kutsut = [];
+  const haeAsiakas = async (i) => {
+    if (i === 1) throw new Error('error:1E08010C:DECODER routines::unsupported');
+    return { request: async (opts) => { kutsut.push([i, opts.url]); return { data: { tili: i } }; } };
+  };
+  const pyynto = luoKirjuriValitsin({ haeAsiakas, maara: 2 })(ID, rataTilille(1, 2));
+  assert.deepEqual((await pyynto({ url: 'a' })).data, { tili: 0 });
+  assert.deepEqual((await pyynto({ url: 'b' })).data, { tili: 0 });
+  assert.deepEqual(kutsut, [[0, 'a'], [0, 'b']]);
+});
+
+test('lisätilin kiintiö täynnä tilin 1 jälkeen: seuraava tili', async () => {
+  // Rata on tilillä 2, jolle ei ole jaettu; tili 1 täynnä; tili 3 vapaana.
+  const { kutsut, haeAsiakas } = tilit([virhe(429), virhe(403, 'The caller does not have permission'), 'ok']);
+  const pyynto = luoKirjuriValitsin({ haeAsiakas, maara: 3 })(ID, rataTilille(1, 3));
+  await assert.rejects(pyynto({ url: 'a' }));
+  assert.deepEqual((await pyynto({ url: 'b' })).data, { tili: 2 });
+  assert.deepEqual(kutsut.slice(-2), [[0, 'b'], [2, 'b']]);
 });

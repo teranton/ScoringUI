@@ -100,6 +100,8 @@ async function request({ url, method = 'GET', data }) {
 
 mock.module('./_lib/googleAuth.js', { namedExports: {
   onKiintioVirhe: () => false,
+  googleStatus: (error) => Number(error?.response?.status || error?.status || error?.code),
+  googleViesti: (error) => JSON.stringify(error?.response?.data || error?.message || ''),
   onKirjuriMaaritetty: () => true,
   kirjurienMaara: () => 1,
   pyyntoUudelleenyrittaen: (req, opts) => req(opts),
