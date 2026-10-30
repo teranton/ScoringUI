@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Sign-ups: the registrations list also shows sign-ups not yet on the main tab, from `Suomisport Import`,
+  `ILMOITTAUTUMISET` (new, written by the ScoringUI sign-up form) and a linked Google Form (`Lomakevastaukset N` /
+  `Form Responses N`). `api/kisa.js` serves these tabs filtered to the name, class, club and `SIIRRETTY` columns; the
+  upcoming/running request adds them until the list is hidden on the first day. New `KISANSPEKSIT` keys
+  `ILMOITTAUTUMINEN` (`LOMAKE` shows the form), `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`. New column
+  `SIIRRETTY` in the sources, written by ScoringLib when it copies sign-ups to the main tab. Additive: sheets without
+  the keys or tabs behave as before. `MAKS_VALILEHDET` in `api/kisa.js` is now 16.
+
 - Sponsor logos (`LOGO:` rows): `api/logoProxy.js` now fetches only Drive links by default (`LOGO_PROXY_HOST_POLICY=public`
   allows any public host). Every current sheet already uses `drive.google.com/thumbnail` links. Documented in sheet-layout.md.
 - The registry is read as columns A–I (was A:Z); the UI uses only those. No sheet change.

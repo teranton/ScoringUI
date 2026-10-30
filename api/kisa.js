@@ -16,7 +16,7 @@ import { datanVersio, kuvanPolku, lueKuva, onkoKuvatKaytossa, tallennaKuva } fro
 import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
 import { asetaValimuisti } from './_lib/cdnOtsikot.js';
 
-const MAKS_VALILEHDET = 12;
+const MAKS_VALILEHDET = 16;
 // Pyydettyjä nimiä (myös julkaisemattomia ja eri kirjoitusasuja) korkeintaan näin monta.
 const MAKS_PYYDETYT = 4 * MAKS_VALILEHDET;
 // Käynnissä olevan kisan vastaus Vercelin CDN:ssä enintään näin kauan (s), Cloudflaressa CDN-otsikon mukaan.
