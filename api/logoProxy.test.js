@@ -60,6 +60,10 @@ test('oletuksena vain Drive-osoitteet sallitaan', async () => {
   const lh3 = await pyyda('https://lh3.googleusercontent.com/d/abc');
   assert.equal(lh3.status, 200);
 
+  // Workspace-tilin Drive-pikkukuva ohjautuu fife-osoitteeseen.
+  const fife = await pyyda(`${drive('fife')}&ohjaus=${encodeURIComponent('https://work.fife.usercontent.google.com/fife/abc=s1000')}`);
+  assert.equal(fife.status, 200);
+
   // Muu googleusercontent-sisältö (Apps Script, Sites) ei ole Driven kuva.
   const skripti = await pyyda('https://script.googleusercontent.com/macros/echo?x=1');
   assert.equal(skripti.status, 403);

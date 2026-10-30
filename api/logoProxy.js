@@ -34,7 +34,9 @@ const DEFAULT_ALLOWED_HOSTS = [
   'lh5.googleusercontent.com',
   'lh6.googleusercontent.com',
   // Drive-linkit (drive.google.com/uc?id=...) ohjautuvat tänne
-  'drive.usercontent.google.com'
+  'drive.usercontent.google.com',
+  // Workspace-tilien Drive-kuvat ohjautuvat esim. work.fife.usercontent.google.com-osoitteeseen
+  'fife.usercontent.google.com'
 ];
 
 function getAllowedHosts() {

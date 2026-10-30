@@ -159,7 +159,7 @@ Any other key or value is ignored and the default applies.
 
 Sponsor logos are `LOGO:<name>` rows: the image link right of the key, then optionally the sponsor's web page.
 The image is loaded through `api/logoProxy.js`, which by default fetches only Drive links (`drive.google.com/thumbnail?id=…`,
-`drive.google.com/uc?id=…` and the `lh3`–`lh6.googleusercontent.com` / `drive.usercontent.google.com` hosts they redirect to).
+`drive.google.com/uc?id=…` and the `lh3`–`lh6.googleusercontent.com`, `drive.usercontent.google.com` and `*.fife.usercontent.google.com` hosts they redirect to).
 A logo on any other host is not shown unless Vercel has `LOGO_PROXY_HOST_POLICY=public`.
 
 ### Keys ScoringLib reads
