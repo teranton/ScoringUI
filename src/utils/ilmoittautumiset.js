@@ -60,7 +60,7 @@ export function lahteenIlmoittautuneet(lahde, { myosSiirretyt = false } = {}) {
   const tulos = [];
   for (const rivi of rivit.slice(1)) {
     if (!myosSiirretyt && solu(rivi, 'siirretty')) continue;
-    const nimi = solu(rivi, 'nimi') || valit(`${solu(rivi, 'sukunimi')} ${solu(rivi, 'etunimi')}`);
+    const nimi = solu(rivi, 'nimi') ? muotoileNimi(solu(rivi, 'nimi')) : lomakkeenNimi(solu(rivi, 'sukunimi'), solu(rivi, 'etunimi'));
     if (!nimi || /^\d+$/.test(nimi)) continue;
     tulos.push({ nimi, sarja: solu(rivi, 'sarja'), seura: solu(rivi, 'seura') });
   }
@@ -129,9 +129,9 @@ export function lomakkeenSarjat(asetus) {
 }
 
 // Lomakkeen tila KISANSPEKSIT-riveistä: { kaytossa, auki, takaraja, sarjat }. Lomake on käytössä vain arvolla
-// ILMOITTAUTUMINEN = LOMAKE, ja auki rekisterin alkupäivään (tai ILMOITTAUTUMINEN_PAATTYY-hetkeen) asti.
+// ILMOITTAUTUMISTAPA = LOMAKE, ja auki rekisterin alkupäivään (tai ILMOITTAUTUMINEN_PAATTYY-hetkeen) asti.
 export function lomakkeenTila(speksiRivit, alkuPvm, nyt = new Date()) {
-  const kaytossa = speksiArvo(speksiRivit, 'ILMOITTAUTUMINEN').toUpperCase() === 'LOMAKE';
+  const kaytossa = speksiArvo(speksiRivit, 'ILMOITTAUTUMISTAPA').toUpperCase() === 'LOMAKE';
   const takaraja = ilmoittautumisenTakaraja(speksiArvo(speksiRivit, 'ILMOITTAUTUMINEN_PAATTYY'), alkuPvm);
   return {
     kaytossa,
@@ -167,13 +167,15 @@ export function tarkistaLomake(syote, sarjat = []) {
   return { kentat: k, virheet };
 }
 
-// Nimi pääsivun muotoon kuten Suomisport-tuonnissa: "Sukunimi Etunimi", sanojen alkukirjaimet isoiksi.
+// Kokonaan pienillä tai isoilla kirjoitettu nimen osa alkukirjaimet isoiksi, muuten kirjoitusasu säilyy
+// (McDonald, von Wright). Sama sääntö ScoringLibin Ilmoittautumiset.muotoileNimi:ssä.
+export function muotoileNimi(teksti) {
+  const t = valit(teksti);
+  if (t !== t.toLowerCase() && t !== t.toUpperCase()) return t;
+  return t.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, eteen, kirjain) => eteen + kirjain.toUpperCase());
+}
+
+// Nimi pääsivun muotoon kuten Suomisport-tuonnissa: "Sukunimi Etunimi".
 export function lomakkeenNimi(sukunimi, etunimi) {
-  // Kokonaan pienillä tai isoilla kirjoitettu nimi muotoillaan, muuten kirjoitusasu säilyy (McDonald, von Wright).
-  const iso = (t) => {
-    const teksti = valit(t);
-    if (teksti !== teksti.toLowerCase() && teksti !== teksti.toUpperCase()) return teksti;
-    return teksti.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, eteen, kirjain) => eteen + kirjain.toUpperCase());
-  };
-  return valit(`${iso(sukunimi)} ${iso(etunimi)}`);
+  return valit(`${muotoileNimi(sukunimi)} ${muotoileNimi(etunimi)}`);
 }

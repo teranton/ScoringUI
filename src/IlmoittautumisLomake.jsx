@@ -1,5 +1,5 @@
 // src/IlmoittautumisLomake.jsx
-// Ilmoittautumislomake tuleviin kisoihin, joissa KISANSPEKSIT ILMOITTAUTUMINEN = LOMAKE (Suomisportin sijaan).
+// Ilmoittautumislomake tuleviin kisoihin, joissa KISANSPEKSIT ILMOITTAUTUMISTAPA = LOMAKE (Suomisportin sijaan).
 // Lähettää api/ilmoittaudu.js:lle, joka kirjoittaa ILMOITTAUTUMISET-välilehdelle. Kentät ja tarkistukset
 // src/utils/ilmoittautumiset.js (samat palvelimella).
 import { useRef, useState } from 'react';

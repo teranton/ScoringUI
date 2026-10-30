@@ -37,7 +37,7 @@ function luoTaulukko(valilehdet) {
   return { request, taulukko, kutsut };
 }
 
-const SPEKSIT = [['Selite', 'Avain', 'Arvo'], ['', 'ILMOITTAUTUMINEN', 'LOMAKE'], ['', 'ILMOITTAUTUMISEN_SARJAT', 'Y, Y56']];
+const SPEKSIT = [['Selite', 'Avain', 'Arvo'], ['', 'ILMOITTAUTUMISTAPA', 'LOMAKE'], ['', 'ILMOITTAUTUMISEN_SARJAT', 'Y, Y56']];
 const RUNKO = { sukunimi: 'meikäläinen', etunimi: 'matti', sarja: 'y56', seura: 'NoSA', sahkoposti: 'm@x.fi', puhelin: '040', suostumus: true };
 
 test('ilmoittautuminen luo ILMOITTAUTUMISET-välilehden ja lisää rivin otsikon mukaan', async () => {
@@ -75,7 +75,7 @@ test('sama nimi torjutaan: pääsivulla, lomakkeella (myös siirretty) ja Suomis
 });
 
 test('lomake ei käytössä, suljettu tai virheellinen: mitään ei kirjoiteta', async () => {
-  const ei = luoTaulukko({ KISANSPEKSIT: [['', 'ILMOITTAUTUMINEN', 'SUOMISPORT']] });
+  const ei = luoTaulukko({ KISANSPEKSIT: [['', 'ILMOITTAUTUMISTAPA', 'SUOMISPORT']] });
   assert.equal((await ilmoittaudu({ request: ei.request, sheetId: ID, kisa: KISA, runko: RUNKO, nyt: NYT })).body.koodi, 'eiKaytossa');
   const suljettu = luoTaulukko({ KISANSPEKSIT: SPEKSIT });
   const myohaan = await ilmoittaudu({ request: suljettu.request, sheetId: ID, kisa: KISA, runko: RUNKO, nyt: new Date('2026-11-20T22:00:00Z') });

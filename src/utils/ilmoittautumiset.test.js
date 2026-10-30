@@ -51,13 +51,13 @@ test('takaraja Helsingin aikaa: asetus päivänä, päivä ja kellonaika, oletuk
 });
 
 test('lomakkeenTila: käytössä vain arvolla LOMAKE ja auki takarajaan asti', () => {
-  const speksit = [['', 'ILMOITTAUTUMINEN', 'lomake'], ['', 'ILMOITTAUTUMISEN_SARJAT', 'Y, Y56; N, Y']];
+  const speksit = [['', 'ILMOITTAUTUMISTAPA', 'lomake'], ['', 'ILMOITTAUTUMISEN_SARJAT', 'Y, Y56; N, Y']];
   const ennen = lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-20T21:59:00Z'));
   assert.equal(ennen.kaytossa, true);
   assert.equal(ennen.auki, true);
   assert.deepEqual(ennen.sarjat, ['Y', 'Y56', 'N']);
   assert.equal(lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-20T22:00:00Z')).auki, false);
-  assert.equal(lomakkeenTila([['ILMOITTAUTUMINEN', 'SUOMISPORT']], '21.11.2099').auki, false);
+  assert.equal(lomakkeenTila([['ILMOITTAUTUMISTAPA', 'SUOMISPORT']], '21.11.2099').auki, false);
   assert.deepEqual(lomakkeenSarjat(''), []);
 });
 

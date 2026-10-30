@@ -157,7 +157,7 @@ Any other key or value is ignored and the default applies.
 | Classes that don't referee (highlighted in the squad editor) | `Ei tuomaroivat:` | comma-separated classes in the cell right of the key (B20 when the key is missing), matched exactly to `SARJA`, as ScoringLib's shuffle | none |
 | All-shooters category | `OPEN_SARJA` | `Y` (shown as Y, everyone; Finnish rules), `OPEN` or `Y (OPEN)` (shown as Y (OPEN), open to foreign shooters), `EI` or `FALSE` (no all-shooters category, only the classes; a `Y` class is then shown like any other) | none if every `Tulokset Y` category is a class: a letter A–F alone or followed by a non-letter (`A`, `A (Y)`, `B Y56`, `D-metsästäjä`), ignoring manual High Gun categories (`HG`, `1HG`); otherwise `Y` |
 | High Gun prize places | `HIGH_GUN` | whole number; the best overall scores up to this place (ties included) get a High Gun list on screen and in the printout | 0 (no High Gun) |
-| Sign-up form | `ILMOITTAUTUMINEN` | `LOMAKE` (ScoringUI shows the sign-up form, see "Sign-ups"); `SUOMISPORT` or anything else: no form | no form |
+| Sign-up form | `ILMOITTAUTUMISTAPA` (not `ILMOITTAUTUMINEN`, which is the section heading) | `LOMAKE` (ScoringUI shows the sign-up form, see "Sign-ups"); `SUOMISPORT` or anything else: no form | no form |
 | Sign-up deadline | `ILMOITTAUTUMINEN_PAATTYY` | `p.k.vvvv` (open to the end of that day) or `p.k.vvvv hh:mm`, Helsinki time; never later than 10:00 on the first day (the list is hidden then) | the start of the first competition day (registry column C) |
 | Sign-up classes | `ILMOITTAUTUMISEN_SARJAT` | classes separated by commas or semicolons, shown as a dropdown | free text |
 | High Gun winners leave their category | `HIGH_GUN_POIS_SARJOISTA` | `TRUE`; `FALSE`, `EPÄTOSI`, `0` or `EI` turn it off (category lists are ranked without the High Gun winners, so the next shooter moves up; the all-shooters list is unchanged) | `TRUE` |
@@ -372,12 +372,14 @@ A new `Suomisport Import` or form tab shows within 10 minutes (the API's tab lis
 - A row with a non-empty `SIIRRETTY` cell is not shown from the source: ScoringLib's 🏆 Competition ›
   📝 Ilmoittautuminen › Siirrä ilmoittautuneet pääsivulle copies new sign-ups into free main-tab rows and writes the
   time there, after which the main tab (and so `Ilmoittautuneet`) is the truth.
+- A name (or last/first name) typed all in capitals or all in lower case is shown with capital initials (`VIRTANEN matti` →
+  `Virtanen Matti`); ScoringLib copies it the same way.
 - The same shooter in several places is shown once (name compared without case, extra spaces or word order; the main
   tab wins, then the sources in the order above). Rows whose name is only a number are skipped.
 
 ### Sign-up form (`api/ilmoittaudu.js`)
 
-With `ILMOITTAUTUMINEN` = `LOMAKE` and before the deadline, the registrations tab shows a form (last name, first name,
+With `ILMOITTAUTUMISTAPA` = `LOMAKE` and before the deadline, the registrations tab shows a form (last name, first name,
 class, club, e-mail, optional phone and notes, consent to show name/class/club in the list). `POST /api/ilmoittaudu`
 appends one row to `ILMOITTAUTUMISET` with the writer account (`KIRJURI_*`, the mobile entry account), creating the tab
 with the header `AIKALEIMA, SUKUNIMI, ETUNIMI, NIMI, SARJA, SEURA, SÄHKÖPOSTI, PUHELIN, LISÄTIETOJA, SIIRRETTY` when

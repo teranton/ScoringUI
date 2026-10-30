@@ -1,6 +1,6 @@
 // api/ilmoittaudu.js
 // Ilmoittautumislomake (src/IlmoittautumisLomake.jsx): POST lisää ilmoittautumisen kisan ILMOITTAUTUMISET-välilehdelle.
-// Käytössä vain, kun KISANSPEKSIT ILMOITTAUTUMINEN = LOMAKE, ja auki ILMOITTAUTUMINEN_PAATTYY-hetkeen tai kisan
+// Käytössä vain, kun KISANSPEKSIT ILMOITTAUTUMISTAPA = LOMAKE, ja auki ILMOITTAUTUMINEN_PAATTYY-hetkeen tai kisan
 // alkupäivään asti (src/utils/ilmoittautumiset.js). Kirjoittaa mobiilikirjauksen kirjuripalvelutilillä (KIRJURI_*),
 // joka on muokkaaja vain kisoissa, joissa lomake tai mobiilikirjaus on sallittu (ScoringLib). Pääsivulle
 // (OSALLISTUJAT+TULOKSET) ei kirjoiteta: kilpailutoimisto siirtää ilmoittautumiset ScoringLibin valikosta.
