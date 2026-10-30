@@ -21,33 +21,55 @@ export function haeGoogleAsiakas() {
   return asiakasLupaus;
 }
 
-// Mobiilikirjauksen kirjoittaja: eri palvelutili (KIRJURI_*), joka on muokkaaja vain niissä kisoissa,
-// joissa mobiilikirjaus on käytössä. Lukutili pysyy vain luku -oikeuksisena.
-let kirjuriLupaus = null;
+// Mobiilikirjauksen kirjoittajat: eri palvelutilit (KIRJURI_*), jotka ovat muokkaajia vain niissä kisoissa,
+// joissa mobiilikirjaus on käytössä. Lukutili pysyy vain luku -oikeuksisena. Googlen kiintiö (60 luku- ja 60
+// kirjoituspyyntöä minuutissa) on tilikohtainen, joten radat ja ryhmät jaetaan tileille (api/_lib/kirjuriTilit.js):
+// tili 1 on KIRJURI_CLIENT_EMAIL / KIRJURI_PRIVATE_KEY, tilit 2..4 KIRJURI_CLIENT_EMAIL_2 / KIRJURI_PRIVATE_KEY_2 jne.
+export const MAKS_KIRJUREITA = 4;
 
-export function onKirjuriMaaritetty() {
-  return Boolean(process.env.KIRJURI_CLIENT_EMAIL && process.env.KIRJURI_PRIVATE_KEY);
+function kirjurinTunnukset(indeksi, env = process.env) {
+  const loppu = indeksi === 0 ? '' : `_${indeksi + 1}`;
+  const email = env[`KIRJURI_CLIENT_EMAIL${loppu}`];
+  const avain = env[`KIRJURI_PRIVATE_KEY${loppu}`];
+  return email && avain ? { email, avain } : null;
 }
 
-export function haeKirjuriAsiakas() {
-  if (!kirjuriLupaus) {
+// Määritettyjen kirjuritilien määrä: numerot peräkkäin ykkösestä alkaen (aukon jälkeiset jätetään pois).
+export function kirjurienMaara(env = process.env) {
+  let maara = 0;
+  while (maara < MAKS_KIRJUREITA && kirjurinTunnukset(maara, env)) maara++;
+  return maara;
+}
+
+export function onKirjuriMaaritetty() {
+  return kirjurienMaara() > 0;
+}
+
+const kirjuriLupaukset = new Map();
+
+export function haeKirjuriAsiakas(indeksi = 0) {
+  if (!kirjuriLupaukset.has(indeksi)) {
+    const tunnukset = kirjurinTunnukset(indeksi);
     const auth = new GoogleAuth({
       credentials: {
-        client_email: process.env.KIRJURI_CLIENT_EMAIL,
-        private_key: String(process.env.KIRJURI_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+        client_email: tunnukset?.email,
+        private_key: String(tunnukset?.avain || '').replace(/\\n/g, '\n'),
       },
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-    kirjuriLupaus = auth.getClient().catch((error) => {
-      kirjuriLupaus = null;
+    kirjuriLupaukset.set(indeksi, auth.getClient().catch((error) => {
+      kirjuriLupaukset.delete(indeksi);
       throw error;
-    });
+    }));
   }
-  return kirjuriLupaus;
+  return kirjuriLupaukset.get(indeksi);
 }
 
+export const googleStatus = (error) => Number(error?.response?.status || error?.status || error?.code);
+export const googleViesti = (error) => JSON.stringify(error?.response?.data || error?.message || '');
+
 export function onKiintioVirhe(error) {
-  return Number(error?.response?.status || error?.status || error?.code) === 429;
+  return googleStatus(error) === 429;
 }
 
 const odota = (ms) => new Promise((ratkaise) => setTimeout(ratkaise, ms));
