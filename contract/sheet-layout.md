@@ -200,6 +200,12 @@ Compak sheet it stops and points to the Compak menus) also read, with no fallbac
 - `ISTUNTOTAUKO`: minutes between sessions; 0 is allowed, missing or empty gives 60.
 `ALOITUS_AIKA` and `LAYOUT/PÄIVÄ` are read as in the table above (fallback F4 / F6). ScoringLib writes `KILPAILUTYYPPI` and
 `ALKUPAIVA` on every new competition and `RYHMAVALI` / `ISTUNTOTAUKO` only on group-timetable types. The UI reads none of these four.
+Check-in (`Saapuminen.js`, menu 🧾 Saapuminen kisapaikalle) reads, with no fallback cell: `MAKSU_KISAPAIKALLA`
+(`ENNAKKO` default, also when missing: entries on `Suomisport Import` without "Tarkista maksu" are prepaid; `KAIKKI`:
+everyone pays at the range) and `OSALLISTUMISMAKSU` (number, the amount suggested). ScoringLib copies get `ENNAKKO` and
+an empty fee. The UI reads neither. Check-in writes the tab `SAAPUMISET` (name, arrival time, payment type and amount,
+who checked in): payment data, so it must never be added to the API's served tabs. It also writes the main tab's
+status column (`Ilmoittautunut`, or `MAKSU` in older local sheets), which the UI doesn't read.
 `OPEN_SARJA` (prize list, `PrizeModule.js`) has no fallback cell either: without it the library makes the same
 guess as the UI from the categories of `Tulokset Y`. Keep its value in the cell right next to the key, since
 the library reads only that cell.
