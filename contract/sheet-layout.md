@@ -211,7 +211,8 @@ One of ScoringUI's two write paths (the other is squad editing with the organise
 not shared with it answers "Mobiilikirjaus ei ole käytössä". Optional extra writer accounts (`KIRJURI_CLIENT_EMAIL_2` /
 `KIRJURI_PRIVATE_KEY_2` up to `_4`) share Google's per-account quota: each lane and squad always uses one of them
 (`api/_lib/kirjuriTilit.js`), a sheet not yet shared with that account is written with the first one, and a full quota (429)
-is tried once on another account. ScoringLib's `KIRJURI_PALVELUTILI` lists the same accounts and shares the sheet with all. Access is a layout code (Compak) or a squad code
+is tried once on another account (Google also caps each Cloud project at 300 a minute, so extra writers belong in their own
+projects). ScoringLib's `KIRJURI_PALVELUTILI` lists the same accounts and shares the sheet with all. Access is a layout code (Compak) or a squad code
 (Sporting / FITASC / ESP, below) signed with `KIRJAUS_SALAISUUS` (ScoringLib makes the same codes). Design: `design/mobile-score-entry.md` in the project files.
 
 Reads (with the writer account):
