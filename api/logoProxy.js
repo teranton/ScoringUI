@@ -1,7 +1,11 @@
 import net from 'node:net';
 import { EstettyHakuError, onEstettyIp, puhdasHost, turvallinenHaku } from './_lib/safeFetch.js';
+import { asetaValimuisti } from './_lib/cdnOtsikot.js';
 
+// Muistivälimuisti, vanhin ensin (Map säilyttää lisäysjärjestyksen). Koko rajataan tavuina, jotta eri URL-osoitteilla
+// ei voi täyttää instanssin muistia.
 const logoCache = new Map();
+let logoCacheBytes = 0;
 
 const MEMORY_TTL_MS = Number.isFinite(Number(process.env.LOGO_PROXY_MEMORY_TTL_MS))
   ? Number(process.env.LOGO_PROXY_MEMORY_TTL_MS)
@@ -11,14 +15,28 @@ const MAX_IMAGE_BYTES = Number.isFinite(Number(process.env.LOGO_PROXY_MAX_BYTES)
   ? Number(process.env.LOGO_PROXY_MAX_BYTES)
   : 2 * 1024 * 1024;
 
-const HOST_POLICY = String(process.env.LOGO_PROXY_HOST_POLICY || 'public').trim().toLowerCase();
+const MAX_CACHE_BYTES = Number.isFinite(Number(process.env.LOGO_PROXY_CACHE_BYTES))
+  ? Number(process.env.LOGO_PROXY_CACHE_BYTES)
+  : 50 * 1024 * 1024;
 
+// Oletuksena vain Googlen Drive-osoitteet: kisojen LOGO-linkit ovat Drive-kuvia. Vain LOGO_PROXY_HOST_POLICY=public
+// sallii minkä tahansa julkisen osoitteen; muu arvo (myös kirjoitusvirhe) on 'strict'.
+const HOST_POLICY = String(process.env.LOGO_PROXY_HOST_POLICY || '').trim().toLowerCase() === 'public' ? 'public' : 'strict';
+
+const CACHE_CONTROL = 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800';
+
+// Vain Driven omat osoitteet: koko googleusercontent.com sallisi myös esim. Apps Scriptin ja Sitesin sisällön.
 const DEFAULT_ALLOWED_HOSTS = [
   'drive.google.com',
+  // Driven pikkukuvat (drive.google.com/thumbnail?id=...) ohjautuvat näihin
   'lh3.googleusercontent.com',
-  'googleusercontent.com',
+  'lh4.googleusercontent.com',
+  'lh5.googleusercontent.com',
+  'lh6.googleusercontent.com',
   // Drive-linkit (drive.google.com/uc?id=...) ohjautuvat tänne
-  'usercontent.google.com'
+  'drive.usercontent.google.com',
+  // Workspace-tilien Drive-kuvat ohjautuvat esim. work.fife.usercontent.google.com-osoitteeseen
+  'fife.usercontent.google.com'
 ];
 
 function getAllowedHosts() {
@@ -58,6 +76,36 @@ function setImageSecurityHeaders(res) {
   res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
 }
 
+function poistaValimuistista(key) {
+  const entry = logoCache.get(key);
+  if (!entry) return;
+  logoCacheBytes -= entry.buffer.length;
+  logoCache.delete(key);
+}
+
+function lueValimuistista(key, now) {
+  const entry = logoCache.get(key);
+  if (!entry) return null;
+  poistaValimuistista(key);
+  if ((now - entry.cachedAt) >= MEMORY_TTL_MS) return null;
+  // Luettu siirretään uusimmaksi.
+  logoCache.set(key, entry);
+  logoCacheBytes += entry.buffer.length;
+  return entry;
+}
+
+function tallennaValimuistiin(key, entry) {
+  poistaValimuistista(key);
+  if (entry.buffer.length > MAX_CACHE_BYTES) return;
+  logoCache.set(key, entry);
+  logoCacheBytes += entry.buffer.length;
+  while (logoCacheBytes > MAX_CACHE_BYTES && logoCache.size > 0) poistaValimuistista(logoCache.keys().next().value);
+}
+
+export function logoValimuistinKoko() {
+  return { maara: logoCache.size, tavut: logoCacheBytes };
+}
+
 function isSafeImageContentType(value) {
   const ct = String(value || '').toLowerCase();
   return ct.startsWith('image/');
@@ -93,11 +141,11 @@ export default async function handler(req, res) {
 
   const cacheKey = parsedUrl.toString();
   const now = Date.now();
-  const cached = logoCache.get(cacheKey);
-  if (cached && (now - cached.cachedAt) < MEMORY_TTL_MS) {
+  const cached = lueValimuistista(cacheKey, now);
+  if (cached) {
     res.setHeader('Content-Type', cached.contentType);
     setImageSecurityHeaders(res);
-    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
+    asetaValimuisti(res, CACHE_CONTROL);
     res.setHeader('X-ScoringUI-Logo-Cache', 'memory-hit');
     return res.status(200).send(cached.buffer);
   }
@@ -127,7 +175,7 @@ export default async function handler(req, res) {
 
     const buffer = upstream.body;
 
-    logoCache.set(cacheKey, {
+    tallennaValimuistiin(cacheKey, {
       cachedAt: now,
       contentType,
       buffer
@@ -135,16 +183,15 @@ export default async function handler(req, res) {
 
     res.setHeader('Content-Type', contentType);
     setImageSecurityHeaders(res);
-    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
+    asetaValimuisti(res, CACHE_CONTROL);
     res.setHeader('X-ScoringUI-Logo-Cache', 'origin');
     return res.status(200).send(buffer);
   } catch (error) {
+    // Yksityiskohdat vain lokiin: virheviesti voi kertoa sisäisiä osoitteita.
+    console.error('[LOGO] Haku epäonnistui:', parsedUrl.hostname, error?.message);
     if (error instanceof EstettyHakuError) {
-      return res.status(403).json({ error: 'Host is not allowed', message: error.message });
+      return res.status(403).json({ error: 'Host is not allowed' });
     }
-    return res.status(502).json({
-      error: 'Logo proxy fetch failed',
-      message: error?.message || 'Unknown error'
-    });
+    return res.status(502).json({ error: 'Logo proxy fetch failed' });
   }
 }

@@ -214,7 +214,7 @@ export default async function handler(req, res) {
       res.setHeader('Retry-After', '15');
       return lahetaVirhe(res, 503, { error: 'Googlen lukukiintiö on hetkellisesti täynnä, yritä hetken päästä uudelleen' });
     }
-    return lahetaVirhe(res, 502, { error: 'Kisan datan haku epäonnistui', message: google.error?.message });
+    return lahetaVirhe(res, 502, { error: 'Kisan datan haku epäonnistui' });
   }
 
   await tallennaTulos(polku, google, paivaTila, kisa);

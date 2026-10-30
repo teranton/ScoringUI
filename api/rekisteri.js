@@ -15,11 +15,10 @@ export default async function handler(req, res) {
     return res.status(200).send(csvText);
 
   } catch (error) {
+    // Googlen virheviesti vain lokiin.
+    console.error('[REKISTERI] Haku epäonnistui:', error?.message);
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(500).json({
-      error: "Google-lataus epäonnistui",
-      message: error.message
-    });
+    return res.status(500).json({ error: "Google-lataus epäonnistui" });
   }
 }

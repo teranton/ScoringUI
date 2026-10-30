@@ -157,6 +157,11 @@ Any other key or value is ignored and the default applies.
 | High Gun prize places | `HIGH_GUN` | whole number; the best overall scores up to this place (ties included) get a High Gun list on screen and in the printout | 0 (no High Gun) |
 | High Gun winners leave their category | `HIGH_GUN_POIS_SARJOISTA` | `TRUE`; `FALSE`, `EPÄTOSI`, `0` or `EI` turn it off (category lists are ranked without the High Gun winners, so the next shooter moves up; the all-shooters list is unchanged) | `TRUE` |
 
+Sponsor logos are `LOGO:<name>` rows: the image link right of the key, then optionally the sponsor's web page.
+The image is loaded through `api/logoProxy.js`, which by default fetches only Drive links (`drive.google.com/thumbnail?id=…`,
+`drive.google.com/uc?id=…` and the `lh3`–`lh6.googleusercontent.com`, `drive.usercontent.google.com` and `*.fife.usercontent.google.com` hosts they redirect to).
+A logo on any other host is not shown unless Vercel has `LOGO_PROXY_HOST_POLICY=public`.
+
 ### Keys ScoringLib reads
 
 ScoringLib (`Speksit.js`) finds these keys anywhere on the tab. Matching differs from the UI's in three ways:

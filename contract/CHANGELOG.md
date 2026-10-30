@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Sponsor logos (`LOGO:` rows): `api/logoProxy.js` now fetches only Drive links by default (`LOGO_PROXY_HOST_POLICY=public`
+  allows any public host). Every current sheet already uses `drive.google.com/thumbnail` links. Documented in sheet-layout.md.
+- The registry is read as columns A–I (was A:Z); the UI uses only those. No sheet change.
 - Public live view (phase 7): `api/kisa.js` now also serves `MOBIILI Rata N` and `MOBIILI_LAITTEET`, filtered to public
   columns by header (`NRO`, `NIMI`, `TULOS`, `PÄIVITETTY`, `1`..`25`; `RATA`, `LINJA`, `LINJA PÄIVITETTY`). The running
   competition request adds `MOBIILI_LAITTEET`; the new "Radat live" tab reads `MOBIILI Rata N` and the timetable,
