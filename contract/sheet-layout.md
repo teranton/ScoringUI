@@ -22,7 +22,8 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `Tulokset Y` | Sheet formulas from the main entry tab | `HenkiloTaulukko.jsx`, `HenkiloTulokset.jsx`, `utils/henkiloTulokset.js` |
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
-| `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
+| `Ilmoittautuneet` | Sheet formula from the main tab (master: `SORT(CHOOSECOLS(FILTER(OSALLISTUJAT; …)))`) | `Ilmoittautuneet.jsx` |
+| `Suomisport Import`, `ILMOITTAUTUMISET`, `Lomakevastaukset N` / `Form Responses N` (sign-up sources) | ScoringLib (`SuomiSport.js` import; `Ilmoittautumiset.js` marks `SIIRRETTY`), sign-up form (`api/ilmoittaudu.js`, writer account, `ILMOITTAUTUMISET` only), a Google Form linked to the sheet | `Ilmoittautuneet.jsx`, `utils/ilmoittautumiset.js` through `api/kisa.js`, only the public columns (see "Sign-ups") |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js` for Compak; `KilpailuPohja.js` menu "Luo aikataulu" for the group timetable, after registration; a new competition has only an instruction text in A1) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
 | `OSALLISTUJAT+TULOKSET` (named range `OSALLISTUJAT`) | Organiser, ScoringLib (`Distributor.js` shuffle, `MobiiliTulokset.js` import of mobile results), squad editor (`RyhmaJako.jsx`, organiser's own account), mobile entry (`api/kirjaus.js`, writer account: result cells only with `MOBIILI_TULOKSET` = `SUORAAN`) | `RyhmaJako.jsx`; `api/kirjaus.js` with the writer account (squad phone, direct results), not through `api/kisa.js` |
 | `MOBIILI Rata N`, `MOBIILI_LAITTEET` | Mobile entry (`api/kirjaus.js`, writer account), see "Mobile score entry" | `LiveRadat.jsx`, `utils/mobiiliLive.js` through `api/kisa.js`, only the public columns (see "Public live view") |
@@ -35,8 +36,9 @@ Tab names are matched case-insensitively, ignoring leading and trailing spaces (
 
 The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`, plus any tab named
 `RANKING_` and a four-digit year, and `KISAT`, on sheets marked `RANKING` in the registry, and the column-filtered
-`MOBIILI Rata N` / `MOBIILI_LAITTEET` / `MOBIILI Layout N` / `MOBIILI_RYHMAT` of the public views); any other tab (`MOBIILI_LOKI`,
-`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
+`MOBIILI Rata N` / `MOBIILI_LAITTEET` / `MOBIILI Layout N` / `MOBIILI_RYHMAT` of the public views and the sign-up sources
+`Suomisport Import` / `ILMOITTAUTUMISET` / `Lomakevastaukset N` / `Form Responses N`); any other tab (`MOBIILI_LOKI`,
+`KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
 
 Access: the sheets and the registry are read only with the service account (`spreadsheets.readonly` scope),
 so each of them must be shared with it (Viewer is enough). They don't need "anyone with the link" sharing.
@@ -155,6 +157,9 @@ Any other key or value is ignored and the default applies.
 | Classes that don't referee (highlighted in the squad editor) | `Ei tuomaroivat:` | comma-separated classes in the cell right of the key (B20 when the key is missing), matched exactly to `SARJA`, as ScoringLib's shuffle | none |
 | All-shooters category | `OPEN_SARJA` | `Y` (shown as Y, everyone; Finnish rules), `OPEN` or `Y (OPEN)` (shown as Y (OPEN), open to foreign shooters), `EI` or `FALSE` (no all-shooters category, only the classes; a `Y` class is then shown like any other) | none if every `Tulokset Y` category is a class: a letter A–F alone or followed by a non-letter (`A`, `A (Y)`, `B Y56`, `D-metsästäjä`), ignoring manual High Gun categories (`HG`, `1HG`); otherwise `Y` |
 | High Gun prize places | `HIGH_GUN` | whole number; the best overall scores up to this place (ties included) get a High Gun list on screen and in the printout | 0 (no High Gun) |
+| Sign-up form | `ILMOITTAUTUMISTAPA` (not `ILMOITTAUTUMINEN`, which is the section heading) | `LOMAKE` (ScoringUI shows the sign-up form, see "Sign-ups"); `SUOMISPORT` or anything else: no form | no form |
+| Sign-up deadline | `ILMOITTAUTUMINEN_PAATTYY` | `p.k.vvvv` (open to the end of that day) or `p.k.vvvv hh:mm`, Helsinki time; never later than 10:00 on the first day (the list is hidden then) | the start of the first competition day (registry column C) |
+| Sign-up classes | `ILMOITTAUTUMISEN_SARJAT` | classes separated by commas or semicolons, shown as a dropdown | free text |
 | High Gun winners leave their category | `HIGH_GUN_POIS_SARJOISTA` | `TRUE`; `FALSE`, `EPÄTOSI`, `0` or `EI` turn it off (category lists are ranked without the High Gun winners, so the next shooter moves up; the all-shooters list is unchanged) | `TRUE` |
 
 Sponsor logos are `LOGO:<name>` rows: the image link right of the key, then optionally the sponsor's web page.
@@ -349,6 +354,44 @@ targets (hidden by default): from the squad phone's card (Sporting / FITASC / ES
   header (`Nro.` = `NRO`), and a Compak card's `NIMI` must share a word with the main tab's `NIMI` (numbers can change
   after a reshuffle; ScoringLib's import uses the same rule); a squad station's id is compared as a number when it is one (`1,0` = `1`). A paper result typed between the read and the write can be overwritten;
   the window is under a second.
+
+## Sign-ups (`Ilmoittautuneet`)
+
+The registrations list shows the `Ilmoittautuneet` tab (names on the main tab) and, until it is hidden on the first
+competition day at 10:00, every sign-up that is not on the main tab yet. The UI requests the sources with the
+competition (`Suomisport Import`, `ILMOITTAUTUMISET`, `Lomakevastaukset 1`, `Form Responses 1`; a missing tab is fine).
+`api/kisa.js` serves a source only with the columns whose whole header (a part in parentheses ignored, case ignored) is
+one of (`src/utils/ilmoittautumiset.js` `lahdeSarake`): `NIMI` / `NAME` / `KOKONIMI` / `FULL NAME` / `AMPUJA` / `AMPUJAN NIMI` /
+`KILPAILIJA` / `KILPAILIJAN NIMI` / `OSALLISTUJA` / `OSALLISTUJAN NIMI`, `SUKUNIMI` / `SURNAME` / `LAST NAME`, `ETUNIMI` /
+`ETUNIMET` / `FIRST NAME` (joined as "Sukunimi Etunimi"), `SARJA` / `LUOKKA` / `CLASS` / `KILPAILUSARJA`, `SEURA` / `CLUB` /
+`EDUSTAMASI SEURA` / `EDUSTETTAVA SEURA`, and `SIIRRETTY`. So `Nimi (sukunimi etunimi)` is served but
+`Nimi ja puhelinnumero` is not. Sportti-ID, payment notes, referee cards, e-mail, phone and other answers never leave the
+API. The list reads only `Lomakevastaukset 1` / `Form Responses 1`; the form's duplicate check and ScoringLib read every N.
+A new `Suomisport Import` or form tab shows within 10 minutes (the API's tab list is not refetched for them).
+
+- A row with a non-empty `SIIRRETTY` cell is not shown from the source: ScoringLib's 🏆 Competition ›
+  📝 Ilmoittautuminen › Siirrä ilmoittautuneet pääsivulle copies new sign-ups into free main-tab rows and writes the
+  time there, after which the main tab (and so `Ilmoittautuneet`) is the truth.
+- A name (or last/first name) typed all in capitals or all in lower case is shown with capital initials (`VIRTANEN matti` →
+  `Virtanen Matti`); ScoringLib copies it the same way.
+- The same shooter in several places is shown once (name compared without case, extra spaces or word order; the main
+  tab wins, then the sources in the order above). Rows whose name is only a number are skipped.
+
+### Sign-up form (`api/ilmoittaudu.js`)
+
+With `ILMOITTAUTUMISTAPA` = `LOMAKE` and before the deadline, the registrations tab shows a form (last name, first name,
+class, club, e-mail, optional phone and notes, consent to show name/class/club in the list). `POST /api/ilmoittaudu`
+appends one row to `ILMOITTAUTUMISET` with the writer account (`KIRJURI_*`, the mobile entry account), creating the tab
+with the header `AIKALEIMA, SUKUNIMI, ETUNIMI, NIMI, SARJA, SEURA, SÄHKÖPOSTI, PUHELIN, LISÄTIETOJA, SIIRRETTY` when
+it is missing (tab and header in one request). Columns are written by header, so the office may reorder or add columns. Values are written `RAW`, and
+a leading `=`, `+`, `-` or `@` is dropped. The sheet must be shared with the writer account as Editor (ScoringLib
+📝 Ilmoittautuminen › Avaa ilmoittautumislomake, owner); otherwise the form answers "not in use". The main tab is never written.
+
+Abuse protection: a hidden honeypot field (a filled one gets a fake success and nothing is written), at least 4 s
+between opening and sending, at most 10 attempts per IP (Cloudflare's `cf-connecting-ip` when present) and 40 saved sign-ups
+per competition in 10 minutes per server instance, and a
+second sign-up with a name already on the main tab or in any source (also transferred rows) is refused (409).
+IP addresses are not stored.
 
 ## To do
 

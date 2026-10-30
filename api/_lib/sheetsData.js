@@ -2,16 +2,20 @@
 // CSV pidetään frontendin muotona, jotta kaikki nykyiset jäsentimet toimivat sellaisinaan.
 
 import { luoValimuisti } from './valimuisti.js';
+import { lahdeSarake } from '../../src/utils/ilmoittautumiset.js';
 
 const VALILEHTI_TTL_MS = 10 * 60 * 1000;
 // Pienet joukot (päättyneen kisan 3 välilehteä, pelkkä KISANSPEKSIT) löytyvät lähes aina, joten ne pyydetään
 // suoraan. Live-joukossa on aikataulujen vaihtoehtoisia nimiä, joista osa puuttuu aina: se odottaa välilehtilistaa.
 const SUORA_HAKU_MAKS = 4;
-// Mobiilikirjaus luo MOBIILI-välilehdet kesken kisan (api/kirjaus.js). Jos pyydetty MOBIILI-välilehti puuttuu
+// Mobiilikirjaus luo MOBIILI-välilehdet kesken kisan (api/kirjaus.js) ja ilmoittautumislomake ILMOITTAUTUMISET-välilehden
+// (api/ilmoittaudu.js). Jos pyydetty tällainen välilehti puuttuu
 // listasta, lista haetaan uudelleen, kun se on tätä vanhempi: muuten instanssi, jonka lista on vanha, antaa
 // välilehden puuttuvana vielä 10 min, ja Radat live välkkyy eri instanssien vastausten välillä.
 const MOBIILI_LISTA_MS = 60 * 1000;
-const onMobiiliValilehti = (nimi) => /^mobiili[ _]/i.test(String(nimi || '').trim());
+// Google-lomakkeen ja Suomisport-tuonnin välilehdet eivät käynnistä uutta listan hakua (kisalla on yleensä vain toinen
+// lomakevälilehti, fi tai en): uusi tuonti tai lomake näkyy viimeistään listan 10 minuutin tuoreusajan jälkeen.
+const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$)/i.test(String(nimi || '').trim());
 const valilehtiCache = luoValimuisti('valilehdet');
 
 const normalisoi = (nimi) => String(nimi || '').normalize('NFC').trim().toLowerCase();
@@ -45,7 +49,13 @@ const JULKISET_SARAKKEET = [
   { valilehti: /^mobiili_laitteet$/, nimi: () => 'MOBIILI_LAITTEET', sarake: (o) => ['RATA', 'LINJA', 'LINJA PÄIVITETTY'].includes(o) },
   { valilehti: /^mobiili layout (\d{1,2})$/, nimi: (n) => `MOBIILI Layout ${Number(n)}`,
     sarake: (o) => o === 'NRO' || o === 'NIMI' || /^ASEMA \d+$/.test(o) || /^\d+\/\d+$/.test(o) },
-  { valilehti: /^mobiili_ryhmat$/, nimi: () => 'MOBIILI_RYHMAT', sarake: (o) => o === 'RYHMÄ' }
+  { valilehti: /^mobiili_ryhmat$/, nimi: () => 'MOBIILI_RYHMAT', sarake: (o) => o === 'RYHMÄ' },
+  // Ilmoittautuneiden lähteet (src/utils/ilmoittautumiset.js): vain nimi, sarja, seura ja siirtomerkintä. Sportti-ID,
+  // maksu- ja tuomaritiedot, sähköposti ja puhelin jäävät pois.
+  { valilehti: /^suomisport import$/, nimi: () => 'Suomisport Import', sarake: (o) => Boolean(lahdeSarake(o)) },
+  { valilehti: /^ilmoittautumiset$/, nimi: () => 'ILMOITTAUTUMISET', sarake: (o) => Boolean(lahdeSarake(o)) },
+  { valilehti: /^lomakevastaukset (\d{1,2})$/, nimi: (n) => `Lomakevastaukset ${Number(n)}`, sarake: (o) => Boolean(lahdeSarake(o)) },
+  { valilehti: /^form responses (\d{1,2})$/, nimi: (n) => `Form Responses ${Number(n)}`, sarake: (o) => Boolean(lahdeSarake(o)) }
 ];
 
 const julkinenValilehti = (normalisoitu) => JULKISET_SARAKKEET.find((j) => j.valilehti.test(normalisoitu)) || null;
@@ -149,8 +159,8 @@ export async function haeValilehdetCsv({ request, sheetId, nimet, nyt = Date.now
   const muistissa = await valilehtiCache.hae(sheetId);
   let tuoreLista = muistissa && (nyt - muistissa.tallennettu) < VALILEHTI_TTL_MS ? muistissa.arvo : null;
 
-  const mobiiliPuuttuu = (lista) => kohdistaValilehdet(nimet, lista).puuttuvat.some(onMobiiliValilehti);
-  if (tuoreLista && mobiiliPuuttuu(tuoreLista) && (nyt - muistissa.tallennettu) >= MOBIILI_LISTA_MS) {
+  const luotavaPuuttuu = (lista) => kohdistaValilehdet(nimet, lista).puuttuvat.some(onKeskenLuotava);
+  if (tuoreLista && luotavaPuuttuu(tuoreLista) && (nyt - muistissa.tallennettu) >= MOBIILI_LISTA_MS) {
     tuoreLista = null;
   }
 

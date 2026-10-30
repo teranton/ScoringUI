@@ -4,9 +4,11 @@ import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { haeTekstit } from './i18n';
+import { lisattavatIlmoittautuneet } from './utils/ilmoittautumiset';
 
-export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetitionNumbers = false }) {
-  const onkoRawTyhja = !rawCsv || rawCsv.trim().length < 10;
+// rawCsv: Ilmoittautuneet-välilehti (pääsivun nimet). lahteet: Suomisport-tuonnin ja lomakkeiden välilehdet, joiden
+// pääsivulle siirtämättömät ilmoittautumiset näytetään samassa listassa (src/utils/ilmoittautumiset.js).
+export default function Ilmoittautuneet({ rawCsv, lahteet = [], locale = 'fi', showCompetitionNumbers = false }) {
 
   function onkoPelkaNumero(value) {
     return /^\d+$/.test(String(value || '').trim());
@@ -16,10 +18,9 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
 
   const { ryhmitellytSarjat, kokonaismaara } = useMemo(() => {
     const raakaRivit = parseCsvRows(rawCsv || '');
-    if (raakaRivit.length < 2) return { ryhmitellytSarjat: {}, kokonaismaara: 0 };
 
     // 1. Etsitään oikeat sarakkeet ensimmäiseltä riviltä tekstien perusteella
-    const otsikot = raakaRivit[0].map((o) => String(o || '').toUpperCase().trim());
+    const otsikot = (raakaRivit[0] || []).map((o) => String(o || '').toUpperCase().trim());
     const otsikotNormalisoitu = otsikot.map((o) => o.replace(/[^A-Z0-9]/g, ''));
 
     const etsiSarakkeenIndeksi = (ehdot) => {
@@ -75,6 +76,12 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
       });
     }
 
+    // Lähteiden ilmoittautuneet, joita ei vielä ole pääsivulla
+    lisattavatIlmoittautuneet(osallistujat.map((o) => o.nimi), lahteet).forEach((o, i) => {
+      const sarja = o.sarja || 'Määrittelemätön';
+      osallistujat.push({ id: `lahde-${o.nimi}-${sarja}-${i}`, nimi: o.nimi, seura: o.seura, sarja, kilpailuNumero: '' });
+    });
+
     // Järjestetään kaikki osallistujat sukunimen/nimen mukaan aakkosiin
     osallistujat.sort((a, b) => a.nimi.localeCompare(b.nimi, 'fi'));
 
@@ -88,9 +95,8 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
     });
 
     return { ryhmitellytSarjat: ryhmittely, kokonaismaara };
-  }, [rawCsv]);
+  }, [rawCsv, lahteet]);
 
-  if (onkoRawTyhja) return null;
   if (Object.keys(ryhmitellytSarjat).length === 0) return null;
 
   return (

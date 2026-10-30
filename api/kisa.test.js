@@ -120,9 +120,9 @@ test('korjausaika lasketaan rekisterin nykyisistä päivistä, ei kuvaan tallenn
 
 test('muita kuin julkaistavia välilehtiä ei anneta', async () => {
   const hautEnnen = googleHaut;
-  const r = await hae(VANHA, 'Suomisport Import');
+  const r = await hae(VANHA, 'KITI_DATA');
   assert.equal(r.s, 400);
-  assert.deepEqual(r.b.sheetNames, ['Suomisport Import']);
+  assert.deepEqual(r.b.sheetNames, ['KITI_DATA']);
   assert.equal(googleHaut, hautEnnen);
 });
 
@@ -159,7 +159,7 @@ test('raja lasketaan eri välilehdistä, ei kirjoitusasuista', async () => {
 
 test('liian monta pyydettyä nimeä torjutaan', async () => {
   const r = vastaus();
-  await handler({ query: { sheetId: VANHA, sheetNames: ['KISANSPEKSIT', ...Array.from({ length: 60 }, (_, i) => `roska${i}`)] }, headers: {} }, r);
+  await handler({ query: { sheetId: VANHA, sheetNames: ['KISANSPEKSIT', ...Array.from({ length: 70 }, (_, i) => `roska${i}`)] }, headers: {} }, r);
   assert.equal(r.s, 400);
 });
 
