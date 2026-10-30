@@ -20,7 +20,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { torjuEiSallittuSheetId } from './_lib/sheetAllowlist.js';
-import { haeKirjuriAsiakas, onKiintioVirhe, onKirjuriMaaritetty, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
+import { haeKirjuriAsiakas, kirjurienMaara, onKiintioVirhe, onKirjuriMaaritetty } from './_lib/googleAuth.js';
+import { luoKirjuriValitsin } from './_lib/kirjuriTilit.js';
 import { kohdistaValilehdet, valilehtiAlue } from './_lib/sheetsData.js';
 import { tarkistaAvain } from './_lib/kirjausAvain.js';
 import {
@@ -796,6 +797,12 @@ async function vapauta(request, avain, req, res) {
   });
 }
 
+let valitsin = null;
+const kirjuriValitsin = () => {
+  if (!valitsin) valitsin = luoKirjuriValitsin({ haeAsiakas: haeKirjuriAsiakas, maara: kirjurienMaara() });
+  return valitsin;
+};
+
 const TOIMINNOT = { avaa: 'GET', tallenna: 'POST', ota: 'POST', vapauta: 'POST' };
 
 export default async function handler(req, res) {
@@ -809,9 +816,9 @@ export default async function handler(req, res) {
   if (await torjuEiSallittuSheetId(avain.sheetId, res)) return;
 
   try {
-    const asiakas = await haeKirjuriAsiakas();
-    const request = (opts) => pyyntoUudelleenyrittaen((o) => asiakas.request(o), opts);
     const ryhmalle = avain.ryhma !== undefined;
+    // Rata tai ryhmä käyttää aina samaa kirjuritiliä, jotta kisan laitteet jakautuvat tilien kiintiöille.
+    const request = kirjuriValitsin()(avain.sheetId, ryhmalle ? `r${avain.ryhma}` : avain.sarake);
     if (toiminto === 'avaa') {
       const laite = String(req.headers?.['x-kirjaus-laite'] || '');
       const haltija = String(req.headers?.['x-kirjaus-haltija'] || '');

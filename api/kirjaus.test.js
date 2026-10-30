@@ -101,6 +101,7 @@ async function request({ url, method = 'GET', data }) {
 mock.module('./_lib/googleAuth.js', { namedExports: {
   onKiintioVirhe: () => false,
   onKirjuriMaaritetty: () => true,
+  kirjurienMaara: () => 1,
   pyyntoUudelleenyrittaen: (req, opts) => req(opts),
   haeKirjuriAsiakas: async () => ({ request })
 } });

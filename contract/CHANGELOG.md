@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Mobile entry can use up to four writer service accounts (`KIRJURI_CLIENT_EMAIL_2..4`); ScoringLib's `KIRJURI_PALVELUTILI`
+  lists them and shares the sheet with every one. No tab or header change.
 - Sponsor logos (`LOGO:` rows): `api/logoProxy.js` now fetches only Drive links by default (`LOGO_PROXY_HOST_POLICY=public`
   allows any public host). Every current sheet already uses `drive.google.com/thumbnail` links. Documented in sheet-layout.md.
 - The registry is read as columns A–I (was A:Z); the UI uses only those. No sheet change.

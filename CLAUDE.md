@@ -19,6 +19,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
 - The other write path is mobile score entry (`kirjaus.html`, `src/kirjaus/`, `api/kirjaus.js`): a layout code signed with
   `KIRJAUS_SALAISUUS` lets a device write `MOBIILI Rata N` / `MOBIILI_LOKI` with a separate writer service account
   (`KIRJURI_CLIENT_EMAIL`, `KIRJURI_PRIVATE_KEY`), Editor only on sheets that use it. The reader account stays read-only.
+  Google's quota (60 reads and 60 writes a minute) is per account, so optional extra writers (`KIRJURI_CLIENT_EMAIL_2`..`_4`)
+  take lanes and squads by a hash of sheet and lane/squad (`api/_lib/kirjuriTilit.js`); an unshared sheet falls back to the first.
   It works offline: every tap goes to an IndexedDB journal, the layout state is kept in localStorage and IndexedDB,
   and `public/kirjaus-sw.js` (scope `/kirjaus` only, so the public pages are never served from it) caches the app shell
   and sends unsent cards with Background Sync. Installable as a PWA (`public/kirjaus.webmanifest`).
