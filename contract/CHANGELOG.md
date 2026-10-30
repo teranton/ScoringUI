@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Check-in (ScoringLib `Saapuminen.js`): new library-only `KISANSPEKSIT` keys `MAKSU_KISAPAIKALLA` (`ENNAKKO` / `KAIKKI`)
+  and `OSALLISTUMISMAKSU`, and a new tab `SAAPUMISET` with payment data that the API must not serve. Additive; no UI change.
 - Sponsor logos (`LOGO:` rows): `api/logoProxy.js` now fetches only Drive links by default (`LOGO_PROXY_HOST_POLICY=public`
   allows any public host). Every current sheet already uses `drive.google.com/thumbnail` links. Documented in sheet-layout.md.
 - The registry is read as columns A–I (was A:Z); the UI uses only those. No sheet change.
