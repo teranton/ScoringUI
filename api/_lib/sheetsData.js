@@ -8,12 +8,14 @@ const VALILEHTI_TTL_MS = 10 * 60 * 1000;
 // Pienet joukot (päättyneen kisan 3 välilehteä, pelkkä KISANSPEKSIT) löytyvät lähes aina, joten ne pyydetään
 // suoraan. Live-joukossa on aikataulujen vaihtoehtoisia nimiä, joista osa puuttuu aina: se odottaa välilehtilistaa.
 const SUORA_HAKU_MAKS = 4;
-// Mobiilikirjaus luo MOBIILI-välilehdet kesken kisan (api/kirjaus.js), ilmoittautumislomake ILMOITTAUTUMISET-välilehden
-// (api/ilmoittaudu.js), ja Suomisport-tuonti tai Google-lomake omansa milloin tahansa. Jos pyydetty tällainen välilehti puuttuu
+// Mobiilikirjaus luo MOBIILI-välilehdet kesken kisan (api/kirjaus.js) ja ilmoittautumislomake ILMOITTAUTUMISET-välilehden
+// (api/ilmoittaudu.js). Jos pyydetty tällainen välilehti puuttuu
 // listasta, lista haetaan uudelleen, kun se on tätä vanhempi: muuten instanssi, jonka lista on vanha, antaa
 // välilehden puuttuvana vielä 10 min, ja Radat live välkkyy eri instanssien vastausten välillä.
 const MOBIILI_LISTA_MS = 60 * 1000;
-const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$|suomisport import$|lomakevastaukset \d|form responses \d)/i.test(String(nimi || '').trim());
+// Google-lomakkeen ja Suomisport-tuonnin välilehdet eivät käynnistä uutta listan hakua (kisalla on yleensä vain toinen
+// lomakevälilehti, fi tai en): uusi tuonti tai lomake näkyy viimeistään listan 10 minuutin tuoreusajan jälkeen.
+const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$)/i.test(String(nimi || '').trim());
 const valilehtiCache = luoValimuisti('valilehdet');
 
 const normalisoi = (nimi) => String(nimi || '').normalize('NFC').trim().toLowerCase();

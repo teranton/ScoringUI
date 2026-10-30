@@ -10,32 +10,36 @@ import { parsiPaivamaara } from './kisaStatus.js';
 export const LOMAKE_VALILEHTI = 'ILMOITTAUTUMISET';
 export const LOMAKE_OTSIKKO = ['AIKALEIMA', 'SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SÄHKÖPOSTI', 'PUHELIN', 'LISÄTIETOJA', 'SIIRRETTY'];
 export const SUOMISPORT_VALILEHTI = 'Suomisport Import';
-// Google-lomakkeen vastausvälilehti on suomeksi "Lomakevastaukset 1", englanniksi "Form Responses 1".
+// Google-lomakkeen vastausvälilehti on suomeksi "Lomakevastaukset 1", englanniksi "Form Responses 1". Lista lukee vain
+// ensimmäisen; api/ilmoittaudu.js ja ScoringLib käyvät läpi kaikki numerot (GOOGLE_LOMAKE).
 export const GOOGLE_LOMAKE_VALILEHDET = ['Lomakevastaukset 1', 'Form Responses 1'];
 export const LAHDE_VALILEHDET = [SUOMISPORT_VALILEHTI, LOMAKE_VALILEHTI, ...GOOGLE_LOMAKE_VALILEHDET];
+export const GOOGLE_LOMAKE = /^(lomakevastaukset|form responses) \d{1,2}$/i;
 
-const sanat = (otsikko) => String(otsikko ?? '').toUpperCase().split(/[^A-ZÅÄÖÜ0-9]+/).filter(Boolean);
-const KENEN_NIMI = new Set(['KILPAILIJAN', 'AMPUJAN', 'OSALLISTUJAN']);
+// Otsikon sanat ilman sulkeissa olevaa tarkennusta: "Nimi (sukunimi etunimi)" → ['NIMI'].
+const sanat = (otsikko) => String(otsikko ?? '').replace(/\([^)]*\)/g, ' ').toUpperCase()
+  .split(/[^A-ZÅÄÖÜ0-9]+/).filter(Boolean);
+// Sallitut otsikot sanoina. Koko otsikon on oltava jokin näistä (sulkeissa oleva tarkennus ohitetaan), jotta esim.
+// "Nimi ja puhelinnumero" tai "Name of emergency contact" ei lähde julkiseksi.
+const OTSIKOT = {
+  nimi: ['NIMI', 'NAME', 'KOKONIMI', 'FULL NAME', 'AMPUJA', 'AMPUJAN NIMI', 'KILPAILIJAN NIMI', 'OSALLISTUJAN NIMI', 'KILPAILIJA', 'OSALLISTUJA'],
+  sukunimi: ['SUKUNIMI', 'SURNAME', 'LAST NAME', 'LASTNAME'],
+  etunimi: ['ETUNIMI', 'ETUNIMET', 'FIRST NAME', 'FIRSTNAME'],
+  sarja: ['SARJA', 'CLASS', 'LUOKKA', 'KILPAILUSARJA'],
+  seura: ['SEURA', 'CLUB', 'EDUSTAMASI SEURA', 'EDUSTETTAVA SEURA'],
+  siirretty: ['SIIRRETTY']
+};
+const OTSIKKO_TYYPPI = new Map(Object.entries(OTSIKOT).flatMap(([tyyppi, nimet]) => nimet.map((n) => [n, tyyppi])));
 
-// Lähdevälilehden sarakkeen merkitys otsikon ensimmäisen sanan mukaan: 'nimi', 'sukunimi', 'etunimi', 'sarja',
-// 'seura', 'siirretty' tai null (muut sarakkeet, esim. Sportti-ID, HUOM, sähköposti, eivät lähde API:sta).
-// "Nimi (sukunimi etunimi)" ja "Kilpailijan nimi" ovat nimiä, "Seuran yhteyshenkilö" ei ole seura.
+// Lähdevälilehden sarakkeen merkitys otsikosta: 'nimi', 'sukunimi', 'etunimi', 'sarja', 'seura', 'siirretty' tai null
+// (muut sarakkeet, esim. Sportti-ID, HUOM, sähköposti, eivät lähde API:sta). Sama sääntö ScoringLibin Ilmoittautumiset.js:ssä.
 export function lahdeSarake(otsikko) {
-  const s = sanat(otsikko);
-  if (s.length === 0) return null;
-  const [eka, toka] = s;
-  if (eka === 'SUKUNIMI' || eka === 'SURNAME' || (eka === 'LAST' && toka === 'NAME') || eka === 'LASTNAME') return 'sukunimi';
-  if (eka === 'ETUNIMI' || eka === 'ETUNIMET' || (eka === 'FIRST' && toka === 'NAME') || eka === 'FIRSTNAME') return 'etunimi';
-  if (['NIMI', 'NAME', 'KOKONIMI', 'AMPUJA'].includes(eka) || (KENEN_NIMI.has(eka) && toka === 'NIMI')) return 'nimi';
-  if (eka === 'SARJA' || eka === 'CLASS' || eka === 'LUOKKA') return 'sarja';
-  if (eka === 'SEURA' || eka === 'CLUB') return 'seura';
-  if (eka === 'SIIRRETTY') return 'siirretty';
-  return null;
+  return OTSIKKO_TYYPPI.get(sanat(otsikko).join(' ')) || null;
 }
 
 const valit = (t) => String(t ?? '').replace(/\s+/g, ' ').trim();
 
-// Nimi vertailuun: kirjainkoko, välit ja aksentit (paitsi å, ä, ö) ohitetaan, sanojen järjestyksellä ei ole väliä.
+// Nimi vertailuun: kirjainkoko ja välit ohitetaan, sanojen järjestyksellä ei ole väliä (aksentit erottavat: Müller ≠ Muller).
 export function nimiAvain(nimi) {
   return valit(nimi).toLowerCase().normalize('NFC')
     .split(' ').filter(Boolean).sort().join(' ');
@@ -96,7 +100,16 @@ export function helsinginHetki(vuosi, kuukausi, paiva, tunti = 0, minuutti = 0) 
 
 // Lomakkeen sulkeutumishetki: ILMOITTAUTUMINEN_PAATTYY ("15.11.2026", "15.11.2026 18:00", "2026-11-15 18:00")
 // Helsingin aikaa; pelkkä päivä = päivän loppuun. Ilman asetusta kilpailupäivän alkuun (edellisen päivän loppuun).
+// Ei koskaan myöhemmin kuin ensimmäisenä kilpailupäivänä klo 10, jolloin ilmoittautuneiden sivu piilotetaan.
 export function ilmoittautumisenTakaraja(asetus, alkuPvm) {
+  const alku = parsiPaivamaara(alkuPvm);
+  const viimeistaan = alku ? helsinginHetki(alku.getFullYear(), alku.getMonth() + 1, alku.getDate(), 10, 0) : null;
+  const asetettu = asetuksenTakaraja(asetus);
+  if (asetettu) return viimeistaan && viimeistaan < asetettu ? viimeistaan : asetettu;
+  return alku ? helsinginHetki(alku.getFullYear(), alku.getMonth() + 1, alku.getDate()) : null;
+}
+
+function asetuksenTakaraja(asetus) {
   const teksti = valit(asetus);
   if (teksti) {
     const [paivaOsa, aikaOsa] = teksti.split(/\s+|T/);
@@ -107,8 +120,7 @@ export function ilmoittautumisenTakaraja(asetus, alkuPvm) {
       return helsinginHetki(paiva.getFullYear(), paiva.getMonth() + 1, paiva.getDate() + 1);
     }
   }
-  const alku = parsiPaivamaara(alkuPvm);
-  return alku ? helsinginHetki(alku.getFullYear(), alku.getMonth() + 1, alku.getDate()) : null;
+  return null;
 }
 
 // Sarjavalikko: ILMOITTAUTUMISEN_SARJAT pilkuilla tai puolipisteillä erotettuna; tyhjä = vapaa teksti.

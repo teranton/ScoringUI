@@ -4,7 +4,7 @@ import HenkiloTulokset from './HenkiloTulokset';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import IlmoittautumisLomake from './IlmoittautumisLomake';
-import { lomakkeenTila } from './utils/ilmoittautumiset';
+import { lisattavatIlmoittautuneet, lomakkeenTila } from './utils/ilmoittautumiset';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import RankingTulokset from './RankingTulokset';
 import RyhmaJako from './RyhmaJako';
@@ -283,8 +283,12 @@ export default function App() {
     if (!sheetId) return;
     setOmatIlmoittautumiset((ed) => ({ ...ed, [sheetId]: [...(ed[sheetId] || []), ilmo] }));
   }, [valittuKisa?.apiUrl]);
+  const onkoLahteissaIlmoittautuneita = useMemo(
+    () => lisattavatIlmoittautuneet([], ilmoittautumisLahteet).length > 0,
+    [ilmoittautumisLahteet]
+  );
   const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && (
-    nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10 || ilmoittautumisLahteet.length > 0 || ilmoittautumisLomake.auki
+    nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10 || onkoLahteissaIlmoittautuneita || ilmoittautumisLomake.auki
   );
   const onkoAikataulua = aikatauluCsvList.length > 0;
 

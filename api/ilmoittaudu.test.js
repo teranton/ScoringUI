@@ -27,12 +27,11 @@ function luoTaulukko(valilehdet) {
     if (u.pathname.endsWith(':batchUpdate')) {
       const title = data.requests[0].addSheet.properties.title;
       if (taulukko[title]) throw Object.assign(new Error('x'), { response: { status: 400, data: 'already exists' } });
-      taulukko[title] = [];
+      taulukko[title] = [data.requests[1].updateCells.rows[0].values.map((v) => v.userEnteredValue.stringValue)];
       return { data: {} };
     }
     const tab = decodeURIComponent(u.pathname).match(/values\/'(.+)'!A1/)[1];
-    if (method === 'PUT') taulukko[tab][0] = data.values[0];
-    else taulukko[tab].push(...data.values);
+    taulukko[tab].push(...data.values);
     return { data: {} };
   }
   return { request, taulukko, kutsut };
@@ -53,14 +52,19 @@ test('ilmoittautuminen luo ILMOITTAUTUMISET-välilehden ja lisää rivin otsikon
   assert.equal(arvo('SÄHKÖPOSTI'), 'm@x.fi');
   assert.equal(arvo('SIIRRETTY'), '');
   assert.match(arvo('AIKALEIMA'), /^10\.11\.2026 14\.00\.00$/);
-  assert.ok(t.kutsut.some((k) => k.polku.includes(':append') ));
+  assert.ok(t.kutsut.some((k) => k.polku.includes(':append')));
+  // Välilehti ja otsikko syntyvät samassa kutsussa
+  const luonti = t.kutsut.find((k) => k.polku.endsWith(':batchUpdate'));
+  assert.equal(luonti.data.requests.length, 2);
+  assert.equal(luonti.data.requests[1].updateCells.start.sheetId, luonti.data.requests[0].addSheet.properties.sheetId);
 });
 
 test('sama nimi torjutaan: pääsivulla, lomakkeella (myös siirretty) ja Suomisport-tuonnissa', async () => {
   const pohjat = [
     { Ilmoittautuneet: [['NRO', 'NIMI'], ['1', 'Matti Meikäläinen']] },
     { ILMOITTAUTUMISET: [['NIMI', 'SIIRRETTY'], ['meikäläinen matti', '1.11.2026']] },
-    { 'Suomisport Import': [['Sportti-ID', 'NIMI'], ['1', 'Meikäläinen Matti']] }
+    { 'Suomisport Import': [['Sportti-ID', 'NIMI'], ['1', 'Meikäläinen Matti']] },
+    { 'Lomakevastaukset 2': [['Aikaleima', 'Sukunimi', 'Etunimi'], ['x', 'Meikäläinen', 'Matti']] }
   ];
   for (const pohja of pohjat) {
     const t = luoTaulukko({ KISANSPEKSIT: SPEKSIT, ...pohja });
@@ -95,7 +99,11 @@ test('rajoitin päästää maks-määrän ikkunassa, ja IP tulee Vercelin otsakk
   assert.equal(r.sallittu('a', 2, 20), false);
   assert.equal(r.sallittu('a', 2, 1001), true);
   assert.equal(asiakkaanIp({ 'x-forwarded-for': '1.2.3.4, 5.6.7.8' }), '1.2.3.4');
-  assert.equal(asiakkaanIp({ 'x-real-ip': '1.2.3.4', 'cf-connecting-ip': '9.9.9.9' }), '1.2.3.4|9.9.9.9');
+  assert.equal(asiakkaanIp({ 'x-real-ip': '1.2.3.4', 'cf-connecting-ip': '9.9.9.9' }), '9.9.9.9');
+  assert.equal(r.tilaa('b', 1, 0), true);
+  assert.equal(r.tilaa('b', 1, 0), true);
+  r.kirjaa('b', 0);
+  assert.equal(r.tilaa('b', 1, 1), false);
   assert.equal(asiakkaanIp({}), 'tuntematon');
 });
 

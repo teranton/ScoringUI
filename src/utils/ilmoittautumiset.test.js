@@ -15,7 +15,9 @@ test('lahdeSarake tunnistaa nimen, sarjan, seuran ja siirtomerkinnän, muut sara
   assert.equal(lahdeSarake('Sarja'), 'sarja');
   assert.equal(lahdeSarake('SEURA'), 'seura');
   assert.equal(lahdeSarake('SIIRRETTY'), 'siirretty');
-  for (const muu of ['Sportti-ID', 'HUOM', 'TUOMARIKORTTI', 'Sähköpostiosoite', 'Puhelin', 'Lisätietoja', 'Aikaleima', 'Seuran yhteyshenkilö', 'Joukkueen nimi', '']) {
+  assert.equal(lahdeSarake('Last name'), 'sukunimi');
+  for (const muu of ['Sportti-ID', 'HUOM', 'TUOMARIKORTTI', 'Sähköpostiosoite', 'Puhelin', 'Lisätietoja', 'Aikaleima', 'Seuran yhteyshenkilö',
+    'Joukkueen nimi', 'Nimi ja puhelinnumero', 'Name of emergency contact', 'Sarja ja ase', '']) {
     assert.equal(lahdeSarake(muu), null, muu);
   }
 });
@@ -43,6 +45,9 @@ test('takaraja Helsingin aikaa: asetus päivänä, päivä ja kellonaika, oletuk
   assert.equal(ilmoittautumisenTakaraja('15.11.2026', '').toISOString(), '2026-11-15T22:00:00.000Z');
   assert.equal(ilmoittautumisenTakaraja('', '21.11.2026').toISOString(), '2026-11-20T22:00:00.000Z');
   assert.equal(ilmoittautumisenTakaraja('', ''), null);
+  // Ei myöhemmin kuin ensimmäisenä päivänä klo 10, jolloin lista piilotetaan
+  assert.equal(ilmoittautumisenTakaraja('21.11.2026 12:00', '21.11.2026').toISOString(), '2026-11-21T08:00:00.000Z');
+  assert.equal(ilmoittautumisenTakaraja('19.11.2026', '21.11.2026').toISOString(), '2026-11-19T22:00:00.000Z');
 });
 
 test('lomakkeenTila: käytössä vain arvolla LOMAKE ja auki takarajaan asti', () => {

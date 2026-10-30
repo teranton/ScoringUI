@@ -158,7 +158,7 @@ Any other key or value is ignored and the default applies.
 | All-shooters category | `OPEN_SARJA` | `Y` (shown as Y, everyone; Finnish rules), `OPEN` or `Y (OPEN)` (shown as Y (OPEN), open to foreign shooters), `EI` or `FALSE` (no all-shooters category, only the classes; a `Y` class is then shown like any other) | none if every `Tulokset Y` category is a class: a letter A–F alone or followed by a non-letter (`A`, `A (Y)`, `B Y56`, `D-metsästäjä`), ignoring manual High Gun categories (`HG`, `1HG`); otherwise `Y` |
 | High Gun prize places | `HIGH_GUN` | whole number; the best overall scores up to this place (ties included) get a High Gun list on screen and in the printout | 0 (no High Gun) |
 | Sign-up form | `ILMOITTAUTUMINEN` | `LOMAKE` (ScoringUI shows the sign-up form, see "Sign-ups"); `SUOMISPORT` or anything else: no form | no form |
-| Sign-up deadline | `ILMOITTAUTUMINEN_PAATTYY` | `p.k.vvvv` (open to the end of that day) or `p.k.vvvv hh:mm`, Helsinki time | the start of the first competition day (registry column C) |
+| Sign-up deadline | `ILMOITTAUTUMINEN_PAATTYY` | `p.k.vvvv` (open to the end of that day) or `p.k.vvvv hh:mm`, Helsinki time; never later than 10:00 on the first day (the list is hidden then) | the start of the first competition day (registry column C) |
 | Sign-up classes | `ILMOITTAUTUMISEN_SARJAT` | classes separated by commas or semicolons, shown as a dropdown | free text |
 | High Gun winners leave their category | `HIGH_GUN_POIS_SARJOISTA` | `TRUE`; `FALSE`, `EPÄTOSI`, `0` or `EI` turn it off (category lists are ranked without the High Gun winners, so the next shooter moves up; the all-shooters list is unchanged) | `TRUE` |
 
@@ -360,11 +360,14 @@ targets (hidden by default): from the squad phone's card (Sporting / FITASC / ES
 The registrations list shows the `Ilmoittautuneet` tab (names on the main tab) and, until it is hidden on the first
 competition day at 10:00, every sign-up that is not on the main tab yet. The UI requests the sources with the
 competition (`Suomisport Import`, `ILMOITTAUTUMISET`, `Lomakevastaukset 1`, `Form Responses 1`; a missing tab is fine).
-`api/kisa.js` serves a source only with the columns whose header's first word is a name, class, club or transfer
-word (`src/utils/ilmoittautumiset.js` `lahdeSarake`): `NIMI` / `NAME` / `KOKONIMI` / `AMPUJA` (or `Kilpailijan nimi`),
-`SUKUNIMI` / `ETUNIMI` (joined as "Sukunimi Etunimi"), `SARJA` / `LUOKKA` / `CLASS`, `SEURA` / `CLUB` and `SIIRRETTY`.
-Sportti-ID, payment notes, referee cards, e-mail, phone and other answers never leave the API. A Google Form question
-whose title starts with "Nimi" is served whole, so don't ask for a phone number in the same question.
+`api/kisa.js` serves a source only with the columns whose whole header (a part in parentheses ignored, case ignored) is
+one of (`src/utils/ilmoittautumiset.js` `lahdeSarake`): `NIMI` / `NAME` / `KOKONIMI` / `FULL NAME` / `AMPUJA` / `AMPUJAN NIMI` /
+`KILPAILIJA` / `KILPAILIJAN NIMI` / `OSALLISTUJA` / `OSALLISTUJAN NIMI`, `SUKUNIMI` / `SURNAME` / `LAST NAME`, `ETUNIMI` /
+`ETUNIMET` / `FIRST NAME` (joined as "Sukunimi Etunimi"), `SARJA` / `LUOKKA` / `CLASS` / `KILPAILUSARJA`, `SEURA` / `CLUB` /
+`EDUSTAMASI SEURA` / `EDUSTETTAVA SEURA`, and `SIIRRETTY`. So `Nimi (sukunimi etunimi)` is served but
+`Nimi ja puhelinnumero` is not. Sportti-ID, payment notes, referee cards, e-mail, phone and other answers never leave the
+API. The list reads only `Lomakevastaukset 1` / `Form Responses 1`; the form's duplicate check and ScoringLib read every N.
+A new `Suomisport Import` or form tab shows within 10 minutes (the API's tab list is not refetched for them).
 
 - A row with a non-empty `SIIRRETTY` cell is not shown from the source: ScoringLib's 🏆 Competition ›
   📝 Ilmoittautuminen › Siirrä ilmoittautuneet pääsivulle copies new sign-ups into free main-tab rows and writes the
@@ -378,12 +381,13 @@ With `ILMOITTAUTUMINEN` = `LOMAKE` and before the deadline, the registrations ta
 class, club, e-mail, optional phone and notes, consent to show name/class/club in the list). `POST /api/ilmoittaudu`
 appends one row to `ILMOITTAUTUMISET` with the writer account (`KIRJURI_*`, the mobile entry account), creating the tab
 with the header `AIKALEIMA, SUKUNIMI, ETUNIMI, NIMI, SARJA, SEURA, SÄHKÖPOSTI, PUHELIN, LISÄTIETOJA, SIIRRETTY` when
-it is missing. Columns are written by header, so the office may reorder or add columns. Values are written `RAW`, and
+it is missing (tab and header in one request). Columns are written by header, so the office may reorder or add columns. Values are written `RAW`, and
 a leading `=`, `+`, `-` or `@` is dropped. The sheet must be shared with the writer account as Editor (ScoringLib
 📝 Ilmoittautuminen › Avaa ilmoittautumislomake, owner); otherwise the form answers "not in use". The main tab is never written.
 
 Abuse protection: a hidden honeypot field (a filled one gets a fake success and nothing is written), at least 4 s
-between opening and sending, at most 5 sign-ups per IP and 40 per competition in 10 minutes per server instance, and a
+between opening and sending, at most 10 attempts per IP (Cloudflare's `cf-connecting-ip` when present) and 40 saved sign-ups
+per competition in 10 minutes per server instance, and a
 second sign-up with a name already on the main tab or in any source (also transferred rows) is refused (409).
 IP addresses are not stored.
 

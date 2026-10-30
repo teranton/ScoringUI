@@ -52,6 +52,11 @@ export default function IlmoittautumisLomake({ sheetId, tila, locale = 'fi', onI
   const laheta = async (e) => {
     e.preventDefault();
     if (lahetetaan) return;
+    // Sivu voi olla auki takarajan yli: lomake suljetaan heti, ei vasta palvelimen vastauksesta.
+    if (tila.takaraja && Date.now() >= tila.takaraja.getTime()) {
+      setViesti(tx.errClosed);
+      return;
+    }
     const tarkistus = tarkistaLomake(arvot, tila.sarjat);
     setVirheet(tarkistus.virheet);
     if (Object.keys(tarkistus.virheet).length) return;

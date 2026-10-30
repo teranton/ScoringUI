@@ -5,7 +5,7 @@
 // joka on muokkaaja vain kisoissa, joissa lomake tai mobiilikirjaus on sallittu (ScoringLib). Pääsivulle
 // (OSALLISTUJAT+TULOKSET) ei kirjoiteta: kilpailutoimisto siirtää ilmoittautumiset ScoringLibin valikosta.
 // Roskapostin torjunta: piilokenttä (botti täyttää, vastaus näyttää onnistuneelta mutta mitään ei kirjoiteta),
-// lomakkeen täyttöaika vähintään MIN_KESTO_MS, rajoitus per IP ja per kisa (instanssin muistissa) ja saman nimen
+// lomakkeen täyttöaika vähintään MIN_KESTO_MS, rajoitus per IP (yritykset) ja per kisa (tallennetut, instanssin muistissa) ja saman nimen
 // toinen ilmoittautuminen torjutaan. IP-osoitetta ei tallenneta.
 import dotenv from 'dotenv';
 dotenv.config();
@@ -14,47 +14,56 @@ import { onSallittuSheetId, normalisoiSheetId } from './_lib/sheetAllowlist.js';
 import { haeKirjuriAsiakas, onKiintioVirhe, onKirjuriMaaritetty, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
 import { kohdistaValilehdet, valilehtiAlue } from './_lib/sheetsData.js';
 import {
-  LAHDE_VALILEHDET, LOMAKE_OTSIKKO, LOMAKE_VALILEHTI, lahteenIlmoittautuneet, lomakkeenNimi, lomakkeenTila, nimiAvain,
+  GOOGLE_LOMAKE, LAHDE_VALILEHDET, LOMAKE_OTSIKKO, LOMAKE_VALILEHTI, lahteenIlmoittautuneet, lomakkeenNimi, lomakkeenTila, nimiAvain,
   tarkistaLomake
 } from '../src/utils/ilmoittautumiset.js';
 
 const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
+const uusiId = () => 100000000 + Math.floor(Math.random() * 1900000000);
 export const MIN_KESTO_MS = 4000;
 const IKKUNA_MS = 10 * 60 * 1000;
-export const MAKS_PER_IP = 5;
+export const MAKS_PER_IP = 10;
 export const MAKS_PER_KISA = 40;
 
 const googleStatus = (error) => Number(error?.response?.status || error?.status || error?.code);
 const googleViesti = (error) => JSON.stringify(error?.response?.data || error?.message || '');
 
-// Liukuva ikkuna: { sallittu(avain, maks, nyt) } kirjaa yrityksen, jos raja ei ole täynnä.
+// Liukuva ikkuna: tilaa(avain, maks, nyt) kertoo, mahtuuko uusi kirjaus, kirjaa(avain, nyt) kirjaa sen.
+// sallittu(avain, maks, nyt) tekee molemmat.
 export function luoRajoitin(ikkunaMs = IKKUNA_MS) {
   const kirjaukset = new Map();
-  return {
-    sallittu(avain, maks, nyt = Date.now()) {
-      const tuoreet = (kirjaukset.get(avain) || []).filter((t) => nyt - t < ikkunaMs);
-      if (tuoreet.length >= maks) {
-        kirjaukset.set(avain, tuoreet);
-        return false;
-      }
-      tuoreet.push(nyt);
-      kirjaukset.set(avain, tuoreet);
+  const tuoreet = (avain, nyt) => (kirjaukset.get(avain) || []).filter((t) => nyt - t < ikkunaMs);
+  const rajoitin = {
+    tilaa(avain, maks, nyt = Date.now()) {
+      return tuoreet(avain, nyt).length < maks;
+    },
+    kirjaa(avain, nyt = Date.now()) {
+      const lista = tuoreet(avain, nyt);
+      lista.push(nyt);
+      kirjaukset.set(avain, lista);
       if (kirjaukset.size > 5000) kirjaukset.delete(kirjaukset.keys().next().value);
+    },
+    sallittu(avain, maks, nyt = Date.now()) {
+      if (!rajoitin.tilaa(avain, maks, nyt)) return false;
+      rajoitin.kirjaa(avain, nyt);
       return true;
     },
     tyhjenna() {
       kirjaukset.clear();
     }
   };
+  return rajoitin;
 }
 
 const rajoitin = luoRajoitin();
 
-// Asiakkaan IP: Vercelin x-forwarded-for (ensimmäinen), Cloudflaren takana cf-connecting-ip lisäksi.
+// Asiakkaan IP: Cloudflaren takana cf-connecting-ip (kaikki käyttäjät tulevat Cloudflaren osoitteista), muuten Vercelin
+// x-real-ip / x-forwarded-for. Suoraan Verceliin tehty pyyntö voi väärentää cf-connecting-ip:n ja kiertää IP-rajan,
+// mutta kisan oma raja, kaksoiskappaleiden torjunta ja piilokenttä pätevät silti.
 export function asiakkaanIp(headers = {}) {
-  const vercel = String(headers['x-real-ip'] || String(headers['x-forwarded-for'] || '').split(',')[0]).trim();
   const cf = String(headers['cf-connecting-ip'] || '').trim();
-  return [vercel, cf].filter(Boolean).join('|') || 'tuntematon';
+  const vercel = String(headers['x-real-ip'] || String(headers['x-forwarded-for'] || '').split(',')[0]).trim();
+  return cf || vercel || 'tuntematon';
 }
 
 function runkoOf(req) {
@@ -96,7 +105,9 @@ const aikaleima = (nyt) => new Intl.DateTimeFormat('fi-FI', {
 export async function ilmoittaudu({ request, sheetId, kisa, runko, nyt = new Date() }) {
   const lista = await valilehdet(request, sheetId);
   const nimet = lista.map((v) => v.nimi);
-  const kohteet = kohdistaValilehdet(['KISANSPEKSIT', 'Ilmoittautuneet', ...LAHDE_VALILEHDET], nimet).loydetyt;
+  // Duplikaattitarkistukseen kaikki Google-lomakkeen vastausvälilehdet (Lomakevastaukset 2 ... uudelleenlinkityksen jälkeen).
+  const lahteet = [...new Set([...LAHDE_VALILEHDET, ...nimet.filter((n) => GOOGLE_LOMAKE.test(String(n).trim()))])];
+  const kohteet = kohdistaValilehdet(['KISANSPEKSIT', 'Ilmoittautuneet', ...lahteet], nimet).loydetyt;
   const arvot = await batchGet(request, sheetId, kohteet.map((k) => k.todellinen));
   const rivit = (nimi) => arvot[kohteet.findIndex((k) => k.pyydetty === nimi)] || [];
 
@@ -111,21 +122,21 @@ export async function ilmoittaudu({ request, sheetId, kisa, runko, nyt = new Dat
   const olemassa = new Set([
     ...ilmoittautuneidenNimet(rivit('Ilmoittautuneet')),
     // Myös siirretyt lomakerivit: sama ampuja ei ilmoittaudu kahdesti, vaikka nimi olisi korjattu pääsivulla.
-    ...LAHDE_VALILEHDET.flatMap((n) => lahteenIlmoittautuneet(rivit(n), { myosSiirretyt: true }).map((o) => o.nimi))
+    ...lahteet.flatMap((n) => lahteenIlmoittautuneet(rivit(n), { myosSiirretyt: true }).map((o) => o.nimi))
   ].map(nimiAvain));
   if (olemassa.has(nimiAvain(nimi))) return { status: 409, body: { koodi: 'kaksoiskappale', error: 'Tällä nimellä on jo ilmoittauduttu' } };
 
   if (!kohteet.some((k) => k.pyydetty === LOMAKE_VALILEHTI)) {
+    const id = uusiId();
+    // Välilehti ja otsikko yhdessä kutsussa: samanaikainen ilmoittautuja ei voi kirjoittaa riviä niiden väliin.
     try {
       await request({
         url: `${SHEETS}/${sheetId}:batchUpdate`,
         method: 'POST',
-        data: { requests: [{ addSheet: { properties: { title: LOMAKE_VALILEHTI, gridProperties: { rowCount: 2, columnCount: LOMAKE_OTSIKKO.length, frozenRowCount: 1 } } } }] }
-      });
-      await request({
-        url: `${SHEETS}/${sheetId}/values/${encodeURIComponent(`${valilehtiAlue(LOMAKE_VALILEHTI)}!A1`)}?valueInputOption=RAW`,
-        method: 'PUT',
-        data: { values: [LOMAKE_OTSIKKO] }
+        data: { requests: [
+          { addSheet: { properties: { sheetId: id, title: LOMAKE_VALILEHTI, gridProperties: { rowCount: 2, columnCount: LOMAKE_OTSIKKO.length, frozenRowCount: 1 } } } },
+          { updateCells: { start: { sheetId: id, rowIndex: 0, columnIndex: 0 }, rows: [{ values: LOMAKE_OTSIKKO.map((o) => ({ userEnteredValue: { stringValue: o } })) }], fields: 'userEnteredValue' } }
+        ] }
       });
     } catch (error) {
       // Toinen ilmoittautuja ehti luoda välilehden samaan aikaan.
@@ -177,8 +188,10 @@ export default async function handler(req, res) {
     return laheta(res, 503, { error: 'Kilpailurekisteriä ei saatu tarkistettua' });
   }
 
+  // IP-raja laskee kaikki yritykset, kisan raja vain tallennetut ilmoittautumiset: hylätyt pyynnöt eivät sulje kisan lomaketta.
   const nyt = Date.now();
-  if (!rajoitin.sallittu(`ip:${asiakkaanIp(req.headers)}`, MAKS_PER_IP, nyt) || !rajoitin.sallittu(`kisa:${sheetId}`, MAKS_PER_KISA, nyt)) {
+  const kisaAvain = `kisa:${sheetId}`;
+  if (!rajoitin.sallittu(`ip:${asiakkaanIp(req.headers)}`, MAKS_PER_IP, nyt) || !rajoitin.tilaa(kisaAvain, MAKS_PER_KISA, nyt)) {
     res.setHeader('Retry-After', '600');
     return laheta(res, 429, { koodi: 'liianMonta', error: 'Liian monta ilmoittautumista lyhyessä ajassa' });
   }
@@ -187,6 +200,7 @@ export default async function handler(req, res) {
     const asiakas = await haeKirjuriAsiakas();
     const request = (opts) => pyyntoUudelleenyrittaen((o) => asiakas.request(o), opts);
     const tulos = await ilmoittaudu({ request, sheetId, kisa, runko, nyt: new Date(nyt) });
+    if (tulos.status === 200) rajoitin.kirjaa(kisaAvain, nyt);
     return laheta(res, tulos.status, tulos.body);
   } catch (error) {
     const status = googleStatus(error);
