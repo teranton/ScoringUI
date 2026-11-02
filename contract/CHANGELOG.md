@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `ILMOITTAUTUMINEN_PAATTYY` at `00:00` now means the end of that day, as a date without a time does. The master's cell
+  is a date picker formatted `d.m.yyyy hh:mm`, so a picked date shows `00:00`. Additive: other times are read as before.
+
 - Sign-ups: the registrations list also shows sign-ups not yet on the main tab, from `Suomisport Import`,
   `ILMOITTAUTUMISET` (new, written by the ScoringUI sign-up form) and a linked Google Form (`Lomakevastaukset N` /
   `Form Responses N`). `api/kisa.js` serves these tabs filtered to the name, class, club and `SIIRRETTY` columns; the

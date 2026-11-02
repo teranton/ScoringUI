@@ -99,7 +99,7 @@ export function helsinginHetki(vuosi, kuukausi, paiva, tunti = 0, minuutti = 0) 
 }
 
 // Lomakkeen sulkeutumishetki: ILMOITTAUTUMINEN_PAATTYY ("15.11.2026", "15.11.2026 18:00", "2026-11-15 18:00")
-// Helsingin aikaa; pelkkä päivä = päivän loppuun. Ilman asetusta kilpailupäivän alkuun (edellisen päivän loppuun).
+// Helsingin aikaa; pelkkä päivä tai klo 00:00 (Sheetsin päivämäärävalitsin, ScoringLibin muoto p.k.vvvv hh:mm) = päivän loppuun. Ilman asetusta kilpailupäivän alkuun (edellisen päivän loppuun).
 // Ei koskaan myöhemmin kuin ensimmäisenä kilpailupäivänä klo 10, jolloin ilmoittautuneiden sivu piilotetaan.
 export function ilmoittautumisenTakaraja(asetus, alkuPvm) {
   const alku = parsiPaivamaara(alkuPvm);
@@ -116,7 +116,7 @@ function asetuksenTakaraja(asetus) {
     const paiva = parsiPaivamaara(paivaOsa);
     if (paiva) {
       const aika = String(aikaOsa || '').match(/^(\d{1,2})[:.](\d{2})/);
-      if (aika) return helsinginHetki(paiva.getFullYear(), paiva.getMonth() + 1, paiva.getDate(), Number(aika[1]), Number(aika[2]));
+      if (aika && (Number(aika[1]) || Number(aika[2]))) return helsinginHetki(paiva.getFullYear(), paiva.getMonth() + 1, paiva.getDate(), Number(aika[1]), Number(aika[2]));
       return helsinginHetki(paiva.getFullYear(), paiva.getMonth() + 1, paiva.getDate() + 1);
     }
   }

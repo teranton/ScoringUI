@@ -43,6 +43,7 @@ test('takaraja Helsingin aikaa: asetus päivänä, päivä ja kellonaika, oletuk
   assert.equal(helsinginHetki(2026, 6, 15, 18, 0).toISOString(), '2026-06-15T15:00:00.000Z');
   assert.equal(ilmoittautumisenTakaraja('15.11.2026 18:00', '').toISOString(), '2026-11-15T16:00:00.000Z');
   assert.equal(ilmoittautumisenTakaraja('15.11.2026', '').toISOString(), '2026-11-15T22:00:00.000Z');
+  assert.equal(ilmoittautumisenTakaraja('15.11.2026 00:00', '').toISOString(), '2026-11-15T22:00:00.000Z'); // päivämäärävalitsin
   assert.equal(ilmoittautumisenTakaraja('', '21.11.2026').toISOString(), '2026-11-20T22:00:00.000Z');
   assert.equal(ilmoittautumisenTakaraja('', ''), null);
   // Ei myöhemmin kuin ensimmäisenä päivänä klo 10, jolloin lista piilotetaan
