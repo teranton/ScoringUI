@@ -39,7 +39,10 @@ export function useKilpailurekisteri() {
 
     async function haeKisalistaCsv() {
       try {
-        const response = await fetch('/api/rekisteri');
+        // Piilotettuja kisoja katsova järjestäjä haluaa nähdä juuri luodun tai poistetun kisan heti: ohi CDN:n.
+        const response = onkoPiilotettujenKisojenOverride
+          ? await fetch('/api/rekisteri?preview=1', { cache: 'no-store' })
+          : await fetch('/api/rekisteri');
         if (!response.ok) {
           throw new Error(`Kilpailurekisterin haku epäonnistui: ${response.status}`);
         }
