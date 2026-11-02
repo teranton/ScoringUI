@@ -3,6 +3,8 @@ import { Component, useState, useEffect, useRef, useMemo, useCallback, lazy, Sus
 import HenkiloTulokset from './HenkiloTulokset';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
+import IlmoittautumisLomake from './IlmoittautumisLomake';
+import { lisattavatIlmoittautuneet, lomakkeenTila } from './utils/ilmoittautumiset';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import RankingTulokset from './RankingTulokset';
 import RyhmaJako from './RyhmaJako';
@@ -84,6 +86,8 @@ export default function App() {
   const { kisaStatusById, nykyisenKisanData, ladataanKisaa, valitunKisanVirhe, ajastaEsihaku, peruEsihaku } = useKisaData({ kisat, valittuKisa });
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
+  // Tässä istunnossa lähetetyt ilmoittautumiset kisoittain: näkyvät listassa ennen kuin API:n välimuisti päivittyy.
+  const [omatIlmoittautumiset, setOmatIlmoittautumiset] = useState({});
   // Tulostuksen aloitusaika; null kun tulosluettelon tulostus ei ole käynnissä.
   const [tulosteenAika, setTulosteenAika] = useState(null);
   // Ladatut näkymäpalat. Tulosteet ovat sivulla vasta, kun niiden pala on ladattu, ettei tulostus tyhjennä sivua.
@@ -263,7 +267,29 @@ export default function App() {
 
   const onkoTuloksetSallittu = !onkoKisaTulossa;
   const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
-  const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
+  const ilmoittautumisLomake = useMemo(
+    () => lomakkeenTila(nykyisenKisanParsitutRivit.speksitRows, valittuKisa?.alkuPvm),
+    [nykyisenKisanParsitutRivit.speksitRows, valittuKisa?.alkuPvm]
+  );
+  const omatIlmot = valittuKisa?.apiUrl ? omatIlmoittautumiset[valittuKisa.apiUrl] : null;
+  const ilmoittautumisLahteet = useMemo(() => {
+    const lahteet = nykyisenKisanData?.ilmoittautumisLahteet || [];
+    if (!omatIlmot?.length) return lahteet;
+    const csv = ['NIMI,SARJA,SEURA', ...omatIlmot.map((o) => [o.nimi, o.sarja, o.seura].map((t) => `"${String(t).replace(/"/g, '""')}"`).join(','))].join('\n');
+    return [...lahteet, csv];
+  }, [nykyisenKisanData?.ilmoittautumisLahteet, omatIlmot]);
+  const lisaaOmaIlmoittautuminen = useCallback((ilmo) => {
+    const sheetId = valittuKisa?.apiUrl;
+    if (!sheetId) return;
+    setOmatIlmoittautumiset((ed) => ({ ...ed, [sheetId]: [...(ed[sheetId] || []), ilmo] }));
+  }, [valittuKisa?.apiUrl]);
+  const onkoLahteissaIlmoittautuneita = useMemo(
+    () => lisattavatIlmoittautuneet([], ilmoittautumisLahteet).length > 0,
+    [ilmoittautumisLahteet]
+  );
+  const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && (
+    nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10 || onkoLahteissaIlmoittautuneita || ilmoittautumisLomake.auki
+  );
   const onkoAikataulua = aikatauluCsvList.length > 0;
 
   const aikatauluNakyvyysAsetus = useMemo(
@@ -629,9 +655,16 @@ export default function App() {
             </NakymaVirheRaja>
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
-            <div className="mx-auto w-full max-w-3xl">
+            <div className="mx-auto w-full max-w-3xl space-y-3">
+              <IlmoittautumisLomake
+                sheetId={valittuKisa.apiUrl}
+                tila={ilmoittautumisLomake}
+                locale={locale}
+                onIlmoittauduttu={lisaaOmaIlmoittautuminen}
+              />
               <Ilmoittautuneet
-                rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw}
+                rawCsv={nykyisenKisanData?.ilmoittautuneetCsvRaw}
+                lahteet={ilmoittautumisLahteet}
                 locale={locale}
                 showCompetitionNumbers={onkoAikatauluSallittu}
               />

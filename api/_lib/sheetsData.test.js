@@ -133,7 +133,7 @@ test('onSallittuValilehti sallii kisan välilehdet ja kauden rankingin, ei muita
   assert.equal(onSallittuValilehti('RANKING'), false);
   assert.equal(onSallittuValilehti('RANKING_2026_vanha'), false);
   assert.equal(onSallittuValilehti('LASKENTA'), false);
-  assert.equal(onSallittuValilehti('Suomisport Import'), false);
+  assert.equal(onSallittuValilehti('KITI_DATA'), false);
 });
 
 test('kanoninenValilehti antaa frontendin kirjoitusasun tai tyhjän', () => {
@@ -142,7 +142,7 @@ test('kanoninenValilehti antaa frontendin kirjoitusasun tai tyhjän', () => {
   assert.equal(kanoninenValilehti('ranking_2027'), 'RANKING_2027');
   assert.equal(kanoninenValilehti('kisat'), 'KISAT');
   assert.equal(kanoninenValilehti('Ryhmäjako'.normalize('NFD')), 'Ryhmäjako');
-  assert.equal(kanoninenValilehti('Suomisport Import'), '');
+  assert.equal(kanoninenValilehti('KITI_DATA'), '');
   assert.equal(kanoninenValilehti('mobiili rata 03'), 'MOBIILI Rata 3');
   assert.equal(kanoninenValilehti('mobiili_laitteet'), 'MOBIILI_LAITTEET');
   assert.equal(kanoninenValilehti('MOBIILI_LOKI'), '');
@@ -157,6 +157,32 @@ test('mobiilikirjauksen välilehdet: kortit, laitteet ja ryhmät, ei lokia', () 
   assert.equal(onSallittuValilehti('MOBIILI Layout 1'), true);
   assert.equal(onSallittuValilehti('MOBIILI Layout'), false);
   assert.equal(onSallittuValilehti('MOBIILI Rata'), false);
+});
+
+test('ilmoittautumisten lähteistä vain nimi, sarja, seura ja siirtomerkintä', () => {
+  assert.equal(kanoninenValilehti('suomisport import'), 'Suomisport Import');
+  assert.equal(kanoninenValilehti('ilmoittautumiset'), 'ILMOITTAUTUMISET');
+  assert.equal(kanoninenValilehti('Lomakevastaukset 1'), 'Lomakevastaukset 1');
+  assert.equal(kanoninenValilehti('form responses 2'), 'Form Responses 2');
+  assert.equal(kanoninenValilehti('Lomakevastaukset'), '');
+  const tuonti = [
+    ['Sportti-ID', 'NIMI', 'SARJA', 'SEURA', 'HUOM', 'TUOMARIKORTTI', 'SIIRRETTY'],
+    ['40374311', 'Saastamoinen Juho', 'Y', 'KajA', 'Tarkista maksu', 'Tuomari: I', '']
+  ];
+  assert.deepEqual(julkisetSarakkeet('Suomisport Import', tuonti), [
+    ['NIMI', 'SARJA', 'SEURA', 'SIIRRETTY'],
+    ['Saastamoinen Juho', 'Y', 'KajA', '']
+  ]);
+  const lomake = [
+    ['Aikaleima', 'Sukunimi', 'Etunimi', 'Sarja', 'Seura', 'Sähköpostiosoite', 'Puhelinnumero'],
+    ['1.11.2026', 'Rantonen', 'Tero', 'Y', 'OMAS', 't@x.fi', '040']
+  ];
+  assert.deepEqual(julkisetSarakkeet('Lomakevastaukset 1', lomake), [
+    ['Sukunimi', 'Etunimi', 'Sarja', 'Seura'],
+    ['Rantonen', 'Tero', 'Y', 'OMAS']
+  ]);
+  const oma = [['AIKALEIMA', 'SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SÄHKÖPOSTI', 'PUHELIN', 'LISÄTIETOJA', 'SIIRRETTY']];
+  assert.deepEqual(julkisetSarakkeet('ILMOITTAUTUMISET', oma), [['SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SIIRRETTY']]);
 });
 
 test('julkisetSarakkeet jättää laitteen tunnukset, PIN-virheet ja täydennykset pois', () => {

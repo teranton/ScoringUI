@@ -5,7 +5,7 @@ import { haeTekstit } from './i18n.js';
 
 const NAKYMAT = [
   'app', 'kisaStatus', 'aikataulu', 'aikatauluHaku', 'aikatauluMobiili', 'aikatauluTulostus',
-  'aikatauluRyhma', 'henkiloTaulukko', 'henkiloTulokset', 'ilmoittautuneet', 'joukkueTulokset',
+  'aikatauluRyhma', 'henkiloTaulukko', 'henkiloTulokset', 'ilmoittautuminen', 'ilmoittautuneet', 'joukkueTulokset',
   'liveRadat', 'materiaalit', 'rankingTulokset', 'ryhmaJako', 'saa', 'tulosteTulokset', 'tulosteAikataulu'
 ];
 
