@@ -34,6 +34,13 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   With `KISANSPEKSIT` `MOBIILI_TULOKSET` = `SUORAAN`, a save that completes a result (Compak card, or a squad station the
   shooter confirmed) also writes it into an empty result cell of `OSALLISTUJAT+TULOKSET` (`api/_lib/kirjausTulokset.js`);
   paper or formula cells are never changed. Default `TOIMISTO`: the office imports with ScoringLib's Tuo mobiilitulokset.
+- Sign-ups: the registrations list (`src/Ilmoittautuneet.jsx`) merges the `Ilmoittautuneet` tab with sign-ups not yet on
+  the main tab from `Suomisport Import`, `ILMOITTAUTUMISET` and a Google Form's `Lomakevastaukset 1` / `Form Responses 1`
+  (`src/utils/ilmoittautumiset.js`; the API serves only their name, class, club and `SIIRRETTY` columns). With
+  `KISANSPEKSIT` `ILMOITTAUTUMISTAPA` = `LOMAKE` the tab also shows a sign-up form (`src/IlmoittautumisLomake.jsx`) that
+  posts to `api/ilmoittaudu.js`, which appends to `ILMOITTAUTUMISET` with the writer account (never the main tab;
+  honeypot, minimum fill time, per-IP and per-competition limits, duplicate names refused). ScoringLib copies sign-ups
+  to the main tab and marks `SIIRRETTY`.
 - Public live view ("Radat live" tab, `src/LiveRadat.jsx`, `src/utils/mobiiliLive.js`): a read-only mirror of the Compak
   entry screen per layout, shown for a running competition whose `MOBIILI_LAITTEET` has layouts. It reads `MOBIILI Rata N`
   and `MOBIILI_LAITTEET` through `api/kisa.js` with the reader account; the API serves only their public columns

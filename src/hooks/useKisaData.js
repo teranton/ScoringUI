@@ -2,7 +2,8 @@
 // avatun kisan haku ja live-päivitys sekä esihaku, kun osoitin pysähtyy kisakortille.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onkoCsvVirheellinen } from '../utils/csv';
-import { laskeKisanPaivaStatus, laskeRankingStatus, laskeStatusKisalle, onkoPaattynytPaivista } from '../utils/kisaStatus';
+import { laskeKisanPaivaStatus, laskeOnkoIlmoittautuminenPaattynyt, laskeRankingStatus, laskeStatusKisalle, onkoPaattynytPaivista } from '../utils/kisaStatus';
+import { LAHDE_VALILEHDET } from '../utils/ilmoittautumiset';
 import { haeKisanVuosi } from '../utils/kilpailurekisteri';
 import { rankingValilehdenNimi } from '../utils/rankingTulokset';
 import { lueKisat, tallennaKisa } from '../utils/paikallinenValimuisti';
@@ -30,7 +31,9 @@ function sivutKisalle(kisa, onkoStaattinen) {
     // MOBIILI_LAITTEET (vain radat ja linjan tila): mobiilikirjauksen radat julkiseen ratanäkymään (LiveRadat.jsx).
     // MOBIILI_RYHMAT (vain ryhmien numerot): onko ryhmäpuhelimen kortteja tulosten kiekkonäkymään (HenkiloTulokset.jsx).
     // Päättyneen kisan joukkoa ei muuteta (tallennetut kuvat säilyvät); siellä kortit haetaan, kun ampuja avataan.
-    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT'];
+    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT',
+      // Ilmoittautuneiden lähteet (Suomisport-tuonti, lomakkeet), kunnes ilmoittautuneiden lista piilotetaan kisapäivänä.
+      ...(laskeOnkoIlmoittautuminenPaattynyt(kisa?.alkuPvm) ? [] : LAHDE_VALILEHDET)];
 }
 
 function kisaDataUrl(sheetId, sivut) {
@@ -178,6 +181,8 @@ export function useKisaData({ kisat, valittuKisa }) {
         joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
         eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
         ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
+        // Lähteistä vain tässä haussa löytyneet: poistettu tai siirretty ilmoittautuminen ei jää näkyviin.
+        ilmoittautumisLahteet: onkoStaattinen ? [] : LAHDE_VALILEHDET.map((nimi) => csvByName[nimi] || '').filter(Boolean),
         aikatauluCsvRaw: csvByName['Aikataulu'] || vanhaData.aikatauluCsvRaw || "",
         aikatauluLaCsvRaw: onkoStaattinen
           ? (csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "")
