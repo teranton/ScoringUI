@@ -7,6 +7,9 @@
   `ILMOITTAUTUMISET`). ScoringLib leaves waiting-list rows off the main tab until the office empties the cell.
   Additive: without the keys nothing changes.
 
+- Check-in (ScoringLib `Saapuminen.js`): new library-only `KISANSPEKSIT` keys `MAKSU_KISAPAIKALLA` (`ENNAKKO` / `KAIKKI`)
+  and `OSALLISTUMISMAKSU`, and a new tab `SAAPUMISET` with payment data that the API must not serve. Additive; no UI change.
+
 - `ILMOITTAUTUMINEN_PAATTYY` at `00:00` now means the end of that day, as a date without a time does. The master's cell
   is a date picker formatted `d.m.yyyy hh:mm`, so a picked date shows `00:00`. Additive: other times are read as before.
 
