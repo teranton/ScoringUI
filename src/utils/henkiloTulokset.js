@@ -1,4 +1,5 @@
 import { parseCsvRows } from './csv.js';
+import { avainOsumat } from './kisaAsetukset.js';
 
 // Arkin kyllä-merkinnät (pienillä kirjaimilla), joita kaikki totuusarvoasetukset hyväksyvät.
 export const TOSI_ARVOT = ['1', 'true', 'yes', 'on', 'x'];
@@ -132,14 +133,9 @@ export function laskeRatojenMaara(asemaMaksimit) {
 // Sama tulkinta kuin muissa KISANSPEKSIT-asetuksissa (ks. kisaAsetukset.js): avain normalisoidaan ja arvo on
 // avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu. Tyhjä tai virheellinen arvo -> oletus.
 function haeRatkoPalkintoSija(speksiRivit) {
-  for (const rivi of speksiRivit) {
-    if (!Array.isArray(rivi)) continue;
-
-    const solut = rivi.map((solu) => String(solu || '').trim());
-    const avainIndeksi = solut.findIndex((solu) => normalisoiOtsikko(solu) === 'RATKOPALKINTOSIJA');
-    if (avainIndeksi === -1) continue;
-
-    const sija = Number.parseInt(solut.slice(avainIndeksi + 1).find(Boolean), 10);
+  const onAvain = (solu) => normalisoiOtsikko(String(solu || '').trim()) === 'RATKOPALKINTOSIJA';
+  for (const [rivi, i] of avainOsumat(speksiRivit, onAvain)) {
+    const sija = Number.parseInt(rivi.slice(i + 1).map((solu) => String(solu || '').trim()).find(Boolean), 10);
     return Number.isInteger(sija) && sija > 0 ? sija : ratkoPalkintoSijaOletus;
   }
 

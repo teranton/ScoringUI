@@ -97,3 +97,17 @@ test('paikkatilanne ja ilmoittautumisenPaikka: varasijat erikseen, jono menee va
   assert.equal(t.varasijat, 0);
   assert.equal(lomakkeenTila([['', 'ILMOITTAUTUMISEN_MAKSIMI', '2,5']]).maksimi, 2);
 });
+
+test('lomakkeenTila: master-pohjan selite "Ilmoittautumistapa" ei peitä avainta', () => {
+  const speksit = [['Selite', 'Avain', 'Arvo', 'Ohje'], ['Ilmoittautumistapa', 'ILMOITTAUTUMISTAPA', 'LOMAKE', 'Ohje']];
+  assert.equal(lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-01T10:00:00Z')).kaytossa, true);
+  // Vanhan valikon rikkoma rivi (avain korvattu arvolla): selitettä ei lueta avaimena
+  assert.equal(lomakkeenTila([speksit[0], ['Ilmoittautumistapa', 'LOMAKE', '', '']], '21.11.2026', new Date('2026-11-01T10:00:00Z')).kaytossa, false);
+});
+
+test('lomakkeenTila: selite = avain ja tyhjä arvo ei lue avainta eikä ohjetta', () => {
+  const speksit = [['Selite', 'Avain', 'Arvo', 'Ohje'], ['Ilmoittautumistapa', 'ILMOITTAUTUMISTAPA', '', 'LOMAKE = ScoringUI näyttää lomakkeen'], ['Lomakkeen sarjat', 'ILMOITTAUTUMISEN_SARJAT', '', 'Sarjat pilkuilla, esim. Y, N']];
+  const tila = lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-01T10:00:00Z'));
+  assert.equal(tila.kaytossa, false);
+  assert.deepEqual(tila.sarjat, []);
+});

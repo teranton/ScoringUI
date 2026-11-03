@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `KISANSPEKSIT` sections: the master template groups its keys into ten sections by function (see "Sections" in
+  `sheet-layout.md`). No key changes; the UI reads keys, not positions. On a tab with the `Selite | Avain` header row
+  every settings reader looks for keys only in the Avain column (older tabs: any cell), so a Selite equal to the key (the
+  master's "Ilmoittautumistapa") no longer hides `ILMOITTAUTUMISTAPA` = `LOMAKE`.
+
 - Sign-up limit and waiting list: new `KISANSPEKSIT` keys `ILMOITTAUTUMISEN_MAKSIMI` and `ILMOITTAUTUMISEN_VARASIJAT`,
   and a `VARASIJA` column in the sign-up sources (served by `api/kisa.js`, written by `api/ilmoittaudu.js` in
   `ILMOITTAUTUMISET`). ScoringLib leaves waiting-list rows off the main tab until the office empties the cell.

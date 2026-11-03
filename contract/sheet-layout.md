@@ -140,11 +140,37 @@ It depends on:
 
 ## `KISANSPEKSIT` settings
 
-Keys are found anywhere on the tab; the value is the next non-empty cell to the right.
+Keys are found in the Avain column below the `Selite | Avain` header row (`kisaAsetukset.avainOsumat`); a tab without
+that header (older sheets) is searched cell by cell. The value is the next non-empty cell to the right.
 Keys and values are matched case-insensitively with Ä/Ö/Å read as A/O/A and spaces and underscores
 ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS`. Each setting has one key and a fixed set
 of values, the forms the competition sheets use (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`).
 Any other key or value is ignored and the default applies.
+
+### Sections
+
+The master template groups the keys into sections by function (heading rows in the Selite column; ScoringLib's
+`KilpailuPohja.SPEKSIT_OSIOT`). The sections are never read, only the keys (plus the old fallback cells noted below, such as B20 and J:L), so the order is for people.
+"UI" = ScoringUI reads it, "Lib" = only ScoringLib does; details in the tables below and in the feature sections.
+
+| Section | Keys | Read by |
+|---|---|---|
+| Kisan aikana | `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS` | UI |
+| Kilpailun rakenne | `KILPAILUTYYPPI`, `OSALLISTUJAT`, `LAYOUT/KISA`, `Asemien määrä`, `Päivätuloksia kpl` | `LAYOUT/KISA` UI and Lib, others Lib |
+| Radat ja asemat | `RATAn_NIMI`, `RATAn_OHJELMA`, the station table (columns F:I) | UI and Lib |
+| Ilmoittautuminen ja saapuminen | `ILMOITTAUTUMISTAPA`, `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`, `ILMOITTAUTUMISEN_MAKSIMI`, `ILMOITTAUTUMISEN_VARASIJAT`; `MAKSU_KISAPAIKALLA`, `OSALLISTUMISMAKSU` | sign-up keys UI and Lib, payment keys Lib |
+| Aikataulu ja ryhmät | `ALOITUS_AIKA`, `AMPUJAN_AIKA`, `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`, `ALOITUSTAPA` | `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO` UI, all Lib |
+| Tuomarointi ja korostukset | `Ei tuomaroivat:`, `Bib tuomaroivat`, `Korostukset päällä`, `Syötössä korostukset`, `Isäntäseura`, `Järjestävät seurat:` | `Ei tuomaroivat:` UI (squad editor), all Lib or sheet formulas |
+| Mobiilikirjaus ja tuloskortit | `MOBIILI_TULOKSET`, `Tyhjän ruudun symboli` | `MOBIILI_TULOKSET` UI and Lib, the symbol Lib |
+| Tulokset ja palkintojako | `RATKO_PALKINTO_SIJA`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA` | UI and Lib (`RATKO_PALKINTO_SIJA` UI only) |
+| Tuonnit | `Vain päivätulokset` | Lib |
+| Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI |
+
+Because keys are read only from the Avain column, a Selite or help text equal to a key (the master had "Ilmoittautumistapa"
+left of `ILMOITTAUTUMISTAPA`) is never taken for the key, in the UI (`avainOsumat`: `speksiArvo`, `haeAsetusSpekseista`,
+`Ei tuomaroivat:`, the tie-break places) or in ScoringLib's `Speksit.etsi`. Keep each Selite different from its key all the same.
+
+### UI settings
 
 | Setting | Key | Values | Default |
 |---|---|---|---|
@@ -171,7 +197,7 @@ A logo on any other host is not shown unless Vercel has `LOGO_PROXY_HOST_POLICY=
 
 ### Keys ScoringLib reads
 
-ScoringLib (`Speksit.js`) finds these keys anywhere on the tab. Matching differs from the UI's in three ways:
+ScoringLib (`Speksit.js`) finds these keys the same way (Avain column, or anywhere on a tab without the header). Matching differs from the UI's in three ways:
 only Ä/Å/Ö are folded (to A/A/O) and every other non-letter, non-digit is dropped; the first copy of a key wins;
 and the value is only the cell right of the key, never a cell further right. When a key is missing, the library
 uses the fallback cell. Renaming a key therefore makes the library read the fallback cell, except:
