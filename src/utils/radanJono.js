@@ -1,7 +1,7 @@
 // Compak-radan ampujajono aikataulusta, KISANSPEKSIT-avainten arvot ja laitteen linjan tilan tarkistus.
 // Yhteiset mobiilikirjauksen API:lle (api/_lib/kirjausData.js) ja julkiselle ratanäkymälle (src/LiveRadat.jsx).
 // Puhtaita funktioita.
-import { avaimenIndeksi, normalisoiAsetus } from './kisaAsetukset.js';
+import { avainOsumat, normalisoiAsetus } from './kisaAsetukset.js';
 import { isLaneHeader, isTimeLike, taukoTyyppi, tunnistaRataSarakkeet } from './aikatauluRadat.js';
 
 // Suurin ampujan numero (MOBIILI-välilehden rivi = numero + 1).
@@ -10,15 +10,11 @@ export const MAKS_NRO = 999;
 export const puhdasTeksti = (t, maks) => [...String(t ?? '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, maks);
 
 // KISANSPEKSIT-avaimen arvo: avaimen oikealla puolella oleva solu, kuten ScoringLibin Speksit
-// (tyhjän arvon viereinen Ohje-sarake ei saa näkyä arvona). Jos selite on sama kuin avain
-// (Selite "Ilmoittautumistapa", Avain ILMOITTAUTUMISTAPA), arvo on avaimen eikä selitteen oikealla puolella.
+// (tyhjän arvon viereinen Ohje-sarake ei saa näkyä arvona). Avain haetaan Avain-sarakkeesta (avainOsumat).
 export function speksiArvo(rivit, avain) {
   const haettava = normalisoiAsetus(avain);
   const sama = (s) => normalisoiAsetus(String(s ?? '').trim()) === haettava;
-  for (const rivi of Array.isArray(rivit) ? rivit : []) {
-    if (!Array.isArray(rivi)) continue;
-    const i = avaimenIndeksi(rivi, sama);
-    if (i === -1) continue;
+  for (const [rivi, i] of avainOsumat(rivit, sama)) {
     const arvo = String(rivi[i + 1] ?? '').trim();
     if (arvo) return arvo;
   }

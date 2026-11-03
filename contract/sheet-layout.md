@@ -140,7 +140,8 @@ It depends on:
 
 ## `KISANSPEKSIT` settings
 
-Keys are found anywhere on the tab; the value is the next non-empty cell to the right.
+Keys are found in the Avain column below the `Selite | Avain` header row (`kisaAsetukset.avainOsumat`); a tab without
+that header (older sheets) is searched cell by cell. The value is the next non-empty cell to the right.
 Keys and values are matched case-insensitively with Ä/Ö/Å read as A/O/A and spaces and underscores
 ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS`. Each setting has one key and a fixed set
 of values, the forms the competition sheets use (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`).
@@ -165,9 +166,9 @@ The master template groups the keys into sections by function (heading rows in t
 | Tuonnit | `Vain päivätulokset` | Lib |
 | Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI |
 
-A Selite text can equal its own key once folded (the master had "Ilmoittautumistapa" left of `ILMOITTAUTUMISTAPA`).
-Every UI reader (`kisaAsetukset.avaimenIndeksi`, `speksiArvo`, `haeAsetusSpekseista`, the tie-break places) and ScoringLib's
-`Speksit.etsi` then use the key cell right of the Selite. Keep each Selite different from its key all the same.
+Because keys are read only from the Avain column, a Selite or help text equal to a key (the master had "Ilmoittautumistapa"
+left of `ILMOITTAUTUMISTAPA`) is never taken for the key, in the UI (`avainOsumat`: `speksiArvo`, `haeAsetusSpekseista`,
+`Ei tuomaroivat:`, the tie-break places) or in ScoringLib's `Speksit.etsi`. Keep each Selite different from its key all the same.
 
 ### UI settings
 
@@ -196,7 +197,7 @@ A logo on any other host is not shown unless Vercel has `LOGO_PROXY_HOST_POLICY=
 
 ### Keys ScoringLib reads
 
-ScoringLib (`Speksit.js`) finds these keys anywhere on the tab. Matching differs from the UI's in three ways:
+ScoringLib (`Speksit.js`) finds these keys the same way (Avain column, or anywhere on a tab without the header). Matching differs from the UI's in three ways:
 only Ä/Å/Ö are folded (to A/A/O) and every other non-letter, non-digit is dropped; the first copy of a key wins;
 and the value is only the cell right of the key, never a cell further right. When a key is missing, the library
 uses the fallback cell. Renaming a key therefore makes the library read the fallback cell, except:
