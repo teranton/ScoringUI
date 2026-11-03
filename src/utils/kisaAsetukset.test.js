@@ -76,3 +76,8 @@ test('Ei tuomaroivat -sarjat luetaan kuten ScoringLib: avaimen viereinen solu, m
   assert.deepEqual(haeEiTuomaroivatSarjatSpekseista(vanha), ['N', 'J']);
   assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([]), []);
 });
+
+test('selite sama kuin avain: arvo luetaan avaimen oikealta puolelta (master-pohjan Selite, Avain, Arvo, Ohje)', () => {
+  assert.equal(haeAikatauluNakyvyysSpekseista([['Aikataulu näkyvyys', 'AIKATAULU_NAKYVYYS', 'FALSE', 'TRUE = näkyy']]), 'off');
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([['Ei tuomaroivat', 'Ei tuomaroivat:', 'N, Y70', 'Ohje']]), ['N', 'Y70']);
+});

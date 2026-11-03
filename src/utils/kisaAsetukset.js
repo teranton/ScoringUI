@@ -7,6 +7,13 @@ import { normalisoiOtsikko } from './henkiloTulokset.js';
 // (välilyönnit ja alaviivat pois), joten 'Aikataulu näkyvyys' = 'AIKATAULU_NAKYVYYS'.
 export const normalisoiAsetus = normalisoiOtsikko;
 
+// Avaimen sarake rivillä (solut) tai -1. Jos selite avaimen vasemmalla puolella on sama kuin avain
+// (Selite "Ilmoittautumistapa", Avain ILMOITTAUTUMISTAPA), käytetään avaimen solua, kuten ScoringLibin Speksit.etsi.
+export function avaimenIndeksi(solut, onAvain) {
+  const i = solut.findIndex(onAvain);
+  return i >= 0 && i + 1 < solut.length && onAvain(solut[i + 1]) ? i + 1 : i;
+}
+
 export function asetusJoukko(arvot) {
   return new Set(arvot.map(normalisoiAsetus));
 }
@@ -39,6 +46,7 @@ export function haeAsetusSpekseista(speksitData, avainSanat, tulkitse) {
     for (let i = 0; i < solut.length; i++) {
       const avain = normalisoiAsetus(solut[i]);
       if (!avainSanat.has(avain)) continue;
+      if (normalisoiAsetus(solut[i + 1]) === avain) continue; // selite = avain: avain on seuraava solu
 
       const arvo = solut.slice(i + 1).find(Boolean);
       const tulkinta = arvo ? tulkitse(arvo, avain) : null;
@@ -107,7 +115,7 @@ export function haeEiTuomaroivatSarjatSpekseista(speksitData) {
     : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
   let arvo = null;
   for (const rivi of rivit) {
-    const i = Array.isArray(rivi) ? rivi.findIndex((s) => normalisoiAsetus(s) === EI_TUOMAROIVAT_AVAIN) : -1;
+    const i = Array.isArray(rivi) ? avaimenIndeksi(rivi, (s) => normalisoiAsetus(s) === EI_TUOMAROIVAT_AVAIN) : -1;
     if (i >= 0) {
       arvo = rivi[i + 1];
       break;

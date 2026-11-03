@@ -102,3 +102,10 @@ test('lomakkeenTila: master-pohjan selite "Ilmoittautumistapa" ei peitä avainta
   const speksit = [['Ilmoittautumistapa', 'ILMOITTAUTUMISTAPA', 'LOMAKE', 'Ohje']];
   assert.equal(lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-01T10:00:00Z')).kaytossa, true);
 });
+
+test('lomakkeenTila: selite = avain ja tyhjä arvo ei lue avainta eikä ohjetta', () => {
+  const speksit = [['Ilmoittautumistapa', 'ILMOITTAUTUMISTAPA', '', 'LOMAKE = ScoringUI näyttää lomakkeen'], ['Lomakkeen sarjat', 'ILMOITTAUTUMISEN_SARJAT', '', 'Sarjat pilkuilla, esim. Y, N']];
+  const tila = lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-01T10:00:00Z'));
+  assert.equal(tila.kaytossa, false);
+  assert.deepEqual(tila.sarjat, []);
+});

@@ -149,7 +149,7 @@ Any other key or value is ignored and the default applies.
 ### Sections
 
 The master template groups the keys into sections by function (heading rows in the Selite column; ScoringLib's
-`KilpailuPohja.SPEKSIT_OSIOT`). Only the keys are read, never the sections or row positions, so the order is for people.
+`KilpailuPohja.SPEKSIT_OSIOT`). The sections are never read, only the keys (plus the old fallback cells noted below, such as B20 and J:L), so the order is for people.
 "UI" = ScoringUI reads it, "Lib" = only ScoringLib does; details in the tables below and in the feature sections.
 
 | Section | Keys | Read by |
@@ -166,7 +166,8 @@ The master template groups the keys into sections by function (heading rows in t
 | Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI |
 
 A Selite text can equal its own key once folded (the master had "Ilmoittautumistapa" left of `ILMOITTAUTUMISTAPA`).
-`speksiArvo` and ScoringLib's `Speksit.etsi` then use the key cell right of the Selite.
+Every UI reader (`kisaAsetukset.avaimenIndeksi`, `speksiArvo`, `haeAsetusSpekseista`, the tie-break places) and ScoringLib's
+`Speksit.etsi` then use the key cell right of the Selite. Keep each Selite different from its key all the same.
 
 ### UI settings
 

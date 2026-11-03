@@ -1,7 +1,7 @@
 // Compak-radan ampujajono aikataulusta, KISANSPEKSIT-avainten arvot ja laitteen linjan tilan tarkistus.
 // Yhteiset mobiilikirjauksen API:lle (api/_lib/kirjausData.js) ja julkiselle ratanäkymälle (src/LiveRadat.jsx).
 // Puhtaita funktioita.
-import { normalisoiAsetus } from './kisaAsetukset.js';
+import { avaimenIndeksi, normalisoiAsetus } from './kisaAsetukset.js';
 import { isLaneHeader, isTimeLike, taukoTyyppi, tunnistaRataSarakkeet } from './aikatauluRadat.js';
 
 // Suurin ampujan numero (MOBIILI-välilehden rivi = numero + 1).
@@ -17,9 +17,8 @@ export function speksiArvo(rivit, avain) {
   const sama = (s) => normalisoiAsetus(String(s ?? '').trim()) === haettava;
   for (const rivi of Array.isArray(rivit) ? rivit : []) {
     if (!Array.isArray(rivi)) continue;
-    let i = rivi.findIndex(sama);
+    const i = avaimenIndeksi(rivi, sama);
     if (i === -1) continue;
-    if (sama(rivi[i + 1])) i += 1;
     const arvo = String(rivi[i + 1] ?? '').trim();
     if (arvo) return arvo;
   }

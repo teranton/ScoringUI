@@ -3,7 +3,7 @@
 ## Unreleased
 
 - `KISANSPEKSIT` sections: the master template groups its keys into ten sections by function (see "Sections" in
-  `sheet-layout.md`). No key changes; the UI reads keys, not positions. `speksiArvo` now reads the cell right of the key
+  `sheet-layout.md`). No key changes; the UI reads keys, not positions. Every settings reader now uses the key cell
   when a Selite equal to the key sits left of it (the master's "Ilmoittautumistapa"), so `ILMOITTAUTUMISTAPA` = `LOMAKE`
   turns the form on in those sheets too.
 

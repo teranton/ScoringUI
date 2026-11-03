@@ -136,8 +136,10 @@ function haeRatkoPalkintoSija(speksiRivit) {
     if (!Array.isArray(rivi)) continue;
 
     const solut = rivi.map((solu) => String(solu || '').trim());
-    const avainIndeksi = solut.findIndex((solu) => normalisoiOtsikko(solu) === 'RATKOPALKINTOSIJA');
+    const onAvain = (solu) => normalisoiOtsikko(solu) === 'RATKOPALKINTOSIJA';
+    let avainIndeksi = solut.findIndex(onAvain);
     if (avainIndeksi === -1) continue;
+    if (onAvain(solut[avainIndeksi + 1])) avainIndeksi += 1; // selite = avain (kuten kisaAsetukset.avaimenIndeksi)
 
     const sija = Number.parseInt(solut.slice(avainIndeksi + 1).find(Boolean), 10);
     return Number.isInteger(sija) && sija > 0 ? sija : ratkoPalkintoSijaOletus;
