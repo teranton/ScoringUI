@@ -165,8 +165,11 @@ export function lomakkeenSarjat(asetus) {
   return [...new Set(String(asetus ?? '').split(/[,;]/).map(valit).filter(Boolean))];
 }
 
-// Positiivinen kokonaisluku tai 0 (tyhjä, 0 tai virheellinen).
-const kokonaisluku = (arvo) => (/^\d+$/.test(valit(arvo)) ? Number(valit(arvo)) : 0);
+// Ei-negatiivinen kokonaisluku (desimaali pyöristetään alas, myös suomalainen 2,5) tai 0 (tyhjä tai virheellinen).
+const kokonaisluku = (arvo) => {
+  const luku = Number(valit(arvo).replace(',', '.'));
+  return Number.isFinite(luku) && luku > 0 ? Math.floor(luku) : 0;
+};
 
 // Lomakkeen tila KISANSPEKSIT-riveistä: { kaytossa, auki, takaraja, sarjat, maksimi, varasijat }. maksimi 0 = ei rajaa. Lomake on käytössä vain arvolla
 // ILMOITTAUTUMISTAPA = LOMAKE, ja auki rekisterin alkupäivään (tai ILMOITTAUTUMINEN_PAATTYY-hetkeen) asti.

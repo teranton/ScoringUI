@@ -95,4 +95,5 @@ test('paikkatilanne ja ilmoittautumisenPaikka: varasijat erikseen, jono menee va
   const t = lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-10T12:00:00Z'));
   assert.equal(t.maksimi, 40);
   assert.equal(t.varasijat, 0);
+  assert.equal(lomakkeenTila([['', 'ILMOITTAUTUMISEN_MAKSIMI', '2,5']]).maksimi, 2);
 });
