@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `KISANSPEKSIT` values: every UI setting (`KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS`, `AIKATAULU_MALLI`,
+  `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, `RATKO_PALKINTO_SIJA`) now reads only the cell
+  right of its key, like ScoringLib, instead of the next non-empty cell. An empty value no longer picks up the Ohje text.
+  Checked against the registry's competition sheets: their values sit right of their keys.
+
 - `KISANSPEKSIT` sections: the master template groups its keys into ten sections by function (see "Sections" in
   `sheet-layout.md`). No key changes; the UI reads keys, not positions. On a tab with the `Selite | Avain` header row
   every settings reader looks for keys only in the Avain column (older tabs: any cell), so a Selite equal to the key (the

@@ -141,7 +141,8 @@ It depends on:
 ## `KISANSPEKSIT` settings
 
 Keys are found in the Avain column below the `Selite | Avain` header row (`kisaAsetukset.avainOsumat`); a tab without
-that header (older sheets) is searched cell by cell. The value is the next non-empty cell to the right.
+that header (older sheets) is searched cell by cell. The value is the cell right of the key only, as in ScoringLib:
+an empty value is empty, never the help text further right.
 Keys and values are matched case-insensitively with Ä/Ö/Å read as A/O/A and spaces and underscores
 ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS`. Each setting has one key and a fixed set
 of values, the forms the competition sheets use (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`).

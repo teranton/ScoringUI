@@ -54,7 +54,7 @@ test('haeStatusOverrideSpekseista lukee KILPAILUNSTATUS-avaimen riveiltä tai CS
   assert.equal(haeStatusOverrideSpekseista([['Kilpailun status', 'paused']]), 'tauolla');
   assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', 'UPCOMING']]), 'tulossa');
   assert.equal(haeStatusOverrideSpekseista('KILPAILUNSTATUS,FINISHED\n'), 'paattynyt');
-  assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', '', 'FINISHED']]), 'paattynyt');
+  assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', '', 'FINISHED']]), null);
   assert.equal(haeStatusOverrideSpekseista([['KILPAILUNSTATUS', '']]), null);
   assert.equal(haeStatusOverrideSpekseista([]), null);
   assert.equal(haeStatusOverrideSpekseista(null), null);

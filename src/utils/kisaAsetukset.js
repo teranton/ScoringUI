@@ -50,7 +50,8 @@ export function asetusTulkitsija(taulukko) {
   };
 }
 
-// Etsii riviltä asetusavaimen ja tulkitsee avaimen oikealla puolella olevan ensimmäisen ei-tyhjän solun.
+// Etsii asetusavaimen ja tulkitsee avaimen oikealla puolella olevan solun (vain viereinen solu, kuten ScoringLibin
+// Speksit: tyhjän arvon vieressä oleva Ohje-teksti ei ole arvo).
 // tulkitse(arvo, avain) palauttaa tulkinnan tai null.
 export function haeAsetusSpekseista(speksitData, avainSanat, tulkitse) {
   const rivit = Array.isArray(speksitData)
@@ -61,7 +62,7 @@ export function haeAsetusSpekseista(speksitData, avainSanat, tulkitse) {
 
   for (const [rivi, i] of avainOsumat(rivit, (s) => avainSanat.has(normalisoiAsetus(String(s ?? '').trim())))) {
     const avain = normalisoiAsetus(String(rivi[i] ?? '').trim());
-    const arvo = rivi.slice(i + 1).map((s) => String(s || '').trim()).find(Boolean);
+    const arvo = String(rivi[i + 1] ?? '').trim();
     const tulkinta = arvo ? tulkitse(arvo, avain) : null;
     if (tulkinta) return tulkinta;
   }
