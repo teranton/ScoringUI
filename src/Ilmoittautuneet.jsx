@@ -4,7 +4,7 @@ import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { haeTekstit } from './i18n';
-import { lisattavatIlmoittautuneet } from './utils/ilmoittautumiset';
+import { lisattavatIlmoittautuneet, varasijaJono } from './utils/ilmoittautumiset';
 
 // rawCsv: Ilmoittautuneet-välilehti (pääsivun nimet). lahteet: Suomisport-tuonnin ja lomakkeiden välilehdet, joiden
 // pääsivulle siirtämättömät ilmoittautumiset näytetään samassa listassa (src/utils/ilmoittautumiset.js).
@@ -78,7 +78,7 @@ export default function Ilmoittautuneet({ rawCsv, lahteet = [], locale = 'fi', s
 
     // Lähteiden ilmoittautuneet, joita ei vielä ole pääsivulla. Varasijat omana listanaan ilmoittautumisjärjestyksessä.
     const lisattavat = lisattavatIlmoittautuneet(osallistujat.map((o) => o.nimi), lahteet);
-    const varasijat = lisattavat.filter((o) => o.varalla);
+    const varasijat = varasijaJono(lisattavat);
     lisattavat.filter((o) => !o.varalla).forEach((o, i) => {
       const sarja = o.sarja || 'Määrittelemätön';
       osallistujat.push({ id: `lahde-${o.nimi}-${sarja}-${i}`, nimi: o.nimi, seura: o.seura, sarja, kilpailuNumero: '' });

@@ -11,7 +11,7 @@ import { KENTTA_MAKS, ilmoittautumisenPaikka, tarkistaLomake } from './utils/ilm
 const TYHJA = { sukunimi: '', etunimi: '', sarja: '', seura: '', sahkoposti: '', puhelin: '', lisatietoja: '', suostumus: false, kotisivu: '' };
 
 const VIRHE_TEKSTI = { pakollinen: 'errRequired', virheellinen: 'errEmail', tuntematon: 'errClass' };
-const PALVELIN_VIRHE = { kaksoiskappale: 'errDuplicate', suljettu: 'errClosed', eiKaytossa: 'errClosed', liianNopea: 'errTooFast', liianMonta: 'errTooMany', taynna: 'errFull' };
+const PALVELIN_VIRHE = { kaksoiskappale: 'errDuplicate', suljettu: 'errClosed', eiKaytossa: 'errClosed', liianNopea: 'errTooFast', liianMonta: 'errTooMany', taynna: 'full' };
 
 const kenttaLuokka = 'w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]';
 
@@ -126,7 +126,7 @@ export default function IlmoittautumisLomake({ sheetId, tila, tilanne = { osalli
             <p className="text-sm text-[hsl(var(--muted-foreground))]">{varasija ? tx.doneWaitingDetail : tx.doneDetail}</p>
             {paikka !== 'taynna' && <Button variant="outline" size="sm" onClick={avaa}>{tx.another}</Button>}
           </div>
-        ) : paikka === 'taynna' ? null : !auki ? (
+        ) : paikka === 'taynna' && !auki ? null : !auki ? (
           <Button onClick={avaa}>{paikka === 'varasija' ? tx.openWaiting : tx.open}</Button>
         ) : (
           <form className="space-y-3" onSubmit={laheta} noValidate>

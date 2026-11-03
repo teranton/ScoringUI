@@ -394,7 +394,9 @@ a leading `=`, `+`, `-` or `@` is dropped. The sheet must be shared with the wri
 
 Limit (`ILMOITTAUTUMISEN_MAKSIMI`): participants are the main tab's names plus the sources' untransferred sign-ups that
 are not on the waiting list. When they reach the limit, or anyone is already waiting, a new sign-up gets
-`VARASIJA` = its waiting position (1, 2, …; the header is added to an older tab) and the answer says so. When the
+`VARASIJA` = the next waiting number (the largest waiting number + 1, so numbers don't repeat after someone gets a
+place; the column is added to an older tab, and any header that reads as `VARASIJA` counts) and the answer gives its
+place in the queue. The list orders the waiting list by that number. When the
 waiting places (`ILMOITTAUTUMISEN_VARASIJAT`) are taken, the form shows "full" and the API answers 409 `taynna`.
 Two sign-ups at the same moment can pass the limit by one.
 

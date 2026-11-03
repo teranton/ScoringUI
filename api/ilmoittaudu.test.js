@@ -24,15 +24,16 @@ function luoTaulukko(valilehdet) {
         return { values: taulukko[tab] };
       }) } };
     }
+    if (u.pathname.endsWith(':batchUpdate') && data.requests[0].appendDimension) {
+      const title = Object.keys(taulukko)[data.requests[0].appendDimension.sheetId];
+      const solu = data.requests[1].updateCells;
+      taulukko[title][0][solu.start.columnIndex] = solu.rows[0].values[0].userEnteredValue.stringValue;
+      return { data: {} };
+    }
     if (u.pathname.endsWith(':batchUpdate')) {
       const title = data.requests[0].addSheet.properties.title;
       if (taulukko[title]) throw Object.assign(new Error('x'), { response: { status: 400, data: 'already exists' } });
       taulukko[title] = [data.requests[1].updateCells.rows[0].values.map((v) => v.userEnteredValue.stringValue)];
-      return { data: {} };
-    }
-    if (method === 'PUT') {
-      const [, tab, sarake] = decodeURIComponent(u.pathname).match(/values\/'(.+)'!([A-Z]+)1$/);
-      taulukko[tab][0][sarake.charCodeAt(0) - 65] = data.values[0][0];
       return { data: {} };
     }
     const tab = decodeURIComponent(u.pathname).match(/values\/'(.+)'!A1/)[1];
@@ -157,4 +158,12 @@ test('varasijalla odottava menee vapautuneen paikan edelle', async () => {
     ILMOITTAUTUMISET: [['NIMI', 'SIIRRETTY', 'VARASIJA'], ['Odottaja Olli', '', '1']] });
   const tulos = await ilmoittaudu({ request: t.request, sheetId: ID, kisa: KISA, runko: RUNKO, nyt: NYT });
   assert.equal(tulos.body.varasija, 2);
+});
+
+test('varasijan numero ei toistu paikan saaneen jälkeen, ampujalle kerrotaan sija jonossa', async () => {
+  const t = luoTaulukko({ KISANSPEKSIT: RAJA(3, 5), Ilmoittautuneet: PAASIVU(3),
+    ILMOITTAUTUMISET: [['NIMI', 'SIIRRETTY', 'Varasija (numero)'], ['Kolmas Kalle', '', '3'], ['Toinen Tiina', '', '2']] });
+  const tulos = await ilmoittaudu({ request: t.request, sheetId: ID, kisa: KISA, runko: RUNKO, nyt: NYT });
+  assert.equal(tulos.body.varasija, 3);
+  assert.deepEqual(t.taulukko.ILMOITTAUTUMISET[3], ['Meikäläinen Matti', '', '4']);
 });

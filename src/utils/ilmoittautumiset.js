@@ -47,7 +47,7 @@ export function nimiAvain(nimi) {
     .split(' ').filter(Boolean).sort().join(' ');
 }
 
-// Lähdevälilehden ilmoittautumiset [{ nimi, sarja, seura, varalla }]: rivit, joilla on nimi, ja oletuksena vain siirtämättömät.
+// Lähdevälilehden ilmoittautumiset [{ nimi, sarja, seura, varalla, varasija? }] (varasija: VARASIJA-solun numero, jono): rivit, joilla on nimi, ja oletuksena vain siirtämättömät.
 // Erilliset suku- ja etunimet yhdistetään muotoon "Sukunimi Etunimi" kuten Suomisport-tuonnissa.
 // lahde: CSV-teksti tai rivit (taulukko taulukoita).
 export function lahteenIlmoittautuneet(lahde, { myosSiirretyt = false } = {}) {
@@ -64,7 +64,8 @@ export function lahteenIlmoittautuneet(lahde, { myosSiirretyt = false } = {}) {
     if (!myosSiirretyt && solu(rivi, 'siirretty')) continue;
     const nimi = solu(rivi, 'nimi') ? muotoileNimi(solu(rivi, 'nimi')) : lomakkeenNimi(solu(rivi, 'sukunimi'), solu(rivi, 'etunimi'));
     if (!nimi || /^\d+$/.test(nimi)) continue;
-    tulos.push({ nimi, sarja: solu(rivi, 'sarja'), seura: solu(rivi, 'seura'), varalla: Boolean(solu(rivi, 'varasija')) });
+    const varalla = Boolean(solu(rivi, 'varasija'));
+    tulos.push({ nimi, sarja: solu(rivi, 'sarja'), seura: solu(rivi, 'seura'), varalla, ...(varalla ? { varasija: parseInt(solu(rivi, 'varasija'), 10) || 0 } : {}) });
   }
   return tulos;
 }
@@ -96,11 +97,19 @@ export function ilmoittautuneidenNimet(lahde) {
   return rivit.slice(otsikkoRivi + 1).map((r) => valit((r || [])[sarake])).filter((n) => n && !/^\d+$/.test(n) && !/päivitetty/i.test(n));
 }
 
-// Paikkatilanne: { osallistujia (pääsivu + siirtämättömät, ei varasijoja), varalla (siirtämättömät varasijat) }.
+// Varasijalla odottavat jonossa: VARASIJA-numeron mukaan, sitten lähteen järjestyksessä.
+export function varasijaJono(lisattavat) {
+  return lisattavat.filter((o) => o.varalla).map((o, i) => ({ o, i }))
+    .sort((a, b) => (a.o.varasija || Infinity) - (b.o.varasija || Infinity) || a.i - b.i).map(({ o }) => o);
+}
+
+// Paikkatilanne: { osallistujia (pääsivu + siirtämättömät, ei varasijoja), varalla (siirtämättömät varasijat), seuraava
+// (uuden varasijan VARASIJA-numero: suurin + 1, jotta paikan saaneen jälkeen numerot eivät toistu) }.
 export function paikkatilanne(nimet, lahteet) {
   const lisattavat = lisattavatIlmoittautuneet(nimet, lahteet);
-  const varalla = lisattavat.filter((o) => o.varalla).length;
-  return { osallistujia: (nimet || []).length + lisattavat.length - varalla, varalla };
+  const jono = lisattavat.filter((o) => o.varalla);
+  const seuraava = Math.max(jono.length, ...jono.map((o) => o.varasija || 0)) + 1;
+  return { osallistujia: (nimet || []).length + lisattavat.length - jono.length, varalla: jono.length, seuraava };
 }
 
 // Uuden ilmoittautumisen paikka: 'paikka', 'varasija' tai 'taynna'. Kun varasijoilla on ampujia, uusi menee niiden

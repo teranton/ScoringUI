@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   helsinginHetki, ilmoittautumisenTakaraja, lahdeSarake, lahteenIlmoittautuneet, lisattavatIlmoittautuneet, lomakkeenNimi,
-  ilmoittautumisenPaikka, lomakkeenSarjat, lomakkeenTila, nimiAvain, paikkatilanne, tarkistaLomake
+  ilmoittautumisenPaikka, lomakkeenSarjat, lomakkeenTila, nimiAvain, paikkatilanne, tarkistaLomake, varasijaJono
 } from './ilmoittautumiset.js';
 
 test('lahdeSarake tunnistaa nimen, sarjan, seuran ja siirtomerkinnän, muut sarakkeet eivät lähde', () => {
@@ -82,7 +82,8 @@ test('lomakkeenNimi: Sukunimi Etunimi, kirjoitusasu säilyy, jos siinä on isoja
 
 test('paikkatilanne ja ilmoittautumisenPaikka: varasijat erikseen, jono menee vapautuneen paikan edelle', () => {
   const lomake = [['NIMI', 'SIIRRETTY', 'VARASIJA'], ['Uusi Ulla', '', ''], ['Odottaja Olli', '', '1'], ['Vanha Ville', '1.11.2026', '']];
-  assert.deepEqual(paikkatilanne(['A B', 'C D'], [lomake]), { osallistujia: 3, varalla: 1 });
+  assert.deepEqual(paikkatilanne(['A B', 'C D'], [lomake]), { osallistujia: 3, varalla: 1, seuraava: 2 });
+  assert.deepEqual(varasijaJono(lahteenIlmoittautuneet([['NIMI', 'VARASIJA'], ['C', '3'], ['B', 'x'], ['A', '2']])).map((o) => o.nimi), ['A', 'C', 'B']);
   const tila = { maksimi: 4, varasijat: 2 };
   assert.equal(ilmoittautumisenPaikka({ maksimi: 0 }, { osallistujia: 99, varalla: 0 }), 'paikka');
   assert.equal(ilmoittautumisenPaikka(tila, { osallistujia: 3, varalla: 0 }), 'paikka');
