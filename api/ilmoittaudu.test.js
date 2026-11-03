@@ -30,6 +30,11 @@ function luoTaulukko(valilehdet) {
       taulukko[title] = [data.requests[1].updateCells.rows[0].values.map((v) => v.userEnteredValue.stringValue)];
       return { data: {} };
     }
+    if (method === 'PUT') {
+      const [, tab, sarake] = decodeURIComponent(u.pathname).match(/values\/'(.+)'!([A-Z]+)1$/);
+      taulukko[tab][0][sarake.charCodeAt(0) - 65] = data.values[0][0];
+      return { data: {} };
+    }
     const tab = decodeURIComponent(u.pathname).match(/values\/'(.+)'!A1/)[1];
     taulukko[tab].push(...data.values);
     return { data: {} };
@@ -123,4 +128,33 @@ test('käsittelijä: piilokenttä näyttää onnistuneelta mutta ei kirjoita, li
   const get = vastaus();
   await handler({ method: 'GET', headers: {} }, get);
   assert.equal(get.koodi, 405);
+});
+
+const RAJA = (maksimi, varasijat) => [...SPEKSIT, ['', 'ILMOITTAUTUMISEN_MAKSIMI', String(maksimi)], ['', 'ILMOITTAUTUMISEN_VARASIJAT', String(varasijat)]];
+const PAASIVU = (n) => [['NRO', 'NIMI'], ...Array.from({ length: n }, (_, i) => [String(i + 1), `Ampuja ${String.fromCharCode(65 + i)}`])];
+
+test('enimmäismäärä: täynnä mennään varasijalle numerolla, varasijojen jälkeen torjutaan', async () => {
+  const vapaa = luoTaulukko({ KISANSPEKSIT: RAJA(3, 2), Ilmoittautuneet: PAASIVU(2) });
+  const ok = await ilmoittaudu({ request: vapaa.request, sheetId: ID, kisa: KISA, runko: RUNKO, nyt: NYT });
+  assert.deepEqual(ok.body, { ok: true, nimi: 'Meikäläinen Matti', sarja: 'Y56', seura: 'NoSA' });
+
+  // Vanha lomakevälilehti ilman VARASIJA-saraketta: otsikko lisätään
+  const taysi = luoTaulukko({ KISANSPEKSIT: RAJA(3, 2), Ilmoittautuneet: PAASIVU(2), ILMOITTAUTUMISET: [['NIMI', 'SARJA', 'SIIRRETTY'], ['Uusi Ulla', 'Y', '']] });
+  const vara = await ilmoittaudu({ request: taysi.request, sheetId: ID, kisa: KISA, runko: RUNKO, nyt: NYT });
+  assert.equal(vara.body.varasija, 1);
+  assert.deepEqual(taysi.taulukko.ILMOITTAUTUMISET[0], ['NIMI', 'SARJA', 'SIIRRETTY', 'VARASIJA']);
+  assert.deepEqual(taysi.taulukko.ILMOITTAUTUMISET[2], ['Meikäläinen Matti', 'Y56', '', '1']);
+  const toinen = await ilmoittaudu({ request: taysi.request, sheetId: ID, kisa: KISA, runko: { ...RUNKO, etunimi: 'Maija' }, nyt: NYT });
+  assert.equal(toinen.body.varasija, 2);
+  const kolmas = await ilmoittaudu({ request: taysi.request, sheetId: ID, kisa: KISA, runko: { ...RUNKO, etunimi: 'Mikko' }, nyt: NYT });
+  assert.equal(kolmas.status, 409);
+  assert.equal(kolmas.body.koodi, 'taynna');
+  assert.equal(taysi.taulukko.ILMOITTAUTUMISET.length, 4);
+});
+
+test('varasijalla odottava menee vapautuneen paikan edelle', async () => {
+  const t = luoTaulukko({ KISANSPEKSIT: RAJA(3, 2), Ilmoittautuneet: PAASIVU(2),
+    ILMOITTAUTUMISET: [['NIMI', 'SIIRRETTY', 'VARASIJA'], ['Odottaja Olli', '', '1']] });
+  const tulos = await ilmoittaudu({ request: t.request, sheetId: ID, kisa: KISA, runko: RUNKO, nyt: NYT });
+  assert.equal(tulos.body.varasija, 2);
 });

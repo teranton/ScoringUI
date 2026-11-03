@@ -39,7 +39,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   (`src/utils/ilmoittautumiset.js`; the API serves only their name, class, club and `SIIRRETTY` columns). With
   `KISANSPEKSIT` `ILMOITTAUTUMISTAPA` = `LOMAKE` the tab also shows a sign-up form (`src/IlmoittautumisLomake.jsx`) that
   posts to `api/ilmoittaudu.js`, which appends to `ILMOITTAUTUMISET` with the writer account (never the main tab;
-  honeypot, minimum fill time, per-IP and per-competition limits, duplicate names refused). ScoringLib copies sign-ups
+  honeypot, minimum fill time, per-IP and per-competition limits, duplicate names refused; `ILMOITTAUTUMISEN_MAKSIMI` /
+  `ILMOITTAUTUMISEN_VARASIJAT`: past the limit a sign-up gets a waiting place, marked in the `VARASIJA` column, then the form is full). ScoringLib copies sign-ups
   to the main tab and marks `SIIRRETTY`.
 - Public live view ("Radat live" tab, `src/LiveRadat.jsx`, `src/utils/mobiiliLive.js`): a read-only mirror of the Compak
   entry screen per layout, shown for a running competition whose `MOBIILI_LAITTEET` has layouts. It reads `MOBIILI Rata N`

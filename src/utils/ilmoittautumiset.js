@@ -8,7 +8,7 @@ import { speksiArvo } from './radanJono.js';
 import { parsiPaivamaara } from './kisaStatus.js';
 
 export const LOMAKE_VALILEHTI = 'ILMOITTAUTUMISET';
-export const LOMAKE_OTSIKKO = ['AIKALEIMA', 'SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SÄHKÖPOSTI', 'PUHELIN', 'LISÄTIETOJA', 'SIIRRETTY'];
+export const LOMAKE_OTSIKKO = ['AIKALEIMA', 'SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SÄHKÖPOSTI', 'PUHELIN', 'LISÄTIETOJA', 'SIIRRETTY', 'VARASIJA'];
 export const SUOMISPORT_VALILEHTI = 'Suomisport Import';
 // Google-lomakkeen vastausvälilehti on suomeksi "Lomakevastaukset 1", englanniksi "Form Responses 1". Lista lukee vain
 // ensimmäisen; api/ilmoittaudu.js ja ScoringLib käyvät läpi kaikki numerot (GOOGLE_LOMAKE).
@@ -27,11 +27,13 @@ const OTSIKOT = {
   etunimi: ['ETUNIMI', 'ETUNIMET', 'FIRST NAME', 'FIRSTNAME'],
   sarja: ['SARJA', 'CLASS', 'LUOKKA', 'KILPAILUSARJA'],
   seura: ['SEURA', 'CLUB', 'EDUSTAMASI SEURA', 'EDUSTETTAVA SEURA'],
-  siirretty: ['SIIRRETTY']
+  siirretty: ['SIIRRETTY'],
+  // Varasijalle ilmoittautunut (numero); järjestäjä tyhjentää solun, kun ampuja saa paikan.
+  varasija: ['VARASIJA']
 };
 const OTSIKKO_TYYPPI = new Map(Object.entries(OTSIKOT).flatMap(([tyyppi, nimet]) => nimet.map((n) => [n, tyyppi])));
 
-// Lähdevälilehden sarakkeen merkitys otsikosta: 'nimi', 'sukunimi', 'etunimi', 'sarja', 'seura', 'siirretty' tai null
+// Lähdevälilehden sarakkeen merkitys otsikosta: 'nimi', 'sukunimi', 'etunimi', 'sarja', 'seura', 'siirretty', 'varasija' tai null
 // (muut sarakkeet, esim. Sportti-ID, HUOM, sähköposti, eivät lähde API:sta). Sama sääntö ScoringLibin Ilmoittautumiset.js:ssä.
 export function lahdeSarake(otsikko) {
   return OTSIKKO_TYYPPI.get(sanat(otsikko).join(' ')) || null;
@@ -45,7 +47,7 @@ export function nimiAvain(nimi) {
     .split(' ').filter(Boolean).sort().join(' ');
 }
 
-// Lähdevälilehden ilmoittautumiset [{ nimi, sarja, seura }]: rivit, joilla on nimi, ja oletuksena vain siirtämättömät.
+// Lähdevälilehden ilmoittautumiset [{ nimi, sarja, seura, varalla }]: rivit, joilla on nimi, ja oletuksena vain siirtämättömät.
 // Erilliset suku- ja etunimet yhdistetään muotoon "Sukunimi Etunimi" kuten Suomisport-tuonnissa.
 // lahde: CSV-teksti tai rivit (taulukko taulukoita).
 export function lahteenIlmoittautuneet(lahde, { myosSiirretyt = false } = {}) {
@@ -62,7 +64,7 @@ export function lahteenIlmoittautuneet(lahde, { myosSiirretyt = false } = {}) {
     if (!myosSiirretyt && solu(rivi, 'siirretty')) continue;
     const nimi = solu(rivi, 'nimi') ? muotoileNimi(solu(rivi, 'nimi')) : lomakkeenNimi(solu(rivi, 'sukunimi'), solu(rivi, 'etunimi'));
     if (!nimi || /^\d+$/.test(nimi)) continue;
-    tulos.push({ nimi, sarja: solu(rivi, 'sarja'), seura: solu(rivi, 'seura') });
+    tulos.push({ nimi, sarja: solu(rivi, 'sarja'), seura: solu(rivi, 'seura'), varalla: Boolean(solu(rivi, 'varasija')) });
   }
   return tulos;
 }
@@ -81,6 +83,32 @@ export function lisattavatIlmoittautuneet(nimet, lahdeCsvt) {
     }
   }
   return lisattavat;
+}
+
+// Ilmoittautuneet-välilehden nimet (otsikko "NIMI" ensimmäisillä riveillä; master-pohjassa otsikko on rivillä 2).
+// Pelkkä numero on vapaa paikka. rivit: CSV-teksti tai taulukko taulukoita.
+export function ilmoittautuneidenNimet(lahde) {
+  const rivit = Array.isArray(lahde) ? lahde : parseCsvRows(lahde || '');
+  const onNimi = (s) => String(s ?? '').trim().toUpperCase() === 'NIMI';
+  const otsikkoRivi = rivit.findIndex((r) => (r || []).some(onNimi));
+  if (otsikkoRivi === -1) return [];
+  const sarake = rivit[otsikkoRivi].findIndex(onNimi);
+  return rivit.slice(otsikkoRivi + 1).map((r) => valit((r || [])[sarake])).filter((n) => n && !/^\d+$/.test(n) && !/päivitetty/i.test(n));
+}
+
+// Paikkatilanne: { osallistujia (pääsivu + siirtämättömät, ei varasijoja), varalla (siirtämättömät varasijat) }.
+export function paikkatilanne(nimet, lahteet) {
+  const lisattavat = lisattavatIlmoittautuneet(nimet, lahteet);
+  const varalla = lisattavat.filter((o) => o.varalla).length;
+  return { osallistujia: (nimet || []).length + lisattavat.length - varalla, varalla };
+}
+
+// Uuden ilmoittautumisen paikka: 'paikka', 'varasija' tai 'taynna'. Kun varasijoilla on ampujia, uusi menee niiden
+// perään, vaikka paikka olisi vapautunut: järjestäjä tarjoaa vapautuneen paikan ensin varasijalle.
+export function ilmoittautumisenPaikka(tila, { osallistujia, varalla }) {
+  if (!tila?.maksimi) return 'paikka';
+  if (osallistujia < tila.maksimi && varalla === 0) return 'paikka';
+  return varalla < (tila.varasijat || 0) ? 'varasija' : 'taynna';
 }
 
 // --- Lomakkeen asetukset (KISANSPEKSIT) ---
@@ -128,7 +156,10 @@ export function lomakkeenSarjat(asetus) {
   return [...new Set(String(asetus ?? '').split(/[,;]/).map(valit).filter(Boolean))];
 }
 
-// Lomakkeen tila KISANSPEKSIT-riveistä: { kaytossa, auki, takaraja, sarjat }. Lomake on käytössä vain arvolla
+// Positiivinen kokonaisluku tai 0 (tyhjä, 0 tai virheellinen).
+const kokonaisluku = (arvo) => (/^\d+$/.test(valit(arvo)) ? Number(valit(arvo)) : 0);
+
+// Lomakkeen tila KISANSPEKSIT-riveistä: { kaytossa, auki, takaraja, sarjat, maksimi, varasijat }. maksimi 0 = ei rajaa. Lomake on käytössä vain arvolla
 // ILMOITTAUTUMISTAPA = LOMAKE, ja auki rekisterin alkupäivään (tai ILMOITTAUTUMINEN_PAATTYY-hetkeen) asti.
 export function lomakkeenTila(speksiRivit, alkuPvm, nyt = new Date()) {
   const kaytossa = speksiArvo(speksiRivit, 'ILMOITTAUTUMISTAPA').toUpperCase() === 'LOMAKE';
@@ -137,7 +168,9 @@ export function lomakkeenTila(speksiRivit, alkuPvm, nyt = new Date()) {
     kaytossa,
     auki: kaytossa && Boolean(takaraja) && nyt < takaraja,
     takaraja,
-    sarjat: lomakkeenSarjat(speksiArvo(speksiRivit, 'ILMOITTAUTUMISEN_SARJAT'))
+    sarjat: lomakkeenSarjat(speksiArvo(speksiRivit, 'ILMOITTAUTUMISEN_SARJAT')),
+    maksimi: kokonaisluku(speksiArvo(speksiRivit, 'ILMOITTAUTUMISEN_MAKSIMI')),
+    varasijat: kokonaisluku(speksiArvo(speksiRivit, 'ILMOITTAUTUMISEN_VARASIJAT'))
   };
 }
 

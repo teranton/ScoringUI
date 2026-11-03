@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Sign-up limit and waiting list: new `KISANSPEKSIT` keys `ILMOITTAUTUMISEN_MAKSIMI` and `ILMOITTAUTUMISEN_VARASIJAT`,
+  and a `VARASIJA` column in the sign-up sources (served by `api/kisa.js`, written by `api/ilmoittaudu.js` in
+  `ILMOITTAUTUMISET`). ScoringLib leaves waiting-list rows off the main tab until the office empties the cell.
+  Additive: without the keys nothing changes.
+
 - `ILMOITTAUTUMINEN_PAATTYY` at `00:00` now means the end of that day, as a date without a time does. The master's cell
   is a date picker formatted `d.m.yyyy hh:mm`, so a picked date shows `00:00`. Additive: other times are read as before.
 

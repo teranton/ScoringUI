@@ -6,12 +6,12 @@ import { useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { haeTekstit } from './i18n';
-import { KENTTA_MAKS, tarkistaLomake } from './utils/ilmoittautumiset';
+import { KENTTA_MAKS, ilmoittautumisenPaikka, tarkistaLomake } from './utils/ilmoittautumiset';
 
 const TYHJA = { sukunimi: '', etunimi: '', sarja: '', seura: '', sahkoposti: '', puhelin: '', lisatietoja: '', suostumus: false, kotisivu: '' };
 
 const VIRHE_TEKSTI = { pakollinen: 'errRequired', virheellinen: 'errEmail', tuntematon: 'errClass' };
-const PALVELIN_VIRHE = { kaksoiskappale: 'errDuplicate', suljettu: 'errClosed', eiKaytossa: 'errClosed', liianNopea: 'errTooFast', liianMonta: 'errTooMany' };
+const PALVELIN_VIRHE = { kaksoiskappale: 'errDuplicate', suljettu: 'errClosed', eiKaytossa: 'errClosed', liianNopea: 'errTooFast', liianMonta: 'errTooMany', taynna: 'errFull' };
 
 const kenttaLuokka = 'w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]';
 
@@ -22,9 +22,10 @@ function muotoileTakaraja(takaraja, locale) {
   }).format(takaraja);
 }
 
-// tila: lomakkeenTila (kaytossa, auki, takaraja, sarjat). onIlmoittauduttu({ nimi, sarja, seura }) näyttää nimen
-// listassa heti, ennen kuin API:n välimuisti päivittyy.
-export default function IlmoittautumisLomake({ sheetId, tila, locale = 'fi', onIlmoittauduttu }) {
+// tila: lomakkeenTila (kaytossa, auki, takaraja, sarjat, maksimi, varasijat). tilanne: paikkatilanne (osallistujia,
+// varalla). onIlmoittauduttu({ nimi, sarja, seura, varasija }) näyttää nimen listassa heti, ennen kuin API:n välimuisti
+// päivittyy.
+export default function IlmoittautumisLomake({ sheetId, tila, tilanne = { osallistujia: 0, varalla: 0 }, locale = 'fi', onIlmoittauduttu }) {
   const tx = haeTekstit('ilmoittautuminen', locale);
   const [auki, setAuki] = useState(false);
   const [arvot, setArvot] = useState(TYHJA);
@@ -32,9 +33,11 @@ export default function IlmoittautumisLomake({ sheetId, tila, locale = 'fi', onI
   const [viesti, setViesti] = useState('');
   const [lahetetaan, setLahetetaan] = useState(false);
   const [valmis, setValmis] = useState(false);
+  const [varasija, setVarasija] = useState(0);
   const avattuRef = useRef(0);
 
   if (!tila?.auki) return null;
+  const paikka = ilmoittautumisenPaikka(tila, tilanne);
 
   const avaa = () => {
     avattuRef.current = Date.now();
@@ -70,7 +73,8 @@ export default function IlmoittautumisLomake({ sheetId, tila, locale = 'fi', onI
       });
       const data = await vastaus.json().catch(() => ({}));
       if (vastaus.ok && data.ok) {
-        if (data.nimi) onIlmoittauduttu?.({ nimi: data.nimi, sarja: data.sarja || '', seura: data.seura || '' });
+        if (data.nimi) onIlmoittauduttu?.({ nimi: data.nimi, sarja: data.sarja || '', seura: data.seura || '', varasija: data.varasija || 0 });
+        setVarasija(Number(data.varasija) || 0);
         setValmis(true);
         setArvot(TYHJA);
         return;
@@ -105,16 +109,25 @@ export default function IlmoittautumisLomake({ sheetId, tila, locale = 'fi', onI
       <CardHeader className="gap-1 pb-4">
         <CardTitle className="text-xl">{tx.title}</CardTitle>
         <CardDescription>{tx.description.replace('{aika}', muotoileTakaraja(tila.takaraja, locale))}</CardDescription>
+        {tila.maksimi > 0 && (
+          <p className="text-sm font-medium text-[hsl(var(--foreground))]">
+            {paikka === 'paikka'
+              ? tx.placesLeft.replace('{vapaana}', Math.max(tila.maksimi - tilanne.osallistujia, 0)).replace('{maksimi}', tila.maksimi)
+              : paikka === 'varasija'
+                ? tx.waitingOpen.replace('{vapaana}', tila.varasijat - tilanne.varalla)
+                : tx.full}
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         {valmis ? (
           <div className="space-y-3" role="status">
-            <p className="font-medium text-emerald-700">{tx.done}</p>
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">{tx.doneDetail}</p>
-            <Button variant="outline" size="sm" onClick={avaa}>{tx.another}</Button>
+            <p className="font-medium text-emerald-700">{varasija ? tx.doneWaiting.replace('{n}', varasija) : tx.done}</p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">{varasija ? tx.doneWaitingDetail : tx.doneDetail}</p>
+            {paikka !== 'taynna' && <Button variant="outline" size="sm" onClick={avaa}>{tx.another}</Button>}
           </div>
-        ) : !auki ? (
-          <Button onClick={avaa}>{tx.open}</Button>
+        ) : paikka === 'taynna' ? null : !auki ? (
+          <Button onClick={avaa}>{paikka === 'varasija' ? tx.openWaiting : tx.open}</Button>
         ) : (
           <form className="space-y-3" onSubmit={laheta} noValidate>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -155,7 +168,7 @@ export default function IlmoittautumisLomake({ sheetId, tila, locale = 'fi', onI
             {virhe('suostumus')}
             {viesti && <p className="text-sm font-medium text-rose-600" role="alert">{viesti}</p>}
             <div className="flex gap-2">
-              <Button type="submit" disabled={lahetetaan}>{lahetetaan ? tx.sending : tx.submit}</Button>
+              <Button type="submit" disabled={lahetetaan}>{lahetetaan ? tx.sending : paikka === 'varasija' ? tx.submitWaiting : tx.submit}</Button>
               <Button type="button" variant="outline" onClick={() => setAuki(false)} disabled={lahetetaan}>{tx.cancel}</Button>
             </div>
           </form>

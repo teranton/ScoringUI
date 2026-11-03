@@ -16,7 +16,7 @@ export default function Ilmoittautuneet({ rawCsv, lahteet = [], locale = 'fi', s
 
   const tx = haeTekstit('ilmoittautuneet', locale);
 
-  const { ryhmitellytSarjat, kokonaismaara } = useMemo(() => {
+  const { ryhmitellytSarjat, kokonaismaara, varasijat } = useMemo(() => {
     const raakaRivit = parseCsvRows(rawCsv || '');
 
     // 1. Etsitään oikeat sarakkeet ensimmäiseltä riviltä tekstien perusteella
@@ -76,8 +76,10 @@ export default function Ilmoittautuneet({ rawCsv, lahteet = [], locale = 'fi', s
       });
     }
 
-    // Lähteiden ilmoittautuneet, joita ei vielä ole pääsivulla
-    lisattavatIlmoittautuneet(osallistujat.map((o) => o.nimi), lahteet).forEach((o, i) => {
+    // Lähteiden ilmoittautuneet, joita ei vielä ole pääsivulla. Varasijat omana listanaan ilmoittautumisjärjestyksessä.
+    const lisattavat = lisattavatIlmoittautuneet(osallistujat.map((o) => o.nimi), lahteet);
+    const varasijat = lisattavat.filter((o) => o.varalla);
+    lisattavat.filter((o) => !o.varalla).forEach((o, i) => {
       const sarja = o.sarja || 'Määrittelemätön';
       osallistujat.push({ id: `lahde-${o.nimi}-${sarja}-${i}`, nimi: o.nimi, seura: o.seura, sarja, kilpailuNumero: '' });
     });
@@ -94,10 +96,10 @@ export default function Ilmoittautuneet({ rawCsv, lahteet = [], locale = 'fi', s
       ryhmittely[o.sarja].push(o);
     });
 
-    return { ryhmitellytSarjat: ryhmittely, kokonaismaara };
+    return { ryhmitellytSarjat: ryhmittely, kokonaismaara, varasijat };
   }, [rawCsv, lahteet]);
 
-  if (Object.keys(ryhmitellytSarjat).length === 0) return null;
+  if (Object.keys(ryhmitellytSarjat).length === 0 && varasijat.length === 0) return null;
 
   return (
     <Card className="border-slate-200">
@@ -135,6 +137,25 @@ export default function Ilmoittautuneet({ rawCsv, lahteet = [], locale = 'fi', s
             </div>
           </section>
         ))}
+        {varasijat.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center justify-between rounded-md bg-amber-50 px-3 py-2">
+              <h3 className="text-sm font-semibold text-amber-900">{tx.waitingList}</h3>
+              <Badge variant="default" className="bg-white text-slate-600">
+                {varasijat.length} {tx.shooters}
+              </Badge>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {varasijat.map((o, i) => (
+                <div key={`varasija-${o.nimi}`} className="grid grid-cols-[2rem_minmax(0,1fr)_7rem] items-center gap-3 py-2 text-sm md:grid-cols-[2rem_minmax(0,1fr)_8rem]">
+                  <span className="text-slate-500">{i + 1}.</span>
+                  <span translate="no" className="truncate font-medium text-slate-900">{o.nimi}</span>
+                  <span translate="no" className="truncate text-slate-500">{o.sarja ? `${o.sarja} · ` : ''}{o.seura || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </CardContent>
     </Card>
   );

@@ -4,7 +4,7 @@ import HenkiloTulokset from './HenkiloTulokset';
 import JoukkueTulokset from './JoukkueTulokset';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import IlmoittautumisLomake from './IlmoittautumisLomake';
-import { lisattavatIlmoittautuneet, lomakkeenTila } from './utils/ilmoittautumiset';
+import { ilmoittautuneidenNimet, lisattavatIlmoittautuneet, lomakkeenTila, paikkatilanne } from './utils/ilmoittautumiset';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import RankingTulokset from './RankingTulokset';
 import RyhmaJako from './RyhmaJako';
@@ -275,9 +275,13 @@ export default function App() {
   const ilmoittautumisLahteet = useMemo(() => {
     const lahteet = nykyisenKisanData?.ilmoittautumisLahteet || [];
     if (!omatIlmot?.length) return lahteet;
-    const csv = ['NIMI,SARJA,SEURA', ...omatIlmot.map((o) => [o.nimi, o.sarja, o.seura].map((t) => `"${String(t).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const csv = ['NIMI,SARJA,SEURA,VARASIJA', ...omatIlmot.map((o) => [o.nimi, o.sarja, o.seura, o.varasija || ''].map((t) => `"${String(t).replace(/"/g, '""')}"`).join(','))].join('\n');
     return [...lahteet, csv];
   }, [nykyisenKisanData?.ilmoittautumisLahteet, omatIlmot]);
+  const ilmoittautumisTilanne = useMemo(
+    () => paikkatilanne(ilmoittautuneidenNimet(nykyisenKisanData?.ilmoittautuneetCsvRaw), ilmoittautumisLahteet),
+    [nykyisenKisanData?.ilmoittautuneetCsvRaw, ilmoittautumisLahteet]
+  );
   const lisaaOmaIlmoittautuminen = useCallback((ilmo) => {
     const sheetId = valittuKisa?.apiUrl;
     if (!sheetId) return;
@@ -659,6 +663,7 @@ export default function App() {
               <IlmoittautumisLomake
                 sheetId={valittuKisa.apiUrl}
                 tila={ilmoittautumisLomake}
+                tilanne={ilmoittautumisTilanne}
                 locale={locale}
                 onIlmoittauduttu={lisaaOmaIlmoittautuminen}
               />
