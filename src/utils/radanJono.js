@@ -10,13 +10,16 @@ export const MAKS_NRO = 999;
 export const puhdasTeksti = (t, maks) => [...String(t ?? '')].filter((c) => c >= ' ' && c !== '\u007f').join('').trim().slice(0, maks);
 
 // KISANSPEKSIT-avaimen arvo: avaimen oikealla puolella oleva solu, kuten ScoringLibin Speksit
-// (tyhjän arvon viereinen Ohje-sarake ei saa näkyä arvona).
+// (tyhjän arvon viereinen Ohje-sarake ei saa näkyä arvona). Jos selite on sama kuin avain
+// (Selite "Ilmoittautumistapa", Avain ILMOITTAUTUMISTAPA), arvo on avaimen eikä selitteen oikealla puolella.
 export function speksiArvo(rivit, avain) {
   const haettava = normalisoiAsetus(avain);
+  const sama = (s) => normalisoiAsetus(String(s ?? '').trim()) === haettava;
   for (const rivi of Array.isArray(rivit) ? rivit : []) {
     if (!Array.isArray(rivi)) continue;
-    const i = rivi.findIndex((s) => normalisoiAsetus(String(s ?? '').trim()) === haettava);
+    let i = rivi.findIndex(sama);
     if (i === -1) continue;
+    if (sama(rivi[i + 1])) i += 1;
     const arvo = String(rivi[i + 1] ?? '').trim();
     if (arvo) return arvo;
   }

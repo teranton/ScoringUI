@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `KISANSPEKSIT` sections: the master template groups its keys into ten sections by function (see "Sections" in
+  `sheet-layout.md`). No key changes; the UI reads keys, not positions. `speksiArvo` now reads the cell right of the key
+  when a Selite equal to the key sits left of it (the master's "Ilmoittautumistapa"), so `ILMOITTAUTUMISTAPA` = `LOMAKE`
+  turns the form on in those sheets too.
+
 - Sign-up limit and waiting list: new `KISANSPEKSIT` keys `ILMOITTAUTUMISEN_MAKSIMI` and `ILMOITTAUTUMISEN_VARASIJAT`,
   and a `VARASIJA` column in the sign-up sources (served by `api/kisa.js`, written by `api/ilmoittaudu.js` in
   `ILMOITTAUTUMISET`). ScoringLib leaves waiting-list rows off the main tab until the office empties the cell.

@@ -146,6 +146,30 @@ ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS`. Each setting has
 of values, the forms the competition sheets use (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`).
 Any other key or value is ignored and the default applies.
 
+### Sections
+
+The master template groups the keys into sections by function (heading rows in the Selite column; ScoringLib's
+`KilpailuPohja.SPEKSIT_OSIOT`). Only the keys are read, never the sections or row positions, so the order is for people.
+"UI" = ScoringUI reads it, "Lib" = only ScoringLib does; details in the tables below and in the feature sections.
+
+| Section | Keys | Read by |
+|---|---|---|
+| Kisan aikana | `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS` | UI |
+| Kilpailun rakenne | `KILPAILUTYYPPI`, `OSALLISTUJAT`, `LAYOUT/KISA`, `Asemien määrä`, `Päivätuloksia kpl` | `LAYOUT/KISA` UI and Lib, others Lib |
+| Radat ja asemat | `RATAn_NIMI`, `RATAn_OHJELMA`, the station table (columns F:I) | UI and Lib |
+| Ilmoittautuminen ja saapuminen | `ILMOITTAUTUMISTAPA`, `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`, `ILMOITTAUTUMISEN_MAKSIMI`, `ILMOITTAUTUMISEN_VARASIJAT`; `MAKSU_KISAPAIKALLA`, `OSALLISTUMISMAKSU` | sign-up keys UI and Lib, payment keys Lib |
+| Aikataulu ja ryhmät | `ALOITUS_AIKA`, `AMPUJAN_AIKA`, `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`, `ALOITUSTAPA` | `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO` UI, all Lib |
+| Tuomarointi ja korostukset | `Ei tuomaroivat:`, `Bib tuomaroivat`, `Korostukset päällä`, `Syötössä korostukset`, `Isäntäseura`, `Järjestävät seurat:` | `Ei tuomaroivat:` UI (squad editor), all Lib or sheet formulas |
+| Mobiilikirjaus ja tuloskortit | `MOBIILI_TULOKSET`, `Tyhjän ruudun symboli` | `MOBIILI_TULOKSET` UI and Lib, the symbol Lib |
+| Tulokset ja palkintojako | `RATKO_PALKINTO_SIJA`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA` | UI and Lib (`RATKO_PALKINTO_SIJA` UI only) |
+| Tuonnit | `Vain päivätulokset` | Lib |
+| Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI |
+
+A Selite text can equal its own key once folded (the master had "Ilmoittautumistapa" left of `ILMOITTAUTUMISTAPA`).
+`speksiArvo` and ScoringLib's `Speksit.etsi` then use the key cell right of the Selite.
+
+### UI settings
+
 | Setting | Key | Values | Default |
 |---|---|---|---|
 | Competition status | `KILPAILUNSTATUS` | `FINISHED`, `RUNNING`, `PAUSED`, `UPCOMING` | from the dates in the registry |

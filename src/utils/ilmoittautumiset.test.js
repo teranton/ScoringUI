@@ -97,3 +97,8 @@ test('paikkatilanne ja ilmoittautumisenPaikka: varasijat erikseen, jono menee va
   assert.equal(t.varasijat, 0);
   assert.equal(lomakkeenTila([['', 'ILMOITTAUTUMISEN_MAKSIMI', '2,5']]).maksimi, 2);
 });
+
+test('lomakkeenTila: master-pohjan selite "Ilmoittautumistapa" ei peitä avainta', () => {
+  const speksit = [['Ilmoittautumistapa', 'ILMOITTAUTUMISTAPA', 'LOMAKE', 'Ohje']];
+  assert.equal(lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-01T10:00:00Z')).kaytossa, true);
+});
