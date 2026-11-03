@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Sign-up limit and waiting list: new `KISANSPEKSIT` keys `ILMOITTAUTUMISEN_MAKSIMI` and `ILMOITTAUTUMISEN_VARASIJAT`,
+  and a `VARASIJA` column in the sign-up sources (served by `api/kisa.js`, written by `api/ilmoittaudu.js` in
+  `ILMOITTAUTUMISET`). ScoringLib leaves waiting-list rows off the main tab until the office empties the cell.
+  Additive: without the keys nothing changes.
+
 - Check-in (ScoringLib `Saapuminen.js`): new library-only `KISANSPEKSIT` keys `MAKSU_KISAPAIKALLA` (`ENNAKKO` / `KAIKKI`)
   and `OSALLISTUMISMAKSU`, and a new tab `SAAPUMISET` with payment data that the API must not serve. Additive; no UI change.
 

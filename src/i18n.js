@@ -217,13 +217,21 @@ const TEKSTIT = jaadyta({
       errClosed: 'Ilmoittautuminen on päättynyt.',
       errTooFast: 'Lähetys oli liian nopea. Tarkista tiedot ja lähetä uudelleen.',
       errTooMany: 'Liian monta ilmoittautumista lyhyessä ajassa. Yritä hetken päästä uudelleen.',
-      errGeneric: 'Ilmoittautuminen ei onnistunut. Yritä hetken päästä uudelleen.'
+      errGeneric: 'Ilmoittautuminen ei onnistunut. Yritä hetken päästä uudelleen.',
+      placesLeft: 'Paikkoja vapaana {vapaana} / {maksimi}.',
+      waitingOpen: 'Kilpailu on täynnä. Voit ilmoittautua varasijalle (vapaana {vapaana}).',
+      full: 'Kilpailu on täynnä, eikä varasijoja ole enää vapaana.',
+      openWaiting: 'Ilmoittaudu varasijalle',
+      submitWaiting: 'Lähetä varasijailmoittautuminen',
+      doneWaiting: 'Kiitos! Olet varasijalla {n}.',
+      doneWaitingDetail: 'Järjestäjä ottaa yhteyttä sähköpostitse, jos paikka vapautuu.'
     },
     ilmoittautuneet: {
       title: 'Ilmoittautuneet osallistujat',
       description: 'Tämä lista poistuu näkyvistä automaattisesti, kun kilpailu alkaa.',
       classLabel: 'Sarja',
-      shooters: 'ampujaa'
+      shooters: 'ampujaa',
+      waitingList: 'Varasijat'
     },
     joukkueTulokset: {
       loading: 'Ladataan tulosdataa...',
@@ -519,13 +527,21 @@ const TEKSTIT = jaadyta({
       errClosed: 'Registration has closed.',
       errTooFast: 'The form was sent too quickly. Check the details and send again.',
       errTooMany: 'Too many registrations in a short time. Try again in a moment.',
-      errGeneric: 'Registration failed. Try again in a moment.'
+      errGeneric: 'Registration failed. Try again in a moment.',
+      placesLeft: '{vapaana} of {maksimi} places left.',
+      waitingOpen: 'The competition is full. You can join the waiting list ({vapaana} places left).',
+      full: 'The competition is full and no waiting places are left.',
+      openWaiting: 'Join the waiting list',
+      submitWaiting: 'Join the waiting list',
+      doneWaiting: 'Thank you! You are number {n} on the waiting list.',
+      doneWaitingDetail: 'The organiser will contact you by email if a place becomes available.'
     },
     ilmoittautuneet: {
       title: 'Registered participants',
       description: 'This list will be hidden automatically once the competition starts.',
       classLabel: 'Class',
-      shooters: 'shooters'
+      shooters: 'shooters',
+      waitingList: 'Waiting list'
     },
     joukkueTulokset: {
       loading: 'Loading result data...',

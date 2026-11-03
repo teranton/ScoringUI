@@ -160,6 +160,8 @@ Any other key or value is ignored and the default applies.
 | Sign-up form | `ILMOITTAUTUMISTAPA` (not `ILMOITTAUTUMINEN`, which is the section heading) | `LOMAKE` (ScoringUI shows the sign-up form, see "Sign-ups"); `SUOMISPORT` or anything else: no form | no form |
 | Sign-up deadline | `ILMOITTAUTUMINEN_PAATTYY` | `p.k.vvvv` (open to the end of that day) or `p.k.vvvv hh:mm`, Helsinki time; `00:00` also means the end of that day (the master's cell is a date picker formatted `d.m.yyyy hh:mm`); never later than 10:00 on the first day (the list is hidden then) | the start of the first competition day (registry column C) |
 | Sign-up classes | `ILMOITTAUTUMISEN_SARJAT` | classes separated by commas or semicolons, shown as a dropdown | free text |
+| Sign-up limit | `ILMOITTAUTUMISEN_MAKSIMI` | whole number of shooters; when reached, the form takes waiting-list sign-ups | no limit (empty, 0 or not a number) |
+| Waiting places | `ILMOITTAUTUMISEN_VARASIJAT` | whole number of waiting-list places after the limit; then the form closes as full | 0 |
 | High Gun winners leave their category | `HIGH_GUN_POIS_SARJOISTA` | `TRUE`; `FALSE`, `EPÄTOSI`, `0` or `EI` turn it off (category lists are ranked without the High Gun winners, so the next shooter moves up; the all-shooters list is unchanged) | `TRUE` |
 
 Sponsor logos are `LOGO:<name>` rows: the image link right of the key, then optionally the sponsor's web page.
@@ -370,7 +372,7 @@ competition (`Suomisport Import`, `ILMOITTAUTUMISET`, `Lomakevastaukset 1`, `For
 one of (`src/utils/ilmoittautumiset.js` `lahdeSarake`): `NIMI` / `NAME` / `KOKONIMI` / `FULL NAME` / `AMPUJA` / `AMPUJAN NIMI` /
 `KILPAILIJA` / `KILPAILIJAN NIMI` / `OSALLISTUJA` / `OSALLISTUJAN NIMI`, `SUKUNIMI` / `SURNAME` / `LAST NAME`, `ETUNIMI` /
 `ETUNIMET` / `FIRST NAME` (joined as "Sukunimi Etunimi"), `SARJA` / `LUOKKA` / `CLASS` / `KILPAILUSARJA`, `SEURA` / `CLUB` /
-`EDUSTAMASI SEURA` / `EDUSTETTAVA SEURA`, and `SIIRRETTY`. So `Nimi (sukunimi etunimi)` is served but
+`EDUSTAMASI SEURA` / `EDUSTETTAVA SEURA`, `SIIRRETTY` and `VARASIJA`. So `Nimi (sukunimi etunimi)` is served but
 `Nimi ja puhelinnumero` is not. Sportti-ID, payment notes, referee cards, e-mail, phone and other answers never leave the
 API. The list reads only `Lomakevastaukset 1` / `Form Responses 1`; the form's duplicate check and ScoringLib read every N.
 A new `Suomisport Import` or form tab shows within 10 minutes (the API's tab list is not refetched for them).
@@ -378,6 +380,9 @@ A new `Suomisport Import` or form tab shows within 10 minutes (the API's tab lis
 - A row with a non-empty `SIIRRETTY` cell is not shown from the source: ScoringLib's 🏆 Competition ›
   📝 Ilmoittautuminen › Siirrä ilmoittautuneet pääsivulle copies new sign-ups into free main-tab rows and writes the
   time there, after which the main tab (and so `Ilmoittautuneet`) is the truth.
+- A row with a non-empty `VARASIJA` cell is a waiting-list sign-up: the list shows it under "Varasijat" in sheet order, and
+  it doesn't count as a participant. ScoringLib doesn't copy it to the main tab; the office empties the cell when the
+  shooter gets a place and then runs the copy.
 - A name (or last/first name) typed all in capitals or all in lower case is shown with capital initials (`VIRTANEN matti` →
   `Virtanen Matti`); ScoringLib copies it the same way.
 - The same shooter in several places is shown once (name compared without case, extra spaces or word order; the main
@@ -388,10 +393,18 @@ A new `Suomisport Import` or form tab shows within 10 minutes (the API's tab lis
 With `ILMOITTAUTUMISTAPA` = `LOMAKE` and before the deadline, the registrations tab shows a form (last name, first name,
 class, club, e-mail, optional phone and notes, consent to show name/class/club in the list). `POST /api/ilmoittaudu`
 appends one row to `ILMOITTAUTUMISET` with the writer account (`KIRJURI_*`, the mobile entry account), creating the tab
-with the header `AIKALEIMA, SUKUNIMI, ETUNIMI, NIMI, SARJA, SEURA, SÄHKÖPOSTI, PUHELIN, LISÄTIETOJA, SIIRRETTY` when
+with the header `AIKALEIMA, SUKUNIMI, ETUNIMI, NIMI, SARJA, SEURA, SÄHKÖPOSTI, PUHELIN, LISÄTIETOJA, SIIRRETTY, VARASIJA` when
 it is missing (tab and header in one request). Columns are written by header, so the office may reorder or add columns. Values are written `RAW`, and
 a leading `=`, `+`, `-` or `@` is dropped. The sheet must be shared with the writer account as Editor (ScoringLib
 📝 Ilmoittautuminen › Avaa ilmoittautumislomake, owner); otherwise the form answers "not in use". The main tab is never written.
+
+Limit (`ILMOITTAUTUMISEN_MAKSIMI`): participants are the main tab's names plus the sources' untransferred sign-ups that
+are not on the waiting list. When they reach the limit, or anyone is already waiting, a new sign-up gets
+`VARASIJA` = the next waiting number (the largest waiting number + 1, so numbers don't repeat after someone gets a
+place; the column is added to an older tab, and any header that reads as `VARASIJA` counts) and the answer gives its
+place in the queue. The list orders the waiting list by that number. When the
+waiting places (`ILMOITTAUTUMISEN_VARASIJAT`) are taken, the form shows "full" and the API answers 409 `taynna`.
+Two sign-ups at the same moment can pass the limit by one.
 
 Abuse protection: a hidden honeypot field (a filled one gets a fake success and nothing is written), at least 4 s
 between opening and sending, at most 10 attempts per IP (Cloudflare's `cf-connecting-ip` when present) and 40 saved sign-ups

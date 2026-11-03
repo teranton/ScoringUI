@@ -14,7 +14,7 @@ import { onSallittuSheetId, normalisoiSheetId } from './_lib/sheetAllowlist.js';
 import { haeKirjuriAsiakas, onKiintioVirhe, onKirjuriMaaritetty, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
 import { kohdistaValilehdet, valilehtiAlue } from './_lib/sheetsData.js';
 import {
-  GOOGLE_LOMAKE, LAHDE_VALILEHDET, LOMAKE_OTSIKKO, LOMAKE_VALILEHTI, lahteenIlmoittautuneet, lomakkeenNimi, lomakkeenTila, nimiAvain,
+  GOOGLE_LOMAKE, LAHDE_VALILEHDET, LOMAKE_OTSIKKO, LOMAKE_VALILEHTI, ilmoittautuneidenNimet, ilmoittautumisenPaikka, lahdeSarake, lahteenIlmoittautuneet, paikkatilanne, lomakkeenNimi, lomakkeenTila, nimiAvain,
   tarkistaLomake
 } from '../src/utils/ilmoittautumiset.js';
 
@@ -89,13 +89,7 @@ async function batchGet(request, sheetId, nimet) {
   return (res.data.valueRanges || []).map((v) => v.values || []);
 }
 
-// Ilmoittautuneet-välilehden nimet (otsikko "NIMI" ensimmäisillä riveillä; master-pohjassa otsikko on rivillä 2).
-export function ilmoittautuneidenNimet(rivit) {
-  const otsikkoRivi = rivit.findIndex((r) => (r || []).some((s) => String(s ?? '').trim().toUpperCase() === 'NIMI'));
-  if (otsikkoRivi === -1) return [];
-  const sarake = rivit[otsikkoRivi].findIndex((s) => String(s ?? '').trim().toUpperCase() === 'NIMI');
-  return rivit.slice(otsikkoRivi + 1).map((r) => String((r || [])[sarake] ?? '').trim()).filter((n) => n && !/^\d+$/.test(n));
-}
+export { ilmoittautuneidenNimet };
 
 const aikaleima = (nyt) => new Intl.DateTimeFormat('fi-FI', {
   timeZone: 'Europe/Helsinki', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
@@ -119,12 +113,22 @@ export async function ilmoittaudu({ request, sheetId, kisa, runko, nyt = new Dat
   if (Object.keys(virheet).length) return { status: 400, body: { koodi: 'virheet', virheet, error: 'Tarkista lomakkeen tiedot' } };
 
   const nimi = lomakkeenNimi(kentat.sukunimi, kentat.etunimi);
+  const paaSivu = ilmoittautuneidenNimet(rivit('Ilmoittautuneet'));
   const olemassa = new Set([
-    ...ilmoittautuneidenNimet(rivit('Ilmoittautuneet')),
+    ...paaSivu,
     // Myös siirretyt lomakerivit: sama ampuja ei ilmoittaudu kahdesti, vaikka nimi olisi korjattu pääsivulla.
     ...lahteet.flatMap((n) => lahteenIlmoittautuneet(rivit(n), { myosSiirretyt: true }).map((o) => o.nimi))
   ].map(nimiAvain));
   if (olemassa.has(nimiAvain(nimi))) return { status: 409, body: { koodi: 'kaksoiskappale', error: 'Tällä nimellä on jo ilmoittauduttu' } };
+
+  // Enimmäismäärä ja varasijat (ILMOITTAUTUMISEN_MAKSIMI, ILMOITTAUTUMISEN_VARASIJAT). Kaksi yhtäaikaista lähetystä
+  // voivat ylittää rajan yhdellä; järjestäjä näkee sen listasta.
+  const tilanne = paikkatilanne(paaSivu, lahteet.map((n) => rivit(n)));
+  const paikka = ilmoittautumisenPaikka(tila, tilanne);
+  if (paikka === 'taynna') return { status: 409, body: { koodi: 'taynna', error: 'Kilpailu on täynnä' } };
+  // Taulukkoon jonon numero (ei toistu), ampujalle sija jonossa nyt.
+  const varasija = paikka === 'varasija' ? tilanne.seuraava : 0;
+  const sija = paikka === 'varasija' ? tilanne.varalla + 1 : 0;
 
   if (!kohteet.some((k) => k.pyydetty === LOMAKE_VALILEHTI)) {
     const id = uusiId();
@@ -144,20 +148,37 @@ export async function ilmoittaudu({ request, sheetId, kisa, runko, nyt = new Dat
     }
   }
   const lomake = kohteet.find((k) => k.pyydetty === LOMAKE_VALILEHTI)?.todellinen || LOMAKE_VALILEHTI;
-  const otsikko = (rivit(LOMAKE_VALILEHTI)[0] || LOMAKE_OTSIKKO).map((o) => String(o ?? '').trim().toUpperCase());
+  let otsikko = (rivit(LOMAKE_VALILEHTI)[0] || LOMAKE_OTSIKKO).map((o) => String(o ?? '').trim().toUpperCase());
+  // Vanha välilehti ilman VARASIJA-saraketta: sarake ja otsikko lisätään ensimmäisen varasijan kohdalla (välilehden
+  // ruudukko voi loppua viimeiseen otsikkoon, joten sarake lisätään appendDimensionilla).
+  const tabId = lista.find((v) => v.nimi === lomake)?.id;
+  if (varasija && tabId !== undefined && otsikko.some((o) => lahdeSarake(o)) && !otsikko.some((o) => lahdeSarake(o) === 'varasija')) {
+    await request({
+      url: `${SHEETS}/${sheetId}:batchUpdate`,
+      method: 'POST',
+      data: { requests: [
+        { appendDimension: { sheetId: tabId, dimension: 'COLUMNS', length: 1 } },
+        { updateCells: { start: { sheetId: tabId, rowIndex: 0, columnIndex: otsikko.length }, rows: [{ values: [{ userEnteredValue: { stringValue: 'VARASIJA' } }] }], fields: 'userEnteredValue' } }
+      ] }
+    });
+    otsikko = [...otsikko, 'VARASIJA'];
+  }
   // Sarakkeet otsikon mukaan: järjestäjä voi siirtää tai lisätä sarakkeita.
   const arvo = {
     AIKALEIMA: aikaleima(nyt), SUKUNIMI: kentat.sukunimi, ETUNIMI: kentat.etunimi, NIMI: nimi, SARJA: kentat.sarja,
-    SEURA: kentat.seura, SÄHKÖPOSTI: kentat.sahkoposti, PUHELIN: kentat.puhelin, LISÄTIETOJA: kentat.lisatietoja, SIIRRETTY: ''
+    SEURA: kentat.seura, SÄHKÖPOSTI: kentat.sahkoposti, PUHELIN: kentat.puhelin, LISÄTIETOJA: kentat.lisatietoja, SIIRRETTY: '',
+    VARASIJA: varasija ? String(varasija) : ''
   };
-  const rivi = (otsikko.some((o) => o in arvo) ? otsikko : LOMAKE_OTSIKKO).map((o) => arvo[o] ?? '');
+  // VARASIJA otsikon tyypin mukaan (myös esim. "Varasija (numero)"), muut sarakkeet otsikon tekstin mukaan.
+  const sarakkeenArvo = (o) => (lahdeSarake(o) === 'varasija' ? arvo.VARASIJA : arvo[o] ?? '');
+  const rivi = (otsikko.some((o) => o in arvo) ? otsikko : LOMAKE_OTSIKKO).map(sarakkeenArvo);
   // RAW: teksti tallentuu sellaisenaan (ei kaavoja eikä päivämäärätulkintaa); INSERT_ROWS ei kirjoita olemassa olevan päälle.
   await request({
     url: `${SHEETS}/${sheetId}/values/${encodeURIComponent(`${valilehtiAlue(lomake)}!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     method: 'POST',
     data: { values: [rivi] }
   });
-  return { status: 200, body: { ok: true, nimi, sarja: kentat.sarja, seura: kentat.seura } };
+  return { status: 200, body: { ok: true, nimi, sarja: kentat.sarja, seura: kentat.seura, ...(sija ? { varasija: sija } : {}) } };
 }
 
 function laheta(res, status, body) {

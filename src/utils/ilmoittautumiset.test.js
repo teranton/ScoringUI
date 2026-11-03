@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   helsinginHetki, ilmoittautumisenTakaraja, lahdeSarake, lahteenIlmoittautuneet, lisattavatIlmoittautuneet, lomakkeenNimi,
-  lomakkeenSarjat, lomakkeenTila, nimiAvain, tarkistaLomake
+  ilmoittautumisenPaikka, lomakkeenSarjat, lomakkeenTila, nimiAvain, paikkatilanne, tarkistaLomake, varasijaJono
 } from './ilmoittautumiset.js';
 
 test('lahdeSarake tunnistaa nimen, sarjan, seuran ja siirtomerkinnän, muut sarakkeet eivät lähde', () => {
@@ -24,11 +24,11 @@ test('lahdeSarake tunnistaa nimen, sarjan, seuran ja siirtomerkinnän, muut sara
 
 test('lahteenIlmoittautuneet: Suomisport-tuonti, Google-lomake suku- ja etunimellä, siirretyt pois', () => {
   const suomisport = 'Sportti-ID,NIMI,SARJA,SEURA,HUOM\n1,Saastamoinen Juho,Y,KajA,Tarkista maksu\n2,,Y,X,\n3,7,Y,X,';
-  assert.deepEqual(lahteenIlmoittautuneet(suomisport), [{ nimi: 'Saastamoinen Juho', sarja: 'Y', seura: 'KajA' }]);
+  assert.deepEqual(lahteenIlmoittautuneet(suomisport), [{ nimi: 'Saastamoinen Juho', sarja: 'Y', seura: 'KajA', varalla: false }]);
   const lomake = 'Aikaleima,Etunimi,Sukunimi,Sarja,Seura,Sähköposti,SIIRRETTY\n1.11.2026,Tero, Rantonen ,Y,OMAS,t@x.fi,\n1.11.2026,Matti,Meikäläinen,Y56,NoSA,m@x.fi,2.11.2026';
-  assert.deepEqual(lahteenIlmoittautuneet(lomake), [{ nimi: 'Rantonen Tero', sarja: 'Y', seura: 'OMAS' }]);
+  assert.deepEqual(lahteenIlmoittautuneet(lomake), [{ nimi: 'Rantonen Tero', sarja: 'Y', seura: 'OMAS', varalla: false }]);
   assert.equal(lahteenIlmoittautuneet(lomake, { myosSiirretyt: true }).length, 2);
-  assert.deepEqual(lahteenIlmoittautuneet([['NIMI'], ['A B']]), [{ nimi: 'A B', sarja: '', seura: '' }]);
+  assert.deepEqual(lahteenIlmoittautuneet([['NIMI'], ['A B']]), [{ nimi: 'A B', sarja: '', seura: '', varalla: false }]);
 });
 
 test('lisattavatIlmoittautuneet ohittaa pääsivun nimet ja kaksoiskappaleet lähteiden välillä', () => {
@@ -78,4 +78,22 @@ test('lomakkeenNimi: Sukunimi Etunimi, kirjoitusasu säilyy, jos siinä on isoja
   assert.equal(lomakkeenNimi('RANTONEN', 'tero'), 'Rantonen Tero');
   assert.equal(lomakkeenNimi('von Wright', 'anna-liisa'), 'von Wright Anna-Liisa');
   assert.equal(lomakkeenNimi('McDonald', 'JOHN'), 'McDonald John');
+});
+
+test('paikkatilanne ja ilmoittautumisenPaikka: varasijat erikseen, jono menee vapautuneen paikan edelle', () => {
+  const lomake = [['NIMI', 'SIIRRETTY', 'VARASIJA'], ['Uusi Ulla', '', ''], ['Odottaja Olli', '', '1'], ['Vanha Ville', '1.11.2026', '']];
+  assert.deepEqual(paikkatilanne(['A B', 'C D'], [lomake]), { osallistujia: 3, varalla: 1, seuraava: 2 });
+  assert.deepEqual(varasijaJono(lahteenIlmoittautuneet([['NIMI', 'VARASIJA'], ['C', '3'], ['B', 'x'], ['A', '2']])).map((o) => o.nimi), ['A', 'C', 'B']);
+  const tila = { maksimi: 4, varasijat: 2 };
+  assert.equal(ilmoittautumisenPaikka({ maksimi: 0 }, { osallistujia: 99, varalla: 0 }), 'paikka');
+  assert.equal(ilmoittautumisenPaikka(tila, { osallistujia: 3, varalla: 0 }), 'paikka');
+  assert.equal(ilmoittautumisenPaikka(tila, { osallistujia: 3, varalla: 1 }), 'varasija');
+  assert.equal(ilmoittautumisenPaikka(tila, { osallistujia: 4, varalla: 1 }), 'varasija');
+  assert.equal(ilmoittautumisenPaikka(tila, { osallistujia: 4, varalla: 2 }), 'taynna');
+  assert.equal(ilmoittautumisenPaikka({ maksimi: 4, varasijat: 0 }, { osallistujia: 4, varalla: 0 }), 'taynna');
+  const speksit = [['', 'ILMOITTAUTUMISTAPA', 'LOMAKE'], ['', 'ILMOITTAUTUMISEN_MAKSIMI', '40'], ['', 'ILMOITTAUTUMISEN_VARASIJAT', 'x']];
+  const t = lomakkeenTila(speksit, '21.11.2026', new Date('2026-11-10T12:00:00Z'));
+  assert.equal(t.maksimi, 40);
+  assert.equal(t.varasijat, 0);
+  assert.equal(lomakkeenTila([['', 'ILMOITTAUTUMISEN_MAKSIMI', '2,5']]).maksimi, 2);
 });
