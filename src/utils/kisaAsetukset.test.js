@@ -52,11 +52,12 @@ test('avaimissa ääkköset, välilyönnit ja alaviivat ovat samanarvoisia', () 
   assert.equal(haeSponsoriLogoNakyvyysSpekseista([['LOGOT_NÄKYVYYS', 'false']]), 'off');
 });
 
-test('asetuksen arvo on avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu', () => {
+test('asetuksen arvo on avaimen viereinen solu', () => {
   const rivit = [['AIKATAULUNAKYVYYS', 'tuntematon', '', 'LOGOT_NAKYVYYS', 'TRUE']];
   assert.equal(haeAikatauluNakyvyysSpekseista(rivit), null);
   assert.equal(haeSponsoriLogoNakyvyysSpekseista(rivit), 'on');
-  assert.equal(haeAikatauluRyhmittelySpekseista([['AIKATAULURYHMAKOKO', '', '6']]), 'group6');
+  assert.equal(haeAikatauluRyhmittelySpekseista([['AIKATAULURYHMAKOKO', '', '6']]), null);
+  assert.equal(haeAikatauluRyhmittelySpekseista([['AIKATAULURYHMAKOKO', '6']]), 'group6');
   assert.equal(haeAikatauluRyhmittelySpekseista([['6', 'AIKATAULURYHMAKOKO']]), null);
 
   const vierekkain = [['AIKATAULU_MALLI', 'AIKATAULURYHMAKOKO', 'INLINE']];

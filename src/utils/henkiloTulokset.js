@@ -131,11 +131,11 @@ export function laskeRatojenMaara(asemaMaksimit) {
 }
 
 // Sama tulkinta kuin muissa KISANSPEKSIT-asetuksissa (ks. kisaAsetukset.js): avain normalisoidaan ja arvo on
-// avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu. Tyhjä tai virheellinen arvo -> oletus.
+// avaimen oikealla puolella oleva solu. Tyhjä tai virheellinen arvo -> oletus.
 function haeRatkoPalkintoSija(speksiRivit) {
   const onAvain = (solu) => normalisoiOtsikko(String(solu || '').trim()) === 'RATKOPALKINTOSIJA';
   for (const [rivi, i] of avainOsumat(speksiRivit, onAvain)) {
-    const sija = Number.parseInt(rivi.slice(i + 1).map((solu) => String(solu || '').trim()).find(Boolean), 10);
+    const sija = Number.parseInt(String(rivi[i + 1] ?? '').trim(), 10);
     return Number.isInteger(sija) && sija > 0 ? sija : ratkoPalkintoSijaOletus;
   }
 
