@@ -20,6 +20,12 @@ const otsikko = ({ tuore, vanha }) => `public, s-maxage=${tuore}, stale-while-re
 export const CDN_OTSIKOT = Object.fromEntries(Object.entries(SAANNOT).map(([avain, saanto]) => [avain, otsikko(saanto)]));
 // Varalla olevan (Google ei vastannut) datan saa pitää CDN:ssä vain hetken.
 export const VARALLA_OTSIKKO = 'public, s-maxage=10';
+// Vastaus, josta päävälilehti puuttuu (api/kisa.js): taulukkoa korjataan luultavasti juuri nyt (vanha kisa lisätty
+// rekisteriin, välilehti nimetty uudelleen), joten se on tuore palvelimella ja CDN:ssä vain minuutin eikä siitä tehdä kuvaa.
+export const KESKEN_TUORE_MS = 60 * 1000;
+export function keskenOtsikko(ikaMs = 0) {
+  return `public, s-maxage=${Math.max(1, Math.floor((KESKEN_TUORE_MS - ikaMs) / 1000))}`;
+}
 // Vanhentunut kuva on tuore vain hetken, mutta CDN saa antaa sitä heti, kun päivitetty haetaan taustalla.
 export const VANHA_KUVA_OTSIKKO = `public, s-maxage=10, stale-while-revalidate=${SAANNOT.paattynyt.vanha}`;
 

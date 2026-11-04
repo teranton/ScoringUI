@@ -126,7 +126,8 @@ test('puuttuva Tulokset Y: vanha lista haetaan uudelleen minuutin jälkeen (väl
 
 test('onPaaValilehti: tulokset, KISANSPEKSIT ja ranking', () => {
   assert.equal(onPaaValilehti(' tulokset y '), true);
-  assert.equal(onPaaValilehti('KISANSPEKSIT'), true);
+  assert.equal(onPaaValilehti('KISANSPEKSIT'), false);
+  assert.equal(onPaaValilehti('KISAT'), false);
   assert.equal(onPaaValilehti('RANKING_2026'), true);
   assert.equal(onPaaValilehti('Aikataulu La'), false);
   assert.equal(onPaaValilehti('NEW_Joukkue'), false);

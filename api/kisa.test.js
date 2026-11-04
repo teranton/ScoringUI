@@ -66,8 +66,7 @@ async function odotaTaustat() {
 globalThis[Symbol.for('@vercel/request-context')] = { get: () => ({ waitUntil: (p) => taustat.push(p) }) };
 
 const { default: handler } = await import('./kisa.js');
-const { VANHA_KUVA_OTSIKKO } = await import('./_lib/kisaValimuisti.js');
-const { KESKEN_OTSIKKO } = await import('./kisa.js');
+const { VANHA_KUVA_OTSIKKO, keskenOtsikko } = await import('./_lib/kisaValimuisti.js');
 const { tyhjennaValilehtiCache } = await import('./_lib/sheetsData.js');
 
 function vastaus() {
@@ -203,7 +202,7 @@ test('rankingin välilehti annetaan vain rankingiksi merkitystä taulukosta', as
   assert.equal((await hae(RANKING, 'KISAT')).s, 200);
 });
 
-test('päättynyt kisa ilman Tulokset Y -välilehteä: vastausta ei tallenneta, joten korjattu taulukko näkyy heti', async () => {
+test('päättynyt kisa ilman Tulokset Y -välilehteä: vastaus tuore vain minuutin eikä siitä tehdä kuvaa', async () => {
   taustat = [];
   const kirjoituksetEnnen = blobKirjoitukset;
   const nimet = ['Tulokset Y', 'KISANSPEKSIT'];
@@ -215,15 +214,28 @@ test('päättynyt kisa ilman Tulokset Y -välilehteä: vastausta ei tallenneta, 
   const ennen = await haeKesken();
   assert.equal(ennen.s, 200);
   assert.deepEqual(ennen.b.notFound, ['Tulokset Y']);
-  assert.equal(ennen.h['Cache-Control'], KESKEN_OTSIKKO);
+  assert.equal(ennen.h['Cache-Control'], keskenOtsikko());
+  assert.equal(ennen.h['Cache-Control'], 'public, s-maxage=60');
   await odotaTaustat();
   assert.equal(blobKirjoitukset, kirjoituksetEnnen);
   assert.equal(blob.has(`kisat/${KESKEN}/kisanspeksit|tulokset y`), false);
+  // Minuutin sisällä palvelimen välimuisti (myös varalla, jos Google ei vastaa).
+  const heti = await haeKesken();
+  assert.equal(heti.b.timing.source, 'server-cache');
+  assert.match(heti.h['Cache-Control'], /^public, s-maxage=\d+$/);
 
   // Järjestäjä nimeää välilehden. Toinen instanssi (tai minuutin kuluttua tämäkin) hakee välilehtilistan uudelleen.
   keskenValilehdet.push('Tulokset Y');
   await tyhjennaValilehtiCache();
-  const jalkeen = await haeKesken();
+  const oikeaNyt = Date.now;
+  const minuutinPaasta = oikeaNyt() + 61 * 1000;
+  Date.now = () => minuutinPaasta;
+  let jalkeen;
+  try {
+    jalkeen = await haeKesken();
+  } finally {
+    Date.now = oikeaNyt;
+  }
   assert.equal(jalkeen.b.timing.source, 'google');
   assert.deepEqual(Object.keys(jalkeen.b.csvByName).sort(), ['KISANSPEKSIT', 'Tulokset Y']);
   assert.match(jalkeen.h['Cache-Control'], /s-maxage=3600/);
