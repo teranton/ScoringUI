@@ -12,6 +12,7 @@ const {
   kanoninenValilehti,
   julkisetSarakkeet,
   kohdistaValilehdet,
+  onPaaValilehti,
   onSallittuValilehti,
   rivitCsvksi,
   tyhjennaValilehtiCache,
@@ -107,6 +108,29 @@ test('kesken kisan luotu MOBIILI-välilehti: vanha lista haetaan uudelleen minuu
   assert.deepEqual(heti.notFound, ['MOBIILI_LAITTEET']);
   const myohemmin = await haeValilehdetCsv({ request, sheetId: `${SHEET}9`, nimet, nyt: alku + 61 * 1000 });
   assert.deepEqual(myohemmin, { csvByName: { 'Tulokset Y': 'A', MOBIILI_LAITTEET: 'RATA\n1' }, notFound: [] });
+});
+
+test('puuttuva Tulokset Y: vanha lista haetaan uudelleen minuutin jälkeen (välilehti lisätty tai nimetty uudelleen)', async () => {
+  await tyhjennaValilehtiCache();
+  const valilehdet = ['KISANSPEKSIT', 'Tulokset'];
+  const { request } = luoGoogle(valilehdet, { 'Tulokset Y': [['A']], KISANSPEKSIT: [['S']] });
+  const nimet = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT'];
+  const alku = Date.now();
+  await haeValilehdetCsv({ request, sheetId: `${SHEET}10`, nimet, nyt: alku });
+  valilehdet[1] = 'Tulokset Y';
+  const heti = await haeValilehdetCsv({ request, sheetId: `${SHEET}10`, nimet, nyt: alku + 30 * 1000 });
+  assert.ok(heti.notFound.includes('Tulokset Y'));
+  const myohemmin = await haeValilehdetCsv({ request, sheetId: `${SHEET}10`, nimet, nyt: alku + 61 * 1000 });
+  assert.deepEqual(myohemmin.csvByName, { 'Tulokset Y': 'A', KISANSPEKSIT: 'S' });
+});
+
+test('onPaaValilehti: tulokset, KISANSPEKSIT ja ranking', () => {
+  assert.equal(onPaaValilehti(' tulokset y '), true);
+  assert.equal(onPaaValilehti('KISANSPEKSIT'), false);
+  assert.equal(onPaaValilehti('KISAT'), false);
+  assert.equal(onPaaValilehti('RANKING_2026'), true);
+  assert.equal(onPaaValilehti('Aikataulu La'), false);
+  assert.equal(onPaaValilehti('NEW_Joukkue'), false);
 });
 
 test('muu kuin aluevirhe heitetään eteenpäin', async () => {
