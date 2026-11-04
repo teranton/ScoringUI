@@ -1,22 +1,12 @@
 // Kilpailurekisteri: selaimeen tallennettu lista näytetään heti, tuore haetaan taustalla /api/rekisteri-osoitteesta.
 import { useEffect, useState } from 'react';
 import { onkoCsvVirheellinen, parseCsvRows } from '../utils/csv';
-import { tulkitseLippu } from '../utils/devTila';
+import { onkoEsikatselu, tulkitseLippu } from '../utils/devTila';
 import { parsiKilpailurekisteri } from '../utils/kilpailurekisteri';
 import { lueRekisteri, tallennaRekisteri } from '../utils/paikallinenValimuisti';
 
-function onkoPreviewOverrideAktiivinen() {
-  if (typeof window === 'undefined') return false;
-  try {
-    const params = new URLSearchParams(window.location.search || '');
-    return tulkitseLippu(params.get('preview') || params.get('showHidden')) === true;
-  } catch {
-    return false;
-  }
-}
-
 function naytetaankoPiilotetutKisat() {
-  return tulkitseLippu(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS) === true || onkoPreviewOverrideAktiivinen();
+  return tulkitseLippu(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS) === true || onkoEsikatselu();
 }
 
 function naytettavatKisatRekisterista(csvText, naytaPiilotetut) {

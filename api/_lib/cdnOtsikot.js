@@ -15,6 +15,9 @@ export function cloudflareOtsikko(cacheControl) {
 // ja Cloudflaren kopiot kasautuvat: Cloudflare hakee Vercelin jo 15 s vanhan kopion ja pitää sitä vielä omat 15 + 15 s.
 // Lyhyt aika pitää silti Vercelin CDN:n yhdistämässä pyynnöt (Google-haut eivät riipu funktioinstanssien määrästä),
 // ja Cloudflaren ohittava pyyntö (esikatselu, vercel.app) saa yhä välimuistin.
+// Järjestäjän esikatselu (?preview=1, api/rekisteri.js ja api/kisa.js): ei CDN:ää eikä selaimen välimuistia.
+export const ESIKATSELU_OTSIKKO = 'private, no-store';
+
 export function asetaValimuisti(res, cacheControl, { vercelEnintaan } = {}) {
   res.setHeader('Cache-Control', cacheControl);
   const cloudflare = cloudflareOtsikko(cacheControl);

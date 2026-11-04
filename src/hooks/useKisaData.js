@@ -8,6 +8,7 @@ import { haeKisanVuosi } from '../utils/kilpailurekisteri';
 import { rankingValilehdenNimi } from '../utils/rankingTulokset';
 import { lueKisat, tallennaKisa } from '../utils/paikallinenValimuisti';
 import { trackAnalyticsEvent } from '../utils/analytiikka';
+import { onkoEsikatselu, tulkitseLippu } from '../utils/devTila';
 
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
 // Päättyneen kisan data haetaan avattaessa uudelleen vain, jos se on tätä vanhempi.
@@ -36,12 +37,19 @@ function sivutKisalle(kisa, onkoStaattinen) {
       ...(laskeOnkoIlmoittautuminenPaattynyt(kisa?.alkuPvm) ? [] : LAHDE_VALILEHDET)];
 }
 
+// Esikatselussa (?preview=1) kisan data haetaan ohi CDN:n ja tallennetun kuvan, jotta järjestäjän muutos näkyy heti.
+// Sama ehto kuin piilotettujen kisojen näyttämisessä (useKilpailurekisteri). API ohittaa välimuistit vain piilotetulle kisalle.
+const ESIKATSELU = tulkitseLippu(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS) === true || onkoEsikatselu();
+
 function kisaDataUrl(sheetId, sivut) {
   const params = new URLSearchParams();
   params.append('sheetId', sheetId);
   sivut.forEach((nimi) => params.append('sheetNames', nimi));
+  if (ESIKATSELU) params.append('preview', '1');
   return `/api/kisa?${params.toString()}`;
 }
+
+const haeKisaApista = (url) => (ESIKATSELU ? fetch(url, { cache: 'no-store' }) : fetch(url));
 
 export function useKisaData({ kisat, valittuKisa }) {
   const [kisaCache, setKisaCache] = useState(() => lueKisat());
@@ -107,7 +115,7 @@ export function useKisaData({ kisat, valittuKisa }) {
         speksitInFlightRef.current[sheetId] = true;
 
         try {
-          const response = await fetch(kisaDataUrl(sheetId, ['KISANSPEKSIT']));
+          const response = await haeKisaApista(kisaDataUrl(sheetId, ['KISANSPEKSIT']));
           if (!response.ok) continue;
 
           const tulos = await response.json();
@@ -154,7 +162,7 @@ export function useKisaData({ kisat, valittuKisa }) {
 
       const startTime = performance.now();
       const sivut = sivutKisalle(kisa, onkoStaattinen);
-      const response = await fetch(kisaDataUrl(sheetId, sivut));
+      const response = await haeKisaApista(kisaDataUrl(sheetId, sivut));
       if (!response.ok) {
         throw new Error(`KisaDatan haku epäonnistui palvelimelta. Status: ${response.status}`);
       }
@@ -244,7 +252,7 @@ export function useKisaData({ kisat, valittuKisa }) {
     // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
     // Päivien mukaan päättyneessä kisassa vältetään turha lisähaku, jos data on välimuistissa ja alle tunnin vanhaa.
     // Pelkällä FINISHED-asetuksella päättynyt haetaan aina, jotta asetuksen poisto tulee näkyviin.
-    const ohitaHaku = onkoStaattinen && onkoPaattynytPaivista(valittuKisa) && !puuttuuPakollistaKisaDataa && onkoDataTuore;
+    const ohitaHaku = !ESIKATSELU && onkoStaattinen && onkoPaattynytPaivista(valittuKisa) && !puuttuuPakollistaKisaDataa && onkoDataTuore;
     if (!ohitaHaku) {
       haeKisaData(valittuKisa, onkoStaattinen);
     } else {

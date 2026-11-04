@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { haeRekisteriCsv } from './_lib/sheetAllowlist.js';
-import { asetaValimuisti } from './_lib/cdnOtsikot.js';
+import { ESIKATSELU_OTSIKKO, asetaValimuisti } from './_lib/cdnOtsikot.js';
 import { tulkitseLippu } from '../src/utils/devTila.js';
 
 // Julkinen lista: Cloudflare pitää sen minuutin tuoreena, Vercel 5 s (kopiot eivät kasaudu), ja vanha palautetaan
@@ -11,7 +11,7 @@ export const REKISTERI_OTSIKOT = {
   julkinen: 'public, s-maxage=60, stale-while-revalidate=86400',
   // ?preview=1 (järjestäjän esikatselu, näyttää piilotetut kisat): ei CDN:ää eikä selaimen välimuistia, jotta juuri
   // luotu tai poistettu testikisa näkyy heti. Google-haut rajaa silti palvelimen 30 s välimuisti (haeRekisteriCsv).
-  esikatselu: 'private, no-store'
+  esikatselu: ESIKATSELU_OTSIKKO
 };
 
 export default async function handler(req, res) {

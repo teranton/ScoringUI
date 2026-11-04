@@ -1,7 +1,7 @@
 // Sallittujen sheetId:iden lista: vain kilpailurekisterissä (sarake E) olevat taulukot.
 // Estää sen, että API:lla luettaisiin mitä tahansa palvelutilille jaettua taulukkoa.
 import { parseCsvRows } from '../../src/utils/csv.js';
-import { onkoRankingTyyppi, onkoTestiTyyppi } from '../../src/utils/kilpailurekisteri.js';
+import { onkoRankingTyyppi, onkoTestiTyyppi, tulkitseRekisterinTotuusarvo } from '../../src/utils/kilpailurekisteri.js';
 import { haeGoogleAsiakas, pyyntoUudelleenyrittaen } from './googleAuth.js';
 import { rivitCsvksi } from './sheetsData.js';
 import { luoValimuisti, luoYhdistaja } from './valimuisti.js';
@@ -19,7 +19,7 @@ export function normalisoiSheetId(arvo) {
   return /^[A-Za-z0-9_-]{20,}$/.test(teksti) ? teksti : '';
 }
 
-// Rekisterin kisat sheetId:n mukaan: { alkuPvm, loppuPvm, ranking, testi, paikka } (sarakkeet C ja D sellaisinaan,
+// Rekisterin kisat sheetId:n mukaan: { alkuPvm, loppuPvm, ranking, testi, paikka, piilotettu } (sarakkeet C ja D sellaisinaan,
 // ranking: H-sarakkeessa RANKING, testi: H-sarakkeessa TESTI, paikka: sarake I).
 export function parseRekisterinKisat(csvText) {
   const kisat = new Map();
@@ -29,7 +29,8 @@ export function parseRekisterinKisat(csvText) {
     if (id && !kisat.has(id)) {
       kisat.set(id, {
         alkuPvm: row[2] || '', loppuPvm: row[3] || '',
-        ranking: onkoRankingTyyppi(row[7]), testi: onkoTestiTyyppi(row[7]), paikka: row[8] || ''
+        ranking: onkoRankingTyyppi(row[7]), testi: onkoTestiTyyppi(row[7]), paikka: row[8] || '',
+        piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true
       });
     }
   });

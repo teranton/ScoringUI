@@ -252,3 +252,34 @@ test('tallennettua kuvaa, josta Tulokset Y puuttuu, ei käytetä', async () => {
   assert.equal(r.b.timing.source, 'google');
   assert.ok(r.b.csvByName['Tulokset Y']);
 });
+
+test('esikatselu (?preview=1) ohittaa piilotetun kisan tuoreen kuvan ja CDN:n, julkisen ei', async () => {
+  taustat = [];
+  const haeNimet = async (sheetId, nimet, preview) => {
+    const r = vastaus();
+    await handler({ query: { sheetId, sheetNames: nimet, ...(preview ? { preview: '1' } : {}) }, headers: {} }, r);
+    return r;
+  };
+  // Piilotettu (G = 1) kisa: tuore kuva ohitetaan.
+  const polku = `kisat/${KESKEN}/kisanspeksit`;
+  blob.set(polku, { ...kuva(5 * 60 * 60 * 1000, '', '2025-05-03', '2025-05-04'), csvByName: { KISANSPEKSIT: 'vanha' } });
+  assert.equal((await haeNimet(KESKEN, ['KISANSPEKSIT'])).b.csvByName.KISANSPEKSIT, 'vanha');
+  const r = await haeNimet(KESKEN, ['KISANSPEKSIT'], true);
+  assert.equal(r.b.timing.source, 'google');
+  assert.match(r.b.csvByName.KISANSPEKSIT, /uusi/);
+  assert.equal(r.h['Cache-Control'], 'private, no-store');
+  assert.equal(r.h['Cloudflare-CDN-Cache-Control'], undefined);
+  await odotaTaustat();
+  assert.match(blob.get(polku).csvByName.KISANSPEKSIT, /uusi/);
+  // Heti perään palvelimen alle 30 s vanha vastaus, ei uutta Google-hakua.
+  const hautEnnen = googleHaut;
+  assert.equal((await haeNimet(KESKEN, ['KISANSPEKSIT'], true)).b.timing.source, 'server-cache');
+  assert.equal(googleHaut, hautEnnen);
+
+  // Julkinen kisa: lippu ei ohita kuvaa eikä CDN:ää.
+  const julkinenPolku = `kisat/${VANHA}/new_joukkue|ryhmäjako`;
+  blob.set(julkinenPolku, { ...kuva(5 * 60 * 60 * 1000, ''), csvByName: { NEW_Joukkue: 'vanha', 'Ryhmäjako': 'vanha' } });
+  const julkinen = await haeNimet(VANHA, ['NEW_Joukkue', 'Ryhmäjako'], true);
+  assert.equal(julkinen.b.timing.source, 'snapshot');
+  assert.match(julkinen.h['Cache-Control'], /^public/);
+});
