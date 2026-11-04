@@ -15,7 +15,10 @@ const SUORA_HAKU_MAKS = 4;
 const MOBIILI_LISTA_MS = 60 * 1000;
 // Google-lomakkeen ja Suomisport-tuonnin välilehdet eivät käynnistä uutta listan hakua (kisalla on yleensä vain toinen
 // lomakevälilehti, fi tai en): uusi tuonti tai lomake näkyy viimeistään listan 10 minuutin tuoreusajan jälkeen.
-const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$)/i.test(String(nimi || '').trim());
+// Päävälilehdet (tulokset, KISANSPEKSIT ja kauden ranking) ovat jokaisessa kisassa. Jos sellainen puuttuu listasta,
+// taulukkoa on luultavasti juuri korjattu (vanha kisa lisätty rekisteriin, välilehti nimetty uudelleen), joten lista
+// haetaan uudelleen samoin kuin MOBIILI-välilehdille.
+const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$)/i.test(String(nimi || '').trim()) || onPaaValilehti(nimi);
 const valilehtiCache = luoValimuisti('valilehdet');
 
 const normalisoi = (nimi) => String(nimi || '').normalize('NFC').trim().toLowerCase();
@@ -34,6 +37,13 @@ const RANKING_VALILEHTI = /^ranking_\d{4}$/;
 export function onRankingValilehti(nimi) {
   const normalisoitu = normalisoi(nimi);
   return RANKING_VALILEHTI.test(normalisoitu) || normalisoitu === 'kisat';
+}
+
+// Välilehdet, joita ilman kisasivulla ei ole mitään näytettävää. Vastausta, josta jokin näistä puuttuu, ei tallenneta
+// välimuisteihin eikä päättyneen kisan kuvaksi (api/kisa.js), jotta myöhemmin korjattu taulukko näkyy heti.
+export function onPaaValilehti(nimi) {
+  const normalisoitu = normalisoi(nimi);
+  return normalisoitu === 'tulokset y' || normalisoitu === 'kisanspeksit' || onRankingValilehti(nimi);
 }
 
 // Mobiilikirjauksen välilehdet julkisiin näkymiin vain alla luetelluin sarakkein (otsikon mukaan):

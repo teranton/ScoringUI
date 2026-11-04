@@ -56,7 +56,9 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   After the 14-day correction window a Blob copy older than 1 day is still served at once (up to 30 days) and
   refreshed from Google in the background (`waitUntil`; awaited when there is no Vercel request context, e.g. `vercel dev`).
   The correction window is judged from the current registry dates; during it only a copy under 1 h old is used.
-  Blob writes never delay the response.
+  Blob writes never delay the response. A response missing a main tab (`Tulokset Y`, `KISANSPEKSIT`, ranking) is never
+  cached or stored (CDN 10 s), and a cached tab list missing one is refetched after 1 min, so a sheet fixed after it was
+  first read (an old competition added to the registry, a renamed tab) shows at once.
   Vercel strips `s-maxage` from the response it forwards, so cached API responses also carry
   `Cloudflare-CDN-Cache-Control` with the same times (`api/_lib/cdnOtsikot.js`) for a Cloudflare cache in front of Vercel.
   Running competitions are kept only 5 s in Vercel's CDN (`Vercel-CDN-Cache-Control: max-age=5`), so the two CDN copies
