@@ -8,7 +8,7 @@ import { haeKisanVuosi } from '../utils/kilpailurekisteri';
 import { rankingValilehdenNimi } from '../utils/rankingTulokset';
 import { lueKisat, tallennaKisa } from '../utils/paikallinenValimuisti';
 import { trackAnalyticsEvent } from '../utils/analytiikka';
-import { onkoEsikatselu } from '../utils/devTila';
+import { onkoEsikatselu, tulkitseLippu } from '../utils/devTila';
 
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
 // Päättyneen kisan data haetaan avattaessa uudelleen vain, jos se on tätä vanhempi.
@@ -38,7 +38,8 @@ function sivutKisalle(kisa, onkoStaattinen) {
 }
 
 // Esikatselussa (?preview=1) kisan data haetaan ohi CDN:n ja tallennetun kuvan, jotta järjestäjän muutos näkyy heti.
-const ESIKATSELU = onkoEsikatselu();
+// Sama ehto kuin piilotettujen kisojen näyttämisessä (useKilpailurekisteri). API ohittaa välimuistit vain piilotetulle kisalle.
+const ESIKATSELU = tulkitseLippu(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS) === true || onkoEsikatselu();
 
 function kisaDataUrl(sheetId, sivut) {
   const params = new URLSearchParams();

@@ -28,7 +28,7 @@ function muotoileIsoPaivamaaraSuomeksi(pvmStr) {
 }
 
 // Rekisterin F- ja G-sarake: tosi, epätosi tai null (ei asetettu).
-function tulkitseRekisterinTotuusarvo(arvo) {
+export function tulkitseRekisterinTotuusarvo(arvo) {
   if (arvo == null) return null;
   const normalisoitu = String(arvo).trim().toLowerCase();
   if (!normalisoitu) return null;

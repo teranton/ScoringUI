@@ -60,8 +60,9 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   1 min (server and CDN) and never stored in Blob, and a cached tab list missing it is refetched after 1 min, so a sheet
   fixed after it was first read (an old competition added to the registry, a renamed tab) shows within a minute.
   With `?preview=1` in the page address (the organiser's preview, which also shows hidden competitions) the app asks
-  `/api/kisa?…&preview=1`: no Blob read, server copy only under 30 s, `private, no-store`; the fetched data still refreshes
-  the Blob copy and server cache, so the public page follows after its CDN time.
+  `/api/kisa?…&preview=1`; for a hidden competition (registry column G) the API then skips the Blob copy (kept only as a
+  fallback), uses a server copy only under 30 s and sends `private, no-store`. For a public competition the flag does
+  nothing, so nobody can bypass the caches. Fix an old sheet while it is hidden, then make it public.
   Vercel strips `s-maxage` from the response it forwards, so cached API responses also carry
   `Cloudflare-CDN-Cache-Control` with the same times (`api/_lib/cdnOtsikot.js`) for a Cloudflare cache in front of Vercel.
   Running competitions are kept only 5 s in Vercel's CDN (`Vercel-CDN-Cache-Control: max-age=5`), so the two CDN copies
