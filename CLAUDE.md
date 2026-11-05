@@ -59,13 +59,11 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   Blob writes never delay the response. A response missing the main tab (`Tulokset Y`, or `RANKING_vvvv`) is fresh only
   1 min (server and CDN) and never stored in Blob, and a cached tab list missing it is refetched after 1 min, so a sheet
   fixed after it was first read (an old competition added to the registry, a renamed tab) shows within a minute.
-  A cached tab list missing `KISANSPEKSIT` is also refetched after 1 min (a tab added to an old sheet), but such a
-  response is cached normally, since old sheets may have no `KISANSPEKSIT`. Without the station table the number of
-  stations comes from the result tab's headers `1`, `2`, `3` ... (`laskeRatojenMaara`), never from TULOS or RATKO.
   With `?preview=1` in the page address (the organiser's preview, which also shows hidden competitions) the app asks
   `/api/kisa?…&preview=1`; for a hidden competition (registry column G) the API then skips the Blob copy (kept only as a
   fallback), uses a server copy only under 30 s and sends `private, no-store`. For a public competition the flag does
-  nothing, so nobody can bypass the caches. Fix an old sheet while it is hidden, then make it public.
+  nothing, so nobody can bypass the caches. The app adds a time parameter `t` to every preview request, so Cloudflare
+  never answers it with a copy stored before (when the competition was public or before preview skipped the caches). Fix an old sheet while it is hidden, then make it public.
   Vercel strips `s-maxage` from the response it forwards, so cached API responses also carry
   `Cloudflare-CDN-Cache-Control` with the same times (`api/_lib/cdnOtsikot.js`) for a Cloudflare cache in front of Vercel.
   Running competitions are kept only 5 s in Vercel's CDN (`Vercel-CDN-Cache-Control: max-age=5`), so the two CDN copies

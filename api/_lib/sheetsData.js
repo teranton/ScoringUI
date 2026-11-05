@@ -15,12 +15,10 @@ const SUORA_HAKU_MAKS = 4;
 const MOBIILI_LISTA_MS = 60 * 1000;
 // Google-lomakkeen ja Suomisport-tuonnin välilehdet eivät käynnistä uutta listan hakua (kisalla on yleensä vain toinen
 // lomakevälilehti, fi tai en): uusi tuonti tai lomake näkyy viimeistään listan 10 minuutin tuoreusajan jälkeen.
-// Päävälilehdet (tulokset ja kauden ranking) ovat jokaisessa kisassa. Jos sellainen tai KISANSPEKSIT puuttuu listasta,
-// taulukkoa on luultavasti juuri korjattu (vanha kisa lisätty rekisteriin, välilehti lisätty tai nimetty uudelleen),
-// joten lista haetaan uudelleen samoin kuin MOBIILI-välilehdille. KISANSPEKSIT ei silti ole päävälilehti: vanhasta
-// taulukosta se voi puuttua kokonaan, ja silloin vastaus saa jäädä välimuistiin.
-const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$|kisanspeksit$)/i.test(String(nimi || '').trim())
-  || onPaaValilehti(nimi);
+// Päävälilehdet (tulokset ja kauden ranking) ovat jokaisessa kisassa. Jos sellainen puuttuu listasta,
+// taulukkoa on luultavasti juuri korjattu (vanha kisa lisätty rekisteriin, välilehti nimetty uudelleen), joten lista
+// haetaan uudelleen samoin kuin MOBIILI-välilehdille.
+const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$)/i.test(String(nimi || '').trim()) || onPaaValilehti(nimi);
 const valilehtiCache = luoValimuisti('valilehdet');
 
 const normalisoi = (nimi) => String(nimi || '').normalize('NFC').trim().toLowerCase();

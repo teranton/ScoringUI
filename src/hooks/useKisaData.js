@@ -45,7 +45,12 @@ function kisaDataUrl(sheetId, sivut) {
   const params = new URLSearchParams();
   params.append('sheetId', sheetId);
   sivut.forEach((nimi) => params.append('sheetNames', nimi));
-  if (ESIKATSELU) params.append('preview', '1');
+  if (ESIKATSELU) {
+    params.append('preview', '1');
+    // Oma osoite joka haulle: Cloudflare voi pitää samaa ?preview=1-osoitetta ajalta, jolloin kisa oli julkinen tai
+    // ennen kuin esikatselu ohitti välimuistit, ja antaa sen vanhan vastauksen (vanha KISANSPEKSIT) päiviä.
+    params.append('t', String(Date.now()));
+  }
   return `/api/kisa?${params.toString()}`;
 }
 

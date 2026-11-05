@@ -124,20 +124,6 @@ test('puuttuva Tulokset Y: vanha lista haetaan uudelleen minuutin jälkeen (väl
   assert.deepEqual(myohemmin.csvByName, { 'Tulokset Y': 'A', KISANSPEKSIT: 'S' });
 });
 
-test('puuttuva KISANSPEKSIT: vanha lista haetaan uudelleen minuutin jälkeen (välilehti lisätty vanhaan taulukkoon)', async () => {
-  await tyhjennaValilehtiCache();
-  const valilehdet = ['Tulokset Y'];
-  const { request } = luoGoogle(valilehdet, { 'Tulokset Y': [['A']], KISANSPEKSIT: [['S']] });
-  const nimet = ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT'];
-  const alku = Date.now();
-  await haeValilehdetCsv({ request, sheetId: `${SHEET}11`, nimet, nyt: alku });
-  valilehdet.push('KISANSPEKSIT');
-  const heti = await haeValilehdetCsv({ request, sheetId: `${SHEET}11`, nimet, nyt: alku + 30 * 1000 });
-  assert.ok(heti.notFound.includes('KISANSPEKSIT'));
-  const myohemmin = await haeValilehdetCsv({ request, sheetId: `${SHEET}11`, nimet, nyt: alku + 61 * 1000 });
-  assert.deepEqual(myohemmin, { csvByName: { 'Tulokset Y': 'A', KISANSPEKSIT: 'S' }, notFound: ['NEW_Joukkue'] });
-});
-
 test('onPaaValilehti: tulokset, KISANSPEKSIT ja ranking', () => {
   assert.equal(onPaaValilehti(' tulokset y '), true);
   assert.equal(onPaaValilehti('KISANSPEKSIT'), false);
