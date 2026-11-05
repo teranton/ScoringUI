@@ -8,6 +8,9 @@ const VALILEHTI_TTL_MS = 10 * 60 * 1000;
 // Pienet joukot (päättyneen kisan 3 välilehteä, pelkkä KISANSPEKSIT) löytyvät lähes aina, joten ne pyydetään
 // suoraan. Live-joukossa on aikataulujen vaihtoehtoisia nimiä, joista osa puuttuu aina: se odottaa välilehtilistaa.
 const SUORA_HAKU_MAKS = 4;
+// Valinnainen välilehti puuttuu useimmista taulukoista, joten suora haku epäonnistuisi lähes aina (ylimääräinen
+// Sheets-kutsu): joukko, jossa se on, odottaa välilehtilistaa.
+const onValinnainen = (nimi) => /^finaali$/i.test(String(nimi || '').trim());
 // Mobiilikirjaus luo MOBIILI-välilehdet kesken kisan (api/kirjaus.js) ja ilmoittautumislomake ILMOITTAUTUMISET-välilehden
 // (api/ilmoittaudu.js), ja järjestäjä lisää FINAALI-välilehden kisan lopussa. Jos pyydetty tällainen välilehti puuttuu
 // listasta, lista haetaan uudelleen, kun se on tätä vanhempi: muuten instanssi, jonka lista on vanha, antaa
@@ -188,7 +191,7 @@ export async function haeValilehdetCsv({ request, sheetId, nimet, nyt = Date.now
   const listaLupaus = tuoreLista ? null : haeValilehtienNimet(request, sheetId);
   listaLupaus?.catch(() => {});
 
-  if (listaLupaus && nimet.length <= SUORA_HAKU_MAKS) {
+  if (listaLupaus && nimet.length <= SUORA_HAKU_MAKS && !nimet.some(onValinnainen)) {
     try {
       const suoraan = nimet.map((nimi) => ({ pyydetty: nimi, todellinen: nimi }));
       return { csvByName: await batchGet(request, sheetId, suoraan), notFound: [] };
