@@ -124,10 +124,18 @@ export const KAIKKI_SARJAT = 'OPEN (Y)';
 // Onko ampujalla tulos (kokonaistulos taulukon ampujilla, muuten tulos).
 export const onkoTulosta = (ampuja) => (Number.parseInt(ampuja.kokonaistulos ?? ampuja.tulos, 10) || 0) > 0;
 
-// Asemien/ratojen määrä KISANSPEKSIT-asemataulukosta; oletus 8, jos taulukkoa ei löydy.
-export function laskeRatojenMaara(asemaMaksimit) {
+// Asemien/ratojen määrä KISANSPEKSIT-asemataulukosta. Jos taulukkoa ei löydy (KISANSPEKSIT puuttuu tai sitä ei vielä
+// saatu), määrä luetaan tulostaulukon otsikoista 1, 2, 3 ..., jotta TULOS- ja RATKO-sarakkeita ei näytetä asemina;
+// oletus 8 vain, kun otsikoissakaan ei ole asemanumeroita.
+export function laskeRatojenMaara(asemaMaksimit, otsikkoRivi) {
   const maara = Object.keys(asemaMaksimit || {}).length;
-  return maara > 0 ? maara : 8;
+  if (maara > 0) return maara;
+  const otsikot = (Array.isArray(otsikkoRivi) ? otsikkoRivi : []).map((o) => String(o ?? '').trim());
+  const alku = otsikot.indexOf('1');
+  if (alku === -1) return 8;
+  let n = 0;
+  while (otsikot[alku + n] === String(n + 1)) n++;
+  return n;
 }
 
 // Sama tulkinta kuin muissa KISANSPEKSIT-asetuksissa (ks. kisaAsetukset.js): avain normalisoidaan ja arvo on

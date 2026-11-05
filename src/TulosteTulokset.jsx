@@ -17,7 +17,7 @@ export default function TulosteTulokset({
   locale = 'fi'
 }) {
   const tx = haeTekstit('tulosteTulokset', locale);
-  const ratojenMaara = laskeRatojenMaara(parsedSpeksit?.asemaMaksimit);
+  const ratojenMaara = laskeRatojenMaara(parsedSpeksit?.asemaMaksimit, Array.isArray(rawRows) ? rawRows[0] : null);
   const radat = useMemo(() => Array.from({ length: ratojenMaara }, (_, i) => i + 1), [ratojenMaara]);
 
   const sarjat = useMemo(

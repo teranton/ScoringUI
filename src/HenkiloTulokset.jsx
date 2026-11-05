@@ -96,7 +96,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   const aloitusIndeksi = idxRata1 !== -1 ? idxRata1 : 4;
 
   // 3. LASKETAAN RATKO-SARAKKEEN PAIKKA DYNAAMISESTI ALOITUSPISTEESTÄ
-  const kisanRatojenMaara = laskeRatojenMaara(asemaMaksimit);
+  const kisanRatojenMaara = laskeRatojenMaara(asemaMaksimit, rivit[0]);
   // true: kisassa on kortteja, false: ei, null: ei tiedossa (haetaan molemmat).
   const kiekotKaytossa = kiekkoLahteet.ryhma || kiekkoLahteet.compak ? true
     : (kiekkoLahteet.ryhma === false && kiekkoLahteet.compak === false ? false : null);

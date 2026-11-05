@@ -90,7 +90,15 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   });
 
 
-  // 1. PARSITAAN KISASPEKSIT
+  // 1. AMPUJIEN TULOSRIVIT (otsikoista asemien määrä, jos KISANSPEKSIT puuttuu)
+  const henkiloRivit = useMemo(() => {
+    if (!data?.henkilotCsvRaw) return null;
+    return Array.isArray(parsedRows?.henkilotRows)
+      ? parsedRows.henkilotRows
+      : parseCsvRows(data.henkilotCsvRaw);
+  }, [data, parsedRows]);
+
+  // 2. PARSITAAN KISASPEKSIT
   const speksit = useMemo(() => {
     const perfStart = perfNow();
     const parsed = (parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa)
@@ -102,22 +110,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
       };
     const result = {
       ...parsed,
-      ratojenMaara: laskeRatojenMaara(parsed.asemaMaksimit)
+      ratojenMaara: laskeRatojenMaara(parsed.asemaMaksimit, henkiloRivit?.[0])
     };
     logPerf('speksit', perfStart, {
       ratojenMaara: result.ratojenMaara,
       kayttaaValmistaSpeksia: Boolean(parsedSpeksit?.asemaMaksimit && parsedSpeksit?.asemaToiseksiParasKaytossa)
     });
     return result;
-  }, [data, parsedSpeksit]);
-
-  // 2. PARSITAAN AMPUJIEN TULOKSET
-  const henkiloRivit = useMemo(() => {
-    if (!data?.henkilotCsvRaw) return null;
-    return Array.isArray(parsedRows?.henkilotRows)
-      ? parsedRows.henkilotRows
-      : parseCsvRows(data.henkilotCsvRaw);
-  }, [data, parsedRows]);
+  }, [data, parsedSpeksit, henkiloRivit]);
 
   const ampujat = useMemo(() => {
     const perfStart = perfNow();

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   laskeHenkilosijoitukset,
+  laskeRatojenMaara,
   laskeNaytettavatRatkoIdt,
   muodostaRatkoNakyma,
   normalisoiOtsikko,
@@ -143,3 +144,12 @@ for (const tapaus of paivaSarakeTapaukset) {
     assert.equal(onkoMyohempiaPaivaTuloksia(ampujat), tapaus.naytetaan);
   });
 }
+
+test('laskeRatojenMaara: asemataulukko ensin, ilman sitä tulostaulukon otsikot 1, 2, 3 ...', () => {
+  assert.equal(laskeRatojenMaara({ 1: 25, 2: 25 }, ['', 'SIJA', 'NIMI', '1', '2', '3', 'TULOS']), 2);
+  // KISANSPEKSIT puuttuu: TULOS ja RATKO eivät ole asemia.
+  assert.equal(laskeRatojenMaara({}, ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', '1', '2', '3', 'TULOS', 'RATKO']), 3);
+  assert.equal(laskeRatojenMaara({}, ['NIMI', ' 1 ', '2', 'TULOS']), 2);
+  assert.equal(laskeRatojenMaara({}, ['NIMI', 'TULOS']), 8);
+  assert.equal(laskeRatojenMaara(undefined, undefined), 8);
+});

@@ -59,6 +59,9 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   Blob writes never delay the response. A response missing the main tab (`Tulokset Y`, or `RANKING_vvvv`) is fresh only
   1 min (server and CDN) and never stored in Blob, and a cached tab list missing it is refetched after 1 min, so a sheet
   fixed after it was first read (an old competition added to the registry, a renamed tab) shows within a minute.
+  A cached tab list missing `KISANSPEKSIT` is also refetched after 1 min (a tab added to an old sheet), but such a
+  response is cached normally, since old sheets may have no `KISANSPEKSIT`. Without the station table the number of
+  stations comes from the result tab's headers `1`, `2`, `3` ... (`laskeRatojenMaara`), never from TULOS or RATKO.
   With `?preview=1` in the page address (the organiser's preview, which also shows hidden competitions) the app asks
   `/api/kisa?…&preview=1`; for a hidden competition (registry column G) the API then skips the Blob copy (kept only as a
   fallback), uses a server copy only under 30 s and sends `private, no-store`. For a public competition the flag does
