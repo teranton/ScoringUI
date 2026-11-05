@@ -1,9 +1,11 @@
 // Finaalikaavio (pudotuspeli) FINAALI-välilehdeltä: rivi per ottelu.
 // Sarakkeet otsikon mukaan: SARJA (valinnainen), KIERROS, SIJA A / AMPUJA A / TULOS A, SIJA B / AMPUJA B / TULOS B,
 // VOITTAJA (valinnainen: A, B tai voittajan nimi; muuten suurempi tulos voittaa). Otsikkorivi voi olla minkä tahansa
-// tyhjän rivin jälkeen, ja kierrokset näytetään siinä järjestyksessä, jossa ne ovat taulukossa. Pronssiottelu
+// tyhjän rivin jälkeen ja toistua (lohko per sarja), ja kierrokset näytetään siinä järjestyksessä, jossa ne ovat
+// taulukossa. Tyhjä SARJA tai KIERROS on sama kuin edellisellä rivillä (yhdistetyt solut). Pronssiottelu
 // (KIERROS alkaa "PRONSSI" tai "BRONZE") näytetään finaalin alla, ei omana kierroksenaan.
 import { normalisoiOtsikko } from './henkiloTulokset.js';
+import { nimiAvaimeksi } from './mobiiliKiekot.js';
 
 const OTSIKOT = {
   sarja: ['SARJA', 'CLASS'],
@@ -19,7 +21,6 @@ const OTSIKOT = {
 };
 
 const siisti = (arvo) => String(arvo ?? '').replace(/\u200B/g, '').replace(/\s+/g, ' ').trim();
-const vertailuNimi = (nimi) => siisti(nimi).toLowerCase();
 const onPronssi = (kierros) => /^(PRONSSI|BRONZE)/.test(normalisoiOtsikko(kierros));
 
 function etsiOtsikkorivi(rivit) {
@@ -43,15 +44,22 @@ function ratkaiseVoittaja(ottelu, voittajaArvo) {
   const arvo = siisti(voittajaArvo);
   if (arvo) {
     const iso = arvo.toUpperCase();
-    if (iso === 'A' || iso === '1') return 'A';
-    if (iso === 'B' || iso === '2') return 'B';
-    if (vertailuNimi(arvo) === vertailuNimi(ottelu.a.nimi)) return 'A';
-    if (vertailuNimi(arvo) === vertailuNimi(ottelu.b.nimi)) return 'B';
+    if (iso === 'A') return 'A';
+    if (iso === 'B') return 'B';
+    if (nimiAvaimeksi(arvo) === nimiAvaimeksi(ottelu.a.nimi)) return 'A';
+    if (nimiAvaimeksi(arvo) === nimiAvaimeksi(ottelu.b.nimi)) return 'B';
   }
   const { tulos: ta } = ottelu.a;
   const { tulos: tb } = ottelu.b;
   if (ta === null || tb === null || ta === tb) return null;
   return ta > tb ? 'A' : 'B';
+}
+
+// Finaali (kulta ja hopea): kierros nimeltä FINAALI / FINAL, muuten viimeinen kierros, jos siinä on yksi ottelu.
+export function haeLoppuottelu(kaavio) {
+  const nimetty = kaavio.kierrokset.find((k) => /^(FINAALI|FINAL)$/.test(normalisoiOtsikko(k.nimi)));
+  const kierros = nimetty || kaavio.kierrokset[kaavio.kierrokset.length - 1];
+  return kierros?.ottelut.length === 1 ? kierros.ottelut[0] : null;
 }
 
 // Palauttaa [{ sarja, kierrokset: [{ nimi, ottelut }], pronssi: ottelu | null }] taulukon järjestyksessä.
@@ -63,12 +71,23 @@ export function parsiFinaalit(rivit) {
   const solu = (rivi, sarake) => (sarake === -1 ? '' : siisti(rivi[sarake]));
 
   const sarjat = new Map();
+  let edellinenSarja = '';
+  let edellinenKierros = '';
   for (const rivi of rivit.slice(indeksi + 1)) {
-    const kierros = solu(rivi, s.kierros);
+    // Toistettu otsikkorivi (esim. oma lohko jokaiselle sarjalle) ei ole ottelu.
+    if (OTSIKOT.kierros.includes(normalisoiOtsikko(solu(rivi, s.kierros)))) {
+      edellinenSarja = '';
+      edellinenKierros = '';
+      continue;
+    }
     const nimiA = solu(rivi, s.nimiA);
     const nimiB = solu(rivi, s.nimiB);
-    if (!kierros || (!nimiA && !nimiB)) continue;
-    const sarja = solu(rivi, s.sarja);
+    if (!nimiA && !nimiB) continue;
+    const sarja = solu(rivi, s.sarja) || edellinenSarja;
+    const kierros = solu(rivi, s.kierros) || (sarja === edellinenSarja ? edellinenKierros : '');
+    if (!kierros) continue;
+    edellinenSarja = sarja;
+    edellinenKierros = kierros;
     const ottelu = {
       a: { sija: solu(rivi, s.sijaA), nimi: nimiA, tulos: luku(solu(rivi, s.tulosA)) },
       b: { sija: solu(rivi, s.sijaB), nimi: nimiB, tulos: luku(solu(rivi, s.tulosB)) },
@@ -79,7 +98,8 @@ export function parsiFinaalit(rivit) {
     if (!sarjat.has(sarja)) sarjat.set(sarja, { sarja, kierrokset: [], pronssi: null });
     const kaavio = sarjat.get(sarja);
     if (onPronssi(kierros)) {
-      kaavio.pronssi = ottelu;
+      // Ensimmäinen pronssiottelu jää voimaan; toinen rivi on luultavasti virhe tai kopio.
+      if (!kaavio.pronssi) kaavio.pronssi = ottelu;
       continue;
     }
     let kierrosRyhma = kaavio.kierrokset.find((k) => k.nimi.toLowerCase() === kierros.toLowerCase());

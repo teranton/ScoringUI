@@ -31,7 +31,8 @@ function sivutKisalle(kisa, onkoStaattinen) {
     ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT', 'FINAALI']
     // MOBIILI_LAITTEET (vain radat ja linjan tila): mobiilikirjauksen radat julkiseen ratanäkymään (LiveRadat.jsx).
     // MOBIILI_RYHMAT (vain ryhmien numerot): onko ryhmäpuhelimen kortteja tulosten kiekkonäkymään (HenkiloTulokset.jsx).
-    // Päättyneen kisan joukkoa ei muuteta (tallennetut kuvat säilyvät); siellä kortit haetaan, kun ampuja avataan.
+    // Päättyneen kisan joukkoa muutetaan harkiten: joukko on osa tallennetun kuvan avainta, joten jokainen päättynyt kisa
+    // haetaan muutoksen jälkeen kerran Googlesta (FINAALI lisättiin näin). Kortit haetaan, kun ampuja avataan.
     : ['Tulokset Y', 'NEW_Joukkue', 'FINAALI', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT',
       // Ilmoittautuneiden lähteet (Suomisport-tuonti, lomakkeet), kunnes ilmoittautuneiden lista piilotetaan kisapäivänä.
       ...(laskeOnkoIlmoittautuminenPaattynyt(kisa?.alkuPvm) ? [] : LAHDE_VALILEHDET)];

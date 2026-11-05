@@ -57,7 +57,8 @@ so column order can change but header names must not.
   `AMPUJA B` / `NIMI B` / `SHOOTER B`; optional `SARJA` / `CLASS` (one bracket per class), `SIJA A` / `SEED A`,
   `TULOS A` / `SCORE A`, `SIJA B` / `SEED B`, `TULOS B` / `SCORE B`, `VOITTAJA` / `WINNER` (`A`, `B` or the winner's
   name; without it the higher score wins and a tie is undecided) and `RATKO` / `SHOOTOFF` (shown as text). Rounds are
-  shown in the order they first appear; a round starting with `PRONSSI` / `BRONZE` is the bronze match, shown under the
+  shown in the order they first appear; an empty `SARJA` or `KIERROS` repeats the row above (merged cells), and the header
+  row may repeat (one block per class). The round named `FINAALI` / `FINAL` (else the last one) gives gold and silver. A round starting with `PRONSSI` / `BRONZE` is the bronze match, shown under the
   final. Without the tab, or without match rows, the Finaali page is hidden. Example:
   `SARJA | KIERROS | SIJA A | AMPUJA A | TULOS A | SIJA B | AMPUJA B | TULOS B | VOITTAJA`,
   `A | Välierä | 3 | Roger Sundström | 14 | 8 | Juho Saastamoinen | 12 |`.

@@ -9,7 +9,7 @@ const VALILEHTI_TTL_MS = 10 * 60 * 1000;
 // suoraan. Live-joukossa on aikataulujen vaihtoehtoisia nimiä, joista osa puuttuu aina: se odottaa välilehtilistaa.
 const SUORA_HAKU_MAKS = 4;
 // Mobiilikirjaus luo MOBIILI-välilehdet kesken kisan (api/kirjaus.js) ja ilmoittautumislomake ILMOITTAUTUMISET-välilehden
-// (api/ilmoittaudu.js). Jos pyydetty tällainen välilehti puuttuu
+// (api/ilmoittaudu.js), ja järjestäjä lisää FINAALI-välilehden kisan lopussa. Jos pyydetty tällainen välilehti puuttuu
 // listasta, lista haetaan uudelleen, kun se on tätä vanhempi: muuten instanssi, jonka lista on vanha, antaa
 // välilehden puuttuvana vielä 10 min, ja Radat live välkkyy eri instanssien vastausten välillä.
 const MOBIILI_LISTA_MS = 60 * 1000;
@@ -18,7 +18,7 @@ const MOBIILI_LISTA_MS = 60 * 1000;
 // Päävälilehdet (tulokset ja kauden ranking) ovat jokaisessa kisassa. Jos sellainen puuttuu listasta,
 // taulukkoa on luultavasti juuri korjattu (vanha kisa lisätty rekisteriin, välilehti nimetty uudelleen), joten lista
 // haetaan uudelleen samoin kuin MOBIILI-välilehdille.
-const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$)/i.test(String(nimi || '').trim()) || onPaaValilehti(nimi);
+const onKeskenLuotava = (nimi) => /^(mobiili[ _]|ilmoittautumiset$|finaali$)/i.test(String(nimi || '').trim()) || onPaaValilehti(nimi);
 const valilehtiCache = luoValimuisti('valilehdet');
 
 const normalisoi = (nimi) => String(nimi || '').normalize('NFC').trim().toLowerCase();

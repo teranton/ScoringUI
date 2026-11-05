@@ -5,6 +5,7 @@ import { Medal } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
+import { haeLoppuottelu } from './utils/finaali';
 
 function AmpujaRivi({ ampuja, voitti, ratkennut, tx }) {
   return (
@@ -45,10 +46,9 @@ function voittajaJaHaviaja(ottelu) {
   return ottelu.voittaja === 'A' ? [ottelu.a.nimi, ottelu.b.nimi] : [ottelu.b.nimi, ottelu.a.nimi];
 }
 
-// Mitalistit finaalista (viimeinen kierros, yksi ottelu) ja pronssiottelusta, kun ne ovat ratkenneet.
+// Mitalistit finaalista (haeLoppuottelu) ja pronssiottelusta, kun ne ovat ratkenneet.
 function mitalistit(kaavio, tx) {
-  const viimeinen = kaavio.kierrokset[kaavio.kierrokset.length - 1];
-  const [kulta, hopea] = viimeinen?.ottelut.length === 1 ? voittajaJaHaviaja(viimeinen.ottelut[0]) : ['', ''];
+  const [kulta, hopea] = voittajaJaHaviaja(haeLoppuottelu(kaavio));
   const [pronssi] = voittajaJaHaviaja(kaavio.pronssi);
   return [
     { sija: 1, nimi: kulta, vari: 'text-amber-500', otsikko: tx.gold },

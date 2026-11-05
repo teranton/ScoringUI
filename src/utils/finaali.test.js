@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parsiFinaalit } from './finaali.js';
+import { haeLoppuottelu, parsiFinaalit } from './finaali.js';
 
 const RIVIT = [
   [],
@@ -32,4 +32,31 @@ test('parsiFinaalit: tasatulos ilman voittajaa on ratkeamaton, ei otsikkoa → t
   assert.equal(kaavio.sarja, '');
   assert.equal(kaavio.kierrokset[0].ottelut[0].voittaja, null);
   assert.deepEqual(parsiFinaalit([['NIMI', 'TULOS'], ['X', '1']]), []);
+});
+
+test('parsiFinaalit: tyhjä SARJA/KIERROS jatkaa edellistä riviä, toistettu otsikkorivi aloittaa uuden lohkon', () => {
+  const otsikko = ['SARJA', 'KIERROS', 'AMPUJA A', 'TULOS A', 'AMPUJA B', 'TULOS B', 'VOITTAJA'];
+  const kaaviot = parsiFinaalit([
+    otsikko,
+    ['A', 'Välierä', 'P', '10', 'Q', '9', ''],
+    ['', '', 'R', '8', 'S', '9', ''],
+    ['', 'Finaali', 'P', '', 'S', '', '1'],
+    [],
+    otsikko,
+    ['B', 'Finaali', 'X', '5', 'Y', '7', '']
+  ]);
+  assert.deepEqual(kaaviot.map((k) => k.sarja), ['A', 'B']);
+  assert.equal(kaaviot[0].kierrokset[0].ottelut.length, 2);
+  // '1' ei ole A eikä nimi: voittaja ratkeaa tuloksista, joita ei ole.
+  assert.equal(kaaviot[0].kierrokset[1].ottelut[0].voittaja, null);
+});
+
+test('haeLoppuottelu: Finaali-niminen kierros, vaikka se olisi taulukossa ensin', () => {
+  const [kaavio] = parsiFinaalit([
+    ['KIERROS', 'AMPUJA A', 'TULOS A', 'AMPUJA B', 'TULOS B'],
+    ['Finaali', 'P', '15', 'Q', '14'],
+    ['Välierä', 'P', '10', 'R', '9'],
+    ['Välierä', 'Q', '10', 'S', '9']
+  ]);
+  assert.equal(haeLoppuottelu(kaavio).a.nimi, 'P');
 });
