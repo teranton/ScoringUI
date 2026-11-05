@@ -51,6 +51,7 @@ export default function TulosteTaulukko({
     + (sarakkeet.seura ? 1 : 0)
     + (sarakkeet.la ? 1 : 0)
     + (sarakkeet.su ? 1 : 0)
+    + (sarakkeet.finaali ? 1 : 0)
     + (sarakkeet.ratko ? 1 : 0);
   const onkoMaksimi = (n, arvo) => {
     const maksimi = asemaMaksimit?.[n] ?? asemaMaksimit?.[`${n}`];
@@ -86,6 +87,7 @@ export default function TulosteTaulukko({
             {sarakkeet.seura && <col style={{ width: `${leveydet.seura}em` }} />}
             {sarakkeet.la && <col className="tuloste-col-paiva" />}
             {sarakkeet.su && <col className="tuloste-col-paiva" />}
+            {sarakkeet.finaali && <col className="tuloste-col-paiva" />}
             <col className="tuloste-col-yht" />
             {sarakkeet.ratko && <col className="tuloste-col-ratko" />}
             {radat.map((n) => <col key={n} className="tuloste-col-era" />)}
@@ -98,6 +100,7 @@ export default function TulosteTaulukko({
               {sarakkeet.seura && <th>{tx.clubLabel}</th>}
               {sarakkeet.la && <th className="tuloste-num">{paivaSarakeNimet.laLabel}</th>}
               {sarakkeet.su && <th className="tuloste-num">{paivaSarakeNimet.suLabel}</th>}
+              {sarakkeet.finaali && <th className="tuloste-num">{tx.finalLabel}</th>}
               <th className="tuloste-num">{tx.total}</th>
               {sarakkeet.ratko && <th className="tuloste-ratko">Ratko</th>}
               {radat.map((n, i) => (
@@ -127,6 +130,7 @@ export default function TulosteTaulukko({
                 {sarakkeet.seura && <td translate="no">{ampuja.seura}</td>}
                 {sarakkeet.la && <td className="tuloste-num">{ampuja.la}</td>}
                 {sarakkeet.su && <td className="tuloste-num">{ampuja.su}</td>}
+                {sarakkeet.finaali && <td className="tuloste-num">{ampuja.finaali}</td>}
                 <td className="tuloste-num tuloste-yht">{ampuja.kokonaistulos}</td>
                 {sarakkeet.ratko && <td className="tuloste-ratko">{muodostaTulosteRatko(ampuja, ratkoIdt)}</td>}
                 {radat.map((n, i) => {

@@ -33,6 +33,8 @@ test('parsiTaulukkoAmpujat lukee sarakkeet otsikoiden perusteella', () => {
     su: '48',
     tulos: '98',
     kokonaistulos: '98',
+    karsinta: '98',
+    finaali: null,
     ratko: '',
     ratko2: '',
     ratkoNaytto: { statusEtiketit: [], teksti: '' },

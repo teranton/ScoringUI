@@ -10,7 +10,7 @@ export { KAIKKI_SARJAT };
 
 const onkoArvo = (arvo) => String(arvo ?? '').trim() !== '';
 
-// TulosteTaulukon sarakkeet { sarja, seura, la, su, ratko } tulostettavan sarjan ampujista, ettei sivulle jää
+// TulosteTaulukon sarakkeet { sarja, seura, la, su, finaali, ratko } tulostettavan sarjan ampujista, ettei sivulle jää
 // tyhjiä sarakkeita (esim. Su ennen toista päivää).
 export function laskeTulosteSarakkeet(ampujat, sarja, ratkoIdt) {
   return {
@@ -18,6 +18,7 @@ export function laskeTulosteSarakkeet(ampujat, sarja, ratkoIdt) {
     seura: ampujat.some((a) => onkoArvo(a.seura)),
     la: ampujat.some((a) => onkoArvo(a.la)),
     su: ampujat.some((a) => onkoArvo(a.su)),
+    finaali: ampujat.some((a) => onkoArvo(a.finaali)),
     ratko: ampujat.some((a) => onkoRatkoNakyvissa(a, ratkoIdt))
   };
 }
