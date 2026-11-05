@@ -25,12 +25,23 @@ function AmpujaRivi({ ampuja, voitti, ratkennut, tx }) {
   );
 }
 
-function OtteluKortti({ ottelu, tx, otsikko }) {
+// Kulta- ja pronssiottelulla on oma taustasävynsä (läpikuultava, joten se sopii jokaiseen teemaan).
+const MITALI_TYYLIT = {
+  kulta: 'border-amber-400/70 bg-amber-400/15',
+  pronssi: 'border-orange-700/50 bg-orange-700/10'
+};
+
+function OtteluKortti({ ottelu, tx, otsikko, mitali }) {
   const ratkennut = ottelu.voittaja !== null;
   return (
     <div className="w-56">
       {otsikko && <div className="mb-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">{otsikko}</div>}
-      <div className="divide-y divide-[hsl(var(--border))] overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
+      <div
+        className={cn(
+          'divide-y divide-[hsl(var(--border))] overflow-hidden rounded-lg border',
+          MITALI_TYYLIT[mitali] || 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
+        )}
+      >
         <AmpujaRivi ampuja={ottelu.a} voitti={ottelu.voittaja === 'A'} ratkennut={ratkennut} tx={tx} />
         <AmpujaRivi ampuja={ottelu.b} voitti={ottelu.voittaja === 'B'} ratkennut={ratkennut} tx={tx} />
       </div>
@@ -59,6 +70,7 @@ function mitalistit(kaavio, tx) {
 
 function SarjanKaavio({ kaavio, tx }) {
   const mitalit = mitalistit(kaavio, tx);
+  const loppuottelu = haeLoppuottelu(kaavio);
   const otsikko = kaavio.sarja ? tx.classTitle.replace('{sarja}', kaavio.sarja) : tx.title;
 
   return (
@@ -84,16 +96,16 @@ function SarjanKaavio({ kaavio, tx }) {
                 <div className="mb-2 text-sm font-semibold">{kierros.nimi}</div>
                 <div className="flex flex-1 flex-col justify-around gap-4">
                   {kierros.ottelut.map((ottelu, i) => (
-                    <OtteluKortti key={`${kierros.nimi}-${i}`} ottelu={ottelu} tx={tx} />
+                    <OtteluKortti key={`${kierros.nimi}-${i}`} ottelu={ottelu} tx={tx} mitali={ottelu === loppuottelu ? 'kulta' : undefined} />
                   ))}
                   {k === kaavio.kierrokset.length - 1 && kaavio.pronssi && (
-                    <OtteluKortti ottelu={kaavio.pronssi} tx={tx} otsikko={tx.bronze} />
+                    <OtteluKortti ottelu={kaavio.pronssi} tx={tx} otsikko={tx.bronze} mitali="pronssi" />
                   )}
                 </div>
               </div>
             ))}
             {kaavio.kierrokset.length === 0 && kaavio.pronssi && (
-              <OtteluKortti ottelu={kaavio.pronssi} tx={tx} otsikko={tx.bronze} />
+              <OtteluKortti ottelu={kaavio.pronssi} tx={tx} otsikko={tx.bronze} mitali="pronssi" />
             )}
           </div>
         </div>
