@@ -50,6 +50,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   Targets in the results: with squad cards (`MOBIILI_RYHMAT`) or Compak devices (`MOBIILI_LAITTEET`), tapping a station
   score in `HenkiloTulokset.jsx` shows its targets from `MOBIILI Layout N` or `MOBIILI Rata N`
   (`src/utils/mobiiliKiekot.js`, `src/hooks/useMobiiliKiekot.js`), matched by name.
+- Knockout final (Finaali page, `src/FinaaliKaavio.jsx`, `src/utils/finaali.js`): an optional `FINAALI` tab, filled by the
+  organiser, one row per match (round, seeds, shooters, scores, winner); drawn as a bracket per class with the bronze match under the final.
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
   time follows the registry dates (finished 1 h, served stale up to 1 day in the 14-day correction window and 30 days after it; running 15 s; upcoming 60 s).
   With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.

@@ -28,11 +28,11 @@ function rankingValilehti(kisa) {
 function sivutKisalle(kisa, onkoStaattinen) {
   if (kisa?.onkoRanking) return [rankingValilehti(kisa), 'KISAT', 'KISANSPEKSIT'];
   return onkoStaattinen
-    ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
+    ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT', 'FINAALI']
     // MOBIILI_LAITTEET (vain radat ja linjan tila): mobiilikirjauksen radat julkiseen ratanäkymään (LiveRadat.jsx).
     // MOBIILI_RYHMAT (vain ryhmien numerot): onko ryhmäpuhelimen kortteja tulosten kiekkonäkymään (HenkiloTulokset.jsx).
     // Päättyneen kisan joukkoa ei muuteta (tallennetut kuvat säilyvät); siellä kortit haetaan, kun ampuja avataan.
-    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT',
+    : ['Tulokset Y', 'NEW_Joukkue', 'FINAALI', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT',
       // Ilmoittautuneiden lähteet (Suomisport-tuonti, lomakkeet), kunnes ilmoittautuneiden lista piilotetaan kisapäivänä.
       ...(laskeOnkoIlmoittautuminenPaattynyt(kisa?.alkuPvm) ? [] : LAHDE_VALILEHDET)];
 }
@@ -192,6 +192,8 @@ export function useKisaData({ kisat, valittuKisa }) {
       const uusiData = {
         henkilotCsvRaw: csvByName['Tulokset Y'] || vanhaData.henkilotCsvRaw || "",
         joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
+        // Finaalikaavio (FINAALI-välilehti, pudotuspeli). Puuttuva välilehti tyhjentää kaavion.
+        finaaliCsvRaw: csvByName['FINAALI'] || "",
         eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
         ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
         // Lähteistä vain tässä haussa löytyneet: poistettu tai siirretty ilmoittautuminen ei jää näkyviin.

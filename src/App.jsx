@@ -2,6 +2,8 @@
 import { Component, useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import JoukkueTulokset from './JoukkueTulokset';
+import FinaaliKaavio from './FinaaliKaavio';
+import { parsiFinaalit } from './utils/finaali';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import IlmoittautumisLomake from './IlmoittautumisLomake';
 import { ilmoittautuneidenNimet, lisattavatIlmoittautuneet, lomakkeenTila, paikkatilanne } from './utils/ilmoittautumiset';
@@ -38,7 +40,7 @@ import {
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer, Radio } from 'lucide-react';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer, Radio, Medal } from 'lucide-react';
 import { haeTekstit } from './i18n';
 import SaaEnnuste from './components/SaaEnnuste';
 import { lataaAnalytiikka, trackAnalyticsEvent } from './utils/analytiikka';
@@ -204,6 +206,9 @@ export default function App() {
     joukkueRows: parseCsvRows(joukkueetCsvRaw),
     speksitRows: parseCsvRows(speksitCsvRaw)
   }), [henkilotCsvRaw, joukkueetCsvRaw, speksitCsvRaw]);
+  // Pudotuspelifinaali (FINAALI-välilehti), yksi kaavio per sarja.
+  const finaaliCsvRaw = nykyisenKisanData?.finaaliCsvRaw || '';
+  const finaalit = useMemo(() => parsiFinaalit(parseCsvRows(finaaliCsvRaw)), [finaaliCsvRaw]);
 
   const nykyisenKisanSpeksit = useMemo(
     () => ({
@@ -355,6 +360,7 @@ export default function App() {
   const onkoJoukkueKisa = onkoTuloksetSallittu
     && onkoJoukkueTuloksetSallittu
     && nykyisenKisanParsitutRivit.joukkueRows.length >= 2;
+  const onkoFinaali = onkoTuloksetSallittu && finaalit.length > 0;
 
   // Radat live: mobiilikirjauksen Compak-radat (MOBIILI_LAITTEET), kun kisa on käynnissä.
   const mobiiliLaitteetCsvRaw = nykyisenKisanData?.mobiiliLaitteetCsvRaw || '';
@@ -384,6 +390,7 @@ export default function App() {
     onkoIlmoittautuneita,
     onkoMateriaaleja,
     onkoJoukkueKisa,
+    onkoFinaali,
     onkoKisaPaattynyt,
     onkoKisaTulossa,
     onkoTaulukkoSallittu,
@@ -579,6 +586,12 @@ export default function App() {
             {tx.teamResults}
           </Button>
         )}
+        {onkoFinaali && (
+          <Button onClick={() => setAktiivinenSivu('finaali')} variant={aktiivinenSivu === 'finaali' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Medal className="h-4 w-4" aria-hidden="true" />
+            {tx.final}
+          </Button>
+        )}
         {onkoIlmoittautuneita && (
           <Button onClick={() => setAktiivinenSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <ClipboardList className="h-4 w-4" aria-hidden="true" />
@@ -753,6 +766,11 @@ export default function App() {
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
             <div className="mx-auto w-full max-w-3xl">
               <JoukkueTulokset data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} kisaStatus={kisanStatusInfo.status} locale={locale} />
+            </div>
+          )}
+          {aktiivinenSivu === 'finaali' && onkoFinaali && (
+            <div className="mx-auto w-full max-w-5xl">
+              <FinaaliKaavio finaalit={finaalit} locale={locale} />
             </div>
           )}
         </main>

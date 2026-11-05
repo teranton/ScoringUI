@@ -21,6 +21,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, and the library-only `KILPAILUTYYPPI`, `ALKUPAIVA`, plus `RYHMAVALI`, `ISTUNTOTAUKO` on group-timetable types; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js`, `utils/kisaAsetukset.js`, `utils/openSarja.js`, `utils/highGun.js` |
 | `Tulokset Y` | Sheet formulas from the main entry tab | `HenkiloTaulukko.jsx`, `HenkiloTulokset.jsx`, `utils/henkiloTulokset.js` |
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
+| `FINAALI` (optional, knockout final) | Organiser by hand | `FinaaliKaavio.jsx`, `utils/finaali.js` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Sheet formula from the main tab (master: `SORT(CHOOSECOLS(FILTER(OSALLISTUJAT; …)))`) | `Ilmoittautuneet.jsx` |
 | `Suomisport Import`, `ILMOITTAUTUMISET`, `Lomakevastaukset N` / `Form Responses N` (sign-up sources) | ScoringLib (`SuomiSport.js` import; `Ilmoittautumiset.js` marks `SIIRRETTY`), sign-up form (`api/ilmoittaudu.js`, writer account, `ILMOITTAUTUMISET` only), a Google Form linked to the sheet | `Ilmoittautuneet.jsx`, `utils/ilmoittautumiset.js` through `api/kisa.js`, only the public columns (see "Sign-ups") |
@@ -52,6 +53,14 @@ so column order can change but header names must not.
   `SU` / `IP` / `SUNNUNTAI…` / `ILTAP…`, `TULOS`, round columns (headers `1`, `2`, `3` …; without the `KISANSPEKSIT` station table the largest
   of these numbers is the station count), `RATKO` (tie-break) and status values.
 - `Ilmoittautuneet`: `NIMI`, `SARJA`, `SEURA`, `KILPAILUNUMERO` / `KISA_NUMERO` / `NUMERO`.
+- `FINAALI`: one row per match under a header row with `KIERROS` / `ROUND`, `AMPUJA A` / `NIMI A` / `SHOOTER A` and
+  `AMPUJA B` / `NIMI B` / `SHOOTER B`; optional `SARJA` / `CLASS` (one bracket per class), `SIJA A` / `SEED A`,
+  `TULOS A` / `SCORE A`, `SIJA B` / `SEED B`, `TULOS B` / `SCORE B`, `VOITTAJA` / `WINNER` (`A`, `B` or the winner's
+  name; without it the higher score wins and a tie is undecided) and `RATKO` / `SHOOTOFF` (shown as text). Rounds are
+  shown in the order they first appear; a round starting with `PRONSSI` / `BRONZE` is the bronze match, shown under the
+  final. Without the tab, or without match rows, the Finaali page is hidden. Example:
+  `SARJA | KIERROS | SIJA A | AMPUJA A | TULOS A | SIJA B | AMPUJA B | TULOS B | VOITTAJA`,
+  `A | Välierä | 3 | Roger Sundström | 14 | 8 | Juho Saastamoinen | 12 |`.
 - `NEW_Joukkue`: `SIJA` / `RANK`, `JOUKKUE` / `TEAM`, `NIMI` / `AMPUJA` / `SHOOTER`, `SARJA` / `CLASS`,
   `TULOS` / `YHT…` / `TOTAL…`, and lane columns whose header is exactly `1`, `2`, ….
 - `KISANSPEKSIT` station table: header containing `ASEMA` / `RATA` / `LANE` / `STATION`, a max column

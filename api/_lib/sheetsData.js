@@ -27,7 +27,7 @@ const normalisoi = (nimi) => String(nimi || '').normalize('NFC').trim().toLowerC
 // koska taulukoissa on myös tietoja, joita ei julkaista (esim. Suomisport-tuonti ja Sportti-ID:t).
 export const SALLITUT_VALILEHDET = [
   'KISANSPEKSIT', 'Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet',
-  'Aikataulu', 'Aikataulu La', 'Aikataulu Su'
+  'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'FINAALI'
 ];
 const sallitutNormalisoituna = new Map(SALLITUT_VALILEHDET.map((nimi) => [normalisoi(nimi), nimi]));
 // Kauden rankingin välilehdet: tulokset (RANKING_2026 ...) ja kisojen nimet (KISAT).

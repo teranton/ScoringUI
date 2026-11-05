@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- New optional tab `FINAALI` (knockout final, one row per match; columns in `sheet-layout.md`). ScoringUI shows it as a
+  bracket on a new Finaali page. Additive: sheets without the tab are unchanged. No ScoringLib change; the organiser fills
+  the tab by hand.
+
 - `Tulokset Y` round headers: when the `KISANSPEKSIT` station table is missing, the station count is the largest
   numeric round header instead of 8, so `TULOS` and `RATKO` are no longer shown as stations. No sheet change needed.
 
