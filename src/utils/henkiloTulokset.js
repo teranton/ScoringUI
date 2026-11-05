@@ -188,42 +188,6 @@ export function muodostaRatkoNakyma(ratko1, ratko2) {
   return { statusEtiketit: [], teksti: naytto };
 }
 
-function haeCountbackSarja(ampuja) {
-  if (Array.isArray(ampuja?.sarjat) && ampuja.sarjat.length > 0) {
-    return ampuja.sarjat.map((sarja) => {
-      const piste = parseInt(sarja?.tulos, 10);
-      return Number.isNaN(piste) ? -9999 : piste;
-    });
-  }
-
-  if (ampuja?.erat && typeof ampuja.erat === 'object') {
-    return Object.keys(ampuja.erat)
-      .map((avain) => Number(avain))
-      .filter((avain) => Number.isFinite(avain))
-      .sort((a, b) => a - b)
-      .map((avain) => {
-        const piste = parseInt(ampuja.erat[avain], 10);
-        return Number.isNaN(piste) ? -9999 : piste;
-      });
-  }
-
-  return [];
-}
-
-function vertaaCountbackSarjoja(ampujaA, ampujaB) {
-  const sarjaA = haeCountbackSarja(ampujaA);
-  const sarjaB = haeCountbackSarja(ampujaB);
-  const pisin = Math.max(sarjaA.length, sarjaB.length);
-
-  for (let i = pisin - 1; i >= 0; i--) {
-    const arvoA = sarjaA[i] ?? -9999;
-    const arvoB = sarjaB[i] ?? -9999;
-    if (arvoA !== arvoB) return arvoB - arvoA;
-  }
-
-  return 0;
-}
-
 function onkoRatkoArvoAnnettu(ampuja) {
   const ratko1 = String(ampuja?.ratko || '').trim();
   const ratko2 = String(ampuja?.ratko2 || '').trim();
@@ -251,9 +215,9 @@ export function laskeHenkilosijoitukset(
 
     const ratko2A = puraRatkoArvo(a.ratko2);
     const ratko2B = puraRatkoArvo(b.ratko2);
-    if (ratko2B.piste !== ratko2A.piste) return ratko2B.piste - ratko2A.piste;
-
-    return vertaaCountbackSarjoja(a, b);
+    // Tasainen ratko jää tasatulokseksi (esim. uusintaratkolle ei ollut aikaa): ei countbackia.
+    // Vakaa lajittelu pitää tasatulokset taulukon järjestyksessä.
+    return ratko2B.piste - ratko2A.piste;
   });
 
   let aktiivinenSija = 1;
@@ -272,7 +236,6 @@ export function laskeHenkilosijoitukset(
       const ratko2Arvo = puraRatkoArvo(ampuja.ratko2);
       const edellinenRatko = puraRatkoArvo(edellinen.ratko);
       const edellinenRatko2 = puraRatkoArvo(edellinen.ratko2);
-      const countbackVertailu = vertaaCountbackSarjoja(ampuja, edellinen);
 
       const onkoMukanaRatkoissa = index < ratkoSija || tulosNum >= ratkoRajatulos;
       const onkoRatkoAnnettuVertailuparille = onkoRatkoArvoAnnettu(ampuja) || onkoRatkoArvoAnnettu(edellinen);
@@ -281,7 +244,7 @@ export function laskeHenkilosijoitukset(
         if (onkoMukanaRatkoissa) {
           // Älä riko tasatulosta ennen kuin ratkoarvoja on oikeasti annettu.
           if (onkoRatkoAnnettuVertailuparille
-            && !(edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste && countbackVertailu === 0)) {
+            && !(edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste)) {
             aktiivinenSija = index + 1;
           }
         }
