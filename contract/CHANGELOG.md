@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `Tulokset Y` round headers: when the `KISANSPEKSIT` station table is missing, the station count is the largest
+  numeric round header instead of 8, so `TULOS` and `RATKO` are no longer shown as stations. No sheet change needed.
+
 - `KISANSPEKSIT` values: every UI setting (`KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS`, `AIKATAULU_MALLI`,
   `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, `RATKO_PALKINTO_SIJA`) now reads only the cell
   right of its key, like ScoringLib, instead of the next non-empty cell. An empty value no longer picks up the Ohje text.

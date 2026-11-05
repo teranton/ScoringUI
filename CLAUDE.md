@@ -62,7 +62,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   With `?preview=1` in the page address (the organiser's preview, which also shows hidden competitions) the app asks
   `/api/kisa?…&preview=1`; for a hidden competition (registry column G) the API then skips the Blob copy (kept only as a
   fallback), uses a server copy only under 30 s and sends `private, no-store`. For a public competition the flag does
-  nothing, so nobody can bypass the caches. Fix an old sheet while it is hidden, then make it public.
+  nothing, so nobody can bypass the caches. The app adds a time parameter `t` to every preview request, so Cloudflare
+  never answers it with a copy stored before (when the competition was public or before preview skipped the caches). Fix an old sheet while it is hidden, then make it public.
   Vercel strips `s-maxage` from the response it forwards, so cached API responses also carry
   `Cloudflare-CDN-Cache-Control` with the same times (`api/_lib/cdnOtsikot.js`) for a Cloudflare cache in front of Vercel.
   Running competitions are kept only 5 s in Vercel's CDN (`Vercel-CDN-Cache-Control: max-age=5`), so the two CDN copies
