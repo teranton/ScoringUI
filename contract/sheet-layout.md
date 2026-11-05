@@ -51,10 +51,10 @@ so column order can change but header names must not.
 - `Tulokset Y`: `NIMI`, `SARJA`, `SEURA`, day columns `LA` / `AP` / `LAUANTAI…` / `AAMUP…` and
   `SU` / `IP` / `SUNNUNTAI…` / `ILTAP…`, `TULOS`, round columns (headers `1`, `2`, `3` …; without the `KISANSPEKSIT` station table the largest
   of these numbers is the station count), `RATKO` (tie-break) and status values.
-  Optional `FINAALI` (or `FINAL`): a final after the qualification (e.g. Compak top-6). A number there is added to
-  `TULOS` for the total and the order, in every class too; `RATKO` breaks a tie in that total. `TULOS` stays the
-  qualification score (a `TULOS` that already equals the stations plus the final is not added twice). Not the
-  knockout bracket's `FINAALI` tab.
+  Optional `FINAALI` (or `FINAL`): a final after the qualification (e.g. Compak top-6) that starts from zero. In the
+  overall list (and High Gun) the shooters with a final score (a number above 0) come first, ordered by the final,
+  `RATKO` breaking a tie; the rest follow by `TULOS`. Classes are ranked by `TULOS` (the qualification). A `TULOS` that
+  equals the stations plus the final has the final taken off. Not the knockout bracket's `FINAALI` tab.
 - `Ilmoittautuneet`: `NIMI`, `SARJA`, `SEURA`, `KILPAILUNUMERO` / `KISA_NUMERO` / `NUMERO`.
 - `NEW_Joukkue`: `SIJA` / `RANK`, `JOUKKUE` / `TEAM`, `NIMI` / `AMPUJA` / `SHOOTER`, `SARJA` / `CLASS`,
   `TULOS` / `YHT…` / `TOTAL…`, and lane columns whose header is exactly `1`, `2`, ….

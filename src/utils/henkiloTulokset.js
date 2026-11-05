@@ -201,6 +201,16 @@ function onkoRatkoArvoAnnettu(ampuja) {
   return Boolean(ratko1 || ratko2);
 }
 
+// Karsinnan jälkeinen finaali (FINAALI-sarake, karsintaFinaali.js) alkaa nollasta: kaikkien ampujien näkymässä (ja
+// High Gunissa) finaalin ampuneet ovat ensin finaalin tuloksen mukaan, muut karsinnan tuloksen mukaan. Sarjoissa
+// järjestää karsinnan tulos. Palauttaa vertailtavan luvun.
+const FINAALI_POHJA = 1e6;
+export function sijoitusPisteet(ampuja, onKaikkiNakyma) {
+  const finaali = Number.parseInt(ampuja?.finaali, 10);
+  if (onKaikkiNakyma && Number.isInteger(finaali)) return FINAALI_POHJA + finaali;
+  return Number.parseInt(ampuja?.tulos, 10) || 0;
+}
+
 export function laskeHenkilosijoitukset(
   ampujat,
   sarjaSuodatin = KAIKKI_SARJAT,
@@ -223,23 +233,23 @@ export function laskeHenkilosijoitukset(
   };
 
   lajiteltuLista.sort((a, b) => {
-    const tulosA = parseInt(a.tulos, 10) || 0;
-    const tulosB = parseInt(b.tulos, 10) || 0;
+    const tulosA = sijoitusPisteet(a, onKaikkiNakyma);
+    const tulosB = sijoitusPisteet(b, onKaikkiNakyma);
     if (tulosB !== tulosA) return tulosB - tulosA;
     return vertaaRatkoja(a, b);
   });
 
   let aktiivinenSija = 1;
   const ratkoRajatulos = lajiteltuLista.length >= ratkoSija
-    ? parseInt(lajiteltuLista[ratkoSija - 1].tulos, 10) || 0
+    ? sijoitusPisteet(lajiteltuLista[ratkoSija - 1], onKaikkiNakyma)
     : 0;
 
   return lajiteltuLista.map((ampuja, index, array) => {
-    const tulosNum = parseInt(ampuja.tulos, 10) || 0;
+    const tulosNum = sijoitusPisteet(ampuja, onKaikkiNakyma);
 
     if (index > 0) {
       const edellinen = array[index - 1];
-      const edellinenTulos = parseInt(edellinen.tulos, 10) || 0;
+      const edellinenTulos = sijoitusPisteet(edellinen, onKaikkiNakyma);
 
       const onkoMukanaRatkoissa = index < ratkoSija || tulosNum >= ratkoRajatulos;
       const onkoRatkoAnnettuVertailuparille = onkoRatkoArvoAnnettu(ampuja) || onkoRatkoArvoAnnettu(edellinen);
@@ -273,12 +283,12 @@ export function laskeNaytettavatRatkoIdt(
 ) {
   const onKaikkiNakyma = sarjaSuodatin === KAIKKI_SARJAT;
   const rajatulos = onKaikkiNakyma && sijoitetutAmpujat.length >= ratkoSija
-    ? parseInt(sijoitetutAmpujat[ratkoSija - 1]?.tulos, 10)
+    ? sijoitusPisteet(sijoitetutAmpujat[ratkoSija - 1], onKaikkiNakyma)
     : NaN;
 
   const tulosRyhmat = new Map();
   for (const ampuja of sijoitetutAmpujat) {
-    const tulos = parseInt(ampuja.tulos, 10) || 0;
+    const tulos = sijoitusPisteet(ampuja, onKaikkiNakyma);
     const ryhma = tulosRyhmat.get(tulos) || [];
     ryhma.push(ampuja);
     tulosRyhmat.set(tulos, ryhma);

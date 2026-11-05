@@ -236,7 +236,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     };
 
     const haeJarjestysArvo = (ampuja) => {
-      if (jarjestysValinta === 'total') return haeNumero(ampuja.tulos);
+      // Kokonaistulos: sijoitusjärjestys (finaalin ampuneet ensin finaalin mukaan, ks. sijoitusPisteet).
+      if (jarjestysValinta === 'total') return -haeNumero(ampuja.laskettuSija);
       if (jarjestysValinta.startsWith('day-')) {
         const paivaNumero = Number.parseInt(jarjestysValinta.slice(4), 10);
         return haeNumero(ampuja.dayScores?.find((paiva) => paiva.numero === paivaNumero)?.tulos);
@@ -417,9 +418,9 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                 <div className="flex min-w-20 shrink-0 flex-col items-center justify-center text-center">
                   <div className="text-xl font-black leading-none text-slate-900">{ampuja.tulos}</div>
                   {ampuja.finaali && (
-                    <div className="mt-1 max-w-[8rem] text-[10px] font-semibold text-slate-500">
-                      {tx.qualificationFinal.replace('{karsinta}', ampuja.karsinta).replace('{finaali}', ampuja.finaali)}
-                    </div>
+                    <Badge variant="default" className="mt-1 px-2 py-0.5 text-[11px]">
+                      {tx.finalScore.replace('{finaali}', ampuja.finaali)}
+                    </Badge>
                   )}
                   {naytaPaivaTulokset && ampuja.dayScores?.length > 0 && (
                     <div className="mt-1 flex max-w-[8rem] flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-[10px] font-semibold text-slate-500">

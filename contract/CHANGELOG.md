@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- `Tulokset Y` optional `FINAALI` column (also `FINAL`): the final's score is added to `TULOS` for the total and the
-  order, ties by `RATKO`; shown as a "Fin" column in the table and print and as "karsinta + finaali" on the cards.
-  Sheets without the column are unchanged.
+- `Tulokset Y` optional `FINAALI` column (also `FINAL`): a final from zero. Finalists head the overall list and High
+  Gun by the final score (ties by `RATKO`), classes stay by `TULOS`. Shown as a "Fin" column in the table and print and
+  as a "finaali N" badge on the cards. Sheets without the column are unchanged.
 
 - `Tulokset Y` round headers: when the `KISANSPEKSIT` station table is missing, the station count is the largest
   numeric round header instead of 8, so `TULOS` and `RATKO` are no longer shown as stations. No sheet change needed.
