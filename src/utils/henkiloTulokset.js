@@ -204,20 +204,22 @@ export function laskeHenkilosijoitukset(
     ? [...ampujat]
     : ampujat.filter((ampuja) => String(ampuja.sarja || '').toUpperCase() === sarjaSuodatin.toUpperCase());
 
+  // Ratkot puretaan kerran ampujaa kohden. Tasainen ratko jää tasatulokseksi (esim. uusintaratkolle ei ollut
+  // aikaa): countbackia ei käytetä, ja vakaa lajittelu pitää tasatulokset taulukon järjestyksessä.
+  const ratkot = new Map(lajiteltuLista.map((ampuja) => [
+    ampuja, [puraRatkoArvo(ampuja.ratko).piste, puraRatkoArvo(ampuja.ratko2).piste]
+  ]));
+  const vertaaRatkoja = (a, b) => {
+    const [ratkoA, ratko2A] = ratkot.get(a);
+    const [ratkoB, ratko2B] = ratkot.get(b);
+    return ratkoB !== ratkoA ? ratkoB - ratkoA : ratko2B - ratko2A;
+  };
+
   lajiteltuLista.sort((a, b) => {
     const tulosA = parseInt(a.tulos, 10) || 0;
     const tulosB = parseInt(b.tulos, 10) || 0;
     if (tulosB !== tulosA) return tulosB - tulosA;
-
-    const ratkoA = puraRatkoArvo(a.ratko);
-    const ratkoB = puraRatkoArvo(b.ratko);
-    if (ratkoB.piste !== ratkoA.piste) return ratkoB.piste - ratkoA.piste;
-
-    const ratko2A = puraRatkoArvo(a.ratko2);
-    const ratko2B = puraRatkoArvo(b.ratko2);
-    // Tasainen ratko jää tasatulokseksi (esim. uusintaratkolle ei ollut aikaa): ei countbackia.
-    // Vakaa lajittelu pitää tasatulokset taulukon järjestyksessä.
-    return ratko2B.piste - ratko2A.piste;
+    return vertaaRatkoja(a, b);
   });
 
   let aktiivinenSija = 1;
@@ -232,11 +234,6 @@ export function laskeHenkilosijoitukset(
       const edellinen = array[index - 1];
       const edellinenTulos = parseInt(edellinen.tulos, 10) || 0;
 
-      const ratkoArvo = puraRatkoArvo(ampuja.ratko);
-      const ratko2Arvo = puraRatkoArvo(ampuja.ratko2);
-      const edellinenRatko = puraRatkoArvo(edellinen.ratko);
-      const edellinenRatko2 = puraRatkoArvo(edellinen.ratko2);
-
       const onkoMukanaRatkoissa = index < ratkoSija || tulosNum >= ratkoRajatulos;
       const onkoRatkoAnnettuVertailuparille = onkoRatkoArvoAnnettu(ampuja) || onkoRatkoArvoAnnettu(edellinen);
 
@@ -244,7 +241,7 @@ export function laskeHenkilosijoitukset(
         if (onkoMukanaRatkoissa) {
           // Älä riko tasatulosta ennen kuin ratkoarvoja on oikeasti annettu.
           if (onkoRatkoAnnettuVertailuparille
-            && !(edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste)) {
+            && vertaaRatkoja(edellinen, ampuja) !== 0) {
             aktiivinenSija = index + 1;
           }
         }
