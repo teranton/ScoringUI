@@ -1,7 +1,7 @@
 // src/utils/henkiloTaulukko.js
 // HenkiloTaulukko-näkymän puhdas parsinta- ja laskentalogiikka.
 import { muodostaRatkoNakyma } from './henkiloTulokset.js';
-import { etsiFinaaliSarake, rivinTulos } from './karsintaFinaali.js';
+import { etsiFinaaliSarake, ratko2Sarake, ratkoSarake, rivinTulos } from './karsintaFinaali.js';
 import { haeTekstit } from '../i18n.js';
 
 export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
@@ -45,8 +45,8 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
   const nimiIndeksi = idxNimi !== -1 ? idxNimi : nimiFallback;
   const sarjaIndeksi = idxSarja !== -1 ? idxSarja : sarjaFallback;
   const aloitusIndeksi = idxRata1 !== -1 ? idxRata1 : rata1Fallback;
-  const idxRatko = idxRatkoOtsikko !== -1 ? idxRatkoOtsikko : (aloitusIndeksi + ratojenMaara + 1);
-  const idxRatko2 = idxRatko !== -1 ? idxRatko + 1 : -1;
+  const idxRatko = ratkoSarake(idxRatkoOtsikko !== -1 ? idxRatkoOtsikko : (aloitusIndeksi + ratojenMaara + 1), idxFinaali);
+  const idxRatko2 = ratko2Sarake(idxRatko, idxFinaali);
 
   const rataSarakkeet = [];
   for (let col = aloitusIndeksi; col < otsikot.length; col++) {
@@ -97,8 +97,8 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
       }
     }
 
-    // finaali: null, kun välilehdellä ei ole FINAALI-saraketta; karsinta: TULOS ilman finaalia.
-    const { tulos: yhteistulos, karsinta, finaali } = rivinTulos(row, otsikotNormalisoitu, idxTulos, idxFinaali);
+    // finaali: null, kun välilehdellä ei ole FINAALI-saraketta; tulos on karsinnan tulos.
+    const { tulos: yhteistulos, finaali } = rivinTulos(row, otsikotNormalisoitu, idxTulos, idxFinaali);
 
     lista.push({
       id: `${name}|${i}`,
@@ -109,7 +109,6 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
       su,
       tulos: yhteistulos,
       kokonaistulos: yhteistulos,
-      karsinta,
       finaali,
       ratko,
       ratko2,

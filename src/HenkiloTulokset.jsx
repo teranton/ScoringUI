@@ -23,7 +23,7 @@ import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { RYHMAKORTTI_VALILEHDET, asemanKiekot, compakKorttiValilehdet, nimiAvaimeksi } from './utils/mobiiliKiekot';
 import { useMobiiliKiekot } from './hooks/useMobiiliKiekot';
-import { etsiFinaaliSarake, rivinTulos } from './utils/karsintaFinaali';
+import { etsiFinaaliSarake, ratko2Sarake, ratkoSarake, rivinTulos } from './utils/karsintaFinaali';
 
 // Aseman tulosta napauttamalla näkyvät sen kiekot mobiilikirjauksen kortilta. kiekkoLahteet: { ryhma, compak },
 // kumpikin true = kisassa on ryhmäpuhelimen kortteja (MOBIILI_RYHMAT) / Compak-kirjauslaitteen ratoja (MOBIILI_LAITTEET),
@@ -109,7 +109,10 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
   // Ensisijaisesti etsitään RATKO otsikosta, koska rata-/speksimäärä voi vaihdella eri kisoissa.
   const idxRatkoOtsikko = etsiSarakkeenIndeksi([(h) => h === 'RATKO', (h) => h.startsWith('RATKO')]);
-  const idxRatko = idxRatkoOtsikko !== -1 ? idxRatkoOtsikko : aloitusIndeksi + kisanRatojenMaara + 1;
+  // Karsinnan jälkeinen finaali (FINAALI-sarake): erillinen finaalin tulos, ei ratko.
+  const idxFinaali = etsiFinaaliSarake(otsikotNormalisoitu);
+  const idxRatko = ratkoSarake(idxRatkoOtsikko !== -1 ? idxRatkoOtsikko : aloitusIndeksi + kisanRatojenMaara + 1, idxFinaali);
+  const idxRatko2 = ratko2Sarake(idxRatko, idxFinaali);
   const idxLa = etsiSarakkeenIndeksi([
     (h) => h === 'LA',
     (h) => h === 'AP',
@@ -134,8 +137,6 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   }
 
   const idxSija = idxNimi - 1 >= 0 ? idxNimi - 1 : 1;
-  // Karsinnan jälkeinen finaali (FINAALI-sarake) lisätään tulokseen.
-  const idxFinaali = etsiFinaaliSarake(otsikotNormalisoitu);
 
   const ampujat = useMemo(() => {
     const parsedAmpujat = [];
@@ -156,7 +157,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         }
       }
 
-      const { tulos, karsinta, finaali } = rivinTulos(row, otsikotNormalisoitu, idxTulos, idxFinaali);
+      const { tulos, finaali } = rivinTulos(row, otsikotNormalisoitu, idxTulos, idxFinaali);
 
       const ampuja = {
         id: `${row[idxNimi] || 'ampuja'}|${idxSarja !== -1 ? row[idxSarja] || 'Y' : 'Y'}|${i}`,
@@ -165,7 +166,6 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         sarja: idxSarja !== -1 ? row[idxSarja] : 'Y',
         seura: idxSeura !== -1 ? row[idxSeura] : '',
         tulos,
-        karsinta,
         finaali,
         la: idxLa !== -1 ? row[idxLa] : null,
         su: idxSu !== -1 ? row[idxSu] : null,
@@ -174,8 +174,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
           tulos: row[indeksi] ?? ''
         })),
         ratko: idxRatko !== -1 ? row[idxRatko] : '',
-        ratko2: idxRatko !== -1 ? row[idxRatko + 1] || '' : '',
-        ratkoNaytto: muodostaRatkoNakyma(row[idxRatko] || '', idxRatko !== -1 ? row[idxRatko + 1] || '' : ''),
+        ratko2: idxRatko2 !== -1 ? row[idxRatko2] || '' : '',
+        ratkoNaytto: muodostaRatkoNakyma(row[idxRatko] || '', idxRatko2 !== -1 ? row[idxRatko2] || '' : ''),
         sarjat: osumaSarjat
       };
 
@@ -183,7 +183,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     }
 
     return parsedAmpujat;
-  }, [idxFinaali, otsikotNormalisoitu, idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
+  }, [idxFinaali, otsikotNormalisoitu, idxLa, idxNimi, idxRatko, idxRatko2, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
 
   // Kiekot haetaan nimellä (Tulokset Y:ssä ei ole numeroa): tuloksissa useammin kuin kerran oleva nimi ei saa kiekkoja.
   const nimiMonesti = useMemo(() => {
