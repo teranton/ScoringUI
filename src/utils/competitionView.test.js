@@ -71,3 +71,9 @@ test('radat live pysyy auki vain, kun se on sallittu', () => {
   assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, aktiivinenSivu: 'live', onkoLiveSallittu: false }), 'tulokset');
   assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, aktiivinenSivu: 'live' }), 'tulokset');
 });
+
+test('finaali pysyy auki päättyneessä kisassa vain, kun FINAALI-välilehdellä on otteluita', () => {
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, onkoKisaPaattynyt: true, aktiivinenSivu: 'finaali', onkoFinaali: true }), 'finaali');
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, onkoKisaPaattynyt: true, aktiivinenSivu: 'finaali', onkoFinaali: false }), 'tulokset');
+  assert.equal(laskeSeuraavaAktiivinenSivu({ ...perus, aktiivinenSivu: 'finaali' }), 'tulokset');
+});

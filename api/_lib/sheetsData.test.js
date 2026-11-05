@@ -79,6 +79,14 @@ test('kaikki välilehdet löytyvät: yksi batchGet ja lista rinnalla', async () 
   assert.equal(kutsut.filter((u) => u.includes('batchGet')).length, 1);
 });
 
+test('päättyneen kisan joukko, jossa FINAALI: ei suoraa hakua, vaan lista ja yksi batchGet', async () => {
+  await tyhjennaValilehtiCache();
+  const { request, kutsut } = luoGoogle(['Tulokset Y', 'KISANSPEKSIT'], { 'Tulokset Y': [['A']], KISANSPEKSIT: [['x']] });
+  const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}F`, nimet: ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT', 'FINAALI'] });
+  assert.deepEqual(tulos.notFound, ['NEW_Joukkue', 'FINAALI']);
+  assert.equal(kutsut.filter((u) => u.includes('batchGet')).length, 1);
+});
+
 test('puuttuva välilehti: haetaan uudelleen löytyneillä nimillä', async () => {
   await tyhjennaValilehtiCache();
   const { request } = luoGoogle(['Tulokset Y ', 'Aikataulu La'], { 'Tulokset Y ': [['A']], 'Aikataulu La': [['L']] });

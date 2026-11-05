@@ -22,6 +22,7 @@ const TEKSTIT = jaadyta({
       timetable: 'Aikataulu',
       materials: 'Materiaalit',
       teamResults: 'Joukkuetulokset',
+      final: 'Finaali',
       themeLabel: 'Teema',
       themeDefault: 'Oletus',
       themeOcean: 'Meri',
@@ -303,6 +304,17 @@ const TEKSTIT = jaadyta({
       formulaName: 'Nimi tulee taulukossa kaavasta, joten tätä riviä ei voi muuttaa täältä.',
       notConfigured: 'Ryhmien muokkaus ei ole käytössä tässä palvelussa.'
     },
+    finaali: {
+      title: 'Finaali',
+      classTitle: 'Finaali, sarja {sarja}',
+      bronze: 'Pronssiottelu',
+      gold: 'Kulta',
+      silver: 'Hopea',
+      bronzeMedal: 'Pronssi',
+      shootOff: 'Ratko',
+      seed: 'Sijoitus pääkilpailussa',
+      tbd: 'Ratkeaa myöhemmin'
+    },
     saa: {
       title: 'Sääennuste',
       source: 'Sää: Ilmatieteen laitos',
@@ -332,6 +344,7 @@ const TEKSTIT = jaadyta({
       timetable: 'Timetable',
       materials: 'Materials',
       teamResults: 'Team Results',
+      final: 'Final',
       themeLabel: 'Theme',
       themeDefault: 'Default',
       themeOcean: 'Ocean',
@@ -612,6 +625,17 @@ const TEKSTIT = jaadyta({
       locked: 'Has results',
       formulaName: 'This row\'s name comes from a formula in the sheet, so it cannot be changed here.',
       notConfigured: 'Squad editing is not enabled on this service.'
+    },
+    finaali: {
+      title: 'Final',
+      classTitle: 'Final, class {sarja}',
+      bronze: 'Bronze match',
+      gold: 'Gold',
+      silver: 'Silver',
+      bronzeMedal: 'Bronze',
+      shootOff: 'Shoot-off',
+      seed: 'Place in the main competition',
+      tbd: 'To be decided'
     },
     saa: {
       title: 'Weather forecast',
