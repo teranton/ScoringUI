@@ -203,8 +203,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const onkoLaTuloksia = ampujat.some((a) => a.la !== null);
   const onkoSuTuloksia = ampujat.some((a) => a.su !== null);
-  // Karsinnan jälkeinen finaali (FINAALI-sarake): oma sarake ennen kokonaistulosta, kun jollakulla on finaalin tulos.
-  const onkoFinaalia = ampujat.some((a) => String(a.finaali ?? '').trim() !== '');
+  // Karsinnan jälkeinen finaali (FINAALI-sarake): oma sarake ennen kokonaistulosta, kun jollakulla näytettävistä on
+  // finaalin tulos (sarjassa, jossa kukaan ei ampunut finaalia, saraketta ei ole).
+  const onkoFinaalia = sijoitetutAmpujat.some((a) => Boolean(a.finaali));
   const seuraMerkit = ampujat.reduce((pisin, a) => Math.max(pisin, String(a.seura || '').trim().length), 0);
   const onkoSeuroja = seuraMerkit > 0;
 

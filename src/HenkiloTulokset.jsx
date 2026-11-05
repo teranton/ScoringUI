@@ -23,7 +23,7 @@ import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { RYHMAKORTTI_VALILEHDET, asemanKiekot, compakKorttiValilehdet, nimiAvaimeksi } from './utils/mobiiliKiekot';
 import { useMobiiliKiekot } from './hooks/useMobiiliKiekot';
-import { etsiFinaaliSarake, yhdistaFinaali } from './utils/karsintaFinaali';
+import { etsiFinaaliSarake, rivinTulos } from './utils/karsintaFinaali';
 
 // Aseman tulosta napauttamalla näkyvät sen kiekot mobiilikirjauksen kortilta. kiekkoLahteet: { ryhma, compak },
 // kumpikin true = kisassa on ryhmäpuhelimen kortteja (MOBIILI_RYHMAT) / Compak-kirjauslaitteen ratoja (MOBIILI_LAITTEET),
@@ -156,9 +156,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         }
       }
 
-      const { tulos, karsinta, finaali } = idxFinaali !== -1
-        ? yhdistaFinaali(row[idxTulos] || '0', row[idxFinaali], osumaSarjat.map((s) => s.tulos))
-        : { tulos: row[idxTulos] || '0', karsinta: null, finaali: null };
+      const { tulos, karsinta, finaali } = rivinTulos(row, otsikotNormalisoitu, idxTulos, idxFinaali);
 
       const ampuja = {
         id: `${row[idxNimi] || 'ampuja'}|${idxSarja !== -1 ? row[idxSarja] || 'Y' : 'Y'}|${i}`,
@@ -185,7 +183,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     }
 
     return parsedAmpujat;
-  }, [idxFinaali, idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
+  }, [idxFinaali, otsikotNormalisoitu, idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
 
   // Kiekot haetaan nimellä (Tulokset Y:ssä ei ole numeroa): tuloksissa useammin kuin kerran oleva nimi ei saa kiekkoja.
   const nimiMonesti = useMemo(() => {

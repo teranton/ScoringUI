@@ -14,18 +14,32 @@ const kokonaisluku = (arvo) => {
   return /^-?\d+$/.test(teksti) ? Number(teksti) : null;
 };
 
-// { tulos, karsinta, finaali }: tulos = karsinta + finaali, kun finaalin solussa on luku. Jos sheetin TULOS on jo
-// asemien summa + finaali (kaava laskee finaalin mukaan), sitä ei lisätä toiseen kertaan. asemat: asemien tulokset.
-export function yhdistaFinaali(tulos, finaali, asemat = []) {
-  const finaaliTeksti = String(finaali ?? '').trim();
-  const finaaliLuku = kokonaisluku(finaaliTeksti);
-  const tulosLuku = kokonaisluku(tulos);
-  if (finaaliLuku === null || tulosLuku === null) return { tulos, karsinta: tulos, finaali: finaaliTeksti };
+// Aseman solun pisteet kuten taulukon kaava ne laskee: alkava luku ('24*' = 24), muu (tyhjä, DNF, -) = 0.
+const asemanPisteet = (arvo) => Number.parseInt(String(arvo ?? '').trim(), 10) || 0;
 
-  const asemaLuvut = asemat.map(kokonaisluku).filter((l) => l !== null);
-  const asemaSumma = asemaLuvut.length ? asemaLuvut.reduce((s, l) => s + l, 0) : null;
-  if (finaaliLuku !== 0 && asemaSumma !== null && tulosLuku === asemaSumma + finaaliLuku) {
-    return { tulos: String(tulosLuku), karsinta: String(asemaSumma), finaali: finaaliTeksti };
+// { tulos, karsinta, finaali }: tulos = karsinta + finaali, kun finaalin solussa on luku. Jos sheetin TULOS on jo
+// asemien summa + finaali (kaava laskee finaalin mukaan), sitä ei lisätä toiseen kertaan. asemat: asemien solut.
+// finaali on näytettävä finaalin tulos: tyhjä, kun solussa ei ole lukua tai luku on 0 (finaalia ampumattomat).
+export function yhdistaFinaali(tulos, finaali, asemat = []) {
+  const finaaliLuku = kokonaisluku(finaali);
+  const tulosLuku = kokonaisluku(tulos);
+  if (finaaliLuku === null || tulosLuku === null) return { tulos, karsinta: tulos, finaali: '' };
+
+  const naytettava = finaaliLuku > 0 ? String(finaaliLuku) : '';
+  const asemaSumma = asemat.reduce((s, arvo) => s + asemanPisteet(arvo), 0);
+  if (finaaliLuku !== 0 && asemat.length > 0 && tulosLuku === asemaSumma + finaaliLuku) {
+    return { tulos: String(tulosLuku), karsinta: String(tulosLuku - finaaliLuku), finaali: naytettava };
   }
-  return { tulos: String(tulosLuku + finaaliLuku), karsinta: String(tulosLuku), finaali: finaaliTeksti };
+  return { tulos: String(tulosLuku + finaaliLuku), karsinta: String(tulosLuku), finaali: naytettava };
+}
+
+// Ampujan rivin tulos finaali huomioiden, sama kortti- ja taulukkonäkymälle. Asemat ovat sarakkeet, joiden
+// normalisoitu otsikko on numero. Ilman FINAALI-saraketta finaali on null ja tulos sheetin TULOS.
+export function rivinTulos(rivi, otsikotNormalisoitu, idxTulos, idxFinaali) {
+  const tulos = rivi[idxTulos] || '0';
+  if (idxFinaali === -1) return { tulos, karsinta: tulos, finaali: null };
+  const asemat = (otsikotNormalisoitu || [])
+    .map((o, i) => (/^\d+$/.test(String(o || '')) ? rivi[i] : undefined))
+    .filter((arvo) => arvo !== undefined);
+  return yhdistaFinaali(tulos, rivi[idxFinaali], asemat);
 }

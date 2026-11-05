@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { etsiFinaaliSarake, yhdistaFinaali } from './karsintaFinaali.js';
+import { etsiFinaaliSarake, rivinTulos, yhdistaFinaali } from './karsintaFinaali.js';
 import { parsiTaulukkoAmpujat } from './henkiloTaulukko.js';
 import { laskeHenkilosijoitukset, laskeNaytettavatRatkoIdt } from './henkiloTulokset.js';
 import { muodostaTulosteSarjat } from './tulosteTulokset.js';
@@ -31,15 +31,25 @@ test('etsiFinaaliSarake löytää FINAALI- tai FINAL-otsikon, ei muita', () => {
 test('yhdistaFinaali lisää finaalin karsinnan tulokseen', () => {
   assert.deepEqual(yhdistaFinaali('143', '23', ['24', '24', '25', '25', '21', '24']), { tulos: '166', karsinta: '143', finaali: '23' });
   assert.deepEqual(yhdistaFinaali('140', '', ['24']), { tulos: '140', karsinta: '140', finaali: '' });
-  assert.deepEqual(yhdistaFinaali('140', 'DNS', []), { tulos: '140', karsinta: '140', finaali: 'DNS' });
-  // Finaali 0 lasketaan mukaan (tulos ei muutu).
-  assert.deepEqual(yhdistaFinaali('100', '0', ['50', '50']), { tulos: '100', karsinta: '100', finaali: '0' });
+  assert.deepEqual(yhdistaFinaali('140', 'DNS', []), { tulos: '140', karsinta: '140', finaali: '' });
+  // Kaavan 0 tai - finaalia ampumattomille: tulos ei muutu eikä finaalia näytetä.
+  assert.deepEqual(yhdistaFinaali('100', '0', ['50', '50']), { tulos: '100', karsinta: '100', finaali: '' });
+  assert.deepEqual(yhdistaFinaali('100', '-', ['50', '50']), { tulos: '100', karsinta: '100', finaali: '' });
 });
 
 test('yhdistaFinaali ei lisää finaalia toiseen kertaan, jos TULOS jo sisältää sen', () => {
   assert.deepEqual(yhdistaFinaali('166', '23', ['24', '24', '25', '25', '21', '24']), { tulos: '166', karsinta: '143', finaali: '23' });
-  // Asemia puuttuu: summa ei täsmää, joten finaali lisätään.
-  assert.deepEqual(yhdistaFinaali('143', '23', ['24', '-']), { tulos: '166', karsinta: '143', finaali: '23' });
+  // Tyhjä, merkitty tai DNF-asema lasketaan kuten kaava (alkava luku tai 0), joten finaalia ei lisätä kahdesti.
+  assert.deepEqual(yhdistaFinaali('142', '23', ['24', '24*', '', 'DNF', '71']), { tulos: '142', karsinta: '119', finaali: '23' });
+  // Karsinnan TULOS on asemien summa: finaali lisätään.
+  assert.deepEqual(yhdistaFinaali('143', '23', ['24', '-', '119']), { tulos: '166', karsinta: '143', finaali: '23' });
+});
+
+test('rivinTulos lukee asemat numero-otsikoista ja ilman FINAALI-saraketta palauttaa TULOKSEN', () => {
+  const otsikot = ['NIMI', '1', '2', 'TULOS', 'FINAALI'];
+  assert.deepEqual(rivinTulos(['A', '24', '25', '49', '20'], otsikot, 3, 4), { tulos: '69', karsinta: '49', finaali: '20' });
+  assert.deepEqual(rivinTulos(['A', '24', '25', '69', '20'], otsikot, 3, 4), { tulos: '69', karsinta: '49', finaali: '20' });
+  assert.deepEqual(rivinTulos(['A', '24', '25', '', ''], otsikot, 3, -1), { tulos: '0', karsinta: '0', finaali: null });
 });
 
 test('2024 top-6-finaali: järjestys karsinta + finaali, tasatulos RATKOlla', () => {
