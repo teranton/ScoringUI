@@ -1,6 +1,7 @@
 // src/utils/henkiloTaulukko.js
 // HenkiloTaulukko-näkymän puhdas parsinta- ja laskentalogiikka.
 import { muodostaRatkoNakyma } from './henkiloTulokset.js';
+import { etsiFinaaliSarake, rivinTulos } from './karsintaFinaali.js';
 import { haeTekstit } from '../i18n.js';
 
 export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
@@ -34,6 +35,7 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
   ]);
   const idxRata1 = otsikot.findIndex((o) => o.trim() === '1');
   const idxRatkoOtsikko = etsiSarakkeenIndeksi([(h) => h === 'RATKO', (h) => h.startsWith('RATKO')]);
+  const idxFinaali = etsiFinaaliSarake(otsikotNormalisoitu);
 
   const nimiFallback = 0;
   const sarjaFallback = 1;
@@ -75,7 +77,6 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
     const seura = idxSeura !== -1 ? (row[idxSeura] || '') : '';
     const la = idxLa !== -1 ? (row[idxLa] || '') : null;
     const su = idxSu !== -1 ? (row[idxSu] || '') : null;
-    const yhteistulos = row[idxTulos] || '0';
     const ratko = idxRatko !== -1 ? row[idxRatko] || '' : '';
     const ratko2 = idxRatko2 !== -1 ? row[idxRatko2] || '' : '';
     const ratkoNaytto = muodostaRatkoNakyma(ratko, ratko2);
@@ -96,6 +97,9 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
       }
     }
 
+    // finaali: null, kun välilehdellä ei ole FINAALI-saraketta; karsinta: TULOS ilman finaalia.
+    const { tulos: yhteistulos, karsinta, finaali } = rivinTulos(row, otsikotNormalisoitu, idxTulos, idxFinaali);
+
     lista.push({
       id: `${name}|${i}`,
       nimi: name,
@@ -105,6 +109,8 @@ export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
       su,
       tulos: yhteistulos,
       kokonaistulos: yhteistulos,
+      karsinta,
+      finaali,
       ratko,
       ratko2,
       ratkoNaytto,
@@ -190,6 +196,7 @@ export function jarjestaAmpujat(ampujat, sarake, suunta) {
     if (sarake === 'seura') return String(ampuja?.seura || '').toLowerCase();
     if (sarake === 'la') return numOrMin(ampuja?.la);
     if (sarake === 'su') return numOrMin(ampuja?.su);
+    if (sarake === 'finaali') return numOrMin(ampuja?.finaali);
     if (sarake === 'tulos') return numOrMin(ampuja?.kokonaistulos || ampuja?.tulos);
     if (sarake === 'ratko') {
       const ratkoTeksti = `${ampuja?.ratko || ''} ${ampuja?.ratko2 || ''}`.trim();
@@ -306,6 +313,7 @@ export function laskeTaulukkoAsettelu({
   onkoSeura = true,
   seuraMerkit = 0,
   paivienMaara = 0,
+  naytaFinaali = false,
   kaikkiSarakkeet = false
 } = {}) {
   const kaikki = { sarja: onkoSarja, seura: onkoSeura, paivat: paivienMaara > 0 };
@@ -329,6 +337,7 @@ export function laskeTaulukkoAsettelu({
     + (sarakkeet.seura ? l.seura : 0)
     + (sarakkeet.paivat ? l.paiva * paivienMaara : 0)
     + (naytaRatko ? l.ratko : 0)
+    + (naytaFinaali ? l.paiva : 0)
     + rata * ratojenMaara;
 
   const kaytettavissa = leveys - LEVEYS_VARA;
@@ -349,7 +358,7 @@ export function laskeTaulukkoAsettelu({
   return {
     taso,
     sarakkeet,
-    leveydet: { sija: l.sija, nimi: l.nimi, sarja: l.sarja, seura: l.seura, paiva: l.paiva, yht: l.yht, ratko: l.ratko, rata },
+    leveydet: { sija: l.sija, nimi: l.nimi, sarja: l.sarja, seura: l.seura, paiva: l.paiva, finaali: l.paiva, yht: l.yht, ratko: l.ratko, rata },
     lyhennaNimet: taso === 'compact',
     mahtuu,
     piilotettuja: Object.keys(kaikki).some((avain) => kaikki[avain] && !sarakkeet[avain])
@@ -398,7 +407,8 @@ export function laskeTulosteSarakeLeveydet(ampujat = [], sarakkeet = {}, ratojen
   const sivuEm = (sivuMm * 72) / 25.4 / fonttiPt;
   const k = TULOSTE_KIINTEAT;
   const kiinteat = k.sija + k.yht + k.rata * ratojenMaara
-    + (sarakkeet.la ? k.paiva : 0) + (sarakkeet.su ? k.paiva : 0) + (sarakkeet.ratko ? k.ratko : 0);
+    + (sarakkeet.la ? k.paiva : 0) + (sarakkeet.su ? k.paiva : 0) + (sarakkeet.finaali ? k.paiva : 0)
+    + (sarakkeet.ratko ? k.ratko : 0);
 
   let sarja = sarakkeet.sarja ? laskeTekstinLeveys(ampujat.map((a) => a.sarja), TULOSTE_SARJA, mittaa) : 0;
   let seura = sarakkeet.seura ? laskeTekstinLeveys(ampujat.map((a) => a.seura), TULOSTE_SEURA, mittaa) : 0;

@@ -28,7 +28,7 @@ test('ensin Y kaikkine ampujineen sijajärjestyksessä, sitten muut sarjat ilman
   const d = open.ampujat.at(-1);
   assert.deepEqual([d.nimi, d.laskettuSija], ['Ampuja D', '']);
   assert.equal(muodostaTulosteRatko(d, open.ratkoIdt), 'DNS');
-  assert.deepEqual(open.sarakkeet, { sarja: true, seura: true, la: true, su: true, ratko: true });
+  assert.deepEqual(open.sarakkeet, { sarja: true, seura: true, la: true, su: true, finaali: false, ratko: true });
 });
 
 test('tasatulos ratkaistaan ratkolla ja ratko näytetään vain tasatuloksen ampujille', () => {
@@ -53,7 +53,7 @@ test('sarakkeet sarjan omista tiedoista: seuraton ja päivätön sarja ilman nii
     ['OPEN (Y)', ['B', 'A', 'C', 'D']],
     ['N', ['C']]
   ]);
-  assert.deepEqual(sarjat[1].sarakkeet, { sarja: false, seura: false, la: false, su: false, ratko: false });
+  assert.deepEqual(sarjat[1].sarakkeet, { sarja: false, seura: false, la: false, su: false, finaali: false, ratko: false });
 });
 
 test('tyhjä Su-sarake ennen toista päivää ei tulostu', () => {

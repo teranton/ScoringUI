@@ -23,6 +23,7 @@ import { cn } from './lib/utils';
 import { haeTekstit } from './i18n';
 import { RYHMAKORTTI_VALILEHDET, asemanKiekot, compakKorttiValilehdet, nimiAvaimeksi } from './utils/mobiiliKiekot';
 import { useMobiiliKiekot } from './hooks/useMobiiliKiekot';
+import { etsiFinaaliSarake, rivinTulos } from './utils/karsintaFinaali';
 
 // Aseman tulosta napauttamalla näkyvät sen kiekot mobiilikirjauksen kortilta. kiekkoLahteet: { ryhma, compak },
 // kumpikin true = kisassa on ryhmäpuhelimen kortteja (MOBIILI_RYHMAT) / Compak-kirjauslaitteen ratoja (MOBIILI_LAITTEET),
@@ -133,6 +134,8 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
   }
 
   const idxSija = idxNimi - 1 >= 0 ? idxNimi - 1 : 1;
+  // Karsinnan jälkeinen finaali (FINAALI-sarake) lisätään tulokseen.
+  const idxFinaali = etsiFinaaliSarake(otsikotNormalisoitu);
 
   const ampujat = useMemo(() => {
     const parsedAmpujat = [];
@@ -153,13 +156,17 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         }
       }
 
+      const { tulos, karsinta, finaali } = rivinTulos(row, otsikotNormalisoitu, idxTulos, idxFinaali);
+
       const ampuja = {
         id: `${row[idxNimi] || 'ampuja'}|${idxSarja !== -1 ? row[idxSarja] || 'Y' : 'Y'}|${i}`,
         alkuperainenSija: row[idxSija] || i.toString(),
         nimi: row[idxNimi],
         sarja: idxSarja !== -1 ? row[idxSarja] : 'Y',
         seura: idxSeura !== -1 ? row[idxSeura] : '',
-        tulos: row[idxTulos] || '0',
+        tulos,
+        karsinta,
+        finaali,
         la: idxLa !== -1 ? row[idxLa] : null,
         su: idxSu !== -1 ? row[idxSu] : null,
         dayScores: paivaSarakkeet.map(({ indeksi, numero }) => ({
@@ -176,7 +183,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
     }
 
     return parsedAmpujat;
-  }, [idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
+  }, [idxFinaali, otsikotNormalisoitu, idxLa, idxNimi, idxRatko, idxSarja, idxSeura, idxSija, idxSu, idxTulos, kisanRatojenMaara, aloitusIndeksi, paivaSarakkeet, rivit]);
 
   // Kiekot haetaan nimellä (Tulokset Y:ssä ei ole numeroa): tuloksissa useammin kuin kerran oleva nimi ei saa kiekkoja.
   const nimiMonesti = useMemo(() => {
@@ -409,6 +416,11 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
 
                 <div className="flex min-w-20 shrink-0 flex-col items-center justify-center text-center">
                   <div className="text-xl font-black leading-none text-slate-900">{ampuja.tulos}</div>
+                  {ampuja.finaali && (
+                    <div className="mt-1 max-w-[8rem] text-[10px] font-semibold text-slate-500">
+                      {tx.qualificationFinal.replace('{karsinta}', ampuja.karsinta).replace('{finaali}', ampuja.finaali)}
+                    </div>
+                  )}
                   {naytaPaivaTulokset && ampuja.dayScores?.length > 0 && (
                     <div className="mt-1 flex max-w-[8rem] flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-[10px] font-semibold text-slate-500">
                       {ampuja.dayScores.map((dayScore, dayIndex) => (

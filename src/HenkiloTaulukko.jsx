@@ -203,6 +203,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
 
   const onkoLaTuloksia = ampujat.some((a) => a.la !== null);
   const onkoSuTuloksia = ampujat.some((a) => a.su !== null);
+  // Karsinnan jälkeinen finaali (FINAALI-sarake): oma sarake ennen kokonaistulosta, kun jollakulla näytettävistä on
+  // finaalin tulos (sarjassa, jossa kukaan ei ampunut finaalia, saraketta ei ole).
+  const onkoFinaalia = sijoitetutAmpujat.some((a) => Boolean(a.finaali));
   const seuraMerkit = ampujat.reduce((pisin, a) => Math.max(pisin, String(a.seura || '').trim().length), 0);
   const onkoSeuroja = seuraMerkit > 0;
 
@@ -214,8 +217,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     onkoSeura: onkoSeuroja,
     seuraMerkit,
     paivienMaara: (onkoLaTuloksia ? 1 : 0) + (onkoSuTuloksia ? 1 : 0),
+    naytaFinaali: onkoFinaalia,
     kaikkiSarakkeet
-  }), [taulukkoNakymaLeveys, radatList.length, naytaRatkoSarake, sarjaSuodatin, onkoSeuroja, seuraMerkit, onkoLaTuloksia, onkoSuTuloksia, kaikkiSarakkeet]);
+  }), [taulukkoNakymaLeveys, radatList.length, naytaRatkoSarake, sarjaSuodatin, onkoSeuroja, seuraMerkit, onkoLaTuloksia, onkoSuTuloksia, onkoFinaalia, kaikkiSarakkeet]);
 
   const kokoLuokka = asettelu.taso;
   const leveydet = asettelu.leveydet;
@@ -468,6 +472,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     + (naytaSeuraSarake ? 1 : 0)
     + (naytaLaSarake ? 1 : 0)
     + (naytaSuSarake ? 1 : 0)
+    + (onkoFinaalia ? 1 : 0)
     + 1
     + (naytaRatkoSarake ? 1 : 0);
 
@@ -653,6 +658,14 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                           </th>
                         )}
                         
+                        {onkoFinaalia && (
+                          <th className={cn(otsikkoLuokka('stage'), 'sticky top-0 z-30')} style={{ width: `${leveydet.finaali}px` }} title={tx.finalTitle}>
+                            <button type="button" className="w-full" onClick={() => paivitaJarjestys('finaali')}>
+                              {tx.finalLabel}{jarjestysMerkki('finaali')}
+                            </button>
+                          </th>
+                        )}
+
                         <th className={cn(otsikkoLuokka('sum'), 'sticky top-0 z-30')} style={{ width: `${leveydet.yht}px` }}>
                           <button type="button" className="w-full" onClick={() => paivitaJarjestys('tulos')}>
                             {tx.total}{jarjestysMerkki('tulos')}
@@ -777,6 +790,12 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                             </td>
                           )}
                           
+                          {onkoFinaalia && (
+                            <td className={cn(soluLuokka('stage'), 'bg-white group-hover:bg-slate-50/30 transition-colors text-slate-700')} style={{ width: `${leveydet.finaali}px` }}>
+                              {muotoilePaivaTulos(ampuja.finaali)}
+                            </td>
+                          )}
+
                           <td className={soluLuokka('sum')} style={{ width: `${leveydet.yht}px` }}>
                             {ampuja.kokonaistulos}
                           </td>
