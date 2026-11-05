@@ -6,7 +6,7 @@
 //   sarja:             näkymän suodatin, 'OPEN (Y)' tai sarjan tunnus kuten 'V'
 //   ratkoPalkintoSija: KISANSPEKSIT RATKO_PALKINTO_SIJA (montako palkintosijaa ratkotaan)
 //   ampujat:           { id, sarja, tulos, ratko?, ratko2?, asemat? }
-//                      asemat = asemakohtaiset tulokset järjestyksessä (countback)
+//                      asemat = asemakohtaiset tulokset järjestyksessä (eivät ratkaise tasatulosta)
 //   odotettu:          näytettävä järjestys muodossa [id, sija, ratkoNakyy]
 //                      ratkoNakyy = näytetäänkö ratkotulos kortissa / taulukossa
 //   todo:              (valinnainen) selitys, jos odotettu käytös ei ole vielä toteutettu
@@ -121,7 +121,7 @@ export const ratkoTapaukset = [
     ]
   },
   {
-    nimi: 'OPEN: tasainen ratko ratkaistaan countbackilla viimeisestä asemasta',
+    nimi: 'OPEN: tasainen ratko jää tasatulokseksi, viimeinen asema ei ratkaise (countbackia ei käytetä)',
     sarja: 'OPEN (Y)',
     ratkoPalkintoSija: 3,
     ampujat: [
@@ -130,9 +130,31 @@ export const ratkoTapaukset = [
       { id: 'C', sarja: 'Y', tulos: 40, asemat: [20, 20] }
     ],
     odotettu: [
+      ['A', 1, true],
       ['B', 1, true],
-      ['A', 2, true],
       ['C', 3, false]
+    ]
+  },
+  {
+    // kisa-2025_17, sarja A: ratko 25 kaikilla kolmella, uusintaratkolle ei ollut aikaa -> jaettu 3. sija.
+    nimi: 'Sarja A: kolmen tasainen ratko 3. sijasta pysyy tasan, seuraava sija 6.',
+    sarja: 'A',
+    ratkoPalkintoSija: 3,
+    ampujat: [
+      { id: 'A', sarja: 'A', tulos: 50, ratko: '24', asemat: [25, 25] },
+      { id: 'B', sarja: 'A', tulos: 50, ratko: '23', asemat: [25, 25] },
+      { id: 'C', sarja: 'A', tulos: 49, ratko: '25', asemat: [24, 25] },
+      { id: 'D', sarja: 'A', tulos: 49, ratko: '25', asemat: [24, 25] },
+      { id: 'E', sarja: 'A', tulos: 49, ratko: '25', asemat: [25, 24] },
+      { id: 'F', sarja: 'A', tulos: 47, asemat: [24, 23] }
+    ],
+    odotettu: [
+      ['A', 1, true],
+      ['B', 2, true],
+      ['C', 3, true],
+      ['D', 3, true],
+      ['E', 3, true],
+      ['F', 6, false]
     ]
   },
   {

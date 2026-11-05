@@ -72,3 +72,13 @@ test('High Gun -paikkoja enemmän kuin RATKO_PALKINTO_SIJA: ratko lasketaan kaik
   assert.deepEqual([...laskeNaytettavatRatkoIdt(hg, laskentaSarja(HIGH_GUN), sarjanRatkoSija(HIGH_GUN, 3, hg4))].sort(),
     ['Lindh Oliver', 'Raassina Miko']);
 });
+
+test('tasainen ratko High Gun -paikalla: molemmat ovat voittajia ja pois sarjoistaan', () => {
+  const ampujat = [
+    { id: 'X', sarja: 'A', tulos: '100', ratko: '5', sarjat: [{ tulos: '50' }, { tulos: '50' }] },
+    { id: 'Y', sarja: 'B', tulos: '100', ratko: '5', sarjat: [{ tulos: '49' }, { tulos: '51' }] },
+    { id: 'Z', sarja: 'A', tulos: '90' }
+  ];
+  assert.deepEqual([...highGunVoittajat(ampujat, HG1, 3)].sort(), ['X', 'Y']);
+  assert.deepEqual(sijat(laskeSarjanSijoitukset(ampujat, 'A', 3, HG1)), [['1', 'Z']]);
+});
