@@ -21,7 +21,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, and the library-only `KILPAILUTYYPPI`, `ALKUPAIVA`, plus `RYHMAVALI`, `ISTUNTOTAUKO` on group-timetable types; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js`, `utils/kisaAsetukset.js`, `utils/openSarja.js`, `utils/highGun.js` |
 | `Tulokset Y` | Sheet formulas from the main entry tab | `HenkiloTaulukko.jsx`, `HenkiloTulokset.jsx`, `utils/henkiloTulokset.js` |
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
-| `FINAALI` (optional, knockout final) | Organiser by hand | `FinaaliKaavio.jsx`, `utils/finaali.js` |
+| `FINAALI` (optional, knockout final) | ScoringLib (`Finaali.js`, menu 🥇 Finaali: creates the bracket from `Tulokset Y` and fills the next rounds), organiser (scores, `VOITTAJA` for a tie) | `FinaaliKaavio.jsx`, `utils/finaali.js` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
 | `Ilmoittautuneet` | Sheet formula from the main tab (master: `SORT(CHOOSECOLS(FILTER(OSALLISTUJAT; …)))`) | `Ilmoittautuneet.jsx` |
 | `Suomisport Import`, `ILMOITTAUTUMISET`, `Lomakevastaukset N` / `Form Responses N` (sign-up sources) | ScoringLib (`SuomiSport.js` import; `Ilmoittautumiset.js` marks `SIIRRETTY`), sign-up form (`api/ilmoittaudu.js`, writer account, `ILMOITTAUTUMISET` only), a Google Form linked to the sheet | `Ilmoittautuneet.jsx`, `utils/ilmoittautumiset.js` through `api/kisa.js`, only the public columns (see "Sign-ups") |
