@@ -25,11 +25,11 @@ function AmpujaRivi({ ampuja, voitti, ratkennut, tx }) {
   );
 }
 
-// Kulta- ja pronssiottelulla on oma taustasävynsä (läpikuultava, joten se sopii jokaiseen teemaan).
-const MITALI_TYYLIT = {
-  kulta: 'border-amber-400/70 bg-amber-400/15',
-  pronssi: 'border-orange-700/50 bg-orange-700/10'
-};
+// Kulta- ja pronssiottelulla on teeman sijavärin (--rank-1 / --rank-3, kuten henkilötuloksissa) läpikuultava sävy.
+const MITALI_SIJA = { kulta: 1, pronssi: 3 };
+const mitaliTyyli = (mitali) => (MITALI_SIJA[mitali]
+  ? { borderColor: `hsl(var(--rank-${MITALI_SIJA[mitali]}) / 0.6)`, backgroundColor: `hsl(var(--rank-${MITALI_SIJA[mitali]}) / 0.12)` }
+  : undefined);
 
 function OtteluKortti({ ottelu, tx, otsikko, mitali }) {
   const ratkennut = ottelu.voittaja !== null;
@@ -39,8 +39,9 @@ function OtteluKortti({ ottelu, tx, otsikko, mitali }) {
       <div
         className={cn(
           'divide-y divide-[hsl(var(--border))] overflow-hidden rounded-lg border',
-          MITALI_TYYLIT[mitali] || 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
+          !MITALI_SIJA[mitali] && 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
         )}
+        style={mitaliTyyli(mitali)}
       >
         <AmpujaRivi ampuja={ottelu.a} voitti={ottelu.voittaja === 'A'} ratkennut={ratkennut} tx={tx} />
         <AmpujaRivi ampuja={ottelu.b} voitti={ottelu.voittaja === 'B'} ratkennut={ratkennut} tx={tx} />
@@ -81,21 +82,22 @@ function SarjanKaavio({ kaavio, tx }) {
           // Mitalistit laatikoina kuten henkilötuloksissa: sijan väri vasemmassa reunassa (teeman --rank-N).
           <ol className="grid gap-2 pt-1 sm:grid-cols-3">
             {mitalit.map((m) => (
-              <li
-                key={m.sija}
-                className="flex min-h-[52px] items-center rounded-xl border border-l-4 border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 shadow-sm"
-                style={{ borderLeftColor: `hsl(var(--rank-${m.sija}))` }}
-              >
-                <div className="mr-3 flex h-9 w-9 min-w-9 items-center justify-center rounded-full bg-slate-100 text-base font-extrabold text-slate-700">
-                  {m.sija}
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-base font-bold" translate="no">{m.nimi}</span>
-                  <span className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
-                    <Medal className="h-3.5 w-3.5" style={{ color: `hsl(var(--rank-${m.sija}))` }} aria-hidden="true" />
-                    {m.otsikko}
-                  </span>
-                </div>
+              <li key={m.sija}>
+                <Card
+                  className="flex h-full min-h-[52px] items-center border-l-4 px-3 py-2"
+                  style={{ borderLeftColor: `hsl(var(--rank-${m.sija}))` }}
+                >
+                  <div className="mr-3 flex h-9 w-9 min-w-9 items-center justify-center rounded-full bg-slate-100 text-base font-extrabold text-slate-700">
+                    {m.sija}
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="break-words text-base font-bold leading-tight" translate="no">{m.nimi}</span>
+                    <span className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
+                      <Medal className="h-3.5 w-3.5" style={{ color: `hsl(var(--rank-${m.sija}))` }} aria-hidden="true" />
+                      {m.otsikko}
+                    </span>
+                  </div>
+                </Card>
               </li>
             ))}
           </ol>
