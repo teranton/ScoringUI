@@ -7,7 +7,7 @@ import qrcode from 'qrcode-generator';
 export function KohdeMerkki({ kohde }) {
   if (!kohde) return null;
   return (
-    <p className="self-start rounded bg-[#1e3a5f] px-3 py-1 text-xl font-bold text-white">{kohde}</p>
+    <p className="w-fit rounded bg-[#1e3a5f] px-3 py-1 text-xl font-bold text-white">{kohde}</p>
   );
 }
 
@@ -78,7 +78,7 @@ export function HaltijaNakyma({ tyyppi, kohde, haltija, korvattu, lahettamatta, 
             <li>Jos laite on rikki tai poissa: pyydä kilpailutoimistosta {kohde ? <>vaihto-PIN: <b>{kohde}</b>.</> : 'radan vaihto-PIN.'}</li>
           </ul>
           {haltija?.lukittu
-            ? <p className="rounded bg-red-100 p-2 text-sm text-red-800">Liian monta väärää PIN-koodia. Kilpailutoimisto avaa vaihdon näyttämällä PIN-koodit uudelleen.</p>
+            ? <p className="rounded bg-red-100 p-2 text-sm text-red-800">Liian monta väärää PIN-koodia. Kilpailutoimisto avaa vaihdon ({kohde || 'tämä rata'}) näyttämällä PIN-koodit uudelleen.</p>
             : <PinLomake onOta={onOta} kohde={kohde} painike="Ota rata tälle laitteelle" />}
           <button type="button" className="rounded border border-slate-400 px-4 py-2" onClick={onPaivita}>Yritä uudelleen</button>
         </>
@@ -142,7 +142,8 @@ export function SiirtoNakyma({ kohde, linkki, lahettamatta, onValmis, onPeru }) 
   }, [linkki]);
   return (
     <section className="mx-auto flex w-full max-w-md flex-col items-center gap-3 p-4 text-center">
-      <h2 className="text-lg font-bold">Siirrä {kohde || 'rata'} toiselle laitteelle</h2>
+      <KohdeMerkki kohde={kohde} />
+      <h2 className="text-lg font-bold">Siirrä rata toiselle laitteelle</h2>
       <p className="text-sm">
         Skannaa koodi uuden laitteen kameralla. Uusi laite saa radan ja {lahettamatta > 0 ? `${lahettamatta} lähettämätöntä korttia` : 'linjan tilan'};
         se tarvitsee verkkoa kerran radan tietojen hakuun.

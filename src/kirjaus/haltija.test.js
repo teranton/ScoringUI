@@ -74,4 +74,7 @@ test('radan nimi vaihdon näkymissä kuten kilpailutoimiston PIN-listassa', () =
   assert.equal(radanNimi(2, 'R2'), 'Rata 2 (R2)');
   assert.equal(radanNimi(3, ''), 'Rata 3');
   assert.equal(radanNimi(4), 'Rata 4');
+  assert.equal(radanNimi(2, 'Rata 2'), 'Rata 2');
+  assert.equal(radanNimi(2, '2'), 'Rata 2');
+  assert.equal(radanNimi(2, 'Rata 12'), 'Rata 2 (Rata 12)');
 });

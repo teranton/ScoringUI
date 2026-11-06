@@ -434,7 +434,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   // Luovutus verkossa: kaikki lähetetään, sitten ryhmä vapautetaan toiselle puhelimelle.
   const luovuta = async () => {
     setValikko(false);
-    if (!window.confirm(`Luovutetaanko ryhmän ${avaus?.ryhma ?? ''} kirjaus toiselle puhelimelle? Tämä puhelin lopettaa kirjauksen. Toinen puhelin skannaa ryhmän QR-koodin ja jatkaa tästä.`)) return;
+    if (!window.confirm(`Luovutetaanko ryhmän ${avaus.ryhma} kirjaus toiselle puhelimelle? Tämä puhelin lopettaa kirjauksen. Toinen puhelin skannaa ryhmän QR-koodin ja jatkaa tästä.`)) return;
     for (let kierros = 0; kierros < 20; kierros++) {
       if (!lahettaaRef.current) await laheta();
       await new Promise((r) => { setTimeout(r, 250); });

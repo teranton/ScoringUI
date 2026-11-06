@@ -247,6 +247,8 @@ function RataNakyma({ koodi, onVaihda }) {
   }, [koodi, laite, latausKierros, kopioLuettu]);
 
   const avaus = tila.avaus;
+  // Radan nimi vaihdon näkymiin ja luovutuksen vahvistukseen (sama muoto kuin kilpailutoimiston PIN-listassa).
+  const kohde = avaus ? radanNimi(avaus.sarake, avaus.rataNimi) : '';
   // Tauot: aikataulun TAUKO-rivit ja laitteella lisätyt, miinus laitteella perutut.
   const jono = useMemo(
     () => linjanJono(avaus?.jono || [], { lisatyt: tila.lisatyt, ohitetut: tila.ohitetut, tauot: tila.tauot, tauotPois: tila.tauotPois }, avaus?.nimet),
@@ -663,7 +665,7 @@ function RataNakyma({ koodi, onVaihda }) {
   // Luovutus verkossa: kaikki lähetetään, sitten rata vapautetaan, ja seuraava laite ottaa sen radan QR-koodilla.
   const luovuta = async () => {
     setValikko(false);
-    if (!window.confirm(`Luovutetaanko rata toiselle laitteelle (${radanNimi(avaus?.sarake, avaus?.rataNimi)})? Tämä laite lopettaa kirjauksen. Uusi laite skannaa radan QR-koodin ja jatkaa tästä.`)) return;
+    if (!window.confirm(`Luovutetaanko rata toiselle laitteelle (${kohde})? Tämä laite lopettaa kirjauksen. Uusi laite skannaa radan QR-koodin ja jatkaa tästä.`)) return;
     // Käynnissä oleva lähetys odotetaan, ja vastauksen täydennykset lähetetään vielä (tila päivittyy piirrossa).
     for (let kierros = 0; kierros < 20; kierros++) {
       if (!lahettaaRef.current) await laheta();
@@ -779,7 +781,7 @@ function RataNakyma({ koodi, onVaihda }) {
         {valikkoNakyma}
         <HaltijaNakyma
           tyyppi={tila.korvattu ? 'korvattu' : tila.luovutettu ? 'luovutettu' : 'varattu'}
-          kohde={radanNimi(avaus.sarake, avaus.rataNimi)}
+          kohde={kohde}
           haltija={haltijanTila}
           korvattu={tila.korvattu}
           lahettamatta={lahettamatta}
@@ -798,7 +800,7 @@ function RataNakyma({ koodi, onVaihda }) {
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">
         {otsikko}
         <SiirtoNakyma
-          kohde={radanNimi(avaus.sarake, avaus.rataNimi)}
+          kohde={kohde}
           linkki={siirtoOsoite()}
           lahettamatta={lahettamatta}
           onValmis={() => {
