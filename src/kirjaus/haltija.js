@@ -3,6 +3,15 @@
 
 import { uusiVersio } from './kortit.js';
 
+// Radan nimi vaihdon näkymiin: "Rata 2 (R2)". Kilpailutoimiston PIN-lista nimeää radat samoin (ScoringLib pinRivi),
+// joten PIN-koodin pyytäjä näkee, minkä radan koodi tarvitaan.
+// Nimi, joka on vain radan numero ("2" tai "Rata 2"), jätetään pois toistamasta.
+export function radanNimi(sarake, nimi) {
+  const n = String(nimi ?? '').trim();
+  const pelkkaNumero = new RegExp(`^(rata\\s*)?${sarake}$`, 'i').test(n);
+  return `Rata ${sarake}${n && !pelkkaNumero ? ` (${n})` : ''}`;
+}
+
 // Linjan tila, joka siirtyy uudelle laitteelle radan mukana (palvelin tallentaa sen MOBIILI_LAITTEET-välilehdelle).
 export const LINJAN_KENTAT = ['lisatyt', 'ohitetut', 'tauot', 'tauotPois', 'keskeyttaneet', 'ohjelma'];
 export const linjaTilasta = (tila) => Object.fromEntries(LINJAN_KENTAT.map((k) => [k, tila[k] ?? (k === 'ohjelma' ? null : [])]));

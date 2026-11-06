@@ -21,7 +21,7 @@ import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
-import { PinLomake } from './Haltija.jsx';
+import { KohdeMerkki, PinLomake } from './Haltija.jsx';
 import { soita } from './aanet.js';
 import { Asennus, SynkMerkki } from './Yhteiset.jsx';
 
@@ -434,7 +434,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   // Luovutus verkossa: kaikki lähetetään, sitten ryhmä vapautetaan toiselle puhelimelle.
   const luovuta = async () => {
     setValikko(false);
-    if (!window.confirm('Luovutetaanko ryhmän kirjaus toiselle puhelimelle? Tämä puhelin lopettaa kirjauksen. Toinen puhelin skannaa ryhmän QR-koodin ja jatkaa tästä.')) return;
+    if (!window.confirm(`Luovutetaanko ryhmän ${avaus.ryhma} kirjaus toiselle puhelimelle? Tämä puhelin lopettaa kirjauksen. Toinen puhelin skannaa ryhmän QR-koodin ja jatkaa tästä.`)) return;
     for (let kierros = 0; kierros < 20; kierros++) {
       if (!lahettaaRef.current) await laheta();
       await new Promise((r) => { setTimeout(r, 250); });
@@ -542,6 +542,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
         {valikkoNakyma}
         <RyhmanHaltija
           tyyppi={tila.korvattu ? 'korvattu' : tila.luovutettu ? 'luovutettu' : 'varattu'}
+          kohde={`Ryhmä ${avaus.ryhma}`}
           haltija={avattuHaltija}
           korvattu={tila.korvattu}
           lahettamatta={lahettamatta}
@@ -762,7 +763,7 @@ function Ilmoitus({ children, onOk }) {
 }
 
 // tyyppi: 'varattu' (toinen puhelin kirjaa), 'korvattu' (ryhmä otettiin tältä) tai 'luovutettu' (tämä luovutti).
-function RyhmanHaltija({ tyyppi, haltija, korvattu, lahettamatta, onOta, onPaivita }) {
+function RyhmanHaltija({ tyyppi, kohde, haltija, korvattu, lahettamatta, onOta, onPaivita }) {
   const [viesti, setViesti] = useState('');
   const [odottaa, setOdottaa] = useState(false);
   const toinen = haltija && !haltija.vapaa && !haltija.oma ? `${haltija.nimi || 'toinen puhelin'}${haltija.otettu ? `, otettu ${haltija.otettu}` : ''}` : '';
@@ -775,12 +776,13 @@ function RyhmanHaltija({ tyyppi, haltija, korvattu, lahettamatta, onOta, onPaivi
   };
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-3 p-4">
+      <KohdeMerkki kohde={kohde} />
       {tyyppi === 'varattu' && (
         <>
           <h2 className="text-lg font-bold text-amber-800">Ryhmää kirjaa toinen puhelin</h2>
           <p>Ryhmän tuloksia kirjaa {toinen || 'toinen puhelin'}. Yksi puhelin kirjaa ryhmää kerrallaan.</p>
           <p className="text-sm">Jos se puhelin on vielä käytössä, valitse siinä ☰ › <b>Luovuta ryhmä</b> ja paina tässä <b>Yritä uudelleen</b>.
-            Jos se on sammunut tai poissa, pyydä kilpailutoimistosta ryhmän vaihto-PIN. Toinen puhelin lopettaa kirjauksen, ja
+            Jos se on sammunut tai poissa, pyydä kilpailutoimistosta {kohde ? <>vaihto-PIN: <b>{kohde}</b>.</> : 'ryhmän vaihto-PIN.'} Toinen puhelin lopettaa kirjauksen, ja
             sen lähettämättömät merkinnät täydentävät tämän puhelimen kortteja.</p>
         </>
       )}
@@ -799,7 +801,7 @@ function RyhmanHaltija({ tyyppi, haltija, korvattu, lahettamatta, onOta, onPaivi
           <p>Kaikki merkinnät on lähetetty. Seuraava puhelin skannaa ryhmän QR-koodin ja jatkaa.</p>
         </>
       )}
-      {toinen ? <PinLomake onOta={onOta} painike="Ota ryhmä PIN-koodilla" /> : (
+      {toinen ? <PinLomake onOta={onOta} kohde={kohde} painike="Ota ryhmä PIN-koodilla" /> : (
         <>
           {viesti && <p className="text-sm text-red-700">{viesti}</p>}
           <button type="button" disabled={odottaa} className="rounded bg-blue-800 px-4 py-3 text-lg font-semibold text-white disabled:opacity-50" onClick={ota}>

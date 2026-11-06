@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { laitteenNimi, linjaTilasta, lueSiirto, otaLinja, otaTaydennykset, siirtoLinkki, yhdistaSiirto } from './haltija.js';
+import { laitteenNimi, linjaTilasta, lueSiirto, otaLinja, otaTaydennykset, radanNimi, siirtoLinkki, yhdistaSiirto } from './haltija.js';
 
 const MERKIT = 'XXOXX' + 'XO' + '-'.repeat(18);
 
@@ -68,4 +68,13 @@ test('täydennykset: vain tyhjät kiekot ja vain uudet merkinnät, perumat eivä
   const kolmas = otaTaydennykset(peruttu, { 3: 'OOOOO' + 'XXXX' + '-'.repeat(16) }, eka.sovelletut, 25, 200);
   assert.equal(kolmas.kortit[3].merkit, 'XXOXX' + 'XX-X' + '-'.repeat(16));
   assert.equal(kolmas.kortit[3].versio, 200);
+});
+
+test('radan nimi vaihdon näkymissä kuten kilpailutoimiston PIN-listassa', () => {
+  assert.equal(radanNimi(2, 'R2'), 'Rata 2 (R2)');
+  assert.equal(radanNimi(3, ''), 'Rata 3');
+  assert.equal(radanNimi(4), 'Rata 4');
+  assert.equal(radanNimi(2, 'Rata 2'), 'Rata 2');
+  assert.equal(radanNimi(2, '2'), 'Rata 2');
+  assert.equal(radanNimi(2, 'Rata 12'), 'Rata 2 (Rata 12)');
 });
