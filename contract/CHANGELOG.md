@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Mobile entry can use up to four writer service accounts (`KIRJURI_CLIENT_EMAIL_2..4`); ScoringLib's `KIRJURI_PALVELUTILI`
+  lists them and shares the sheet with every one. No tab or header change.
+
 - New optional tab `FINAALI` (knockout final, one row per match; columns in `sheet-layout.md`). ScoringUI shows it as a
   bracket on a new Finaali page. Additive: sheets without the tab are unchanged. ScoringLib's 🥇 Finaali menu creates the tab
   from `Tulokset Y` and fills the next rounds; the organiser enters scores.
