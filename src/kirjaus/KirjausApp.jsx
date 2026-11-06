@@ -727,7 +727,7 @@ function RataNakyma({ koodi, onVaihda }) {
     <header className="flex shrink-0 items-center gap-2 bg-[#1e3a5f] px-3 py-1 text-white sm:py-2">
       <div className="min-w-0 flex-1">
         <div className="truncate font-bold sm:text-lg">
-          Rata {avaus.sarake}{avaus.rataNimi ? ` · ${avaus.rataNimi}` : ''}
+          {kohde}
           {ohjelmaTeksti && <span className="font-normal opacity-80 sm:hidden"> · {ohjelmaTeksti}</span>}
         </div>
         <div className="hidden truncate text-xs opacity-80 sm:block">{avaus.kisa}{ohjelmaTeksti ? ` · ohjelma ${ohjelmaTeksti}` : ''}</div>
