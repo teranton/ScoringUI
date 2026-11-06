@@ -158,7 +158,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
         alkuperainenSija: row[idxSija] || i.toString(),
         nimi: row[idxNimi],
         sarja: idxSarja !== -1 ? row[idxSarja] : 'Y',
-        seura: idxSeura !== -1 ? row[idxSeura] : '',
+        seura: idxSeura !== -1 ? String(row[idxSeura] ?? '').trim() : '',
         tulos: row[idxTulos] || '0',
         la: idxLa !== -1 ? row[idxLa] : null,
         su: idxSu !== -1 ? row[idxSu] : null,
@@ -403,7 +403,7 @@ export default function HenkiloTulokset({ rawCsv, speksitCsv, rawRows, parsedSpe
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Badge variant="default" className="px-2 py-0.5 text-[11px]">{ampuja.sarja}</Badge>
-                    <span translate="no" className="font-medium text-slate-500">{ampuja.seura || '—'}</span>
+                    {ampuja.seura && <span translate="no" className="font-medium text-slate-500">{ampuja.seura}</span>}
                   </div>
                 </div>
 

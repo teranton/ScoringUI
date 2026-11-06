@@ -106,8 +106,8 @@ export default function RankingTulokset({ rawCsv, kisatCsv, locale = 'fi' }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <Badge variant="default" className="px-2 py-0.5 text-[11px]">{ampuja.sarja || '—'}</Badge>
-                    <span translate="no" className="font-medium text-slate-500">{ampuja.seura || '—'}</span>
+                    {ampuja.sarja && <Badge variant="default" className="px-2 py-0.5 text-[11px]">{ampuja.sarja}</Badge>}
+                    {ampuja.seura && <span translate="no" className="font-medium text-slate-500">{ampuja.seura}</span>}
                   </div>
                 </div>
 
