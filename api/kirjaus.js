@@ -797,7 +797,12 @@ async function vapauta(request, avain, req, res) {
 
 let valitsin = null;
 const kirjuriValitsin = () => {
-  if (!valitsin) valitsin = luoKirjuriValitsin({ haeAsiakas: haeKirjuriAsiakas, maara: kirjurienMaara() });
+  if (!valitsin) {
+    const maara = kirjurienMaara();
+    // Kerran instanssia kohden: lokista näkee, montako KIRJURI_CLIENT_EMAIL[_N]-tiliä ympäristöstä löytyi.
+    console.info(`[KIRJAUS] Kirjuritilejä käytössä: ${maara}`);
+    valitsin = luoKirjuriValitsin({ haeAsiakas: haeKirjuriAsiakas, maara });
+  }
   return valitsin;
 };
 
