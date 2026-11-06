@@ -29,9 +29,16 @@ export function kirjurinIndeksi(sheetId, numero, maara) {
   return (siirto + (Number(numero) || 0)) % maara;
 }
 
-export function luoKirjuriValitsin({ haeAsiakas, maara, nyt = () => Date.now() }) {
+// Lokiin syy, miksi lisätili ohitetaan (ei jaettu, Sheets API pois päältä, avain rikki): muuten varasijoitus tiliin 1 ei näy.
+const kirjaaOhitus = (sheetId, i, error) => console.warn(`[KIRJAUS] Kirjuritili ${i + 1} ohitetaan taulukossa ${sheetId} ` +
+  `${EI_KAYTETTAVISSA_MS / 60000} min (${googleStatus(error) || 'ei HTTP-tilaa'}):`, googleViesti(error).slice(0, 300));
+
+export function luoKirjuriValitsin({ haeAsiakas, maara, nyt = () => Date.now(), loki = kirjaaOhitus }) {
   const eiKaytettavissa = new Map();
-  const merkitse = (sheetId, i) => eiKaytettavissa.set(`${sheetId}|${i}`, nyt());
+  const merkitse = (sheetId, i, error) => {
+    eiKaytettavissa.set(`${sheetId}|${i}`, nyt());
+    loki(sheetId, i, error);
+  };
   const kaytettavissa = (sheetId, i) => {
     const avain = `${sheetId}|${i}`;
     const aika = eiKaytettavissa.get(avain);
@@ -56,7 +63,7 @@ export function luoKirjuriValitsin({ haeAsiakas, maara, nyt = () => Date.now() }
   // yritetään tilillä 1, mutta tiliä ei merkitä käyttökelvottomaksi.
   const tilillaYksi = async (sheetId, i, opts, error) => {
     if (i === 0 || !(onPaasyVirhe(error) || onTunnusVirhe(error) || onSuojattu(error))) throw error;
-    if (!onSuojattu(error)) merkitse(sheetId, i);
+    if (!onSuojattu(error)) merkitse(sheetId, i, error);
     return yrita(0, opts, true);
   };
 
@@ -77,7 +84,7 @@ export function luoKirjuriValitsin({ haeAsiakas, maara, nyt = () => Date.now() }
           return await yrita(j, opts, true);
         } catch (toinen) {
           if (j !== 0 && (onPaasyVirhe(toinen) || onTunnusVirhe(toinen))) {
-            merkitse(sheetId, j);
+            merkitse(sheetId, j, toinen);
             throw error;
           }
           throw toinen;

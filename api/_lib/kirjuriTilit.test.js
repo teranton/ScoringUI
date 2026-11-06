@@ -65,6 +65,16 @@ test('taulukkoa ei ole jaettu valitulle tilille: tili 1, ja se muistetaan', asyn
   assert.deepEqual(kutsut.slice(3), [[1, 'c'], [0, 'c']]);
 });
 
+test('ohitettu lisätili kirjataan lokiin syineen', async () => {
+  const lokit = [];
+  const { haeAsiakas } = tilit(['ok', virhe(403, 'Google Sheets API has not been used in project 123')]);
+  const loki = (sheetId, i, error) => lokit.push([sheetId, i, error.message]);
+  const pyynto = luoKirjuriValitsin({ haeAsiakas, maara: 2, loki })(ID, rataTilille(1, 2));
+  await pyynto({ url: 'a' });
+  await pyynto({ url: 'b' });
+  assert.deepEqual(lokit, [[ID, 1, 'Google Sheets API has not been used in project 123']]);
+});
+
 test('suojattu alue: tili 1, mutta lisätili pysyy käytössä', async () => {
   const suojattu = virhe(403, 'You are trying to edit a protected cell or object.');
   const { kutsut, haeAsiakas } = tilit(['ok', suojattu]);
