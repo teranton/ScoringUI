@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { onkoDevTila } from './devTila.js';
+import { onkoDevTila, onkoEsikatselu } from './devTila.js';
 
 test('?dev=1 kytkee kehitystilan päälle', () => {
   assert.equal(onkoDevTila('?dev=1'), true);
@@ -16,4 +16,11 @@ test('ilman parametria kehitystila on pois, ellei ympäristömuuttuja kytke sit�
 
 test('?dev=0 voittaa ympäristömuuttujan', () => {
   assert.equal(onkoDevTila('?dev=0', '1'), false);
+});
+
+test('onkoEsikatselu: preview tai showHidden', () => {
+  assert.equal(onkoEsikatselu('?preview=1'), true);
+  assert.equal(onkoEsikatselu('?showHidden=true'), true);
+  assert.equal(onkoEsikatselu('?preview=0'), false);
+  assert.equal(onkoEsikatselu(''), false);
 });

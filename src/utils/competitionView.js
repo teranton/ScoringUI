@@ -7,6 +7,7 @@ function seuraavaSivuYhdenKierroksen({
   onkoIlmoittautuneita,
   onkoMateriaaleja,
   onkoJoukkueKisa,
+  onkoFinaali = false,
   onkoKisaPaattynyt,
   onkoKisaTulossa,
   onkoTaulukkoSallittu,
@@ -41,7 +42,7 @@ function seuraavaSivuYhdenKierroksen({
     return onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet');
   }
 
-  if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && !(onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') && aktiivinenSivu !== 'joukkueet' && !(onkoMateriaaleja && aktiivinenSivu === 'materiaalit')) {
+  if (onkoKisaPaattynyt && aktiivinenSivu !== 'tulokset' && !(onkoTaulukkoSallittu && aktiivinenSivu === 'taulukko') && aktiivinenSivu !== 'joukkueet' && !(onkoFinaali && aktiivinenSivu === 'finaali') && !(onkoMateriaaleja && aktiivinenSivu === 'materiaalit')) {
     return 'tulokset';
   }
 
@@ -50,6 +51,11 @@ function seuraavaSivuYhdenKierroksen({
   }
 
   if (!onkoJoukkueKisa && aktiivinenSivu === 'joukkueet') {
+    return onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet');
+  }
+
+  // Finaalikaavio (FINAALI-välilehti) vain, kun siinä on otteluita.
+  if (!onkoFinaali && aktiivinenSivu === 'finaali') {
     return onkoTuloksetSallittu ? 'tulokset' : (onkoAikatauluSallittu ? 'aikataulu' : 'ilmoittautuneet');
   }
 

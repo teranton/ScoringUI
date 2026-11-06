@@ -2,11 +2,13 @@
 // avatun kisan haku ja live-päivitys sekä esihaku, kun osoitin pysähtyy kisakortille.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onkoCsvVirheellinen } from '../utils/csv';
-import { laskeKisanPaivaStatus, laskeRankingStatus, laskeStatusKisalle, onkoPaattynytPaivista } from '../utils/kisaStatus';
+import { laskeKisanPaivaStatus, laskeOnkoIlmoittautuminenPaattynyt, laskeRankingStatus, laskeStatusKisalle, onkoPaattynytPaivista } from '../utils/kisaStatus';
+import { LAHDE_VALILEHDET } from '../utils/ilmoittautumiset';
 import { haeKisanVuosi } from '../utils/kilpailurekisteri';
 import { rankingValilehdenNimi } from '../utils/rankingTulokset';
 import { lueKisat, tallennaKisa } from '../utils/paikallinenValimuisti';
 import { trackAnalyticsEvent } from '../utils/analytiikka';
+import { onkoEsikatselu, tulkitseLippu } from '../utils/devTila';
 
 const STATUS_OVERRIDE_REFRESH_MS = 60 * 1000;
 // Päättyneen kisan data haetaan avattaessa uudelleen vain, jos se on tätä vanhempi.
@@ -26,19 +28,34 @@ function rankingValilehti(kisa) {
 function sivutKisalle(kisa, onkoStaattinen) {
   if (kisa?.onkoRanking) return [rankingValilehti(kisa), 'KISAT', 'KISANSPEKSIT'];
   return onkoStaattinen
-    ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT']
+    ? ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT', 'FINAALI']
     // MOBIILI_LAITTEET (vain radat ja linjan tila): mobiilikirjauksen radat julkiseen ratanäkymään (LiveRadat.jsx).
     // MOBIILI_RYHMAT (vain ryhmien numerot): onko ryhmäpuhelimen kortteja tulosten kiekkonäkymään (HenkiloTulokset.jsx).
-    // Päättyneen kisan joukkoa ei muuteta (tallennetut kuvat säilyvät); siellä kortit haetaan, kun ampuja avataan.
-    : ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT'];
+    // Päättyneen kisan joukkoa muutetaan harkiten: joukko on osa tallennetun kuvan avainta, joten jokainen päättynyt kisa
+    // haetaan muutoksen jälkeen kerran Googlesta (FINAALI lisättiin näin). Kortit haetaan, kun ampuja avataan.
+    : ['Tulokset Y', 'NEW_Joukkue', 'FINAALI', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT', 'Aikataulu', 'Aikataulu La', 'Aikataulu Su', 'MOBIILI_LAITTEET', 'MOBIILI_RYHMAT',
+      // Ilmoittautuneiden lähteet (Suomisport-tuonti, lomakkeet), kunnes ilmoittautuneiden lista piilotetaan kisapäivänä.
+      ...(laskeOnkoIlmoittautuminenPaattynyt(kisa?.alkuPvm) ? [] : LAHDE_VALILEHDET)];
 }
+
+// Esikatselussa (?preview=1) kisan data haetaan ohi CDN:n ja tallennetun kuvan, jotta järjestäjän muutos näkyy heti.
+// Sama ehto kuin piilotettujen kisojen näyttämisessä (useKilpailurekisteri). API ohittaa välimuistit vain piilotetulle kisalle.
+const ESIKATSELU = tulkitseLippu(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS) === true || onkoEsikatselu();
 
 function kisaDataUrl(sheetId, sivut) {
   const params = new URLSearchParams();
   params.append('sheetId', sheetId);
   sivut.forEach((nimi) => params.append('sheetNames', nimi));
+  if (ESIKATSELU) {
+    params.append('preview', '1');
+    // Oma osoite joka haulle: Cloudflare voi pitää samaa ?preview=1-osoitetta ajalta, jolloin kisa oli julkinen tai
+    // ennen kuin esikatselu ohitti välimuistit, ja antaa sen vanhan vastauksen (vanha KISANSPEKSIT) päiviä.
+    params.append('t', String(Date.now()));
+  }
   return `/api/kisa?${params.toString()}`;
 }
+
+const haeKisaApista = (url) => (ESIKATSELU ? fetch(url, { cache: 'no-store' }) : fetch(url));
 
 export function useKisaData({ kisat, valittuKisa }) {
   const [kisaCache, setKisaCache] = useState(() => lueKisat());
@@ -104,7 +121,7 @@ export function useKisaData({ kisat, valittuKisa }) {
         speksitInFlightRef.current[sheetId] = true;
 
         try {
-          const response = await fetch(kisaDataUrl(sheetId, ['KISANSPEKSIT']));
+          const response = await haeKisaApista(kisaDataUrl(sheetId, ['KISANSPEKSIT']));
           if (!response.ok) continue;
 
           const tulos = await response.json();
@@ -151,7 +168,7 @@ export function useKisaData({ kisat, valittuKisa }) {
 
       const startTime = performance.now();
       const sivut = sivutKisalle(kisa, onkoStaattinen);
-      const response = await fetch(kisaDataUrl(sheetId, sivut));
+      const response = await haeKisaApista(kisaDataUrl(sheetId, sivut));
       if (!response.ok) {
         throw new Error(`KisaDatan haku epäonnistui palvelimelta. Status: ${response.status}`);
       }
@@ -176,8 +193,12 @@ export function useKisaData({ kisat, valittuKisa }) {
       const uusiData = {
         henkilotCsvRaw: csvByName['Tulokset Y'] || vanhaData.henkilotCsvRaw || "",
         joukkueetCsvRaw: csvByName['NEW_Joukkue'] || vanhaData.joukkueetCsvRaw || "",
+        // Finaalikaavio (FINAALI-välilehti, pudotuspeli). Puuttuva välilehti tyhjentää kaavion.
+        finaaliCsvRaw: csvByName['FINAALI'] || "",
         eratCsvRaw: csvByName['Ryhmäjako'] || vanhaData.eratCsvRaw || "",
         ilmoittautuneetCsvRaw: csvByName['Ilmoittautuneet'] || vanhaData.ilmoittautuneetCsvRaw || "",
+        // Lähteistä vain tässä haussa löytyneet: poistettu tai siirretty ilmoittautuminen ei jää näkyviin.
+        ilmoittautumisLahteet: onkoStaattinen ? [] : LAHDE_VALILEHDET.map((nimi) => csvByName[nimi] || '').filter(Boolean),
         aikatauluCsvRaw: csvByName['Aikataulu'] || vanhaData.aikatauluCsvRaw || "",
         aikatauluLaCsvRaw: onkoStaattinen
           ? (csvByName['Aikataulu La'] || vanhaData.aikatauluLaCsvRaw || "")
@@ -239,7 +260,7 @@ export function useKisaData({ kisat, valittuKisa }) {
     // Haetaan data aina vähintään kerran, kun kisanäkymä avataan.
     // Päivien mukaan päättyneessä kisassa vältetään turha lisähaku, jos data on välimuistissa ja alle tunnin vanhaa.
     // Pelkällä FINISHED-asetuksella päättynyt haetaan aina, jotta asetuksen poisto tulee näkyviin.
-    const ohitaHaku = onkoStaattinen && onkoPaattynytPaivista(valittuKisa) && !puuttuuPakollistaKisaDataa && onkoDataTuore;
+    const ohitaHaku = !ESIKATSELU && onkoStaattinen && onkoPaattynytPaivista(valittuKisa) && !puuttuuPakollistaKisaDataa && onkoDataTuore;
     if (!ohitaHaku) {
       haeKisaData(valittuKisa, onkoStaattinen);
     } else {

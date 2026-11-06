@@ -8,6 +8,17 @@ export function tulkitseLippu(value) {
   return null;
 }
 
+// Järjestäjän esikatselu: ?preview=1 (tai vanha ?showHidden=1) näyttää piilotetut kisat ja hakee kisan datan ohi
+// välimuistien (api/rekisteri.js, api/kisa.js), jotta taulukkoon tehty muutos näkyy heti.
+export function onkoEsikatselu(search = typeof window !== 'undefined' ? window.location.search : '') {
+  try {
+    const params = new URLSearchParams(search || '');
+    return tulkitseLippu(params.get('preview') || params.get('showHidden')) === true;
+  } catch {
+    return false;
+  }
+}
+
 export function onkoDevTila(search = typeof window !== 'undefined' ? window.location.search : '', envArvo = import.meta.env?.VITE_DEV_TILA) {
   try {
     const urlLippu = tulkitseLippu(new URLSearchParams(search || '').get('dev'));

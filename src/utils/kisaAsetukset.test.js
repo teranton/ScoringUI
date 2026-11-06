@@ -52,11 +52,12 @@ test('avaimissa ääkköset, välilyönnit ja alaviivat ovat samanarvoisia', () 
   assert.equal(haeSponsoriLogoNakyvyysSpekseista([['LOGOT_NÄKYVYYS', 'false']]), 'off');
 });
 
-test('asetuksen arvo on avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu', () => {
+test('asetuksen arvo on avaimen viereinen solu', () => {
   const rivit = [['AIKATAULUNAKYVYYS', 'tuntematon', '', 'LOGOT_NAKYVYYS', 'TRUE']];
   assert.equal(haeAikatauluNakyvyysSpekseista(rivit), null);
   assert.equal(haeSponsoriLogoNakyvyysSpekseista(rivit), 'on');
-  assert.equal(haeAikatauluRyhmittelySpekseista([['AIKATAULURYHMAKOKO', '', '6']]), 'group6');
+  assert.equal(haeAikatauluRyhmittelySpekseista([['AIKATAULURYHMAKOKO', '', '6']]), null);
+  assert.equal(haeAikatauluRyhmittelySpekseista([['AIKATAULURYHMAKOKO', '6']]), 'group6');
   assert.equal(haeAikatauluRyhmittelySpekseista([['6', 'AIKATAULURYHMAKOKO']]), null);
 
   const vierekkain = [['AIKATAULU_MALLI', 'AIKATAULURYHMAKOKO', 'INLINE']];
@@ -75,4 +76,12 @@ test('Ei tuomaroivat -sarjat luetaan kuten ScoringLib: avaimen viereinen solu, m
   vanha[19] = ['Muu otsikko', 'N, J'];
   assert.deepEqual(haeEiTuomaroivatSarjatSpekseista(vanha), ['N', 'J']);
   assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([]), []);
+});
+
+test('Selite | Avain -otsikon alla avain luetaan vain Avain-sarakkeesta', () => {
+  const otsikko = ['Selite', 'Avain', 'Arvo', 'Ohje'];
+  assert.equal(haeAikatauluNakyvyysSpekseista([otsikko, ['Aikataulu näkyvyys', 'AIKATAULU_NAKYVYYS', 'FALSE', 'TRUE = näkyy']]), 'off');
+  assert.deepEqual(haeEiTuomaroivatSarjatSpekseista([otsikko, ['Ei tuomaroivat', 'Ei tuomaroivat:', 'N, Y70', 'Ohje']]), ['N', 'Y70']);
+  // Ohje-sarakkeen maininta ei ole avain
+  assert.equal(haeAikatauluNakyvyysSpekseista([otsikko, ['Muu', 'MUU', '', 'AIKATAULU_NAKYVYYS'], ['Näkyvyys', 'AIKATAULU_NAKYVYYS', 'TRUE', '']]), 'always');
 });

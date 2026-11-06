@@ -21,8 +21,10 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `KISANSPEKSIT` | Organiser, ScoringLib (`KilpailuPohja.js` on a new competition: settings, layout names, station table, `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, and the library-only `KILPAILUTYYPPI`, `ALKUPAIVA`, plus `RYHMAVALI`, `ISTUNTOTAUKO` on group-timetable types; `TimetableTauko.js`; `Utils.js`) | `App.jsx`, `utils/henkiloTulokset.js`, `utils/kisaAsetukset.js`, `utils/openSarja.js`, `utils/highGun.js` |
 | `Tulokset Y` | Sheet formulas from the main entry tab | `HenkiloTaulukko.jsx`, `HenkiloTulokset.jsx`, `utils/henkiloTulokset.js` |
 | `NEW_Joukkue` | Sheet formulas | `JoukkueTulokset.jsx` |
+| `FINAALI` (optional, knockout final) | ScoringLib (`Finaali.js`, menu 🥇 Finaali: creates the bracket from `Tulokset Y` and fills the next rounds), organiser (scores, `VOITTAJA` for a tie) | `FinaaliKaavio.jsx`, `utils/finaali.js` |
 | `Ryhmäjako` | Sheet / ScoringLib (`Distributor.js`) | `RyhmaJako.jsx` |
-| `Ilmoittautuneet` | Organiser / import | `Ilmoittautuneet.jsx` |
+| `Ilmoittautuneet` | Sheet formula from the main tab (master: `SORT(CHOOSECOLS(FILTER(OSALLISTUJAT; …)))`) | `Ilmoittautuneet.jsx` |
+| `Suomisport Import`, `ILMOITTAUTUMISET`, `Lomakevastaukset N` / `Form Responses N` (sign-up sources) | ScoringLib (`SuomiSport.js` import; `Ilmoittautumiset.js` marks `SIIRRETTY`), sign-up form (`api/ilmoittaudu.js`, writer account, `ILMOITTAUTUMISET` only), a Google Form linked to the sheet | `Ilmoittautuneet.jsx`, `utils/ilmoittautumiset.js` through `api/kisa.js`, only the public columns (see "Sign-ups") |
 | `Aikataulu`, `Aikataulu La`, `Aikataulu Su` | ScoringLib (`TimetableTauko.js` for Compak; `KilpailuPohja.js` menu "Luo aikataulu" for the group timetable, after registration; a new competition has only an instruction text in A1) or template (`templates/sheets/Aikataulu_*_template.csv`) | `AikatauluNakyma.jsx`, `AikatauluRyhmaNakyma.jsx`, `TulosteAikataulu.jsx` (Compak printout), `utils/aikatauluRadat.js` |
 | `OSALLISTUJAT+TULOKSET` (named range `OSALLISTUJAT`) | Organiser, ScoringLib (`Distributor.js` shuffle, `MobiiliTulokset.js` import of mobile results), squad editor (`RyhmaJako.jsx`, organiser's own account), mobile entry (`api/kirjaus.js`, writer account: result cells only with `MOBIILI_TULOKSET` = `SUORAAN`) | `RyhmaJako.jsx`; `api/kirjaus.js` with the writer account (squad phone, direct results), not through `api/kisa.js` |
 | `MOBIILI Rata N`, `MOBIILI_LAITTEET` | Mobile entry (`api/kirjaus.js`, writer account), see "Mobile score entry" | `LiveRadat.jsx`, `utils/mobiiliLive.js` through `api/kisa.js`, only the public columns (see "Public live view") |
@@ -35,8 +37,9 @@ Tab names are matched case-insensitively, ignoring leading and trailing spaces (
 
 The API serves only the tabs in the table above (`SALLITUT_VALILEHDET` in `api/_lib/sheetsData.js`, plus any tab named
 `RANKING_` and a four-digit year, and `KISAT`, on sheets marked `RANKING` in the registry, and the column-filtered
-`MOBIILI Rata N` / `MOBIILI_LAITTEET` / `MOBIILI Layout N` / `MOBIILI_RYHMAT` of the public views); any other tab (`MOBIILI_LOKI`,
-`Suomisport Import`, `KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
+`MOBIILI Rata N` / `MOBIILI_LAITTEET` / `MOBIILI Layout N` / `MOBIILI_RYHMAT` of the public views and the sign-up sources
+`Suomisport Import` / `ILMOITTAUTUMISET` / `Lomakevastaukset N` / `Form Responses N`); any other tab (`MOBIILI_LOKI`,
+`KITI_DATA`, score cards ...) is refused with 400. A new tab the UI reads must be added there.
 
 Access: the sheets and the registry are read only with the service account (`spreadsheets.readonly` scope),
 so each of them must be shared with it (Viewer is enough). They don't need "anyone with the link" sharing.
@@ -47,8 +50,18 @@ Most tabs are read by **header name** from the first row (uppercased, non-alphan
 so column order can change but header names must not.
 
 - `Tulokset Y`: `NIMI`, `SARJA`, `SEURA`, day columns `LA` / `AP` / `LAUANTAI…` / `AAMUP…` and
-  `SU` / `IP` / `SUNNUNTAI…` / `ILTAP…`, `TULOS`, round columns, `RATKO` (tie-break) and status values.
+  `SU` / `IP` / `SUNNUNTAI…` / `ILTAP…`, `TULOS`, round columns (headers `1`, `2`, `3` …; without the `KISANSPEKSIT` station table the largest
+  of these numbers is the station count), `RATKO` (tie-break) and status values.
 - `Ilmoittautuneet`: `NIMI`, `SARJA`, `SEURA`, `KILPAILUNUMERO` / `KISA_NUMERO` / `NUMERO`.
+- `FINAALI`: one row per match under a header row with `KIERROS` / `ROUND`, `AMPUJA A` / `NIMI A` / `SHOOTER A` and
+  `AMPUJA B` / `NIMI B` / `SHOOTER B`; optional `SARJA` / `CLASS` (one bracket per class), `SIJA A` / `SEED A`,
+  `TULOS A` / `SCORE A`, `SIJA B` / `SEED B`, `TULOS B` / `SCORE B`, `VOITTAJA` / `WINNER` (`A`, `B` or the winner's
+  name; without it the higher score wins and a tie is undecided) and `RATKO` / `SHOOTOFF` (shown as text). Rounds are
+  shown in the order they first appear; an empty `SARJA` or `KIERROS` repeats the row above (merged cells), and the header
+  row may repeat (one block per class). The round named `FINAALI` / `FINAL` (else the last one) gives gold and silver. A round starting with `PRONSSI` / `BRONZE` is the bronze match, shown under the
+  final. Without the tab, or without match rows, the Finaali page is hidden. Example:
+  `SARJA | KIERROS | SIJA A | AMPUJA A | TULOS A | SIJA B | AMPUJA B | TULOS B | VOITTAJA`,
+  `A | Välierä | 3 | Roger Sundström | 14 | 8 | Juho Saastamoinen | 12 |`.
 - `NEW_Joukkue`: `SIJA` / `RANK`, `JOUKKUE` / `TEAM`, `NIMI` / `AMPUJA` / `SHOOTER`, `SARJA` / `CLASS`,
   `TULOS` / `YHT…` / `TOTAL…`, and lane columns whose header is exactly `1`, `2`, ….
 - `KISANSPEKSIT` station table: header containing `ASEMA` / `RATA` / `LANE` / `STATION`, a max column
@@ -138,11 +151,38 @@ It depends on:
 
 ## `KISANSPEKSIT` settings
 
-Keys are found anywhere on the tab; the value is the next non-empty cell to the right.
+Keys are found in the Avain column below the `Selite | Avain` header row (`kisaAsetukset.avainOsumat`); a tab without
+that header (older sheets) is searched cell by cell. The value is the cell right of the key only, as in ScoringLib:
+an empty value is empty, never the help text further right.
 Keys and values are matched case-insensitively with Ä/Ö/Å read as A/O/A and spaces and underscores
 ignored, so `Aikataulu näkyvyys` matches `AIKATAULU_NAKYVYYS`. Each setting has one key and a fixed set
 of values, the forms the competition sheets use (see `src/utils/kisaAsetukset.js` and `src/utils/kisaStatus.js`).
 Any other key or value is ignored and the default applies.
+
+### Sections
+
+The master template groups the keys into sections by function (heading rows in the Selite column; ScoringLib's
+`KilpailuPohja.SPEKSIT_OSIOT`). The sections are never read, only the keys (plus the old fallback cells noted below, such as B20 and J:L), so the order is for people.
+"UI" = ScoringUI reads it, "Lib" = only ScoringLib does; details in the tables below and in the feature sections.
+
+| Section | Keys | Read by |
+|---|---|---|
+| Kisan aikana | `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS` | UI |
+| Kilpailun rakenne | `KILPAILUTYYPPI`, `OSALLISTUJAT`, `LAYOUT/KISA`, `Asemien määrä`, `Päivätuloksia kpl` | `LAYOUT/KISA` UI and Lib, others Lib |
+| Radat ja asemat | `RATAn_NIMI`, `RATAn_OHJELMA`, the station table (columns F:I) | UI and Lib |
+| Ilmoittautuminen ja saapuminen | `ILMOITTAUTUMISTAPA`, `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`, `ILMOITTAUTUMISEN_MAKSIMI`, `ILMOITTAUTUMISEN_VARASIJAT`; `MAKSU_KISAPAIKALLA`, `OSALLISTUMISMAKSU` | sign-up keys UI and Lib, payment keys Lib |
+| Aikataulu ja ryhmät | `ALOITUS_AIKA`, `AMPUJAN_AIKA`, `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`, `ALOITUSTAPA` | `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO` UI, all Lib |
+| Tuomarointi ja korostukset | `Ei tuomaroivat:`, `Bib tuomaroivat`, `Korostukset päällä`, `Syötössä korostukset`, `Isäntäseura`, `Järjestävät seurat:` | `Ei tuomaroivat:` UI (squad editor), all Lib or sheet formulas |
+| Mobiilikirjaus ja tuloskortit | `MOBIILI_TULOKSET`, `Tyhjän ruudun symboli` | `MOBIILI_TULOKSET` UI and Lib, the symbol Lib |
+| Tulokset ja palkintojako | `RATKO_PALKINTO_SIJA`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA` | UI and Lib (`RATKO_PALKINTO_SIJA` UI only) |
+| Tuonnit | `Vain päivätulokset` | Lib |
+| Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI |
+
+Because keys are read only from the Avain column, a Selite or help text equal to a key (the master had "Ilmoittautumistapa"
+left of `ILMOITTAUTUMISTAPA`) is never taken for the key, in the UI (`avainOsumat`: `speksiArvo`, `haeAsetusSpekseista`,
+`Ei tuomaroivat:`, the tie-break places) or in ScoringLib's `Speksit.etsi`. Keep each Selite different from its key all the same.
+
+### UI settings
 
 | Setting | Key | Values | Default |
 |---|---|---|---|
@@ -155,6 +195,11 @@ Any other key or value is ignored and the default applies.
 | Classes that don't referee (highlighted in the squad editor) | `Ei tuomaroivat:` | comma-separated classes in the cell right of the key (B20 when the key is missing), matched exactly to `SARJA`, as ScoringLib's shuffle | none |
 | All-shooters category | `OPEN_SARJA` | `Y` (shown as Y, everyone; Finnish rules), `OPEN` or `Y (OPEN)` (shown as Y (OPEN), open to foreign shooters), `EI` or `FALSE` (no all-shooters category, only the classes; a `Y` class is then shown like any other) | none if every `Tulokset Y` category is a class: a letter A–F alone or followed by a non-letter (`A`, `A (Y)`, `B Y56`, `D-metsästäjä`), ignoring manual High Gun categories (`HG`, `1HG`); otherwise `Y` |
 | High Gun prize places | `HIGH_GUN` | whole number; the best overall scores up to this place (ties included) get a High Gun list on screen and in the printout | 0 (no High Gun) |
+| Sign-up form | `ILMOITTAUTUMISTAPA` (not `ILMOITTAUTUMINEN`, which is the section heading) | `LOMAKE` (ScoringUI shows the sign-up form, see "Sign-ups"); `SUOMISPORT` or anything else: no form | no form |
+| Sign-up deadline | `ILMOITTAUTUMINEN_PAATTYY` | `p.k.vvvv` (open to the end of that day) or `p.k.vvvv hh:mm`, Helsinki time; `00:00` also means the end of that day (the master's cell is a date picker formatted `d.m.yyyy hh:mm`); never later than 10:00 on the first day (the list is hidden then) | the start of the first competition day (registry column C) |
+| Sign-up classes | `ILMOITTAUTUMISEN_SARJAT` | classes separated by commas or semicolons, shown as a dropdown | free text |
+| Sign-up limit | `ILMOITTAUTUMISEN_MAKSIMI` | whole number of shooters; when reached, the form takes waiting-list sign-ups | no limit (empty, 0 or not a number) |
+| Waiting places | `ILMOITTAUTUMISEN_VARASIJAT` | whole number of waiting-list places after the limit; then the form closes as full | 0 |
 | High Gun winners leave their category | `HIGH_GUN_POIS_SARJOISTA` | `TRUE`; `FALSE`, `EPÄTOSI`, `0` or `EI` turn it off (category lists are ranked without the High Gun winners, so the next shooter moves up; the all-shooters list is unchanged) | `TRUE` |
 
 Sponsor logos are `LOGO:<name>` rows: the image link right of the key, then optionally the sponsor's web page.
@@ -164,7 +209,7 @@ A logo on any other host is not shown unless Vercel has `LOGO_PROXY_HOST_POLICY=
 
 ### Keys ScoringLib reads
 
-ScoringLib (`Speksit.js`) finds these keys anywhere on the tab. Matching differs from the UI's in three ways:
+ScoringLib (`Speksit.js`) finds these keys the same way (Avain column, or anywhere on a tab without the header). Matching differs from the UI's in three ways:
 only Ä/Å/Ö are folded (to A/A/O) and every other non-letter, non-digit is dropped; the first copy of a key wins;
 and the value is only the cell right of the key, never a cell further right. When a key is missing, the library
 uses the fallback cell. Renaming a key therefore makes the library read the fallback cell, except:
@@ -200,6 +245,12 @@ Compak sheet it stops and points to the Compak menus) also read, with no fallbac
 - `ISTUNTOTAUKO`: minutes between sessions; 0 is allowed, missing or empty gives 60.
 `ALOITUS_AIKA` and `LAYOUT/PÄIVÄ` are read as in the table above (fallback F4 / F6). ScoringLib writes `KILPAILUTYYPPI` and
 `ALKUPAIVA` on every new competition and `RYHMAVALI` / `ISTUNTOTAUKO` only on group-timetable types. The UI reads none of these four.
+Check-in (`Saapuminen.js`, menu 🧾 Saapuminen kisapaikalle) reads, with no fallback cell: `MAKSU_KISAPAIKALLA`
+(`ENNAKKO` default, also when missing: entries on `Suomisport Import` without "Tarkista maksu" are prepaid; `KAIKKI`:
+everyone pays at the range) and `OSALLISTUMISMAKSU` (number, the amount suggested). ScoringLib copies get `ENNAKKO` and
+an empty fee. The UI reads neither. Check-in writes the tab `SAAPUMISET` (name, arrival time, payment type and amount,
+who checked in): payment data, so it must never be added to the API's served tabs. It also writes the main tab's
+status column (`Ilmoittautunut`, or `MAKSU` in older local sheets), which the UI doesn't read.
 `OPEN_SARJA` (prize list, `PrizeModule.js`) has no fallback cell either: without it the library makes the same
 guess as the UI from the categories of `Tulokset Y`. Keep its value in the cell right next to the key, since
 the library reads only that cell.
@@ -353,6 +404,55 @@ targets (hidden by default): from the squad phone's card (Sporting / FITASC / ES
   header (`Nro.` = `NRO`), and a Compak card's `NIMI` must share a word with the main tab's `NIMI` (numbers can change
   after a reshuffle; ScoringLib's import uses the same rule); a squad station's id is compared as a number when it is one (`1,0` = `1`). A paper result typed between the read and the write can be overwritten;
   the window is under a second.
+
+## Sign-ups (`Ilmoittautuneet`)
+
+The registrations list shows the `Ilmoittautuneet` tab (names on the main tab) and, until it is hidden on the first
+competition day at 10:00, every sign-up that is not on the main tab yet. The UI requests the sources with the
+competition (`Suomisport Import`, `ILMOITTAUTUMISET`, `Lomakevastaukset 1`, `Form Responses 1`; a missing tab is fine).
+`api/kisa.js` serves a source only with the columns whose whole header (a part in parentheses ignored, case ignored) is
+one of (`src/utils/ilmoittautumiset.js` `lahdeSarake`): `NIMI` / `NAME` / `KOKONIMI` / `FULL NAME` / `AMPUJA` / `AMPUJAN NIMI` /
+`KILPAILIJA` / `KILPAILIJAN NIMI` / `OSALLISTUJA` / `OSALLISTUJAN NIMI`, `SUKUNIMI` / `SURNAME` / `LAST NAME`, `ETUNIMI` /
+`ETUNIMET` / `FIRST NAME` (joined as "Sukunimi Etunimi"), `SARJA` / `LUOKKA` / `CLASS` / `KILPAILUSARJA`, `SEURA` / `CLUB` /
+`EDUSTAMASI SEURA` / `EDUSTETTAVA SEURA`, `SIIRRETTY` and `VARASIJA`. So `Nimi (sukunimi etunimi)` is served but
+`Nimi ja puhelinnumero` is not. Sportti-ID, payment notes, referee cards, e-mail, phone and other answers never leave the
+API. The list reads only `Lomakevastaukset 1` / `Form Responses 1`; the form's duplicate check and ScoringLib read every N.
+A new `Suomisport Import` or form tab shows within 10 minutes (the API's tab list is not refetched for them).
+
+- A row with a non-empty `SIIRRETTY` cell is not shown from the source: ScoringLib's 🏆 Competition ›
+  📝 Ilmoittautuminen › Siirrä ilmoittautuneet pääsivulle copies new sign-ups into free main-tab rows and writes the
+  time there, after which the main tab (and so `Ilmoittautuneet`) is the truth.
+- A row with a non-empty `VARASIJA` cell is a waiting-list sign-up: the list shows it under "Varasijat" in sheet order, and
+  it doesn't count as a participant. ScoringLib doesn't copy it to the main tab; the office empties the cell when the
+  shooter gets a place and then runs the copy.
+- A name (or last/first name) typed all in capitals or all in lower case is shown with capital initials (`VIRTANEN matti` →
+  `Virtanen Matti`); ScoringLib copies it the same way.
+- The same shooter in several places is shown once (name compared without case, extra spaces or word order; the main
+  tab wins, then the sources in the order above). Rows whose name is only a number are skipped.
+
+### Sign-up form (`api/ilmoittaudu.js`)
+
+With `ILMOITTAUTUMISTAPA` = `LOMAKE` and before the deadline, the registrations tab shows a form (last name, first name,
+class, club, e-mail, optional phone and notes, consent to show name/class/club in the list). `POST /api/ilmoittaudu`
+appends one row to `ILMOITTAUTUMISET` with the writer account (`KIRJURI_*`, the mobile entry account), creating the tab
+with the header `AIKALEIMA, SUKUNIMI, ETUNIMI, NIMI, SARJA, SEURA, SÄHKÖPOSTI, PUHELIN, LISÄTIETOJA, SIIRRETTY, VARASIJA` when
+it is missing (tab and header in one request). Columns are written by header, so the office may reorder or add columns. Values are written `RAW`, and
+a leading `=`, `+`, `-` or `@` is dropped. The sheet must be shared with the writer account as Editor (ScoringLib
+📝 Ilmoittautuminen › Avaa ilmoittautumislomake, owner); otherwise the form answers "not in use". The main tab is never written.
+
+Limit (`ILMOITTAUTUMISEN_MAKSIMI`): participants are the main tab's names plus the sources' untransferred sign-ups that
+are not on the waiting list. When they reach the limit, or anyone is already waiting, a new sign-up gets
+`VARASIJA` = the next waiting number (the largest waiting number + 1, so numbers don't repeat after someone gets a
+place; the column is added to an older tab, and any header that reads as `VARASIJA` counts) and the answer gives its
+place in the queue. The list orders the waiting list by that number. When the
+waiting places (`ILMOITTAUTUMISEN_VARASIJAT`) are taken, the form shows "full" and the API answers 409 `taynna`.
+Two sign-ups at the same moment can pass the limit by one.
+
+Abuse protection: a hidden honeypot field (a filled one gets a fake success and nothing is written), at least 4 s
+between opening and sending, at most 10 attempts per IP (Cloudflare's `cf-connecting-ip` when present) and 40 saved sign-ups
+per competition in 10 minutes per server instance, and a
+second sign-up with a name already on the main tab or in any source (also transferred rows) is refused (409).
+IP addresses are not stored.
 
 ## To do
 

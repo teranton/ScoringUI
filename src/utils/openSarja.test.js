@@ -14,7 +14,9 @@ import {
 
 test('OPEN_SARJA luetaan avaimen oikealta puolelta', () => {
   assert.equal(haeOpenSarjaSpekseista([['', 'OPEN_SARJA', 'Y']]), 'y');
-  assert.equal(haeOpenSarjaSpekseista([['Open sarja', '', 'Y (OPEN)']]), 'open');
+  assert.equal(haeOpenSarjaSpekseista([['Open sarja', 'Y (OPEN)']]), 'open');
+  // Tyhjä arvo: viereinen ohje ei ole arvo
+  assert.equal(haeOpenSarjaSpekseista([['OPEN_SARJA', '', 'Y = kaikki ampujat (SM)']]), null);
   assert.equal(haeOpenSarjaSpekseista('OPEN_SARJA,open\n'), 'open');
   assert.equal(haeOpenSarjaSpekseista([['OPEN_SARJA', 'Ei']]), 'ei');
   assert.equal(haeOpenSarjaSpekseista([['OPEN_SARJA', 'jotain']]), null);

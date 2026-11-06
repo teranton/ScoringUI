@@ -12,6 +12,7 @@ const {
   kanoninenValilehti,
   julkisetSarakkeet,
   kohdistaValilehdet,
+  onPaaValilehti,
   onSallittuValilehti,
   rivitCsvksi,
   tyhjennaValilehtiCache,
@@ -78,6 +79,14 @@ test('kaikki välilehdet löytyvät: yksi batchGet ja lista rinnalla', async () 
   assert.equal(kutsut.filter((u) => u.includes('batchGet')).length, 1);
 });
 
+test('päättyneen kisan joukko, jossa FINAALI: ei suoraa hakua, vaan lista ja yksi batchGet', async () => {
+  await tyhjennaValilehtiCache();
+  const { request, kutsut } = luoGoogle(['Tulokset Y', 'KISANSPEKSIT'], { 'Tulokset Y': [['A']], KISANSPEKSIT: [['x']] });
+  const tulos = await haeValilehdetCsv({ request, sheetId: `${SHEET}F`, nimet: ['Tulokset Y', 'NEW_Joukkue', 'KISANSPEKSIT', 'FINAALI'] });
+  assert.deepEqual(tulos.notFound, ['NEW_Joukkue', 'FINAALI']);
+  assert.equal(kutsut.filter((u) => u.includes('batchGet')).length, 1);
+});
+
 test('puuttuva välilehti: haetaan uudelleen löytyneillä nimillä', async () => {
   await tyhjennaValilehtiCache();
   const { request } = luoGoogle(['Tulokset Y ', 'Aikataulu La'], { 'Tulokset Y ': [['A']], 'Aikataulu La': [['L']] });
@@ -109,6 +118,29 @@ test('kesken kisan luotu MOBIILI-välilehti: vanha lista haetaan uudelleen minuu
   assert.deepEqual(myohemmin, { csvByName: { 'Tulokset Y': 'A', MOBIILI_LAITTEET: 'RATA\n1' }, notFound: [] });
 });
 
+test('puuttuva Tulokset Y: vanha lista haetaan uudelleen minuutin jälkeen (välilehti lisätty tai nimetty uudelleen)', async () => {
+  await tyhjennaValilehtiCache();
+  const valilehdet = ['KISANSPEKSIT', 'Tulokset'];
+  const { request } = luoGoogle(valilehdet, { 'Tulokset Y': [['A']], KISANSPEKSIT: [['S']] });
+  const nimet = ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako', 'Ilmoittautuneet', 'KISANSPEKSIT'];
+  const alku = Date.now();
+  await haeValilehdetCsv({ request, sheetId: `${SHEET}10`, nimet, nyt: alku });
+  valilehdet[1] = 'Tulokset Y';
+  const heti = await haeValilehdetCsv({ request, sheetId: `${SHEET}10`, nimet, nyt: alku + 30 * 1000 });
+  assert.ok(heti.notFound.includes('Tulokset Y'));
+  const myohemmin = await haeValilehdetCsv({ request, sheetId: `${SHEET}10`, nimet, nyt: alku + 61 * 1000 });
+  assert.deepEqual(myohemmin.csvByName, { 'Tulokset Y': 'A', KISANSPEKSIT: 'S' });
+});
+
+test('onPaaValilehti: tulokset, KISANSPEKSIT ja ranking', () => {
+  assert.equal(onPaaValilehti(' tulokset y '), true);
+  assert.equal(onPaaValilehti('KISANSPEKSIT'), false);
+  assert.equal(onPaaValilehti('KISAT'), false);
+  assert.equal(onPaaValilehti('RANKING_2026'), true);
+  assert.equal(onPaaValilehti('Aikataulu La'), false);
+  assert.equal(onPaaValilehti('NEW_Joukkue'), false);
+});
+
 test('muu kuin aluevirhe heitetään eteenpäin', async () => {
   await tyhjennaValilehtiCache();
   const request = async () => { const e = new Error('kielletty'); e.response = { status: 403 }; throw e; };
@@ -133,7 +165,7 @@ test('onSallittuValilehti sallii kisan välilehdet ja kauden rankingin, ei muita
   assert.equal(onSallittuValilehti('RANKING'), false);
   assert.equal(onSallittuValilehti('RANKING_2026_vanha'), false);
   assert.equal(onSallittuValilehti('LASKENTA'), false);
-  assert.equal(onSallittuValilehti('Suomisport Import'), false);
+  assert.equal(onSallittuValilehti('KITI_DATA'), false);
 });
 
 test('kanoninenValilehti antaa frontendin kirjoitusasun tai tyhjän', () => {
@@ -142,7 +174,7 @@ test('kanoninenValilehti antaa frontendin kirjoitusasun tai tyhjän', () => {
   assert.equal(kanoninenValilehti('ranking_2027'), 'RANKING_2027');
   assert.equal(kanoninenValilehti('kisat'), 'KISAT');
   assert.equal(kanoninenValilehti('Ryhmäjako'.normalize('NFD')), 'Ryhmäjako');
-  assert.equal(kanoninenValilehti('Suomisport Import'), '');
+  assert.equal(kanoninenValilehti('KITI_DATA'), '');
   assert.equal(kanoninenValilehti('mobiili rata 03'), 'MOBIILI Rata 3');
   assert.equal(kanoninenValilehti('mobiili_laitteet'), 'MOBIILI_LAITTEET');
   assert.equal(kanoninenValilehti('MOBIILI_LOKI'), '');
@@ -157,6 +189,32 @@ test('mobiilikirjauksen välilehdet: kortit, laitteet ja ryhmät, ei lokia', () 
   assert.equal(onSallittuValilehti('MOBIILI Layout 1'), true);
   assert.equal(onSallittuValilehti('MOBIILI Layout'), false);
   assert.equal(onSallittuValilehti('MOBIILI Rata'), false);
+});
+
+test('ilmoittautumisten lähteistä vain nimi, sarja, seura ja siirtomerkintä', () => {
+  assert.equal(kanoninenValilehti('suomisport import'), 'Suomisport Import');
+  assert.equal(kanoninenValilehti('ilmoittautumiset'), 'ILMOITTAUTUMISET');
+  assert.equal(kanoninenValilehti('Lomakevastaukset 1'), 'Lomakevastaukset 1');
+  assert.equal(kanoninenValilehti('form responses 2'), 'Form Responses 2');
+  assert.equal(kanoninenValilehti('Lomakevastaukset'), '');
+  const tuonti = [
+    ['Sportti-ID', 'NIMI', 'SARJA', 'SEURA', 'HUOM', 'TUOMARIKORTTI', 'SIIRRETTY'],
+    ['40374311', 'Saastamoinen Juho', 'Y', 'KajA', 'Tarkista maksu', 'Tuomari: I', '']
+  ];
+  assert.deepEqual(julkisetSarakkeet('Suomisport Import', tuonti), [
+    ['NIMI', 'SARJA', 'SEURA', 'SIIRRETTY'],
+    ['Saastamoinen Juho', 'Y', 'KajA', '']
+  ]);
+  const lomake = [
+    ['Aikaleima', 'Sukunimi', 'Etunimi', 'Sarja', 'Seura', 'Sähköpostiosoite', 'Puhelinnumero'],
+    ['1.11.2026', 'Rantonen', 'Tero', 'Y', 'OMAS', 't@x.fi', '040']
+  ];
+  assert.deepEqual(julkisetSarakkeet('Lomakevastaukset 1', lomake), [
+    ['Sukunimi', 'Etunimi', 'Sarja', 'Seura'],
+    ['Rantonen', 'Tero', 'Y', 'OMAS']
+  ]);
+  const oma = [['AIKALEIMA', 'SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SÄHKÖPOSTI', 'PUHELIN', 'LISÄTIETOJA', 'SIIRRETTY']];
+  assert.deepEqual(julkisetSarakkeet('ILMOITTAUTUMISET', oma), [['SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SIIRRETTY']]);
 });
 
 test('julkisetSarakkeet jättää laitteen tunnukset, PIN-virheet ja täydennykset pois', () => {

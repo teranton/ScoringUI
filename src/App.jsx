@@ -2,7 +2,11 @@
 import { Component, useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import HenkiloTulokset from './HenkiloTulokset';
 import JoukkueTulokset from './JoukkueTulokset';
+import FinaaliKaavio from './FinaaliKaavio';
+import { parsiFinaalit } from './utils/finaali';
 import Ilmoittautuneet from './Ilmoittautuneet';
+import IlmoittautumisLomake from './IlmoittautumisLomake';
+import { ilmoittautuneidenNimet, lisattavatIlmoittautuneet, lomakkeenTila, paikkatilanne } from './utils/ilmoittautumiset';
 import MateriaaliNakyma from './MateriaaliNakyma';
 import RankingTulokset from './RankingTulokset';
 import RyhmaJako from './RyhmaJako';
@@ -36,7 +40,7 @@ import {
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer, Radio } from 'lucide-react';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer, Radio, Medal } from 'lucide-react';
 import { haeTekstit } from './i18n';
 import SaaEnnuste from './components/SaaEnnuste';
 import { lataaAnalytiikka, trackAnalyticsEvent } from './utils/analytiikka';
@@ -84,6 +88,8 @@ export default function App() {
   const { kisaStatusById, nykyisenKisanData, ladataanKisaa, valitunKisanVirhe, ajastaEsihaku, peruEsihaku } = useKisaData({ kisat, valittuKisa });
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
+  // Tässä istunnossa lähetetyt ilmoittautumiset kisoittain: näkyvät listassa ennen kuin API:n välimuisti päivittyy.
+  const [omatIlmoittautumiset, setOmatIlmoittautumiset] = useState({});
   // Tulostuksen aloitusaika; null kun tulosluettelon tulostus ei ole käynnissä.
   const [tulosteenAika, setTulosteenAika] = useState(null);
   // Ladatut näkymäpalat. Tulosteet ovat sivulla vasta, kun niiden pala on ladattu, ettei tulostus tyhjennä sivua.
@@ -200,6 +206,9 @@ export default function App() {
     joukkueRows: parseCsvRows(joukkueetCsvRaw),
     speksitRows: parseCsvRows(speksitCsvRaw)
   }), [henkilotCsvRaw, joukkueetCsvRaw, speksitCsvRaw]);
+  // Pudotuspelifinaali (FINAALI-välilehti), yksi kaavio per sarja.
+  const finaaliCsvRaw = nykyisenKisanData?.finaaliCsvRaw || '';
+  const finaalit = useMemo(() => parsiFinaalit(parseCsvRows(finaaliCsvRaw)), [finaaliCsvRaw]);
 
   const nykyisenKisanSpeksit = useMemo(
     () => ({
@@ -263,7 +272,33 @@ export default function App() {
 
   const onkoTuloksetSallittu = !onkoKisaTulossa;
   const onkoTaulukkoSallittu = onkoTuloksetSallittu && onkoTaulukkoKytkettyPaalle;
-  const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10;
+  const ilmoittautumisLomake = useMemo(
+    () => lomakkeenTila(nykyisenKisanParsitutRivit.speksitRows, valittuKisa?.alkuPvm),
+    [nykyisenKisanParsitutRivit.speksitRows, valittuKisa?.alkuPvm]
+  );
+  const omatIlmot = valittuKisa?.apiUrl ? omatIlmoittautumiset[valittuKisa.apiUrl] : null;
+  const ilmoittautumisLahteet = useMemo(() => {
+    const lahteet = nykyisenKisanData?.ilmoittautumisLahteet || [];
+    if (!omatIlmot?.length) return lahteet;
+    const csv = ['NIMI,SARJA,SEURA,VARASIJA', ...omatIlmot.map((o) => [o.nimi, o.sarja, o.seura, o.varasija || ''].map((t) => `"${String(t).replace(/"/g, '""')}"`).join(','))].join('\n');
+    return [...lahteet, csv];
+  }, [nykyisenKisanData?.ilmoittautumisLahteet, omatIlmot]);
+  const ilmoittautumisTilanne = useMemo(
+    () => paikkatilanne(ilmoittautuneidenNimet(nykyisenKisanData?.ilmoittautuneetCsvRaw), ilmoittautumisLahteet),
+    [nykyisenKisanData?.ilmoittautuneetCsvRaw, ilmoittautumisLahteet]
+  );
+  const lisaaOmaIlmoittautuminen = useCallback((ilmo) => {
+    const sheetId = valittuKisa?.apiUrl;
+    if (!sheetId) return;
+    setOmatIlmoittautumiset((ed) => ({ ...ed, [sheetId]: [...(ed[sheetId] || []), ilmo] }));
+  }, [valittuKisa?.apiUrl]);
+  const onkoLahteissaIlmoittautuneita = useMemo(
+    () => lisattavatIlmoittautuneet([], ilmoittautumisLahteet).length > 0,
+    [ilmoittautumisLahteet]
+  );
+  const onkoIlmoittautuneita = !onkoIlmoittautuminenAikaIkkunaOhi && (
+    nykyisenKisanData?.ilmoittautuneetCsvRaw?.trim().length > 10 || onkoLahteissaIlmoittautuneita || ilmoittautumisLomake.auki
+  );
   const onkoAikataulua = aikatauluCsvList.length > 0;
 
   const aikatauluNakyvyysAsetus = useMemo(
@@ -325,6 +360,7 @@ export default function App() {
   const onkoJoukkueKisa = onkoTuloksetSallittu
     && onkoJoukkueTuloksetSallittu
     && nykyisenKisanParsitutRivit.joukkueRows.length >= 2;
+  const onkoFinaali = onkoTuloksetSallittu && finaalit.length > 0;
 
   // Radat live: mobiilikirjauksen Compak-radat (MOBIILI_LAITTEET), kun kisa on käynnissä.
   const mobiiliLaitteetCsvRaw = nykyisenKisanData?.mobiiliLaitteetCsvRaw || '';
@@ -354,6 +390,7 @@ export default function App() {
     onkoIlmoittautuneita,
     onkoMateriaaleja,
     onkoJoukkueKisa,
+    onkoFinaali,
     onkoKisaPaattynyt,
     onkoKisaTulossa,
     onkoTaulukkoSallittu,
@@ -549,6 +586,12 @@ export default function App() {
             {tx.teamResults}
           </Button>
         )}
+        {onkoFinaali && (
+          <Button onClick={() => setAktiivinenSivu('finaali')} variant={aktiivinenSivu === 'finaali' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Medal className="h-4 w-4" aria-hidden="true" />
+            {tx.final}
+          </Button>
+        )}
         {onkoIlmoittautuneita && (
           <Button onClick={() => setAktiivinenSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <ClipboardList className="h-4 w-4" aria-hidden="true" />
@@ -629,9 +672,17 @@ export default function App() {
             </NakymaVirheRaja>
           )}
           {aktiivinenSivu === 'ilmoittautuneet' && onkoIlmoittautuneita && (
-            <div className="mx-auto w-full max-w-3xl">
+            <div className="mx-auto w-full max-w-3xl space-y-3">
+              <IlmoittautumisLomake
+                sheetId={valittuKisa.apiUrl}
+                tila={ilmoittautumisLomake}
+                tilanne={ilmoittautumisTilanne}
+                locale={locale}
+                onIlmoittauduttu={lisaaOmaIlmoittautuminen}
+              />
               <Ilmoittautuneet
-                rawCsv={nykyisenKisanData.ilmoittautuneetCsvRaw}
+                rawCsv={nykyisenKisanData?.ilmoittautuneetCsvRaw}
+                lahteet={ilmoittautumisLahteet}
                 locale={locale}
                 showCompetitionNumbers={onkoAikatauluSallittu}
               />
@@ -715,6 +766,11 @@ export default function App() {
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
             <div className="mx-auto w-full max-w-3xl">
               <JoukkueTulokset data={nykyisenKisanData} parsedRows={nykyisenKisanParsitutRivit} kisaStatus={kisanStatusInfo.status} locale={locale} />
+            </div>
+          )}
+          {aktiivinenSivu === 'finaali' && onkoFinaali && (
+            <div className="mx-auto w-full max-w-5xl">
+              <FinaaliKaavio finaalit={finaalit} locale={locale} />
             </div>
           )}
         </main>

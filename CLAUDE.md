@@ -37,6 +37,14 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   With `KISANSPEKSIT` `MOBIILI_TULOKSET` = `SUORAAN`, a save that completes a result (Compak card, or a squad station the
   shooter confirmed) also writes it into an empty result cell of `OSALLISTUJAT+TULOKSET` (`api/_lib/kirjausTulokset.js`);
   paper or formula cells are never changed. Default `TOIMISTO`: the office imports with ScoringLib's Tuo mobiilitulokset.
+- Sign-ups: the registrations list (`src/Ilmoittautuneet.jsx`) merges the `Ilmoittautuneet` tab with sign-ups not yet on
+  the main tab from `Suomisport Import`, `ILMOITTAUTUMISET` and a Google Form's `Lomakevastaukset 1` / `Form Responses 1`
+  (`src/utils/ilmoittautumiset.js`; the API serves only their name, class, club and `SIIRRETTY` columns). With
+  `KISANSPEKSIT` `ILMOITTAUTUMISTAPA` = `LOMAKE` the tab also shows a sign-up form (`src/IlmoittautumisLomake.jsx`) that
+  posts to `api/ilmoittaudu.js`, which appends to `ILMOITTAUTUMISET` with the writer account (never the main tab;
+  honeypot, minimum fill time, per-IP and per-competition limits, duplicate names refused; `ILMOITTAUTUMISEN_MAKSIMI` /
+  `ILMOITTAUTUMISEN_VARASIJAT`: past the limit a sign-up gets a waiting place, marked in the `VARASIJA` column, then the form is full). ScoringLib copies sign-ups
+  to the main tab and marks `SIIRRETTY`.
 - Public live view ("Radat live" tab, `src/LiveRadat.jsx`, `src/utils/mobiiliLive.js`): a read-only mirror of the Compak
   entry screen per layout, shown for a running competition whose `MOBIILI_LAITTEET` has layouts. It reads `MOBIILI Rata N`
   and `MOBIILI_LAITTEET` through `api/kisa.js` with the reader account; the API serves only their public columns
@@ -45,13 +53,22 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   Targets in the results: with squad cards (`MOBIILI_RYHMAT`) or Compak devices (`MOBIILI_LAITTEET`), tapping a station
   score in `HenkiloTulokset.jsx` shows its targets from `MOBIILI Layout N` or `MOBIILI Rata N`
   (`src/utils/mobiiliKiekot.js`, `src/hooks/useMobiiliKiekot.js`), matched by name.
+- Knockout final (Finaali page, `src/FinaaliKaavio.jsx`, `src/utils/finaali.js`): an optional `FINAALI` tab, filled by the
+  organiser, one row per match (round, seeds, shooters, scores, winner); drawn as a bracket per class with the bronze match under the final.
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache
   time follows the registry dates (finished 1 h, served stale up to 1 day in the 14-day correction window and 30 days after it; running 15 s; upcoming 60 s).
   With `BLOB_READ_WRITE_TOKEN` set, finished competitions are also stored in Vercel Blob and served from there.
   After the 14-day correction window a Blob copy older than 1 day is still served at once (up to 30 days) and
   refreshed from Google in the background (`waitUntil`; awaited when there is no Vercel request context, e.g. `vercel dev`).
   The correction window is judged from the current registry dates; during it only a copy under 1 h old is used.
-  Blob writes never delay the response.
+  Blob writes never delay the response. A response missing the main tab (`Tulokset Y`, or `RANKING_vvvv`) is fresh only
+  1 min (server and CDN) and never stored in Blob, and a cached tab list missing it is refetched after 1 min, so a sheet
+  fixed after it was first read (an old competition added to the registry, a renamed tab) shows within a minute.
+  With `?preview=1` in the page address (the organiser's preview, which also shows hidden competitions) the app asks
+  `/api/kisa?…&preview=1`; for a hidden competition (registry column G) the API then skips the Blob copy (kept only as a
+  fallback), uses a server copy only under 30 s and sends `private, no-store`. For a public competition the flag does
+  nothing, so nobody can bypass the caches. The app adds a time parameter `t` to every preview request, so Cloudflare
+  never answers it with a copy stored before (when the competition was public or before preview skipped the caches). Fix an old sheet while it is hidden, then make it public.
   Vercel strips `s-maxage` from the response it forwards, so cached API responses also carry
   `Cloudflare-CDN-Cache-Control` with the same times (`api/_lib/cdnOtsikot.js`) for a Cloudflare cache in front of Vercel.
   Running competitions are kept only 5 s in Vercel's CDN (`Vercel-CDN-Cache-Control: max-age=5`), so the two CDN copies

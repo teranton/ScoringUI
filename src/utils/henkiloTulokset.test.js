@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   laskeHenkilosijoitukset,
+  laskeRatojenMaara,
   laskeNaytettavatRatkoIdt,
   muodostaRatkoNakyma,
   normalisoiOtsikko,
@@ -43,7 +44,8 @@ for (const tapaus of ratkoTapaukset) {
 const speksiTapaukset = [
   { nimi: 'avain ja arvo', rivit: [['RATKO_PALKINTO_SIJA', '5']], odotettu: 5 },
   { nimi: 'tyhjä arvo käyttää oletusta 3', rivit: [['LAYOUT/KISA', '24', 'RATKO_PALKINTO_SIJA', '']], odotettu: 3 },
-  { nimi: 'arvo on ensimmäinen ei-tyhjä solu avaimen oikealla puolella', rivit: [['Ratko palkinto sija', '', '4']], odotettu: 4 },
+  { nimi: 'arvo on avaimen viereinen solu', rivit: [['Ratko palkinto sija', '4']], odotettu: 4 },
+  { nimi: 'tyhjä arvo ei lue kauempaa solua', rivit: [['RATKO_PALKINTO_SIJA', '', '4']], odotettu: 3 },
   { nimi: 'virheellinen arvo käyttää oletusta 3', rivit: [['RATKO_PALKINTO_SIJA', 'kaikki']], odotettu: 3 },
   { nimi: 'puuttuva avain käyttää oletusta 3', rivit: [['ASEMA', 'MAKSIMI'], ['1', '25']], odotettu: 3 },
   { nimi: 'tyhjät speksit käyttävät oletusta 3', rivit: [], odotettu: 3 }
@@ -142,3 +144,14 @@ for (const tapaus of paivaSarakeTapaukset) {
     assert.equal(onkoMyohempiaPaivaTuloksia(ampujat), tapaus.naytetaan);
   });
 }
+
+test('laskeRatojenMaara: asemataulukko ensin, ilman sitä tulosotsikoiden suurin asemanumero', () => {
+  assert.equal(laskeRatojenMaara({ 1: 25, 2: 25 }, ['', 'SIJA', 'NIMI', '1', '2', '3', 'TULOS']), 2);
+  // KISANSPEKSIT puuttuu: TULOS ja RATKO eivät ole asemia.
+  assert.equal(laskeRatojenMaara({}, ['', 'SIJA', 'NIMI', 'SARJA', 'SEURA', '1', '2', '3', 'TULOS', 'RATKO']), 3);
+  assert.equal(laskeRatojenMaara({}, ['NIMI', ' 1 ', '2', 'TULOS']), 2);
+  // Päiväsummat asemien välissä: suurin numero ratkaisee kuten ennenkin.
+  assert.equal(laskeRatojenMaara({}, ['NIMI', '1', '2', 'LA', '3', '4', 'SU', 'TULOS']), 4);
+  assert.equal(laskeRatojenMaara({}, ['NIMI', 'TULOS']), 8);
+  assert.equal(laskeRatojenMaara(undefined, undefined), 8);
+});

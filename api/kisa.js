@@ -10,21 +10,33 @@ import { waitUntil } from '@vercel/functions';
 
 import { normalisoiSheetId, onSallittuSheetId } from './_lib/sheetAllowlist.js';
 import { haeGoogleAsiakas, onKiintioVirhe, pyyntoUudelleenyrittaen } from './_lib/googleAuth.js';
-import { haeValilehdetCsv, kanoninenValilehti, onRankingValilehti } from './_lib/sheetsData.js';
-import { VANHA_KUVA_OTSIKKO, VARALLA_OTSIKKO, cdnOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
+import { haeValilehdetCsv, kanoninenValilehti, onPaaValilehti, onRankingValilehti } from './_lib/sheetsData.js';
+import { KESKEN_TUORE_MS, VANHA_KUVA_OTSIKKO, VARALLA_OTSIKKO, cdnOtsikko, keskenOtsikko, kisanPaivaTila, onkoKuvaKaytettava, onkoKuvaTuore, vastausTuoreMs } from './_lib/kisaValimuisti.js';
 import { datanVersio, kuvanPolku, lueKuva, onkoKuvatKaytossa, tallennaKuva } from './_lib/kisaKuva.js';
 import { luoValimuisti, luoYhdistaja } from './_lib/valimuisti.js';
-import { asetaValimuisti } from './_lib/cdnOtsikot.js';
+import { ESIKATSELU_OTSIKKO, asetaValimuisti } from './_lib/cdnOtsikot.js';
+import { tulkitseLippu } from '../src/utils/devTila.js';
 
-const MAKS_VALILEHDET = 12;
+const MAKS_VALILEHDET = 16;
 // Pyydettyjä nimiä (myös julkaisemattomia ja eri kirjoitusasuja) korkeintaan näin monta.
 const MAKS_PYYDETYT = 4 * MAKS_VALILEHDET;
 // Käynnissä olevan kisan vastaus Vercelin CDN:ssä enintään näin kauan (s), Cloudflaressa CDN-otsikon mukaan.
 const VERCEL_LIVE_S = 5;
 // Näin vanhaa vastausta käytetään vielä, jos Google ei vastaa (esim. kiintiö täynnä).
 const VARALLA_MAKS_IKA_MS = 24 * 60 * 60 * 1000;
+// ?preview=1 (järjestäjän esikatselu, kuten /api/rekisteri) piilotetulle kisalle (rekisterin G-sarake): päättyneen kisan
+// kuvaa ei anneta (vain varalle, jos Google ei vastaa), palvelimen vastausta käytetään vain näin tuoreena, eikä CDN tai
+// selain tallenna vastausta. Muutos taulukkoon näkyy siis puolessa minuutissa. Julkiselle kisalle lippu ei tee mitään,
+// jotta kuka tahansa ei voi ohittaa välimuisteja ja kuluttaa Googlen kiintiötä. Haettu data päivittää kuvan ja tämän
+// instanssin välimuistin; julkisten kopioiden (muut instanssit, CDN, selaimet) vanheneminen ei nopeudu.
+const ESIKATSELU_TUORE_MS = 30 * 1000;
 
 const vastausValimuisti = luoValimuisti('vastaukset');
+
+// Puuttuuko vastauksesta päävälilehti (Tulokset Y tai ranking). Sellainen vastaus on tuore vain minuutin eikä siitä
+// tehdä kuvaa: muuten taulukko, johon välilehti lisätään tai jossa se nimetään uudelleen vasta haun jälkeen
+// (esim. vanha kisa lisätty rekisteriin), näkyisi päättyneenä kisana tyhjänä tunnista vuorokauteen.
+const puuttuuPaavalilehti = (notFound) => (notFound || []).some(onPaaValilehti);
 const yhdistaHaku = luoYhdistaja();
 
 function decodeQueryValue(value) {
@@ -42,12 +54,13 @@ function lahetaVirhe(res, status, body) {
   return res.status(status).json(body);
 }
 
-function lahetaData(req, res, { csvByName, notFound, cacheControl, timing, paivaTila }) {
+function lahetaData(req, res, { csvByName, notFound, cacheControl, timing, paivaTila, esikatselu }) {
   const versio = datanVersio(csvByName);
   const etag = `W/"${versio}"`;
   res.setHeader('Content-Type', 'application/json');
   // Käynnissä olevan kisan vastaus Vercelin CDN:ssä vain hetken, ettei se kasaudu Cloudflaren kanssa (api/_lib/cdnOtsikot.js).
-  asetaValimuisti(res, cacheControl, { vercelEnintaan: paivaTila === 'kaynnissa' ? VERCEL_LIVE_S : undefined });
+  if (esikatselu) res.setHeader('Cache-Control', ESIKATSELU_OTSIKKO);
+  else asetaValimuisti(res, cacheControl, { vercelEnintaan: paivaTila === 'kaynnissa' ? VERCEL_LIVE_S : undefined });
   res.setHeader('ETag', etag);
   res.setHeader('X-ScoringUI-Lahde', timing.source);
   if (req.headers?.['if-none-match'] === etag) return res.status(304).end();
@@ -83,7 +96,7 @@ async function taustalla(lupaus) {
 // Palvelimen välimuisti kirjoitetaan ennen vastausta (paikallinen ja nopea); päättyneen kisan kuva (Blob) taustalla.
 async function tallennaTulos(polku, google, paivaTila, kisa) {
   await vastausValimuisti.aseta(polku, { csvByName: google.csvByName, notFound: google.notFound, paivaTila, kisa });
-  if (paivaTila !== 'paattynyt' || !onkoKuvatKaytossa()) return;
+  if (paivaTila !== 'paattynyt' || !onkoKuvatKaytossa() || puuttuuPaavalilehti(google.notFound)) return;
   await taustalla(tallennaKuva(polku, {
     versio: 1,
     tallennettu: Date.now(),
@@ -127,10 +140,15 @@ export default async function handler(req, res) {
   if (nimet.length === 0) return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: eiSallitut });
   if (eiSallitut.length) console.error('[KISA] Ohitetaan välilehdet, joita ei julkaista:', eiSallitut);
 
+  const esikatseluPyydetty = tulkitseLippu(req.query?.preview) === true;
   const polku = kuvanPolku(sheetId, nimet);
   const tallessa = await vastausValimuisti.hae(polku);
   const tallessaIka = tallessa ? Date.now() - tallessa.tallennettu : Infinity;
-  const tallessaTuore = Boolean(tallessa) && tallessaIka < vastausTuoreMs(tallessa.arvo.paivaTila, tallessa.arvo.kisa);
+  const tallessaKesken = Boolean(tallessa) && puuttuuPaavalilehti(tallessa.arvo.notFound);
+  const tallessaTuoreKun = (esikatselu) => Boolean(tallessa)
+    && tallessaIka < vastausTuoreMs(tallessa.arvo.paivaTila, tallessa.arvo.kisa)
+    && (!tallessaKesken || tallessaIka < KESKEN_TUORE_MS)
+    && (!esikatselu || tallessaIka < ESIKATSELU_TUORE_MS);
 
   // Kylmässä instanssissa rekisteri ei ole vielä muistissa: Google-haku aloitetaan heti sen rinnalla,
   // ja tulos heitetään pois, jos id ei ole rekisterissä. Lämpimässä instanssissa tarkistus on välitön.
@@ -138,6 +156,8 @@ export default async function handler(req, res) {
   const haeYhdistetysti = () => yhdistaHaku(polku, () => haeGooglesta(sheetId, nimet));
   const rekisteriValmis = onSallittuSheetId.onLadattu();
   const rekisteriRivi = rekisteriValmis ? onSallittuSheetId.kisa(sheetId) : null;
+  // Kylmässä instanssissa ei vielä tiedetä, onko kisa piilotettu: oletetaan pyynnön mukaan ja tarkistetaan alla.
+  const tallessaTuore = tallessaTuoreKun(esikatseluPyydetty && (!rekisteriValmis || Boolean(rekisteriRivi?.piilotettu)));
   const lueTallennettu = !tallessaTuore && onkoKuvatKaytossa()
     && (!rekisteriValmis || kisanPaivaTila(rekisteriRivi) === 'paattynyt');
 
@@ -162,13 +182,17 @@ export default async function handler(req, res) {
     return lahetaVirhe(res, 400, { error: 'Välilehteä ei julkaista', sheetNames: nimet.filter(onRankingValilehti) });
   }
   const paivaTila = kisanPaivaTila(kisa);
+  const esikatselu = esikatseluPyydetty && Boolean(kisa?.piilotettu);
+  const laheta = (tiedot) => lahetaData(req, res, { ...tiedot, esikatselu });
 
   // Rekisterin päivät ovat voineet muuttua tallennuksen jälkeen: lyhyempi tuoreusaika ratkaisee.
-  if (tallessaTuore && tallessaIka < vastausTuoreMs(paivaTila, kisa)) {
-    return lahetaData(req, res, {
+  if (tallessaTuoreKun(esikatselu) && tallessaIka < vastausTuoreMs(paivaTila, kisa)) {
+    return laheta({
       csvByName: tallessa.arvo.csvByName,
       notFound: tallessa.arvo.notFound || [],
-      cacheControl: cdnOtsikko(tallessa.arvo.paivaTila, tallessa.arvo.kisa, Date.now(), tallessaIka),
+      cacheControl: tallessaKesken
+        ? keskenOtsikko(tallessaIka)
+        : cdnOtsikko(tallessa.arvo.paivaTila, tallessa.arvo.kisa, Date.now(), tallessaIka),
       paivaTila,
       timing: { total_ms: Date.now() - alku, source: 'server-cache', cache_age_ms: tallessaIka, generated_at_ms: tallessa.tallennettu }
     });
@@ -178,10 +202,10 @@ export default async function handler(req, res) {
   // ja CDN pitää vanhaa vastausta tuoreena vain hetken, jotta päivitetty data tulee pian näkyviin.
   // Korjausajan raja lasketaan rekisterin nykyisistä päivistä, ei kuvaan tallennetuista.
   const kuvaNyt = kuva && { ...kuva, alkuPvm: kisa?.alkuPvm || '', loppuPvm: kisa?.loppuPvm || '' };
-  if (paivaTila === 'paattynyt' && onkoKuvaKaytettava(kuvaNyt)) {
+  if (!esikatselu && paivaTila === 'paattynyt' && onkoKuvaKaytettava(kuvaNyt) && !puuttuuPaavalilehti(kuva.notFound)) {
     const tuore = onkoKuvaTuore(kuvaNyt);
     if (!tuore) await taustalla(paivitaKuva(googleLupaus || haeYhdistetysti(), polku, paivaTila, kisa));
-    return lahetaData(req, res, {
+    return laheta({
       csvByName: kuva.csvByName,
       notFound: kuva.notFound || [],
       cacheControl: tuore ? cdnOtsikko(paivaTila, kisa) : VANHA_KUVA_OTSIKKO,
@@ -202,7 +226,7 @@ export default async function handler(req, res) {
     ].filter(Boolean);
     const varalla = vaihtoehdot.sort((a, b) => (b.tallennettu || 0) - (a.tallennettu || 0))[0] || null;
     if (varalla) {
-      return lahetaData(req, res, {
+      return laheta({
         csvByName: varalla.csvByName,
         notFound: varalla.notFound || [],
         cacheControl: VARALLA_OTSIKKO,
@@ -221,10 +245,10 @@ export default async function handler(req, res) {
 
   const total = Date.now() - alku;
   console.log(`[KISA] ${sheetId} ${paivaTila} google ${google.google_ms} ms, yhteensä ${total} ms`);
-  return lahetaData(req, res, {
+  return laheta({
     csvByName: google.csvByName,
     notFound: google.notFound,
-    cacheControl: cdnOtsikko(paivaTila, kisa),
+    cacheControl: puuttuuPaavalilehti(google.notFound) ? keskenOtsikko() : cdnOtsikko(paivaTila, kisa),
     paivaTila,
     timing: { total_ms: total, google_ms: google.google_ms, source: 'google', generated_at_ms: Date.now() }
   });

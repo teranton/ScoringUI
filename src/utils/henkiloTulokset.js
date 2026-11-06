@@ -1,4 +1,5 @@
 import { parseCsvRows } from './csv.js';
+import { avainOsumat } from './kisaAsetukset.js';
 
 // Arkin kyllä-merkinnät (pienillä kirjaimilla), joita kaikki totuusarvoasetukset hyväksyvät.
 export const TOSI_ARVOT = ['1', 'true', 'yes', 'on', 'x'];
@@ -123,23 +124,25 @@ export const KAIKKI_SARJAT = 'OPEN (Y)';
 // Onko ampujalla tulos (kokonaistulos taulukon ampujilla, muuten tulos).
 export const onkoTulosta = (ampuja) => (Number.parseInt(ampuja.kokonaistulos ?? ampuja.tulos, 10) || 0) > 0;
 
-// Asemien/ratojen määrä KISANSPEKSIT-asemataulukosta; oletus 8, jos taulukkoa ei löydy.
-export function laskeRatojenMaara(asemaMaksimit) {
+// Asemien/ratojen määrä KISANSPEKSIT-asemataulukosta. Jos taulukkoa ei saatu, määrä on tulosvälilehden suurin
+// asemanumero-otsikko (1, 2, 3 ...), jotta TULOS- ja RATKO-sarakkeita ei näytetä asemina; oletus 8, jos niitäkään ei ole.
+export function laskeRatojenMaara(asemaMaksimit, otsikkoRivi) {
   const maara = Object.keys(asemaMaksimit || {}).length;
-  return maara > 0 ? maara : 8;
+  if (maara > 0) return maara;
+  const numerot = (Array.isArray(otsikkoRivi) ? otsikkoRivi : [])
+    .map((o) => String(o ?? '').trim())
+    .filter((o) => /^\d{1,3}$/.test(o))
+    .map(Number);
+  const suurin = numerot.length ? Math.max(...numerot) : 0;
+  return suurin > 0 ? suurin : 8;
 }
 
 // Sama tulkinta kuin muissa KISANSPEKSIT-asetuksissa (ks. kisaAsetukset.js): avain normalisoidaan ja arvo on
-// avaimen oikealla puolella oleva ensimmäinen ei-tyhjä solu. Tyhjä tai virheellinen arvo -> oletus.
+// avaimen oikealla puolella oleva solu. Tyhjä tai virheellinen arvo -> oletus.
 function haeRatkoPalkintoSija(speksiRivit) {
-  for (const rivi of speksiRivit) {
-    if (!Array.isArray(rivi)) continue;
-
-    const solut = rivi.map((solu) => String(solu || '').trim());
-    const avainIndeksi = solut.findIndex((solu) => normalisoiOtsikko(solu) === 'RATKOPALKINTOSIJA');
-    if (avainIndeksi === -1) continue;
-
-    const sija = Number.parseInt(solut.slice(avainIndeksi + 1).find(Boolean), 10);
+  const onAvain = (solu) => normalisoiOtsikko(String(solu || '').trim()) === 'RATKOPALKINTOSIJA';
+  for (const [rivi, i] of avainOsumat(speksiRivit, onAvain)) {
+    const sija = Number.parseInt(String(rivi[i + 1] ?? '').trim(), 10);
     return Number.isInteger(sija) && sija > 0 ? sija : ratkoPalkintoSijaOletus;
   }
 
@@ -192,42 +195,6 @@ export function muodostaRatkoNakyma(ratko1, ratko2) {
   return { statusEtiketit: [], teksti: naytto };
 }
 
-function haeCountbackSarja(ampuja) {
-  if (Array.isArray(ampuja?.sarjat) && ampuja.sarjat.length > 0) {
-    return ampuja.sarjat.map((sarja) => {
-      const piste = parseInt(sarja?.tulos, 10);
-      return Number.isNaN(piste) ? -9999 : piste;
-    });
-  }
-
-  if (ampuja?.erat && typeof ampuja.erat === 'object') {
-    return Object.keys(ampuja.erat)
-      .map((avain) => Number(avain))
-      .filter((avain) => Number.isFinite(avain))
-      .sort((a, b) => a - b)
-      .map((avain) => {
-        const piste = parseInt(ampuja.erat[avain], 10);
-        return Number.isNaN(piste) ? -9999 : piste;
-      });
-  }
-
-  return [];
-}
-
-function vertaaCountbackSarjoja(ampujaA, ampujaB) {
-  const sarjaA = haeCountbackSarja(ampujaA);
-  const sarjaB = haeCountbackSarja(ampujaB);
-  const pisin = Math.max(sarjaA.length, sarjaB.length);
-
-  for (let i = pisin - 1; i >= 0; i--) {
-    const arvoA = sarjaA[i] ?? -9999;
-    const arvoB = sarjaB[i] ?? -9999;
-    if (arvoA !== arvoB) return arvoB - arvoA;
-  }
-
-  return 0;
-}
-
 function onkoRatkoArvoAnnettu(ampuja) {
   const ratko1 = String(ampuja?.ratko || '').trim();
   const ratko2 = String(ampuja?.ratko2 || '').trim();
@@ -244,20 +211,22 @@ export function laskeHenkilosijoitukset(
     ? [...ampujat]
     : ampujat.filter((ampuja) => String(ampuja.sarja || '').toUpperCase() === sarjaSuodatin.toUpperCase());
 
+  // Ratkot puretaan kerran ampujaa kohden. Tasainen ratko jää tasatulokseksi (esim. uusintaratkolle ei ollut
+  // aikaa): countbackia ei käytetä, ja vakaa lajittelu pitää tasatulokset taulukon järjestyksessä.
+  const ratkot = new Map(lajiteltuLista.map((ampuja) => [
+    ampuja, [puraRatkoArvo(ampuja.ratko).piste, puraRatkoArvo(ampuja.ratko2).piste]
+  ]));
+  const vertaaRatkoja = (a, b) => {
+    const [ratkoA, ratko2A] = ratkot.get(a);
+    const [ratkoB, ratko2B] = ratkot.get(b);
+    return ratkoB !== ratkoA ? ratkoB - ratkoA : ratko2B - ratko2A;
+  };
+
   lajiteltuLista.sort((a, b) => {
     const tulosA = parseInt(a.tulos, 10) || 0;
     const tulosB = parseInt(b.tulos, 10) || 0;
     if (tulosB !== tulosA) return tulosB - tulosA;
-
-    const ratkoA = puraRatkoArvo(a.ratko);
-    const ratkoB = puraRatkoArvo(b.ratko);
-    if (ratkoB.piste !== ratkoA.piste) return ratkoB.piste - ratkoA.piste;
-
-    const ratko2A = puraRatkoArvo(a.ratko2);
-    const ratko2B = puraRatkoArvo(b.ratko2);
-    if (ratko2B.piste !== ratko2A.piste) return ratko2B.piste - ratko2A.piste;
-
-    return vertaaCountbackSarjoja(a, b);
+    return vertaaRatkoja(a, b);
   });
 
   let aktiivinenSija = 1;
@@ -272,12 +241,6 @@ export function laskeHenkilosijoitukset(
       const edellinen = array[index - 1];
       const edellinenTulos = parseInt(edellinen.tulos, 10) || 0;
 
-      const ratkoArvo = puraRatkoArvo(ampuja.ratko);
-      const ratko2Arvo = puraRatkoArvo(ampuja.ratko2);
-      const edellinenRatko = puraRatkoArvo(edellinen.ratko);
-      const edellinenRatko2 = puraRatkoArvo(edellinen.ratko2);
-      const countbackVertailu = vertaaCountbackSarjoja(ampuja, edellinen);
-
       const onkoMukanaRatkoissa = index < ratkoSija || tulosNum >= ratkoRajatulos;
       const onkoRatkoAnnettuVertailuparille = onkoRatkoArvoAnnettu(ampuja) || onkoRatkoArvoAnnettu(edellinen);
 
@@ -285,7 +248,7 @@ export function laskeHenkilosijoitukset(
         if (onkoMukanaRatkoissa) {
           // Älä riko tasatulosta ennen kuin ratkoarvoja on oikeasti annettu.
           if (onkoRatkoAnnettuVertailuparille
-            && !(edellinenRatko.piste === ratkoArvo.piste && edellinenRatko2.piste === ratko2Arvo.piste && countbackVertailu === 0)) {
+            && vertaaRatkoja(edellinen, ampuja) !== 0) {
             aktiivinenSija = index + 1;
           }
         }

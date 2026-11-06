@@ -4,9 +4,11 @@ import { parseCsvRows } from './utils/csv';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { haeTekstit } from './i18n';
+import { lisattavatIlmoittautuneet, varasijaJono } from './utils/ilmoittautumiset';
 
-export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetitionNumbers = false }) {
-  const onkoRawTyhja = !rawCsv || rawCsv.trim().length < 10;
+// rawCsv: Ilmoittautuneet-välilehti (pääsivun nimet). lahteet: Suomisport-tuonnin ja lomakkeiden välilehdet, joiden
+// pääsivulle siirtämättömät ilmoittautumiset näytetään samassa listassa (src/utils/ilmoittautumiset.js).
+export default function Ilmoittautuneet({ rawCsv, lahteet = [], locale = 'fi', showCompetitionNumbers = false }) {
 
   function onkoPelkaNumero(value) {
     return /^\d+$/.test(String(value || '').trim());
@@ -14,12 +16,11 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
 
   const tx = haeTekstit('ilmoittautuneet', locale);
 
-  const { ryhmitellytSarjat, kokonaismaara } = useMemo(() => {
+  const { ryhmitellytSarjat, kokonaismaara, varasijat } = useMemo(() => {
     const raakaRivit = parseCsvRows(rawCsv || '');
-    if (raakaRivit.length < 2) return { ryhmitellytSarjat: {}, kokonaismaara: 0 };
 
     // 1. Etsitään oikeat sarakkeet ensimmäiseltä riviltä tekstien perusteella
-    const otsikot = raakaRivit[0].map((o) => String(o || '').toUpperCase().trim());
+    const otsikot = (raakaRivit[0] || []).map((o) => String(o || '').toUpperCase().trim());
     const otsikotNormalisoitu = otsikot.map((o) => o.replace(/[^A-Z0-9]/g, ''));
 
     const etsiSarakkeenIndeksi = (ehdot) => {
@@ -75,6 +76,14 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
       });
     }
 
+    // Lähteiden ilmoittautuneet, joita ei vielä ole pääsivulla. Varasijat omana listanaan ilmoittautumisjärjestyksessä.
+    const lisattavat = lisattavatIlmoittautuneet(osallistujat.map((o) => o.nimi), lahteet);
+    const varasijat = varasijaJono(lisattavat);
+    lisattavat.filter((o) => !o.varalla).forEach((o, i) => {
+      const sarja = o.sarja || 'Määrittelemätön';
+      osallistujat.push({ id: `lahde-${o.nimi}-${sarja}-${i}`, nimi: o.nimi, seura: o.seura, sarja, kilpailuNumero: '' });
+    });
+
     // Järjestetään kaikki osallistujat sukunimen/nimen mukaan aakkosiin
     osallistujat.sort((a, b) => a.nimi.localeCompare(b.nimi, 'fi'));
 
@@ -87,11 +96,10 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
       ryhmittely[o.sarja].push(o);
     });
 
-    return { ryhmitellytSarjat: ryhmittely, kokonaismaara };
-  }, [rawCsv]);
+    return { ryhmitellytSarjat: ryhmittely, kokonaismaara, varasijat };
+  }, [rawCsv, lahteet]);
 
-  if (onkoRawTyhja) return null;
-  if (Object.keys(ryhmitellytSarjat).length === 0) return null;
+  if (Object.keys(ryhmitellytSarjat).length === 0 && varasijat.length === 0) return null;
 
   return (
     <Card className="border-slate-200">
@@ -129,6 +137,25 @@ export default function Ilmoittautuneet({ rawCsv, locale = 'fi', showCompetition
             </div>
           </section>
         ))}
+        {varasijat.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center justify-between rounded-md bg-amber-50 px-3 py-2">
+              <h3 className="text-sm font-semibold text-amber-900">{tx.waitingList}</h3>
+              <Badge variant="default" className="bg-white text-slate-600">
+                {varasijat.length} {tx.shooters}
+              </Badge>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {varasijat.map((o, i) => (
+                <div key={`varasija-${o.nimi}`} className="grid grid-cols-[2rem_minmax(0,1fr)_7rem] items-center gap-3 py-2 text-sm md:grid-cols-[2rem_minmax(0,1fr)_8rem]">
+                  <span className="text-slate-500">{i + 1}.</span>
+                  <span translate="no" className="truncate font-medium text-slate-900">{o.nimi}</span>
+                  <span translate="no" className="truncate text-slate-500">{o.sarja ? `${o.sarja} · ` : ''}{o.seura || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </CardContent>
     </Card>
   );

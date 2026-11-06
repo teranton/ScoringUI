@@ -10,6 +10,9 @@ process.env.SCORINGUI_VALIMUISTI_HAKEMISTO = mkdtempSync(path.join(tmpdir(), 'ki
 const VANHA = '1Ert3n7Fft235Zpoc42NZnGxOOhM1kQzwhef6lRF0geI';
 const KORJATTAVA = '1erSyJGWLU84kNmLVFI50SOiHFfOeNbA81NJG4zr3hbg';
 const RANKING = '1WyCiQ31zLlXd5CpVC0zo52OiCtNtDkGDyCz7bgyPIt8';
+// Vanha kisa, jonka taulukosta Tulokset Y puuttuu aluksi (lisätään testissä).
+const KESKEN = '1ZtqwUQxYHs2qfXNvXvxMBUdfDuAQsWMnThunlEzbg1U';
+const keskenValilehdet = ['KISANSPEKSIT', 'Tulokset (vanha)'];
 const PAIVA = 24 * 60 * 60 * 1000;
 const iso = (d) => d.toISOString().slice(0, 10);
 const kolmePaivaaSitten = iso(new Date(Date.now() - 3 * PAIVA));
@@ -23,9 +26,15 @@ mock.module('./_lib/googleAuth.js', { namedExports: {
   pyyntoUudelleenyrittaen: (request, opts) => request(opts),
   haeGoogleAsiakas: async () => ({ request: async ({ url }) => {
     if (url.includes('/values/A:I')) {
-      return { data: { values: [['ID', 'Nimi', 'Alku', 'Loppu', 'Sheet'], ['1', 'Vanha', '2025-07-05', '2025-07-06', VANHA], ['2', 'Korjattava', kolmePaivaaSitten, kolmePaivaaSitten, KORJATTAVA], ['3', 'Ranking', '2026-03-01', '', RANKING, '', '', 'RANKING']] } };
+      return { data: { values: [['ID', 'Nimi', 'Alku', 'Loppu', 'Sheet'], ['1', 'Vanha', '2025-07-05', '2025-07-06', VANHA], ['2', 'Korjattava', kolmePaivaaSitten, kolmePaivaaSitten, KORJATTAVA], ['3', 'Ranking', '2026-03-01', '', RANKING, '', '', 'RANKING'], ['4', 'Kesken', '2025-05-03', '2025-05-04', KESKEN, '', '1']] } };
     }
     googleHaut++;
+    if (url.includes(KESKEN)) {
+      if (!url.includes('batchGet')) return { data: { sheets: keskenValilehdet.map((title) => ({ properties: { title } })) } };
+      const alueet = new URL(url).searchParams.getAll('ranges').map((a) => a.slice(1, -1));
+      if (alueet.some((a) => !keskenValilehdet.includes(a))) { const e = new Error('Unable to parse range'); e.response = { status: 400 }; throw e; }
+      return { data: { valueRanges: alueet.map(() => ({ values: [['NIMI'], ['uusi']] })) } };
+    }
     if (!url.includes('batchGet')) return { data: { sheets: ['Tulokset Y', 'NEW_Joukkue', 'Ryhmäjako'].map((title) => ({ properties: { title } })) } };
     const alueet = new URL(url).searchParams.getAll('ranges');
     return { data: { valueRanges: alueet.map(() => ({ values: [['NIMI'], ['uusi']] })) } };
@@ -57,7 +66,8 @@ async function odotaTaustat() {
 globalThis[Symbol.for('@vercel/request-context')] = { get: () => ({ waitUntil: (p) => taustat.push(p) }) };
 
 const { default: handler } = await import('./kisa.js');
-const { VANHA_KUVA_OTSIKKO } = await import('./_lib/kisaValimuisti.js');
+const { VANHA_KUVA_OTSIKKO, keskenOtsikko } = await import('./_lib/kisaValimuisti.js');
+const { tyhjennaValilehtiCache } = await import('./_lib/sheetsData.js');
 
 function vastaus() {
   const r = { h: {}, setHeader(k, v) { r.h[k] = v; }, status(s) { r.s = s; return r; }, json(b) { r.b = b; return r; }, end() { return r; } };
@@ -120,9 +130,9 @@ test('korjausaika lasketaan rekisterin nykyisistä päivistä, ei kuvaan tallenn
 
 test('muita kuin julkaistavia välilehtiä ei anneta', async () => {
   const hautEnnen = googleHaut;
-  const r = await hae(VANHA, 'Suomisport Import');
+  const r = await hae(VANHA, 'KITI_DATA');
   assert.equal(r.s, 400);
-  assert.deepEqual(r.b.sheetNames, ['Suomisport Import']);
+  assert.deepEqual(r.b.sheetNames, ['KITI_DATA']);
   assert.equal(googleHaut, hautEnnen);
 });
 
@@ -159,7 +169,7 @@ test('raja lasketaan eri välilehdistä, ei kirjoitusasuista', async () => {
 
 test('liian monta pyydettyä nimeä torjutaan', async () => {
   const r = vastaus();
-  await handler({ query: { sheetId: VANHA, sheetNames: ['KISANSPEKSIT', ...Array.from({ length: 60 }, (_, i) => `roska${i}`)] }, headers: {} }, r);
+  await handler({ query: { sheetId: VANHA, sheetNames: ['KISANSPEKSIT', ...Array.from({ length: 70 }, (_, i) => `roska${i}`)] }, headers: {} }, r);
   assert.equal(r.s, 400);
 });
 
@@ -190,4 +200,86 @@ test('rankingin välilehti annetaan vain rankingiksi merkitystä taulukosta', as
   assert.equal(rankingista.h['Cloudflare-CDN-Cache-Control'], 'max-age=15, stale-while-revalidate=15');
   assert.equal(kisasta.h['Vercel-CDN-Cache-Control'], undefined);
   assert.equal((await hae(RANKING, 'KISAT')).s, 200);
+});
+
+test('päättynyt kisa ilman Tulokset Y -välilehteä: vastaus tuore vain minuutin eikä siitä tehdä kuvaa', async () => {
+  taustat = [];
+  const kirjoituksetEnnen = blobKirjoitukset;
+  const nimet = ['Tulokset Y', 'KISANSPEKSIT'];
+  const haeKesken = async () => {
+    const r = vastaus();
+    await handler({ query: { sheetId: KESKEN, sheetNames: nimet }, headers: {} }, r);
+    return r;
+  };
+  const ennen = await haeKesken();
+  assert.equal(ennen.s, 200);
+  assert.deepEqual(ennen.b.notFound, ['Tulokset Y']);
+  assert.equal(ennen.h['Cache-Control'], keskenOtsikko());
+  assert.equal(ennen.h['Cache-Control'], 'public, s-maxage=60');
+  await odotaTaustat();
+  assert.equal(blobKirjoitukset, kirjoituksetEnnen);
+  assert.equal(blob.has(`kisat/${KESKEN}/kisanspeksit|tulokset y`), false);
+  // Minuutin sisällä palvelimen välimuisti (myös varalla, jos Google ei vastaa).
+  const heti = await haeKesken();
+  assert.equal(heti.b.timing.source, 'server-cache');
+  assert.match(heti.h['Cache-Control'], /^public, s-maxage=\d+$/);
+
+  // Järjestäjä nimeää välilehden. Toinen instanssi (tai minuutin kuluttua tämäkin) hakee välilehtilistan uudelleen.
+  keskenValilehdet.push('Tulokset Y');
+  await tyhjennaValilehtiCache();
+  const oikeaNyt = Date.now;
+  const minuutinPaasta = oikeaNyt() + 61 * 1000;
+  Date.now = () => minuutinPaasta;
+  let jalkeen;
+  try {
+    jalkeen = await haeKesken();
+  } finally {
+    Date.now = oikeaNyt;
+  }
+  assert.equal(jalkeen.b.timing.source, 'google');
+  assert.deepEqual(Object.keys(jalkeen.b.csvByName).sort(), ['KISANSPEKSIT', 'Tulokset Y']);
+  assert.match(jalkeen.h['Cache-Control'], /s-maxage=3600/);
+  await odotaTaustat();
+  assert.ok(blob.get(`kisat/${KESKEN}/kisanspeksit|tulokset y`).csvByName['Tulokset Y']);
+});
+
+test('tallennettua kuvaa, josta Tulokset Y puuttuu, ei käytetä', async () => {
+  taustat = [];
+  // Tuore kuva (5 h) annettaisiin muuten sellaisenaan ilman Google-hakua.
+  blob.set(`kisat/${VANHA}/new_joukkue|tulokset y`, { ...kuva(5 * 60 * 60 * 1000, 'vanha'), notFound: ['Tulokset Y'] });
+  const r = vastaus();
+  await handler({ query: { sheetId: VANHA, sheetNames: ['Tulokset Y', 'NEW_Joukkue'] }, headers: {} }, r);
+  assert.equal(r.b.timing.source, 'google');
+  assert.ok(r.b.csvByName['Tulokset Y']);
+});
+
+test('esikatselu (?preview=1) ohittaa piilotetun kisan tuoreen kuvan ja CDN:n, julkisen ei', async () => {
+  taustat = [];
+  const haeNimet = async (sheetId, nimet, preview) => {
+    const r = vastaus();
+    await handler({ query: { sheetId, sheetNames: nimet, ...(preview ? { preview: '1' } : {}) }, headers: {} }, r);
+    return r;
+  };
+  // Piilotettu (G = 1) kisa: tuore kuva ohitetaan.
+  const polku = `kisat/${KESKEN}/kisanspeksit`;
+  blob.set(polku, { ...kuva(5 * 60 * 60 * 1000, '', '2025-05-03', '2025-05-04'), csvByName: { KISANSPEKSIT: 'vanha' } });
+  assert.equal((await haeNimet(KESKEN, ['KISANSPEKSIT'])).b.csvByName.KISANSPEKSIT, 'vanha');
+  const r = await haeNimet(KESKEN, ['KISANSPEKSIT'], true);
+  assert.equal(r.b.timing.source, 'google');
+  assert.match(r.b.csvByName.KISANSPEKSIT, /uusi/);
+  assert.equal(r.h['Cache-Control'], 'private, no-store');
+  assert.equal(r.h['Cloudflare-CDN-Cache-Control'], undefined);
+  await odotaTaustat();
+  assert.match(blob.get(polku).csvByName.KISANSPEKSIT, /uusi/);
+  // Heti perään palvelimen alle 30 s vanha vastaus, ei uutta Google-hakua.
+  const hautEnnen = googleHaut;
+  assert.equal((await haeNimet(KESKEN, ['KISANSPEKSIT'], true)).b.timing.source, 'server-cache');
+  assert.equal(googleHaut, hautEnnen);
+
+  // Julkinen kisa: lippu ei ohita kuvaa eikä CDN:ää.
+  const julkinenPolku = `kisat/${VANHA}/new_joukkue|ryhmäjako`;
+  blob.set(julkinenPolku, { ...kuva(5 * 60 * 60 * 1000, ''), csvByName: { NEW_Joukkue: 'vanha', 'Ryhmäjako': 'vanha' } });
+  const julkinen = await haeNimet(VANHA, ['NEW_Joukkue', 'Ryhmäjako'], true);
+  assert.equal(julkinen.b.timing.source, 'snapshot');
+  assert.match(julkinen.h['Cache-Control'], /^public/);
 });

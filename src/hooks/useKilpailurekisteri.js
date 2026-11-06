@@ -1,22 +1,12 @@
 // Kilpailurekisteri: selaimeen tallennettu lista näytetään heti, tuore haetaan taustalla /api/rekisteri-osoitteesta.
 import { useEffect, useState } from 'react';
 import { onkoCsvVirheellinen, parseCsvRows } from '../utils/csv';
-import { tulkitseLippu } from '../utils/devTila';
+import { onkoEsikatselu, tulkitseLippu } from '../utils/devTila';
 import { parsiKilpailurekisteri } from '../utils/kilpailurekisteri';
 import { lueRekisteri, tallennaRekisteri } from '../utils/paikallinenValimuisti';
 
-function onkoPreviewOverrideAktiivinen() {
-  if (typeof window === 'undefined') return false;
-  try {
-    const params = new URLSearchParams(window.location.search || '');
-    return tulkitseLippu(params.get('preview') || params.get('showHidden')) === true;
-  } catch {
-    return false;
-  }
-}
-
 function naytetaankoPiilotetutKisat() {
-  return tulkitseLippu(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS) === true || onkoPreviewOverrideAktiivinen();
+  return tulkitseLippu(import.meta.env.VITE_SHOW_HIDDEN_COMPETITIONS) === true || onkoEsikatselu();
 }
 
 function naytettavatKisatRekisterista(csvText, naytaPiilotetut) {
@@ -39,7 +29,10 @@ export function useKilpailurekisteri() {
 
     async function haeKisalistaCsv() {
       try {
-        const response = await fetch('/api/rekisteri');
+        // Piilotettuja kisoja katsova järjestäjä haluaa nähdä juuri luodun tai poistetun kisan heti: ohi CDN:n.
+        const response = onkoPiilotettujenKisojenOverride
+          ? await fetch('/api/rekisteri?preview=1', { cache: 'no-store' })
+          : await fetch('/api/rekisteri');
         if (!response.ok) {
           throw new Error(`Kilpailurekisterin haku epäonnistui: ${response.status}`);
         }

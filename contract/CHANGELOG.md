@@ -4,6 +4,43 @@
 
 - Mobile entry can use up to four writer service accounts (`KIRJURI_CLIENT_EMAIL_2..4`); ScoringLib's `KIRJURI_PALVELUTILI`
   lists them and shares the sheet with every one. No tab or header change.
+
+- New optional tab `FINAALI` (knockout final, one row per match; columns in `sheet-layout.md`). ScoringUI shows it as a
+  bracket on a new Finaali page. Additive: sheets without the tab are unchanged. ScoringLib's 🥇 Finaali menu creates the tab
+  from `Tulokset Y` and fills the next rounds; the organiser enters scores.
+
+- `Tulokset Y` round headers: when the `KISANSPEKSIT` station table is missing, the station count is the largest
+  numeric round header instead of 8, so `TULOS` and `RATKO` are no longer shown as stations. No sheet change needed.
+
+- `KISANSPEKSIT` values: every UI setting (`KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS`, `AIKATAULU_MALLI`,
+  `AIKATAULURYHMAKOKO`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA`, `RATKO_PALKINTO_SIJA`) now reads only the cell
+  right of its key, like ScoringLib, instead of the next non-empty cell. An empty value no longer picks up the Ohje text.
+  Checked against the registry's competition sheets: their values sit right of their keys.
+
+- `KISANSPEKSIT` sections: the master template groups its keys into ten sections by function (see "Sections" in
+  `sheet-layout.md`). No key changes; the UI reads keys, not positions. On a tab with the `Selite | Avain` header row
+  every settings reader looks for keys only in the Avain column (older tabs: any cell), so a Selite equal to the key (the
+  master's "Ilmoittautumistapa") no longer hides `ILMOITTAUTUMISTAPA` = `LOMAKE`.
+
+- Sign-up limit and waiting list: new `KISANSPEKSIT` keys `ILMOITTAUTUMISEN_MAKSIMI` and `ILMOITTAUTUMISEN_VARASIJAT`,
+  and a `VARASIJA` column in the sign-up sources (served by `api/kisa.js`, written by `api/ilmoittaudu.js` in
+  `ILMOITTAUTUMISET`). ScoringLib leaves waiting-list rows off the main tab until the office empties the cell.
+  Additive: without the keys nothing changes.
+
+- Check-in (ScoringLib `Saapuminen.js`): new library-only `KISANSPEKSIT` keys `MAKSU_KISAPAIKALLA` (`ENNAKKO` / `KAIKKI`)
+  and `OSALLISTUMISMAKSU`, and a new tab `SAAPUMISET` with payment data that the API must not serve. Additive; no UI change.
+
+- `ILMOITTAUTUMINEN_PAATTYY` at `00:00` now means the end of that day, as a date without a time does. The master's cell
+  is a date picker formatted `d.m.yyyy hh:mm`, so a picked date shows `00:00`. Additive: other times are read as before.
+
+- Sign-ups: the registrations list also shows sign-ups not yet on the main tab, from `Suomisport Import`,
+  `ILMOITTAUTUMISET` (new, written by the ScoringUI sign-up form) and a linked Google Form (`Lomakevastaukset N` /
+  `Form Responses N`). `api/kisa.js` serves these tabs filtered to the name, class, club and `SIIRRETTY` columns; the
+  upcoming/running request adds them until the list is hidden on the first day. New `KISANSPEKSIT` keys
+  `ILMOITTAUTUMISTAPA` (`LOMAKE` shows the form), `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`. New column
+  `SIIRRETTY` in the sources, written by ScoringLib when it copies sign-ups to the main tab. Additive: sheets without
+  the keys or tabs behave as before. `MAKS_VALILEHDET` in `api/kisa.js` is now 16.
+
 - Sponsor logos (`LOGO:` rows): `api/logoProxy.js` now fetches only Drive links by default (`LOGO_PROXY_HOST_POLICY=public`
   allows any public host). Every current sheet already uses `drive.google.com/thumbnail` links. Documented in sheet-layout.md.
 - The registry is read as columns A–I (was A:Z); the UI uses only those. No sheet change.

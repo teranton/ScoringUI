@@ -7,6 +7,34 @@ import { normalisoiOtsikko } from './henkiloTulokset.js';
 // (välilyönnit ja alaviivat pois), joten 'Aikataulu näkyvyys' = 'AIKATAULU_NAKYVYYS'.
 export const normalisoiAsetus = normalisoiOtsikko;
 
+// Avain-sarake: Selite | Avain -otsikon { rivi, sarake } tai null (nykyinen malli Selite | Avain | Arvo | Ohje).
+export function avainOtsikko(rivit) {
+  for (let r = 0; r < rivit.length; r++) {
+    const rivi = Array.isArray(rivit[r]) ? rivit[r] : [];
+    for (let c = 0; c + 1 < rivi.length; c++) {
+      if (normalisoiAsetus(rivi[c]) === 'SELITE' && normalisoiAsetus(rivi[c + 1]) === 'AVAIN') return { rivi: r, sarake: c + 1 };
+    }
+  }
+  return null;
+}
+
+// Avainsolut järjestyksessä: [rivi, sarake] jokaiselle solulle, jolle onAvain(solu) on tosi. Kuten ScoringLibin
+// Speksit.etsi: Selite | Avain -otsikon alla vain Avain-sarakkeesta (selite tai ohje ei sekoitu avaimeen),
+// vanhan mallin välilehdellä (ei otsikkoa) kaikista soluista.
+export function* avainOsumat(rivit, onAvain) {
+  const taulu = Array.isArray(rivit) ? rivit : [];
+  const otsikko = avainOtsikko(taulu);
+  for (let r = otsikko ? otsikko.rivi + 1 : 0; r < taulu.length; r++) {
+    const rivi = taulu[r];
+    if (!Array.isArray(rivi)) continue;
+    if (otsikko) {
+      if (onAvain(rivi[otsikko.sarake])) yield [rivi, otsikko.sarake];
+      continue;
+    }
+    for (let c = 0; c < rivi.length; c++) if (onAvain(rivi[c])) yield [rivi, c];
+  }
+}
+
 export function asetusJoukko(arvot) {
   return new Set(arvot.map(normalisoiAsetus));
 }
@@ -22,7 +50,8 @@ export function asetusTulkitsija(taulukko) {
   };
 }
 
-// Etsii riviltä asetusavaimen ja tulkitsee avaimen oikealla puolella olevan ensimmäisen ei-tyhjän solun.
+// Etsii asetusavaimen ja tulkitsee avaimen oikealla puolella olevan solun (vain viereinen solu, kuten ScoringLibin
+// Speksit: tyhjän arvon vieressä oleva Ohje-teksti ei ole arvo).
 // tulkitse(arvo, avain) palauttaa tulkinnan tai null.
 export function haeAsetusSpekseista(speksitData, avainSanat, tulkitse) {
   const rivit = Array.isArray(speksitData)
@@ -31,19 +60,11 @@ export function haeAsetusSpekseista(speksitData, avainSanat, tulkitse) {
 
   if (!Array.isArray(rivit) || rivit.length === 0) return null;
 
-  for (const rivi of rivit) {
-    if (!Array.isArray(rivi) || rivi.length === 0) continue;
-
-    const solut = rivi.map((s) => String(s || '').trim());
-
-    for (let i = 0; i < solut.length; i++) {
-      const avain = normalisoiAsetus(solut[i]);
-      if (!avainSanat.has(avain)) continue;
-
-      const arvo = solut.slice(i + 1).find(Boolean);
-      const tulkinta = arvo ? tulkitse(arvo, avain) : null;
-      if (tulkinta) return tulkinta;
-    }
+  for (const [rivi, i] of avainOsumat(rivit, (s) => avainSanat.has(normalisoiAsetus(String(s ?? '').trim())))) {
+    const avain = normalisoiAsetus(String(rivi[i] ?? '').trim());
+    const arvo = String(rivi[i + 1] ?? '').trim();
+    const tulkinta = arvo ? tulkitse(arvo, avain) : null;
+    if (tulkinta) return tulkinta;
   }
 
   return null;
@@ -106,12 +127,9 @@ export function haeEiTuomaroivatSarjatSpekseista(speksitData) {
     ? speksitData
     : (typeof speksitData === 'string' && speksitData.trim().length >= 2 ? parseCsvRows(speksitData) : []);
   let arvo = null;
-  for (const rivi of rivit) {
-    const i = Array.isArray(rivi) ? rivi.findIndex((s) => normalisoiAsetus(s) === EI_TUOMAROIVAT_AVAIN) : -1;
-    if (i >= 0) {
-      arvo = rivi[i + 1];
-      break;
-    }
+  for (const [rivi, i] of avainOsumat(rivit, (s) => normalisoiAsetus(s) === EI_TUOMAROIVAT_AVAIN)) {
+    arvo = rivi[i + 1];
+    break;
   }
   if (arvo === null) arvo = rivit[19]?.[1];
   return String(arvo ?? '').split(',').map((s) => s.trim()).filter(Boolean);
