@@ -3,10 +3,18 @@
 import { useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 
+// Näkyvä tunnus vaihdon näkymien alkuun: mistä radasta tai ryhmästä on kyse, kun PIN pyydetään toimistosta.
+export function KohdeMerkki({ kohde }) {
+  if (!kohde) return null;
+  return (
+    <p className="self-start rounded bg-[#1e3a5f] px-3 py-1 text-xl font-bold text-white">{kohde}</p>
+  );
+}
+
 // Siirtolinkki on yleensä alle 600 merkkiä; pidempi QR-koodi on tiheä ja vaatii hyvän kameran.
 const TIHEA_QR = 1200;
 
-export function PinLomake({ onOta, painike }) {
+export function PinLomake({ onOta, painike, kohde }) {
   const [pin, setPin] = useState('');
   const [viesti, setViesti] = useState('');
   const [odottaa, setOdottaa] = useState(false);
@@ -27,7 +35,7 @@ export function PinLomake({ onOta, painike }) {
   return (
     <form className="flex flex-col gap-2" onSubmit={laheta}>
       <label className="flex flex-col gap-1 text-sm font-medium">
-        Kilpailutoimiston vaihto-PIN
+        {kohde ? `Kilpailutoimiston vaihto-PIN: ${kohde}` : 'Kilpailutoimiston vaihto-PIN'}
         <input
           className="rounded border border-slate-400 p-2 text-center font-mono text-2xl tracking-widest"
           inputMode="numeric"
@@ -46,7 +54,7 @@ export function PinLomake({ onOta, painike }) {
 }
 
 // tyyppi: 'varattu' (toinen laite kirjaa), 'korvattu' (rata otettiin tältä laitteelta) tai 'luovutettu' (tämä luovutti).
-export function HaltijaNakyma({ tyyppi, haltija, korvattu, lahettamatta, laitteenNimi, onOta, onPaivita, onVaihda, onLataaLoki }) {
+export function HaltijaNakyma({ tyyppi, kohde, haltija, korvattu, lahettamatta, laitteenNimi, onOta, onPaivita, onVaihda, onLataaLoki }) {
   const [viesti, setViesti] = useState('');
   const toinen = haltija && !haltija.vapaa && !haltija.oma
     ? `${haltija.nimi || 'toinen laite'}${haltija.otettu ? `, otettu ${haltija.otettu}` : ''}`
@@ -59,6 +67,7 @@ export function HaltijaNakyma({ tyyppi, haltija, korvattu, lahettamatta, laittee
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-3 p-4">
+      <KohdeMerkki kohde={kohde} />
       {tyyppi === 'varattu' && (
         <>
           <h2 className="text-lg font-bold text-amber-800">Rata on käytössä toisella laitteella</h2>
@@ -66,11 +75,11 @@ export function HaltijaNakyma({ tyyppi, haltija, korvattu, lahettamatta, laittee
           <ul className="list-disc space-y-1 pl-5 text-sm">
             <li>Jos se laite on vielä käytössä: valitse siinä ☰ › <b>Luovuta rata</b> ja paina sitten tässä <b>Yritä uudelleen</b>.
               Ilman verkkoa valitse siinä ☰ › <b>Siirrä QR-koodilla</b> ja skannaa koodi tällä laitteella.</li>
-            <li>Jos laite on rikki tai poissa: pyydä kilpailutoimistosta radan vaihto-PIN.</li>
+            <li>Jos laite on rikki tai poissa: pyydä kilpailutoimistosta {kohde ? <>vaihto-PIN: <b>{kohde}</b>.</> : 'radan vaihto-PIN.'}</li>
           </ul>
           {haltija?.lukittu
             ? <p className="rounded bg-red-100 p-2 text-sm text-red-800">Liian monta väärää PIN-koodia. Kilpailutoimisto avaa vaihdon näyttämällä PIN-koodit uudelleen.</p>
-            : <PinLomake onOta={onOta} painike="Ota rata tälle laitteelle" />}
+            : <PinLomake onOta={onOta} kohde={kohde} painike="Ota rata tälle laitteelle" />}
           <button type="button" className="rounded border border-slate-400 px-4 py-2" onClick={onPaivita}>Yritä uudelleen</button>
         </>
       )}
@@ -108,7 +117,7 @@ export function HaltijaNakyma({ tyyppi, haltija, korvattu, lahettamatta, laittee
             Ota rata takaisin tälle laitteelle
           </button>
           {viesti && <p className="text-sm text-red-700">{viesti}</p>}
-          {viesti && <PinLomake onOta={onOta} painike="Ota rata PIN-koodilla" />}
+          {viesti && <PinLomake onOta={onOta} kohde={kohde} painike="Ota rata PIN-koodilla" />}
         </>
       )}
       <p className="text-xs text-slate-500">Tämä laite: {laitteenNimi}</p>
@@ -120,7 +129,7 @@ export function HaltijaNakyma({ tyyppi, haltija, korvattu, lahettamatta, laittee
   );
 }
 
-export function SiirtoNakyma({ linkki, lahettamatta, onValmis, onPeru }) {
+export function SiirtoNakyma({ kohde, linkki, lahettamatta, onValmis, onPeru }) {
   const kuva = useMemo(() => {
     try {
       const qr = qrcode(0, linkki.length > TIHEA_QR ? 'L' : 'M');
@@ -133,7 +142,7 @@ export function SiirtoNakyma({ linkki, lahettamatta, onValmis, onPeru }) {
   }, [linkki]);
   return (
     <section className="mx-auto flex w-full max-w-md flex-col items-center gap-3 p-4 text-center">
-      <h2 className="text-lg font-bold">Siirrä rata toiselle laitteelle</h2>
+      <h2 className="text-lg font-bold">Siirrä {kohde || 'rata'} toiselle laitteelle</h2>
       <p className="text-sm">
         Skannaa koodi uuden laitteen kameralla. Uusi laite saa radan ja {lahettamatta > 0 ? `${lahettamatta} lähettämätöntä korttia` : 'linjan tilan'};
         se tarvitsee verkkoa kerran radan tietojen hakuun.

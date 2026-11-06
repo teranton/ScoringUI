@@ -3,6 +3,10 @@
 
 import { uusiVersio } from './kortit.js';
 
+// Radan nimi vaihdon näkymiin: "Rata 2 (R2)". Kilpailutoimiston PIN-lista nimeää radat samoin (ScoringLib pinRivi),
+// joten PIN-koodin pyytäjä näkee, minkä radan koodi tarvitaan.
+export const radanNimi = (sarake, nimi) => `Rata ${sarake}${nimi ? ` (${nimi})` : ''}`;
+
 // Linjan tila, joka siirtyy uudelle laitteelle radan mukana (palvelin tallentaa sen MOBIILI_LAITTEET-välilehdelle).
 export const LINJAN_KENTAT = ['lisatyt', 'ohitetut', 'tauot', 'tauotPois', 'keskeyttaneet', 'ohjelma'];
 export const linjaTilasta = (tila) => Object.fromEntries(LINJAN_KENTAT.map((k) => [k, tila[k] ?? (k === 'ohjelma' ? null : [])]));

@@ -19,7 +19,7 @@ import {
   tallennaRataTietokantaan
 } from './varasto.js';
 import {
-  laitteenNimi, linjaTekstina, linjaTilasta, lueSiirto, otaLinja, otaTaydennykset, siirtoLinkki, yhdistaSiirto
+  laitteenNimi, linjaTekstina, linjaTilasta, lueSiirto, otaLinja, otaTaydennykset, radanNimi, siirtoLinkki, yhdistaSiirto
 } from './haltija.js';
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { useHereilla } from './useHereilla.js';
@@ -663,7 +663,7 @@ function RataNakyma({ koodi, onVaihda }) {
   // Luovutus verkossa: kaikki lähetetään, sitten rata vapautetaan, ja seuraava laite ottaa sen radan QR-koodilla.
   const luovuta = async () => {
     setValikko(false);
-    if (!window.confirm('Luovutetaanko rata toiselle laitteelle? Tämä laite lopettaa kirjauksen. Uusi laite skannaa radan QR-koodin ja jatkaa tästä.')) return;
+    if (!window.confirm(`Luovutetaanko rata toiselle laitteelle (${radanNimi(avaus?.sarake, avaus?.rataNimi)})? Tämä laite lopettaa kirjauksen. Uusi laite skannaa radan QR-koodin ja jatkaa tästä.`)) return;
     // Käynnissä oleva lähetys odotetaan, ja vastauksen täydennykset lähetetään vielä (tila päivittyy piirrossa).
     for (let kierros = 0; kierros < 20; kierros++) {
       if (!lahettaaRef.current) await laheta();
@@ -779,6 +779,7 @@ function RataNakyma({ koodi, onVaihda }) {
         {valikkoNakyma}
         <HaltijaNakyma
           tyyppi={tila.korvattu ? 'korvattu' : tila.luovutettu ? 'luovutettu' : 'varattu'}
+          kohde={radanNimi(avaus.sarake, avaus.rataNimi)}
           haltija={haltijanTila}
           korvattu={tila.korvattu}
           lahettamatta={lahettamatta}
@@ -797,6 +798,7 @@ function RataNakyma({ koodi, onVaihda }) {
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">
         {otsikko}
         <SiirtoNakyma
+          kohde={radanNimi(avaus.sarake, avaus.rataNimi)}
           linkki={siirtoOsoite()}
           lahettamatta={lahettamatta}
           onValmis={() => {
