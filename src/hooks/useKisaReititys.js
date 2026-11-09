@@ -27,17 +27,8 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
     );
   };
 
-  // Käyttäjän valitsema välilehti: osoitteeseen (#kisa-<id>/<sivu>) ilman uutta historiariviä, jotta linkin voi jakaa
-  // ja sivun päivitys pysyy samalla välilehdellä. Takaisin-painike vie edelleen etusivulle.
-  const valitseSivu = (sivu) => {
-    setAktiivinenSivu(sivu);
-    if (!valittuKisa) return;
-    window.history.replaceState(
-      window.history.state,
-      '',
-      `${window.location.pathname}${window.location.search}${kisaHash(valittuKisa.id, sivu)}`
-    );
-  };
+  // Käyttäjän valitsema välilehti. Osoite päivitetään alla (myös kun kielletty sivu vaihdetaan sallittuun).
+  const valitseSivu = (sivu) => setAktiivinenSivu(sivu);
 
   const palaaEtusivulle = () => {
     trackAnalyticsEvent('back_home', {
@@ -109,6 +100,16 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
       );
     }
   }, [kisat, ladataanKisalista, valittuKisa, historiaSiirto]);
+
+  // Valittu välilehti osoitteeseen (#kisa-<id>/<sivu>) ilman uutta historiariviä, jotta linkin voi jakaa ja sivun
+  // päivitys pysyy samalla välilehdellä; Takaisin vie edelleen etusivulle. Oletussivu ei näy osoitteessa.
+  const valitunKisanIdOsoitteeseen = valittuKisa?.id ?? null;
+  useEffect(() => {
+    if (valitunKisanIdOsoitteeseen === null || aktiivinenSivu === 'oletus') return;
+    const uusi = kisaHash(valitunKisanIdOsoitteeseen, aktiivinenSivu);
+    if (window.location.hash === uusi) return;
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${uusi}`);
+  }, [valitunKisanIdOsoitteeseen, aktiivinenSivu]);
 
   useEffect(() => {
     if (aktiivinenSivu === 'oletus') return;

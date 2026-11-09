@@ -15,7 +15,7 @@ import { ryhmaKokoAsetuksesta } from './utils/ryhmaMuokkaus';
 import { parseCsvRows } from './utils/csv';
 import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
 import { extractSponsorLogosFromRows } from './utils/materials';
-import { kisanInfo, lajinNimi } from './utils/kisaInfo';
+import { kisanInfo, kisanPaivat, lajinNimi, rekisterinTiedot } from './utils/kisaInfo';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { lueRadanLaitteet } from './utils/mobiiliLive';
 import { onkoRyhmaKortteja } from './utils/mobiiliKiekot';
@@ -85,7 +85,7 @@ export default function App() {
   const theme = 'default';
   const locale = 'fi';
   const { kisat, ladataanKisalista, virhe } = useKilpailurekisteri();
-  const { valittuKisa, aktiivinenSivu, setAktiivinenSivu, valitseSivu, avaaKisa, palaaEtusivulle } = useKisaReititys({ kisat, ladataanKisalista });
+  const { valittuKisa, aktiivinenSivu: valittuSivu, setAktiivinenSivu, valitseSivu, avaaKisa, palaaEtusivulle } = useKisaReititys({ kisat, ladataanKisalista });
   const { kisaStatusById, nykyisenKisanData, ladataanKisaa, valitunKisanVirhe, ajastaEsihaku, peruEsihaku } = useKisaData({ kisat, valittuKisa });
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
@@ -178,9 +178,7 @@ export default function App() {
 
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
-    if (!alku) return tx.dateUnknown;
-    if (!loppu || alku === loppu) return `📅 ${alku}`;
-    return `📅 ${alku} – ${loppu}`;
+    return alku ? `📅 ${kisanPaivat(alku, loppu)}` : tx.dateUnknown;
   };
 
   const kuluvaVuosi = new Date().getFullYear();
@@ -348,9 +346,6 @@ export default function App() {
     return !onkoKisaPaattynyt;
   })();
   const onkoOmaAikatauluTuloste = Boolean(tulosteAikataulu) && Boolean(ladatutPalat.tulosteAikataulu);
-  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && onkoOmaAikatauluTuloste;
-  // Taulukkonäkymässä tulostetaan taulukon oma A4-tuloste (myös Ctrl+P), ei vieritettävää näytön taulukkoa.
-  const tulostetaanTaulukko = !tulosteenAika && aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && Boolean(nykyisenKisanData?.henkilotCsvRaw) && Boolean(ladatutPalat.taulukko);
   const kisanInfoTiedot = useMemo(
     () => kisanInfo(nykyisenKisanParsitutRivit.speksitRows || [], valittuKisa || {}),
     [nykyisenKisanParsitutRivit.speksitRows, valittuKisa]
@@ -385,12 +380,14 @@ export default function App() {
   ].filter((a) => (aikatauluValilehdet ? aikatauluValilehdet.includes(a.nimi) : String(a.raw || '').trim())),
   [aikatauluCsvRaw, aikatauluLaCsvRaw, aikatauluSuCsvRaw, aikatauluValilehdet]);
 
-  // Jos valittu välilehti ei ole sallittu, vaihdetaan se jo renderöinnin aikana (ei ylimääräistä effect-kierrosta).
-  // Oletussivu valitaan vasta, kun kisan tiedot (KILPAILUNSTATUS) ovat tiedossa: kisapäivän kisa on ilman niitä "Tulossa".
-  const odotetaanOletussivua = aktiivinenSivu === 'oletus' && !nykyisenKisanData && !valitunKisanVirhe;
-  const seuraavaAktiivinenSivu = odotetaanOletussivua ? aktiivinenSivu : laskeSeuraavaAktiivinenSivu({
+  // Näytettävä sivu. Kunnes kisan tiedot ovat tiedossa, valittua sivua ei vaihdeta (ilman tietoja ilmoittautuneet,
+  // aikataulu ja tulokset eivät ole vielä sallittuja, ja kisapäivän kisa on "Tulossa"). Oletussivua ('oletus') ei
+  // tallenneta: se lasketaan joka kerta, joten välimuistin vanhat tiedot eivät jätä kisapäivän kisaa Info-sivulle,
+  // kun tuore KILPAILUNSTATUS = RUNNING saapuu. Muu kielletty sivu vaihdetaan jo renderöinnin aikana.
+  const odotetaanTietoja = !nykyisenKisanData && !valitunKisanVirhe;
+  const aktiivinenSivu = odotetaanTietoja ? valittuSivu : laskeSeuraavaAktiivinenSivu({
     valittuKisa,
-    aktiivinenSivu,
+    aktiivinenSivu: valittuSivu,
     onkoAikatauluSallittu,
     onkoIlmoittautuneita,
     onkoJoukkueKisa,
@@ -402,9 +399,12 @@ export default function App() {
     onkoRyhmaMuokkausSallittu,
     onkoLiveSallittu
   });
-  if (seuraavaAktiivinenSivu !== aktiivinenSivu) {
-    setAktiivinenSivu(seuraavaAktiivinenSivu);
+  if (valittuSivu !== 'oletus' && aktiivinenSivu !== valittuSivu) {
+    setAktiivinenSivu(aktiivinenSivu);
   }
+  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && onkoOmaAikatauluTuloste;
+  // Taulukkonäkymässä tulostetaan taulukon oma A4-tuloste (myös Ctrl+P), ei vieritettävää näytön taulukkoa.
+  const tulostetaanTaulukko = !tulosteenAika && aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && Boolean(nykyisenKisanData?.henkilotCsvRaw) && Boolean(ladatutPalat.taulukko);
 
   if (ladataanKisalista) {
     return <div data-theme={theme} className="px-4 py-16 text-center text-[hsl(var(--muted-foreground))]">{tx.loadingRegistry}</div>;
@@ -417,15 +417,12 @@ export default function App() {
     onBlur: peruEsihaku
   });
 
-  // Kortin alarivi: paikka ja järjestäjä rekisteristä (sarakkeet I ja K; koordinaatteja ei näytetä).
-  const kortinPaikka = (kisa) => kisanInfo([], kisa);
-
   // Käynnissä olevan, tulevan ja rankingin kortti. Tulevan kortissa on suora painike ilmoittautuneisiin.
   const renderKisaKortti = (kisa) => {
     const statusData = kisaStatusById[kisa.id] || laskeKisanPaivaStatus(kisa);
     const onValittavissa = Boolean(kisa.apiUrl);
     const onTuleva = statusData.status === 'tulossa' && !kisa.onkoRanking;
-    const { paikka, jarjestaja } = kortinPaikka(kisa);
+    const { paikka, jarjestaja } = rekisterinTiedot(kisa);
     const laji = lajinNimi(kisa.laji, { lyhyt: true });
     const lisatieto = [paikka, jarjestaja].filter(Boolean).join(' · ');
 
@@ -836,14 +833,13 @@ export default function App() {
           {aktiivinenSivu === 'info' && (
             <KisaInfo
               info={kisanInfoTiedot}
-              kisaPaivat={muotoileKisaPaivatTekstiksi(valittuKisa.alkuPvm, valittuKisa.loppuPvm).replace(/^📅\s*/u, '')}
+              kisaPaivat={kisanPaivat(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
               onkoTulossa={onkoKisaTulossa}
               lomake={ilmoittautumisLomake}
               tilanne={ilmoittautumisTilanne}
               onkoIlmoittautuneita={onkoIlmoittautuneita}
               onkoAikatauluSallittu={onkoAikatauluSallittu}
               onkoTuloksetSallittu={onkoTuloksetSallittu}
-              specsCsv={nykyisenKisanData?.speksitCsvRaw || ''}
               valitseSivu={valitseSivu}
               locale={locale}
             />

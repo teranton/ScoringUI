@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { kisanInfo, lajinNimi, muotoileKellonaika, muotoileMaksu, turvallinenLinkki, yhteystiedonOsat } from './kisaInfo.js';
+import { kisanInfo, kisanPaivat, lajinNimi, rekisterinTiedot, muotoileKellonaika, muotoileMaksu, turvallinenLinkki, yhteystiedonOsat } from './kisaInfo.js';
 
 const otsikko = [['KILPAILUN ASETUKSET'], ['Selite', 'Avain', 'Arvo', 'Ohje']];
 
@@ -21,6 +21,7 @@ test('kisanInfo lukee Kisainfo-avaimet ja OHJE-rivit', () => {
     ['Suomisport', 'ILMOITTAUTUMISLINKKI', 'javascript:alert(1)'],
     ['Logot ja ohjeet'],
     ['OHJE:', 'Kilpailukutsu', 'https://drive.google.com/file/d/x/preview'],
+    ['OHJE:', 'Ilmoittautumisohje', 'https://drive.google.com/file/d/y/preview'],
     ['OHJE:', 'Ilmoittautumislinkki', 'https://www.suomisport.fi/events/abc']
   ];
   const info = kisanInfo(rivit, { paikka: 'Oulainen', jarjestaja: 'Ei käytetä' });
@@ -36,7 +37,8 @@ test('kisanInfo lukee Kisainfo-avaimet ja OHJE-rivit', () => {
   assert.equal(info.osallistumismaksu, '45 €');
   assert.equal(info.aloitusAika, '9.00');
   assert.deepEqual(info.sarjat, ['Y', 'Y20', 'N']);
-  assert.equal(info.asiakirjat.length, 2);
+  assert.equal(info.ilmoittautuminenSuomisportissa, true);
+  assert.equal(info.asiakirjat.length, 3);
   assert.equal(info.kutsu.title, 'Kilpailukutsu');
 });
 
@@ -79,4 +81,16 @@ test('yhteystiedonOsat tekee sähköpostista ja puhelimesta linkit', () => {
     { teksti: 'kisat@omas.fi', href: 'mailto:kisat@omas.fi' }
   ]);
   assert.deepEqual(yhteystiedonOsat('Kisatoimisto'), [{ teksti: 'Kisatoimisto' }]);
+  assert.deepEqual(yhteystiedonOsat('puh. 09-123 456'), [{ teksti: 'puh. ' }, { teksti: '09-123 456', href: 'tel:09123456' }]);
+  // Tilinumero tai viite ei ole puhelinnumero.
+  assert.deepEqual(yhteystiedonOsat('Tili FI21 1234 5600 0007 85'), [{ teksti: 'Tili FI21 1234 5600 0007 85' }]);
+  assert.deepEqual(yhteystiedonOsat('Viite 1230001234567'), [{ teksti: 'Viite 1230001234567' }]);
+});
+
+test('rekisterinTiedot ja kisanPaivat', () => {
+  assert.deepEqual(rekisterinTiedot({ paikka: '64,27 24,81', jarjestaja: ' OMAS ' }), { paikka: '', jarjestaja: 'OMAS' });
+  assert.deepEqual(rekisterinTiedot({ paikka: 'Pori' }), { paikka: 'Pori', jarjestaja: '' });
+  assert.equal(kisanPaivat('', ''), '');
+  assert.equal(kisanPaivat('7.3.2027', '7.3.2027'), '7.3.2027');
+  assert.equal(kisanPaivat('24.4.2027', '25.4.2027'), '24.4.2027 – 25.4.2027');
 });

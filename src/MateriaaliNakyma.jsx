@@ -1,6 +1,3 @@
-import { useMemo } from 'react';
-import { parseCsvRows } from './utils/csv';
-import { extractMaterialGuidesFromRows } from './utils/materials';
 import EsikatseltavaMateriaali from './components/EsikatseltavaMateriaali';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { haeTekstit } from './i18n';
@@ -34,14 +31,9 @@ function onkoPdfLinkki(urlArvo) {
   return false;
 }
 
-export default function MateriaaliNakyma({ specsCsv, locale = 'fi' }) {
+// guides: OHJE:-rivit (utils/materials.js extractMaterialGuidesFromRows), Info-sivulla jo parsittuina.
+export default function MateriaaliNakyma({ guides = [], locale = 'fi' }) {
   const tx = haeTekstit('materiaalit', locale);
-
-  const guides = useMemo(() => {
-    if (!specsCsv) return [];
-
-    return extractMaterialGuidesFromRows(parseCsvRows(specsCsv));
-  }, [specsCsv]);
 
   if (guides.length === 0) {
     return (

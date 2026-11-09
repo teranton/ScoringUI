@@ -56,28 +56,29 @@ export function muotoileKellonaika(arvo) {
   return `${Number(osuma[1])}.${osuma[2]}`;
 }
 
-const SAHKOPOSTI = /[^\s@,;<>()]+@[^\s@,;<>()]+\.[a-z]{2,}/i;
-// Puhelinnumero: +358 tai 0 alussa ja vähintään 7 numeroa (välilyönnit ja viivat sallittu).
-const PUHELIN = /(?:\+\d{1,3}|0)[\d\s-]{6,}\d/;
+const SAHKOPOSTI = /[^\s@,;<>()]+@[^\s@,;<>()]+\.[a-z]{2,}/gi;
+// Puhelinnumero: +358 tai 0 ja suuntanumero (ei 0), sitten numeroryhmiä välilyönnein tai viivoin (040 123 4567,
+// 09-123 456, +358 40 1234567), 7–13 numeroa. Ei kirjaimen tai numeron vieressä, joten tilinumero tai viite ei muutu linkiksi.
+const PUHELIN = /(?<![\w+])(?:\+358[\s-]?|0)[1-9]\d{0,2}(?:[\s-]?\d{2,4}){1,3}(?!\w)/g;
 
 // Yhteystieto osiksi: [{ teksti, href? }], jossa sähköpostit (mailto:) ja puhelinnumerot (tel:) ovat linkkejä.
 export function yhteystiedonOsat(arvo) {
-  let loput = puhdasTeksti(arvo, 500);
+  const teksti = puhdasTeksti(arvo, 500);
+  const osumat = [
+    ...[...teksti.matchAll(SAHKOPOSTI)].map((m) => ({ alku: m.index, teksti: m[0], href: `mailto:${m[0]}` })),
+    ...[...teksti.matchAll(PUHELIN)]
+      .filter((m) => { const n = m[0].replace(/\D/g, '').length; return n >= 7 && n <= 13; })
+      .map((m) => ({ alku: m.index, teksti: m[0], href: `tel:${m[0].replace(/[\s-]/g, '')}` }))
+  ].sort((a, b) => a.alku - b.alku);
   const osat = [];
-  while (loput) {
-    const posti = loput.match(SAHKOPOSTI);
-    const puhelin = loput.match(PUHELIN);
-    const osuma = [posti, puhelin].filter(Boolean).sort((a, b) => a.index - b.index)[0];
-    if (!osuma) {
-      osat.push({ teksti: loput });
-      break;
-    }
-    if (osuma.index > 0) osat.push({ teksti: loput.slice(0, osuma.index) });
-    const teksti = osuma[0];
-    const href = osuma === posti ? `mailto:${teksti}` : `tel:${teksti.replace(/[\s-]/g, '')}`;
-    osat.push({ teksti, href });
-    loput = loput.slice(osuma.index + teksti.length);
+  let kohta = 0;
+  for (const o of osumat) {
+    if (o.alku < kohta) continue; // päällekkäinen osuma (numero sähköpostissa)
+    if (o.alku > kohta) osat.push({ teksti: teksti.slice(kohta, o.alku) });
+    osat.push({ teksti: o.teksti, href: o.href });
+    kohta = o.alku + o.teksti.length;
   }
+  if (kohta < teksti.length) osat.push({ teksti: teksti.slice(kohta) });
   return osat;
 }
 
@@ -92,6 +93,30 @@ function monirivinen(arvo, maks) {
     .replace(/\n{3,}/g, '\n\n').trim().slice(0, maks);
 }
 
+export function onkoSuomisport(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'suomisport.fi' || host.endsWith('.suomisport.fi');
+  } catch {
+    return false;
+  }
+}
+
+// Etusivun kortin tiedot rekisteristä: paikka (sarake I, ei koordinaatteja) ja järjestäjä (sarake K).
+export function rekisterinTiedot(kisa = {}) {
+  const paikka = String(kisa.paikka || '').trim();
+  return {
+    paikka: KOORDINAATIT.test(paikka) ? '' : puhdasTeksti(paikka, 120),
+    jarjestaja: puhdasTeksti(kisa.jarjestaja, 120)
+  };
+}
+
+// Kisan päivät tekstinä ("7.3.2027" tai "24.4.2027 – 25.4.2027"), tyhjä ilman alkupäivää.
+export function kisanPaivat(alku, loppu) {
+  if (!alku) return '';
+  return !loppu || alku === loppu ? alku : `${alku} – ${loppu}`;
+}
+
 const sisaltaa = (teksti, sana) => String(teksti || '').toLowerCase().includes(sana);
 
 // Info-sivun tiedot. speksiRivit: KISANSPEKSIT parsittuna, kisa: rekisterin rivi (parsiKilpailurekisteri).
@@ -101,10 +126,12 @@ export function kisanInfo(speksiRivit, kisa = {}) {
 
   const asiakirjat = extractMaterialGuidesFromRows(rivit);
   const kutsu = asiakirjat.find((a) => sisaltaa(a.title, 'kutsu')) || null;
-  const ilmoittautumisAsiakirja = asiakirjat.find((a) => sisaltaa(a.title, 'ilmoittau')) || null;
+  // Varalla Suomisportin tapahtumalinkki OHJE:-riveiltä (vanhat kisat: "OHJE: Ilmoittautumislinkki").
+  const suomisportAsiakirja = asiakirjat.find((a) => onkoSuomisport(a.url)) || null;
+  const ilmoittautumisLinkki = turvallinenLinkki(speksiArvo(rivit, 'ILMOITTAUTUMISLINKKI')) || suomisportAsiakirja?.url || '';
 
-  const rekisterinPaikka = KOORDINAATIT.test(String(kisa.paikka || '').trim()) ? '' : puhdasTeksti(kisa.paikka, 120);
-  const paikka = arvo('KISAPAIKKA') || rekisterinPaikka;
+  const rekisteri = rekisterinTiedot(kisa);
+  const paikka = arvo('KISAPAIKKA') || rekisteri.paikka;
 
   return {
     laji: lajinNimi(arvo('KILPAILUTYYPPI') || kisa.laji),
@@ -112,9 +139,10 @@ export function kisanInfo(speksiRivit, kisa = {}) {
     kuvaus: monirivinen(speksiArvo(rivit, 'KUVAUS'), 2000),
     paikka,
     karttaUrl: karttaLinkki(paikka),
-    jarjestaja: arvo('JARJESTAJA') || puhdasTeksti(kisa.jarjestaja, 120) || arvo('Järjestävät seurat:'),
+    jarjestaja: arvo('JARJESTAJA') || rekisteri.jarjestaja || arvo('Järjestävät seurat:'),
     yhteystieto: yhteystiedonOsat(speksiArvo(rivit, 'YHTEYSTIETO')),
-    ilmoittautumisLinkki: turvallinenLinkki(speksiArvo(rivit, 'ILMOITTAUTUMISLINKKI')) || ilmoittautumisAsiakirja?.url || '',
+    ilmoittautumisLinkki,
+    ilmoittautuminenSuomisportissa: onkoSuomisport(ilmoittautumisLinkki),
     osallistumismaksu: muotoileMaksu(speksiArvo(rivit, 'OSALLISTUMISMAKSU')),
     aloitusAika: muotoileKellonaika(speksiArvo(rivit, 'ALOITUS_AIKA')),
     sarjat: lomakkeenSarjat(speksiArvo(rivit, 'ILMOITTAUTUMISEN_SARJAT')),

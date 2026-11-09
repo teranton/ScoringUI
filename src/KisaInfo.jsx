@@ -53,7 +53,6 @@ export default function KisaInfo({
   onkoIlmoittautuneita,
   onkoAikatauluSallittu,
   onkoTuloksetSallittu,
-  specsCsv,
   valitseSivu,
   locale = 'fi'
 }) {
@@ -109,7 +108,9 @@ export default function KisaInfo({
       ilmoRivit.push(lomake.auki ? korvaa(tx.signUpFormUntil, { aika: muotoileTakaraja(lomake.takaraja, locale) }) : tx.signUpClosed);
     } else if (info.ilmoittautumisLinkki) {
       ilmoRivit.push(
-        <a key="linkki" href={info.ilmoittautumisLinkki} target="_blank" rel="noopener noreferrer" className={linkkiLuokka}>{tx.signUpLink}</a>
+        <a key="linkki" href={info.ilmoittautumisLinkki} target="_blank" rel="noopener noreferrer" className={linkkiLuokka}>
+          {info.ilmoittautuminenSuomisportissa ? tx.signUpLink : tx.signUpLinkOther}
+        </a>
       );
     }
     const osallistujia = tilanne?.osallistujia || 0;
@@ -162,7 +163,7 @@ export default function KisaInfo({
         </Lohko>
       )}
 
-      {info.asiakirjat.length > 0 && <MateriaaliNakyma specsCsv={specsCsv} locale={locale} />}
+      {info.asiakirjat.length > 0 && <MateriaaliNakyma guides={info.asiakirjat} locale={locale} />}
 
       {yhteystieto.length > 0 && (
         <Lohko otsikko={tx.contact}>
