@@ -43,7 +43,7 @@ import { Badge } from './components/ui/badge';
 import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer, Radio, Medal } from 'lucide-react';
 import { haeTekstit } from './i18n';
 import SaaEnnuste from './components/SaaEnnuste';
-import { lataaAnalytiikka, trackAnalyticsEvent } from './utils/analytiikka';
+import { trackAnalyticsEvent } from './utils/analytiikka';
 import { useKilpailurekisteri } from './hooks/useKilpailurekisteri';
 import { useKisaReititys } from './hooks/useKisaReititys';
 import { useKisaData } from './hooks/useKisaData';
@@ -98,8 +98,6 @@ export default function App() {
   const TulosteTulokset = ladatutPalat.tulosteTulokset ? ladatutModuulit.tulosteTulokset.default : null;
   // Taulukkonäkymän tulosteen juurielementti; HenkiloTaulukko renderöi tulosteen siihen (portaali).
   const [taulukkoTulosteJuuri, setTaulukkoTulosteJuuri] = useState(null);
-
-  useEffect(() => lataaAnalytiikka(), []);
 
   const tx = haeTekstit('app', locale);
   const txTuloste = haeTekstit('tulosteTulokset', locale);

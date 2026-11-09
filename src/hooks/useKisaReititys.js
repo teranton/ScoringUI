@@ -1,6 +1,6 @@
 // Reititys: etusivu tai avattu kisa (#kisa-<id>), selaimen Takaisin-painike ja vierityskohdan palautus.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { trackAnalyticsEvent } from '../utils/analytiikka';
+import { analytiikkaPolku, kirjaaSivunakyma } from '../utils/analytiikka';
 
 export function useKisaReititys({ kisat, ladataanKisalista }) {
   const [valittuKisa, setValittuKisa] = useState(null);
@@ -25,10 +25,6 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
   };
 
   const palaaEtusivulle = () => {
-    trackAnalyticsEvent('back_home', {
-      competitionId: String(valittuKisa?.id || ''),
-      fromView: String(aktiivinenSivu || '')
-    });
     if (window.history.state?.view === 'competition' && !window.history.state?.directLink) {
       window.history.back();
       return;
@@ -98,12 +94,18 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
     }
   }, [kisat, ladataanKisalista, valittuKisa, historiaSiirto]);
 
+  // Sivunäyttö analytiikkaan: etusivu tai kisa omana sivunaan. Suoran linkin (#kisa-<id>) kisaa odotetaan, kunnes
+  // kisalista on ladattu ja kisa avattu, ettei sama käynti kirjaudu ensin etusivuksi. Välilehtien vaihtoa ei kirjata.
+  const hashKisaId = (() => {
+    const hash = window.location.hash || '';
+    return hash.startsWith('#kisa-') ? decodeURIComponent(hash.slice('#kisa-'.length)) : '';
+  })();
+  const odotetaanHashinKisaa = !valittuKisa && Boolean(hashKisaId)
+    && (ladataanKisalista || kisat.some((k) => String(k.id) === hashKisaId));
+  const sivunakymanPolku = odotetaanHashinKisaa ? null : analytiikkaPolku(valitunKisanId);
   useEffect(() => {
-    trackAnalyticsEvent('view_change', {
-      view: String(valittuKisa ? aktiivinenSivu : 'home'),
-      competitionId: String(valittuKisa?.id || '')
-    });
-  }, [aktiivinenSivu, valittuKisa]);
+    kirjaaSivunakyma(sivunakymanPolku);
+  }, [sivunakymanPolku]);
 
   return { valittuKisa, aktiivinenSivu, setAktiivinenSivu, avaaKisa, palaaEtusivulle };
 }

@@ -1,29 +1,38 @@
-// Vercel Analytics ladataan laiskasti, jotta mainosten esto ei estä sovelluksen renderöintiä.
-let analyticsTrack = null;
+// Vercel Web Analytics. Hobby-tilin ilmainen kiintiö on 50 000 tapahtumaa kuukaudessa (sivunäytöt ja omat tapahtumat
+// yhteensä), ja keräys pysähtyy, kun se täyttyy. Siksi tapahtumia lähetetään vain kisan avauksesta, ei live-päivityksistä.
+// Mainosten esto estää vain Vercelin skriptin (/_vercel/insights/script.js), ei sovellusta: kutsut jäävät jonoon.
+import { inject, pageview, track } from '@vercel/analytics';
 
-// Palauttaa peruutusfunktion (effectin siivous).
+let viimeisinPolku = null;
+
+// Sivunäytöt kirjataan itse (kirjaaSivunakyma), koska kisa on osoitteen hashissa (#kisa-<id>),
+// jota analytiikka ei erottele: automaattisella seurannalla kaikki kisat näkyisivät etusivuna.
 export function lataaAnalytiikka() {
-  let isCancelled = false;
+  try {
+    inject({ framework: 'react', disableAutoTrack: true });
+  } catch {
+    // Analytiikka ei saa estää sovelluksen käynnistymistä.
+  }
+}
 
-  import('@vercel/analytics')
-    .then((module) => {
-      if (isCancelled) return;
-      analyticsTrack = typeof module?.track === 'function' ? module.track : null;
-    })
-    .catch(() => {
-      analyticsTrack = null;
-    });
+// Etusivu on '/', avattu kisa '/kisa/<id>'. Sama polku peräkkäin kirjataan kerran.
+export function analytiikkaPolku(kisaId) {
+  return kisaId == null || kisaId === '' ? '/' : `/kisa/${encodeURIComponent(String(kisaId))}`;
+}
 
-  return () => {
-    isCancelled = true;
-  };
+export function kirjaaSivunakyma(polku) {
+  if (!polku || polku === viimeisinPolku) return;
+  viimeisinPolku = polku;
+  try {
+    pageview({ route: polku === '/' ? '/' : '/kisa/[id]', path: polku });
+  } catch {
+    // Ignore analytics tracking errors to avoid affecting UI behavior.
+  }
 }
 
 export function trackAnalyticsEvent(eventName, properties = {}) {
   try {
-    if (typeof analyticsTrack === 'function') {
-      analyticsTrack(eventName, properties);
-    }
+    track(eventName, properties);
   } catch {
     // Ignore analytics tracking errors to avoid affecting UI behavior.
   }
