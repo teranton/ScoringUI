@@ -121,7 +121,7 @@ const { vaihtoPin } = await import('./_lib/kirjausHaltija.js');
 
 const avain = (sarake = 2, sheetId = ID) => luoAvain({ sheetId, sarake, voimassaAsti: Math.floor(Date.now() / 1000) + 3600 }, process.env.KIRJAUS_SALAISUUS);
 
-function kutsu({ method = 'GET', toiminto = 'avaa', token = avain(), body, laite, haltija } = {}) {
+function kutsu({ method = 'GET', toiminto = 'avaa', token = avain(), body, laite, haltija, paperi } = {}) {
   const res = {
     statusCode: 0, body: null, headers: {},
     setHeader(k, v) { this.headers[k] = v; },
@@ -132,7 +132,8 @@ function kutsu({ method = 'GET', toiminto = 'avaa', token = avain(), body, laite
   const headers = {
     ...(token ? { authorization: `Bearer ${token}` } : {}),
     ...(laite ? { 'x-kirjaus-laite': laite } : {}),
-    ...(haltija ? { 'x-kirjaus-haltija': haltija } : {})
+    ...(haltija ? { 'x-kirjaus-haltija': haltija } : {}),
+    ...(paperi ? { 'x-kirjaus-paperi': '1' } : {})
   };
   const req = { method, query: { toiminto }, headers, body };
   return handler(req, res).then(() => res);
@@ -704,6 +705,12 @@ test('paperi: haltija siirtää radan paperille ja takaisin; avaus kertoo paperi
   const avattu = await kutsu({ laite: 'laite-1', haltija: h });
   assert.equal(avattu.body.paperilla, paalle.body.paperilla);
   assert.deepEqual(avattu.body.paperiTulokset, { 1: '22', 3: '19' });
+
+  // Pääsivua ei lueta, kun rata ei ole ollut paperilla eikä laite pyydä (null = ei tiedossa); pyynnöstä luetaan.
+  taulukko.MOBIILI_LAITTEET.rivit[2][10] = '';
+  assert.equal((await kutsu({ laite: 'laite-1', haltija: h })).body.paperiTulokset, null);
+  assert.deepEqual((await kutsu({ laite: 'laite-1', haltija: h, paperi: true })).body.paperiTulokset, { 1: '22', 3: '19' });
+  taulukko.MOBIILI_LAITTEET.rivit[2][10] = paalle.body.paperilla;
 
   // Haltijan vaihto ei muuta paperitilaa; takaisin mobiiliin tyhjentää sen.
   const pin = vaihtoPin({ sheetId: ID, sarake: 2, sukupolvi: 1 }, process.env.KIRJAUS_SALAISUUS);

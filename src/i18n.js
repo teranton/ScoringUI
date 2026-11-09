@@ -179,7 +179,7 @@ const TEKSTIT = jaadyta({
       shotsNone: 'Asemalle ei ole mobiilikirjauksen kiekkotietoja.',
       shotsError: 'Kiekkojen haku epäonnistui. Yritä hetken päästä uudelleen.',
       shotsDiffer: 'tuloksissa {tulos}',
-      shotsPaper: 'mobiilikortti jäi kesken, tulos {tulos} paperikortilta',
+      shotsPaper: 'mobiilikortti kesken, tuloksissa {tulos} (esim. paperikortilta)',
       layout: 'Rata'
     },
     rankingTulokset: {
@@ -505,7 +505,7 @@ const TEKSTIT = jaadyta({
       shotsError: 'Could not load the targets. Try again shortly.',
       shotsNone: 'No mobile scoring targets for this stage.',
       shotsDiffer: 'results show {tulos}',
-      shotsPaper: 'mobile card unfinished, result {tulos} from the paper card',
+      shotsPaper: 'mobile card unfinished, results show {tulos} (e.g. from a paper card)',
       layout: 'Layout'
     },
     rankingTulokset: {

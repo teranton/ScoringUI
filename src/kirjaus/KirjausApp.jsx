@@ -26,6 +26,7 @@ import {
 } from './haltija.js';
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { PaperiNakyma } from './Paperi.jsx';
+import { kysyPaperitulokset, paperiVastauksesta, usePaperi, usePaperiSeuranta } from './paperi.js';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
@@ -163,6 +164,8 @@ function RataNakyma({ koodi, onVaihda }) {
   const otetaanRef = useRef(false);
 
   const tilaRef = useRef(tila);
+  // Laitteen omien paperimuutosten laskuri (paperi.js): vanhentunut tallennusvastaus ei kumoa niitä.
+  const paperiVersioRef = useRef(0);
   const lahettaaRef = useRef(false);
   const tarkistettuRef = useRef(Date.now());
   // Testiversion "Tyhjennä rata laitteelta": ei enää tallenneta eikä lähetetä ennen sivun uudelleenlatausta.
@@ -223,6 +226,8 @@ function RataNakyma({ koodi, onVaihda }) {
     let peruttu = false;
     const headers = { Authorization: `Bearer ${koodi}`, 'X-Kirjaus-Laite': laite };
     if (tilaRef.current.haltija) headers['X-Kirjaus-Haltija'] = tilaRef.current.haltija;
+    // Paperitulokset (pääsivun luku) vain kun rata on ollut paperilla tai otettu PIN-koodilla.
+    if (kysyPaperitulokset(tilaRef.current)) headers['X-Kirjaus-Paperi'] = '1';
     fetch('/api/kirjaus?toiminto=avaa', { headers, cache: 'no-store' })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
@@ -242,7 +247,8 @@ function RataNakyma({ koodi, onVaihda }) {
               kortit: yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }),
               // Taulukon paperitila, paitsi kun tämän laitteen oma siirto paperille odottaa yhteyttä.
               ...(t.paperiPaikallinen ? {} : { paperilla: data.paperilla || '' }),
-              paperiValmiit: paperiValmiitAvauksesta(data.paperiTulokset)
+              // null = tuloksia ei luettu (ei paperia tai luku epäonnistui): aiemmat jäävät.
+              ...(data.paperiTulokset ? { paperiValmiit: paperiValmiitAvauksesta(data.paperiTulokset) } : {})
             },
             data.haltija?.oma ? data.taydennykset : null,
             data.kohteita
@@ -333,6 +339,7 @@ function RataNakyma({ koodi, onVaihda }) {
       return;
     }
     lahettaaRef.current = true;
+    const paperiVersio = paperiVersioRef.current;
     try {
       const res = await fetch('/api/kirjaus?toiminto=tallenna', {
         method: 'POST',
@@ -362,9 +369,13 @@ function RataNakyma({ koodi, onVaihda }) {
       setTila((t) => ({
         ...taydennettyna({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }, data.taydennykset, t.avaus?.kohteita),
         ...(linjaMuuttui ? { lahetettyLinja: linja } : {}),
-        // Kilpailutoimisto on voinut siirtää radan paperille (tai takaisin) ScoringLibin valikosta.
-        ...(typeof data.paperilla === 'string' && !t.paperiPaikallinen ? { paperilla: data.paperilla } : {})
+        // Kilpailutoimisto on voinut siirtää radan paperille (tai takaisin) ScoringLibin valikosta. Ennen laitteen omaa
+        // paperimuutosta lähteneen pyynnön vastaus ei kumoa sitä.
+        ...paperiVastauksesta(t, data.paperilla, paperiVersioRef.current !== paperiVersio)
       }));
+      // Kilpailutoimisto palautti radan mobiiliin: paperilta kirjoitetut tulokset haetaan avauksella (linja ohittaa ne).
+      if (tilaRef.current.paperilla && data.paperilla === '' && !tilaRef.current.paperiPaikallinen
+        && paperiVersioRef.current === paperiVersio) setLatausKierros((n) => n + 1);
       setSynk({ virhe: '', viimeksi: Date.now(), katkesi: null });
       taustaRef.current = false;
       // Taulukossa oli toisen laitteen uudempi kortti: kaksi laitetta kirjaa samaa rataa.
@@ -709,57 +720,17 @@ function RataNakyma({ koodi, onVaihda }) {
     }
   };
 
-  // Rata paperille (paalle) tai takaisin mobiiliin taulukkoon (MOBIILI_LAITTEET PAPERILLA). Ilman yhteyttä paperille
-  // siirto jää laitteelle (paperiPaikallinen) ja lähtee, kun yhteys palaa. Palauttaa true, kun taulukko päivittyi.
-  const asetaPaperi = useCallback(async (paalle) => {
-    const { haltija } = tilaRef.current;
-    if (!haltija) return false;
-    try {
-      const res = await fetch('/api/kirjaus?toiminto=paperi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${koodi}` },
-        body: JSON.stringify({ laite, haltija, paalle, linja: linjaTilasta(tilaRef.current) })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 409 && data.korvattu) {
-        setTila((t) => ({ ...t, haltija: null, korvattu: korvausTieto(data.haltija, 0) }));
-        return false;
-      }
-      if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
-      setTila((t) => ({ ...t, paperilla: data.paperilla || '', paperiPaikallinen: false, lahetettyLinja: linjaTekstina(t) }));
-      return true;
-    } catch (error) {
-      if (paalle) setTila((t) => ({ ...t, paperilla: t.paperilla || aikaNyt(), paperiPaikallinen: true }));
-      else window.alert(`Kirjausta ei saatu jatkumaan (${error instanceof TypeError ? 'ei yhteyttä' : error.message}). Yritä uudelleen.`);
-      return false;
-    }
-  }, [koodi, laite]);
-
-  // Laitteella odottava siirto paperille lähtee, kun laite on haltija ja yhteys toimii: yritetään jokaisen onnistuneen
-  // lähetyksen jälkeen, kunnes taulukko päivittyy.
-  const paperiOdottaa = Boolean(tila.paperiPaikallinen && tila.haltija);
-  useEffect(() => {
-    if (paperiOdottaa && synk.viimeksi) asetaPaperi(true);
-  }, [paperiOdottaa, synk.viimeksi, asetaPaperi]);
-
-  // Valikosta: viimeiset merkinnät lähetetään (jos yhteys toimii), sitten rata paperille. Kirjaus pysähtyy heti.
-  const siirryPaperille = async () => {
+  const paivitaRata = useCallback(() => setLatausKierros((n) => n + 1), []);
+  const radanKorvaus = useCallback((haltija) => setTila((t) => ({ ...t, haltija: null, korvattu: korvausTieto(haltija, 0) })), []);
+  const odottavatKortit = useCallback((t) => lahettamattomat(t.kortit), []);
+  const { siirryPaperille: kysyPaperille, jatkaMobiilina } = usePaperi({
+    koodi, laite, tila, tilaRef, setTila, laheta, lahettaaRef, odottavat: odottavatKortit, linja: linjaTilasta,
+    versioRef: paperiVersioRef, synkViimeksi: synk.viimeksi, onKorvattu: radanKorvaus, onJatkettu: paivitaRata
+  });
+  usePaperiSeuranta(tila.paperiPalattu, paivitaRata);
+  const siirryPaperille = () => {
     setValikko(false);
-    if (!window.confirm(`Siirretäänkö ${kohde} paperikortteihin? Kirjaus pysähtyy tällä laitteella, ja kesken jääneet kortit näytetään kopioitaviksi paperille.`)) return;
-    for (let kierros = 0; kierros < 12; kierros++) {
-      if (!lahettaaRef.current) await laheta();
-      await new Promise((r) => { setTimeout(r, 250); });
-      if (!lahettaaRef.current && lahettamattomat(tilaRef.current.kortit).length === 0) break;
-    }
-    if (!tilaRef.current.haltija) {
-      setTila((t) => ({ ...t, paperilla: t.paperilla || aikaNyt(), paperiPaikallinen: true }));
-      return;
-    }
-    await asetaPaperi(true);
-  };
-
-  const jatkaMobiilina = async () => {
-    if (await asetaPaperi(false)) setLatausKierros((n) => n + 1);
+    kysyPaperille(`Siirretäänkö ${kohde} paperikortteihin? Kirjaus pysähtyy tällä laitteella, ja kesken jääneet kortit näytetään kopioitaviksi paperille.`);
   };
 
   // Siirtolinkki QR-koodina: haltija-avain ja lähettämättömät kortit uudelle laitteelle ilman verkkoa.
@@ -1171,15 +1142,12 @@ const korvausTieto = (haltija, kirjattu, taydennetty) => ({
 // Avauksen paperitulokset { nro: tulos } → numerot, jotka linja ohittaa.
 const paperiValmiitAvauksesta = (tulokset) => Object.keys(tulokset || {}).map(Number).filter((n) => Number.isInteger(n) && n > 0).sort((a, b) => a - b);
 
-// Laitteen aika samassa muodossa kuin taulukon aikaleima (api/_lib/kirjausData.js aikaleima).
-const aikaNyt = () => new Date().toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' });
-
 // Laitteelle tallennettu tila; vanhan version lisätyt (pelkät numerot) menevät jonon loppuun.
 function alkutila(tallessa) {
   const t = {
     kortit: {}, historia: [], lisatyt: [], ohitetut: [], tauot: [], tauotPois: [], keskeyttaneet: [], ohjelma: null, avaus: null,
     haltija: null, siirtoAvain: null, korvattu: null, luovutettu: false, lahetettyLinja: null, tarkistaLinja: false,
-    sovelletutTaydennykset: {}, taydennysIlmoitus: 0, paperilla: '', paperiPaikallinen: false, paperiValmiit: [],
+    sovelletutTaydennykset: {}, taydennysIlmoitus: 0, paperilla: '', paperiPaikallinen: false, paperiValmiit: [], paperiPalattu: null,
     ...tallessa
   };
   return { ...t, lisatyt: t.lisatyt.map((l) => (typeof l === 'number' ? { nro: l } : l)) };

@@ -313,10 +313,13 @@ Writes (created on the first save or change of device if missing):
   (ScoringLib 📱 Mobiilikirjaus › Rata tai ryhmä jatkuu paperilla, log device `KILPAILUTOIMISTO`). A change of device keeps it. While it is set
   the device stops entry and lists its unfinished cards to copy onto paper; it still sends unsent marks, and only the
   holder's "Jatka mobiilikirjausta" empties it. `avaa` and `tallenna` return it as `paperilla`.
-- Paper results on opening a layout: `avaa` also reads the main tab as cells (`spreadsheets.get`, as for `SUORAAN` below)
-  and returns `paperiTulokset` `{ "<NRO>": "<value>" }`: a typed value (not a formula, not an array-formula column) in
-  result column N for a shooter whose `MOBIILI Rata N` card is not complete. The device puts these in `LINJA`
-  `paperiValmiit`. A failed read only leaves them out.
+- Paper results on opening a layout: when the layout has `PAPERILLA` or `LINJA` `paperiValmiit`, or the device asks with
+  header `X-Kirjaus-Paperi: 1` (it returned from paper in the last 2 hours, then re-opens every 3 min, or took the layout
+  with a PIN), `avaa` also reads the main tab as cells (`spreadsheets.get`, as for `SUORAAN` below) and returns
+  `paperiTulokset` `{ "<NRO>": "<value>" }`: a typed value (not a formula, not an array-formula column) in result column N
+  for a shooter whose `MOBIILI Rata N` card is not complete and whose card `NIMI` (if any) shares a word with the main
+  tab's `NIMI`. The device puts these in `LINJA` `paperiValmiit`. `null` = not read (or the read failed): the device
+  keeps the list it has.
 
 ### Squad phone (Sporting / FITASC / ESP)
 
@@ -392,7 +395,7 @@ targets (hidden by default): from the squad phone's card (Sporting / FITASC / ES
   (`LAITE`, `VERSIO`, `RYHMÄ`, `HYVÄKSYTTY`, `KUITATUT` are dropped), and for `MOBIILI Rata N` as in the live view.
 - `Tulokset Y` has no shooter number, so the card is matched by name (trimmed, spaces collapsed, case and U+200B ignored);
   a name on two card numbers, or twice in `Tulokset Y`, is not shown. Station k is result column k. When the result differs from the card's hits, both
-  are shown. An incomplete card with a result says the card was left unfinished and the result came from the paper card.
+  are shown. An incomplete card with a result says the mobile card is unfinished and shows the result (e.g. from a paper card).
 
 ### Results into the result columns (`MOBIILI_TULOKSET`)
 

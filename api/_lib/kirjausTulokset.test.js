@@ -97,6 +97,8 @@ test('paperitulokset: käsin kirjoitettu tulos keskeneräiselle kortille; kaava,
   assert.deepEqual(paperiTulokset(tiedot, 1, kortit), { 1: '22' });
   assert.deepEqual(paperiTulokset(tiedot, 2, kortit), { 2: '25' });
   assert.deepEqual(paperiTulokset(tiedot, 5, kortit), {});
+  // Kortin nimi ei täsmää pääsivuun (numerot vaihtuneet): ei paperitulos.
+  assert.deepEqual(paperiTulokset(tiedot, 1, [{ ...kortit[0], nimi: 'Muu Ampuja' }, kortit[1]]), {});
   // Taulukkokaavan täyttämä sarake ei ole paperia.
   const { tiedot: taulukko } = paaSolut([
     { values: [t('NRO'), t('1')] },

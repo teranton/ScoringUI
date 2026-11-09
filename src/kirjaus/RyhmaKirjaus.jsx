@@ -25,6 +25,7 @@ import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js'
 import Lukitus from './Lukitus.jsx';
 import { KohdeMerkki, PinLomake } from './Haltija.jsx';
 import { PaperiNakyma } from './Paperi.jsx';
+import { paperiVastauksesta, usePaperi } from './paperi.js';
 import { soita } from './aanet.js';
 import { Asennus, SynkMerkki } from './Yhteiset.jsx';
 
@@ -66,6 +67,8 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const [toinenLaite, setToinenLaite] = useState(null);
 
   const tilaRef = useRef(tila);
+  // Puhelimen omien paperimuutosten laskuri (paperi.js): vanhentunut tallennusvastaus ei kumoa niitä.
+  const paperiVersioRef = useRef(0);
   const lahettaaRef = useRef(false);
   const otetaanRef = useRef(false);
   const taustaRef = useRef(false);
@@ -183,6 +186,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       return;
     }
     lahettaaRef.current = true;
+    const paperiVersio = paperiVersioRef.current;
     try {
       const res = await fetch('/api/kirjaus?toiminto=tallenna', {
         method: 'POST',
@@ -205,8 +209,9 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       setTila((t) => ({
         ...taydennettyna({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }, data.taydennykset, t.avaus?.layoutit),
         hylattyIlmoitus: (t.hylattyIlmoitus || 0) + hylatyt,
-        // Kilpailutoimisto on voinut siirtää ryhmän paperille (tai takaisin) ScoringLibin valikosta.
-        ...(typeof data.paperilla === 'string' && !t.paperiPaikallinen ? { paperilla: data.paperilla } : {})
+        // Kilpailutoimisto on voinut siirtää ryhmän paperille (tai takaisin) ScoringLibin valikosta. Ennen puhelimen omaa
+        // paperimuutosta lähteneen pyynnön vastaus ei kumoa sitä.
+        ...paperiVastauksesta(t, data.paperilla, paperiVersioRef.current !== paperiVersio)
       }));
       // Layoutin asemajako muuttui taulukossa: ryhmän tiedot haetaan uudelleen ja kortit sovitetaan.
       if ((data.hylatyt || []).some((h) => h.syy === 'kohteet')) setLatausKierros((n) => n + 1);
@@ -470,54 +475,16 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     }
   };
 
-  // Ryhmä paperille (paalle) tai takaisin mobiiliin. Ilman yhteyttä paperille siirto jää puhelimeen (paperiPaikallinen)
-  // ja lähtee, kun yhteys palaa. Palauttaa true, kun taulukko päivittyi.
-  const asetaPaperi = useCallback(async (paalle) => {
-    const { haltija } = tilaRef.current;
-    if (!haltija) return false;
-    try {
-      const res = await fetch('/api/kirjaus?toiminto=paperi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${koodi}` },
-        body: JSON.stringify({ laite, haltija, paalle })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 409 && data.korvattu) {
-        setTila((t) => ({ ...t, haltija: null, korvattu: korvausTieto(data.haltija, 0) }));
-        return false;
-      }
-      if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
-      setTila((t) => ({ ...t, paperilla: data.paperilla || '', paperiPaikallinen: false }));
-      return true;
-    } catch (error) {
-      if (paalle) setTila((t) => ({ ...t, paperilla: t.paperilla || aikaNyt(), paperiPaikallinen: true }));
-      else window.alert(`Kirjausta ei saatu jatkumaan (${error instanceof TypeError ? 'ei yhteyttä' : error.message}). Yritä uudelleen.`);
-      return false;
-    }
-  }, [koodi, laite]);
-
-  const paperiOdottaa = Boolean(tila.paperiPaikallinen && tila.haltija);
-  useEffect(() => {
-    if (paperiOdottaa && synk.viimeksi) asetaPaperi(true);
-  }, [paperiOdottaa, synk.viimeksi, asetaPaperi]);
-
-  const siirryPaperille = async () => {
+  const paivitaRyhma = useCallback(() => setLatausKierros((n) => n + 1), []);
+  const ryhmanKorvaus = useCallback((haltija) => setTila((t) => ({ ...t, haltija: null, korvattu: korvausTieto(haltija, 0) })), []);
+  const odottavatKortit = useCallback((t) => lahettamattomat(t.kortit), []);
+  const { siirryPaperille: kysyPaperille, jatkaMobiilina } = usePaperi({
+    koodi, laite, tila, tilaRef, setTila, laheta, lahettaaRef, odottavat: odottavatKortit,
+    versioRef: paperiVersioRef, synkViimeksi: synk.viimeksi, onKorvattu: ryhmanKorvaus, onJatkettu: paivitaRyhma
+  });
+  const siirryPaperille = () => {
     setValikko(false);
-    if (!window.confirm(`Siirretäänkö ryhmä ${avaus.ryhma} paperikortille? Kirjaus pysähtyy tällä puhelimella, ja kesken jääneet kortit näytetään kopioitaviksi paperille.`)) return;
-    for (let kierros = 0; kierros < 12; kierros++) {
-      if (!lahettaaRef.current) await laheta();
-      await new Promise((r) => { setTimeout(r, 250); });
-      if (!lahettaaRef.current && lahettamattomat(tilaRef.current.kortit).length === 0) break;
-    }
-    if (!tilaRef.current.haltija) {
-      setTila((t) => ({ ...t, paperilla: t.paperilla || aikaNyt(), paperiPaikallinen: true }));
-      return;
-    }
-    await asetaPaperi(true);
-  };
-
-  const jatkaMobiilina = async () => {
-    if (await asetaPaperi(false)) setLatausKierros((n) => n + 1);
+    kysyPaperille(`Siirretäänkö ryhmä ${tila.avaus?.ryhma} paperikortille? Kirjaus pysähtyy tällä puhelimella, ja kesken jääneet kortit näytetään kopioitaviksi paperille.`);
   };
 
   if (!avaus) {
@@ -914,6 +881,3 @@ function RyhmanHaltija({ tyyppi, kohde, haltija, korvattu, lahettamatta, onOta, 
     </section>
   );
 }
-
-// Puhelimen aika samassa muodossa kuin taulukon aikaleima (api/_lib/kirjausData.js aikaleima).
-const aikaNyt = () => new Date().toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' });

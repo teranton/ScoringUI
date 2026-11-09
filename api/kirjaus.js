@@ -121,7 +121,7 @@ const laiteAlue = (tab, sarake) => {
 };
 const salaisuus = () => process.env.KIRJAUS_SALAISUUS;
 
-async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija }, res) {
+async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija, paperi }, res) {
   // Aina tuoreet välilehdet: toisen palvelinilmentymän muisti ei tiedä toisen laitteen luomasta tai
   // poistetusta MOBIILI-välilehdestä, ja vaihtolaite saisi tyhjät kortit (tai luku kaatuisi).
   const meta = await metatiedot(request, sheetId, { tuore: true });
@@ -136,12 +136,9 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija
     mobiili ? `${valilehtiAlue(mobiili.nimi)}!A2:${VIIMEINEN_SARAKE}${MAKS_NRO + 1}` : null,
     laitteet ? laiteAlue(laitteet, sarake) : null
   ];
-  // Pääsivun solut: paperikortilta kirjoitetut tulokset (laite ohittaa ne linjalla, kun rata jatkuu paperin jälkeen mobiilina).
-  const [arvot, omat, paaTiedot] = await Promise.all([
+  const [arvot, omat] = await Promise.all([
     batchGet(request, sheetId, kohteet.map((k) => valilehtiAlue(k.todellinen)), 'FORMATTED_VALUE'),
-    batchGet(request, sheetId, omatAlueet.filter(Boolean), 'UNFORMATTED_VALUE'),
-    // Paperitulokset ovat lisätieto: luvun virhe ei estä radan avaamista.
-    paa ? paaSoluina(request, sheetId, paa).catch(() => null) : null
+    batchGet(request, sheetId, omatAlueet.filter(Boolean), 'UNFORMATTED_VALUE')
   ]);
   const [korttiRivit, laiteRivit] = omatAlueet.map((alue) => (alue ? omat[omatAlueet.filter(Boolean).indexOf(alue)] : []));
 
@@ -154,6 +151,20 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija
   const kortit = (korttiRivit || []).map(lueKorttiRivi).filter((k) => k && k.versio > 0);
   const rivi = lueLaiteRivi((laiteRivit || [])[0]);
   const julkinen = julkinenHaltija(rivi, laite);
+
+  // Paperikortilta kirjoitetut tulokset (laite ohittaa ne linjalla, kun rata jatkuu paperin jälkeen mobiilina). Pääsivu
+  // luetaan vain, kun rata on ollut paperilla (PAPERILLA, linjan paperiValmiit) tai laite pyytää (palasi paperilta, otti
+  // radan PIN-koodilla). null = ei luettu tai luku epäonnistui: laite pitää aiemmat.
+  let paperiTuloksetArvo = null;
+  if (paa && (paperi || rivi.paperilla || rivi.linja?.paperiValmiit?.length > 0)) {
+    try {
+      const nimet = new Map((korttiRivit || []).filter(Array.isArray).map((r) => [Number.parseInt(r[0], 10), String(r[1] ?? '')]));
+      const paaTiedot = await paaSoluina(request, sheetId, paa);
+      paperiTuloksetArvo = paperiTulokset(paaTiedot.tiedot, sarake, kortit.map((k) => ({ ...k, nimi: nimet.get(k.nro) })));
+    } catch (error) {
+      console.warn('[KIRJAUS] Paperitulosten luku epäonnistui:', String(googleViesti(error) || error?.message).slice(0, 200));
+    }
+  }
 
   return laheta(res, 200, {
     kisa: meta.otsikko,
@@ -174,7 +185,7 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija
     taydennykset: rivi.taydennykset,
     // Rata jatkuu paperikorteilla (aika) tai '' ja paperilta kirjoitetut tulokset { nro: tulos } keskeneräisille korteille.
     paperilla: rivi.paperilla,
-    paperiTulokset: paaTiedot ? paperiTulokset(paaTiedot.tiedot, sarake, kortit) : {},
+    paperiTulokset: paperiTuloksetArvo,
     voimassaAsti
   });
 }
@@ -880,7 +891,7 @@ export default async function handler(req, res) {
     if (toiminto === 'avaa') {
       const laite = String(req.headers?.['x-kirjaus-laite'] || '');
       const haltija = String(req.headers?.['x-kirjaus-haltija'] || '');
-      const tiedot = { laite: onLaitetunnus(laite) ? laite : '', haltija };
+      const tiedot = { laite: onLaitetunnus(laite) ? laite : '', haltija, paperi: req.headers?.['x-kirjaus-paperi'] === '1' };
       return await (ryhmalle ? avaaRyhma : avaa)(request, avain, tiedot, res);
     }
     if (toiminto === 'ota') return await ota(request, avain, req, res);

@@ -2,12 +2,7 @@
 // Näkymä listaa kesken jääneet kortit (lapsina), jotta niiden merkinnät voi kopioida paperikortille, ja kertoo, onko
 // kaikki lähetetty. Kirjaus jatkuu laitteella vain "Jatka mobiilikirjausta" -napista (radan haltija).
 import { KohdeMerkki } from './Haltija.jsx';
-
-// Aika "9.11.2026 klo 10.05.07" → "10.05" (muuten sellaisenaan).
-function paperinKello(aika) {
-  const m = String(aika || '').match(/(\d{1,2})[.:](\d{2})(?:[.:]\d{2})?\s*$/);
-  return m ? `${m[1]}.${m[2]}` : String(aika || '');
-}
+import { paperinKello } from './paperi.js';
 
 // ryhma: ryhmäpuhelin (tekstit ryhmälle). onJatka: null, kun laite ei ole haltija (rata otetaan ensin).
 export function PaperiNakyma({ kohde, aika, paikallinen, lahettamatta, ryhma = false, onJatka, onLataaLoki, children }) {
@@ -30,7 +25,7 @@ export function PaperiNakyma({ kohde, aika, paikallinen, lahettamatta, ryhma = f
         </p>
         {paikallinen && (
           <p className="mt-1 text-sm font-semibold text-red-800">
-            Tieto ei vielä mennyt taulukkoon (ei yhteyttä). Kerro kilpailutoimistolle: 📱 Mobiilikirjaus › Rata jatkuu paperilla.
+            Tieto ei vielä mennyt taulukkoon (ei yhteyttä). Kerro kilpailutoimistolle: 📱 Mobiilikirjaus › Rata tai ryhmä jatkuu paperilla.
             Laite lähettää tiedon, kun yhteys palaa.
           </p>
         )}
