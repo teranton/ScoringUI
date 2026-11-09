@@ -76,7 +76,7 @@ export function parsiKilpailurekisteri(raakaRivit) {
         onkoRanking: onkoRankingTyyppi(row[7]),
         onkoTesti: onkoTestiTyyppi(row[7]),
         paikka: String(row[8] || '').trim(),
-        // J laji (KILPAILUTYYPPI: COMPAK, SPORTING, FITASC, ESP) ja K järjestäjä; ScoringLib täyttää uudelle kisalle.
+        // J laji (COMPAK, SPORTING, FITASC, ESP, TRAP, SKEET, MUU) ja K järjestäjä; ScoringLib täyttää uudelle kisalle.
         laji: String(row[9] || '').trim(),
         jarjestaja: String(row[10] || '').trim()
       });

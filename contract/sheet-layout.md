@@ -85,7 +85,8 @@ so column order can change but header names must not.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no), H type (`RANKING` = season ranking,
   `TESTI` = permanent test competition, any other value is ignored),
-  J discipline (optional, `KILPAILUTYYPPI`: `COMPAK`, `SPORTING`, `FITASC`, `ESP`, shown as a chip on the front-page card and
+  J discipline (optional: `COMPAK`, `SPORTING`, `FITASC`, `ESP`, `TRAP`, `SKEET`, or `MUU` = not shown; ScoringLib writes the new
+  competition form's type, so a Trap competition has `TRAP` here while its `KILPAILUTYYPPI` is `COMPAK`; shown as a chip on the front-page card and
   as Laji on the Info page; any other text is shown as it is), K organiser (optional, shown on the card and as Järjestäjä when
   the sheet has neither `JARJESTAJA` nor `Järjestävät seurat:`). ScoringLib fills J and K for a new competition. The API reads A:K.
   I place (optional): a place name in Finland (`Oulainen`, looked up by the Finnish Meteorological Institute) or
@@ -133,7 +134,7 @@ what is filled. All Kisainfo keys are optional, read like the other keys (Avain 
 | Shown as | Key | Value | Fallback |
 |---|---|---|---|
 | Kuvaus | `KUVAUS` | free text, line breaks kept (up to 2000 characters) | none |
-| Laji | `KILPAILUTYYPPI` | `COMPAK`, `SPORTING`, `FITASC`, `ESP` (shown as Compak Sporting, Sporting, FITASC Sporting, English Sporting) | registry J |
+| Laji | `LAJI` | `TRAP`, `SKEET`, `MUU` (no discipline shown) or any text; for a discipline shot on the Compak structure, whose `KILPAILUTYYPPI` is `COMPAK` | registry J, then `KILPAILUTYYPPI` (`COMPAK`, `SPORTING`, `FITASC`, `ESP`, shown as Compak Sporting, Sporting, FITASC Sporting, English Sporting) |
 | Laji, kiekkoa | `KIEKKOMAARA` | whole number of targets | none |
 | Paikka (with a Google Maps search link) | `KISAPAIKKA` | address or place name | registry I unless it is coordinates |
 | Järjestäjä | `JARJESTAJA` | club or organiser name | `Järjestävät seurat:`, then registry K |
@@ -211,7 +212,7 @@ The master template groups the keys into sections by function (heading rows in t
 | Mobiilikirjaus ja tuloskortit | `MOBIILI_TULOKSET`, `Tyhjän ruudun symboli` | `MOBIILI_TULOKSET` UI and Lib, the symbol Lib |
 | Tulokset ja palkintojako | `RATKO_PALKINTO_SIJA`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA` | UI and Lib (`RATKO_PALKINTO_SIJA` UI only) |
 | Tuonnit | `Vain päivätulokset` | Lib |
-| Kisainfo | `KUVAUS`, `KIEKKOMAARA`, `KISAPAIKKA`, `JARJESTAJA`, `YHTEYSTIETO`, `ILMOITTAUTUMISLINKKI` | UI (Info page); ScoringLib fills `KIEKKOMAARA` at creation |
+| Kisainfo | `KUVAUS`, `LAJI`, `KIEKKOMAARA`, `KISAPAIKKA`, `JARJESTAJA`, `YHTEYSTIETO`, `ILMOITTAUTUMISLINKKI` | UI (Info page); ScoringLib fills `KIEKKOMAARA` and, for Trap / Skeet / Muu, `LAJI` at creation |
 | Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI (`OHJE:` on the Info page) |
 
 Because keys are read only from the Avain column, a Selite or help text equal to a key (the master had "Ilmoittautumistapa"

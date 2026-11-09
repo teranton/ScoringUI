@@ -1,4 +1,4 @@
-// Kisan Info-sivun tiedot: KISANSPEKSIT-välilehden Kisainfo-osio (KUVAUS, KIEKKOMAARA, KISAPAIKKA, JARJESTAJA,
+// Kisan Info-sivun tiedot: KISANSPEKSIT-välilehden Kisainfo-osio (KUVAUS, LAJI, KIEKKOMAARA, KISAPAIKKA, JARJESTAJA,
 // YHTEYSTIETO, ILMOITTAUTUMISLINKKI), kisan muut asetukset (KILPAILUTYYPPI, OSALLISTUMISMAKSU, ALOITUS_AIKA,
 // ILMOITTAUTUMISEN_SARJAT, Järjestävät seurat:) ja OHJE:-rivien asiakirjat. Rekisterin sarakkeet I (paikka),
 // J (laji) ja K (järjestäjä) ovat varana. Puhtaita funktioita; näytetään vain täytetyt tiedot.
@@ -10,7 +10,12 @@ const LAJIT = {
   COMPAK: { nimi: 'Compak Sporting', lyhyt: 'Compak' },
   SPORTING: { nimi: 'Sporting', lyhyt: 'Sporting' },
   FITASC: { nimi: 'FITASC Sporting', lyhyt: 'FITASC' },
-  ESP: { nimi: 'English Sporting', lyhyt: 'ESP' }
+  ESP: { nimi: 'English Sporting', lyhyt: 'ESP' },
+  // Ammutaan Compakin rakenteella (KILPAILUTYYPPI COMPAK), laji Kisainfon LAJI-avaimesta tai rekisterin J:stä.
+  TRAP: { nimi: 'Trap', lyhyt: 'Trap' },
+  SKEET: { nimi: 'Skeet', lyhyt: 'Skeet' },
+  // Muu laji: ei näytetä lajia, ettei kisa näytä Compakilta.
+  MUU: { nimi: '', lyhyt: '' }
 };
 
 const lajiAvain = (arvo) => String(arvo ?? '').trim().toUpperCase().replace(/[^A-Z]/g, '');
@@ -134,7 +139,9 @@ export function kisanInfo(speksiRivit, kisa = {}) {
   const paikka = arvo('KISAPAIKKA') || rekisteri.paikka;
 
   return {
-    laji: lajinNimi(arvo('KILPAILUTYYPPI') || kisa.laji),
+    // LAJI ensin (Trap, Skeet, muu laji Compakin rakenteella), sitten rekisterin J (luonti kirjoittaa saman lajin)
+    // ja vasta sitten KILPAILUTYYPPI, joka on Trapillekin COMPAK.
+    laji: lajinNimi(arvo('LAJI') || kisa.laji || arvo('KILPAILUTYYPPI')),
     kiekkoja: kokonaisluku(arvo('KIEKKOMAARA')),
     kuvaus: monirivinen(speksiArvo(rivit, 'KUVAUS'), 2000),
     paikka,

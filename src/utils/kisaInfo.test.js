@@ -62,10 +62,21 @@ test('kisanInfo vanhalle kisalle: rekisterin tiedot varana, koordinaatteja ei n�
   assert.equal(rekisterista.laji, '');
 });
 
+test('kisanInfo: Trap Compakin rakenteella näkyy Trappina, muu laji ei näy Compakina', () => {
+  const compak = [...otsikko, ['Kilpailun tyyppi', 'KILPAILUTYYPPI', 'COMPAK']];
+  assert.equal(kisanInfo([...compak, ['Näytettävä laji', 'LAJI', 'TRAP']]).laji, 'Trap');
+  assert.equal(kisanInfo(compak, { laji: 'SKEET' }).laji, 'Skeet');
+  assert.equal(kisanInfo([...compak, ['Näytettävä laji', 'LAJI', 'MUU']], { laji: 'MUU' }).laji, '');
+  assert.equal(kisanInfo(compak).laji, 'Compak Sporting');
+});
+
 test('lajinNimi, maksu, kellonaika ja linkit', () => {
   assert.equal(lajinNimi('FITASC'), 'FITASC Sporting');
   assert.equal(lajinNimi('ESP', { lyhyt: true }), 'ESP');
   assert.equal(lajinNimi('Trap'), 'Trap');
+  assert.equal(lajinNimi('SKEET', { lyhyt: true }), 'Skeet');
+  assert.equal(lajinNimi('MUU'), '');
+  assert.equal(lajinNimi('Riistamaali'), 'Riistamaali');
   assert.equal(muotoileMaksu('45,50'), '45,50 €');
   assert.equal(muotoileMaksu('60 € (juniorit 30 €)'), '60 € (juniorit 30 €)');
   assert.equal(muotoileKellonaika('25:00'), '');
