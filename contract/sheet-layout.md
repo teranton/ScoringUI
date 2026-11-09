@@ -203,8 +203,8 @@ The master template groups the keys into sections by function (heading rows in t
 | Section | Keys | Read by |
 |---|---|---|
 | Kisan aikana | `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS` | UI |
-| Kisainfo | `KUVAUS`, `KIEKKOMAARA`, `KISAPAIKKA`, `JARJESTAJA`, `YHTEYSTIETO`, `ILMOITTAUTUMISLINKKI` | UI (Info page) |
 | Kilpailun rakenne | `KILPAILUTYYPPI`, `OSALLISTUJAT`, `LAYOUT/KISA`, `Asemien määrä`, `Päivätuloksia kpl` | `LAYOUT/KISA` UI and Lib, `KILPAILUTYYPPI` UI (Info page) and Lib, others Lib |
+| Kisainfo | `KUVAUS`, `KIEKKOMAARA`, `KISAPAIKKA`, `JARJESTAJA`, `YHTEYSTIETO`, `ILMOITTAUTUMISLINKKI` | UI (Info page); ScoringLib fills `KIEKKOMAARA` and `JARJESTAJA` at creation |
 | Radat ja asemat | `RATAn_NIMI`, `RATAn_OHJELMA`, the station table (columns F:I) | UI and Lib |
 | Ilmoittautuminen ja saapuminen | `ILMOITTAUTUMISTAPA`, `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`, `ILMOITTAUTUMISEN_MAKSIMI`, `ILMOITTAUTUMISEN_VARASIJAT`; `MAKSU_KISAPAIKALLA`, `OSALLISTUMISMAKSU` | sign-up keys and `OSALLISTUMISMAKSU` (Info page) UI and Lib, `MAKSU_KISAPAIKALLA` Lib |
 | Aikataulu ja ryhmät | `ALOITUS_AIKA`, `AMPUJAN_AIKA`, `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`, `ALOITUSTAPA` | `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALOITUS_AIKA` (Info page) UI, all Lib |
