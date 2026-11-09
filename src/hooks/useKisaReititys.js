@@ -1,10 +1,12 @@
 // Reititys: etusivu tai avattu kisa (#kisa-<id>), selaimen Takaisin-painike ja vierityskohdan palautus.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { trackAnalyticsEvent } from '../utils/analytiikka';
+import { kisaHash, parsiKisaHash } from '../utils/competitionView';
 
 export function useKisaReititys({ kisat, ladataanKisalista }) {
   const [valittuKisa, setValittuKisa] = useState(null);
-  const [aktiivinenSivu, setAktiivinenSivu] = useState('tulokset');
+  // 'oletus': sivu valitaan kisan tilan mukaan (competitionView.js), kun kisan tiedot ovat tiedossa.
+  const [aktiivinenSivu, setAktiivinenSivu] = useState('oletus');
   // Kasvaa selaimen Takaisin/Eteenpäin-siirrossa, jotta hash luetaan uudelleen (Eteenpäin kisaan).
   const [historiaSiirto, setHistoriaSiirto] = useState(0);
   // Etusivun vierityskohta talteen, kun kisa avataan; palautetaan, kun palataan listalle.
@@ -12,15 +14,28 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
   // Kohta, johon vieritetään seuraavan näkymänvaihdon jälkeen (null: ei vieritetä, esim. suora linkki tai sivun lataus).
   const vieritysKohdeRef = useRef(null);
 
-  const avaaKisa = (kisa) => {
+  // Avaa kisan; sivu (esim. 'ilmoittautuneet' etusivun kortin painikkeesta) tai oletussivu kisan tilan mukaan.
+  const avaaKisa = (kisa, sivu = null) => {
     etusivunVieritysRef.current = window.scrollY;
     vieritysKohdeRef.current = 0;
-    setAktiivinenSivu('tulokset');
+    setAktiivinenSivu(sivu || 'oletus');
     setValittuKisa(kisa);
     window.history.pushState(
       { view: 'competition', competitionId: kisa.id, directLink: false },
       '',
-      `${window.location.pathname}${window.location.search}#kisa-${kisa.id}`
+      `${window.location.pathname}${window.location.search}${kisaHash(kisa.id, sivu)}`
+    );
+  };
+
+  // Käyttäjän valitsema välilehti: osoitteeseen (#kisa-<id>/<sivu>) ilman uutta historiariviä, jotta linkin voi jakaa
+  // ja sivun päivitys pysyy samalla välilehdellä. Takaisin-painike vie edelleen etusivulle.
+  const valitseSivu = (sivu) => {
+    setAktiivinenSivu(sivu);
+    if (!valittuKisa) return;
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${window.location.search}${kisaHash(valittuKisa.id, sivu)}`
     );
   };
 
@@ -36,7 +51,7 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
 
     vieritysKohdeRef.current = 0;
     setValittuKisa(null);
-    setAktiivinenSivu('tulokset');
+    setAktiivinenSivu('oletus');
     window.history.replaceState({ view: 'home' }, '', `${window.location.pathname}${window.location.search}`);
   };
 
@@ -64,7 +79,7 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
         vieritysKohdeRef.current = etusivunVieritysRef.current;
       }
       setValittuKisa(null);
-      setAktiivinenSivu('tulokset');
+      setAktiivinenSivu('oletus');
       setHistoriaSiirto((n) => n + 1);
     };
 
@@ -75,35 +90,42 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
   useEffect(() => {
     if (ladataanKisalista || kisat.length === 0 || valittuKisa) return;
 
-    const hash = window.location.hash || '';
-    if (!hash.startsWith('#kisa-')) return;
+    const osoite = parsiKisaHash(window.location.hash);
+    if (!osoite) return;
 
-    const hashId = decodeURIComponent(hash.slice('#kisa-'.length));
-    if (!hashId) return;
-
-    const loydettyKisa = kisat.find((k) => String(k.id) === hashId);
+    const loydettyKisa = kisat.find((k) => String(k.id) === osoite.id);
     if (!loydettyKisa) return;
 
     // Synkronointi ulkoisesta lähteestä (URL-hash): suora linkki ja selaimen Eteenpäin-painike.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAktiivinenSivu('tulokset');
+    setAktiivinenSivu(osoite.sivu || 'oletus');
     setValittuKisa(loydettyKisa);
 
     if (window.history.state?.view !== 'competition' || window.history.state?.competitionId !== loydettyKisa.id) {
       window.history.replaceState(
         { view: 'competition', competitionId: loydettyKisa.id, directLink: true },
         '',
-        `${window.location.pathname}${window.location.search}#kisa-${loydettyKisa.id}`
+        `${window.location.pathname}${window.location.search}${kisaHash(loydettyKisa.id, osoite.sivu)}`
       );
     }
   }, [kisat, ladataanKisalista, valittuKisa, historiaSiirto]);
 
   useEffect(() => {
+    if (aktiivinenSivu === 'oletus') return;
     trackAnalyticsEvent('view_change', {
       view: String(valittuKisa ? aktiivinenSivu : 'home'),
       competitionId: String(valittuKisa?.id || '')
     });
   }, [aktiivinenSivu, valittuKisa]);
 
-  return { valittuKisa, aktiivinenSivu, setAktiivinenSivu, avaaKisa, palaaEtusivulle };
+  // Sivun otsikko: avatun kisan nimi, jotta jaettu linkki ja selaimen välilehti kertovat kisan.
+  const valitunKisanNimi = valittuKisa?.nimi || '';
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const alkuperainen = document.title;
+    if (valitunKisanNimi) document.title = `${valitunKisanNimi} · ${alkuperainen}`;
+    return () => { document.title = alkuperainen; };
+  }, [valitunKisanNimi]);
+
+  return { valittuKisa, aktiivinenSivu, setAktiivinenSivu, valitseSivu, avaaKisa, palaaEtusivulle };
 }

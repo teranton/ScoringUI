@@ -6,7 +6,7 @@ import { useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { haeTekstit } from './i18n';
-import { KENTTA_MAKS, ilmoittautumisenPaikka, tarkistaLomake } from './utils/ilmoittautumiset';
+import { KENTTA_MAKS, ilmoittautumisenPaikka, muotoileTakaraja, tarkistaLomake } from './utils/ilmoittautumiset';
 
 const TYHJA = { sukunimi: '', etunimi: '', sarja: '', seura: '', sahkoposti: '', puhelin: '', lisatietoja: '', suostumus: false, kotisivu: '' };
 
@@ -14,13 +14,6 @@ const VIRHE_TEKSTI = { pakollinen: 'errRequired', virheellinen: 'errEmail', tunt
 const PALVELIN_VIRHE = { kaksoiskappale: 'errDuplicate', suljettu: 'errClosed', eiKaytossa: 'errClosed', liianNopea: 'errTooFast', liianMonta: 'errTooMany', taynna: 'full' };
 
 const kenttaLuokka = 'w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-sm text-[hsl(var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]';
-
-function muotoileTakaraja(takaraja, locale) {
-  if (!takaraja) return '';
-  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fi-FI', {
-    timeZone: 'Europe/Helsinki', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
-  }).format(takaraja);
-}
 
 // tila: lomakkeenTila (kaytossa, auki, takaraja, sarjat, maksimi, varasijat). tilanne: paikkatilanne (osallistujia,
 // varalla). onIlmoittauduttu({ nimi, sarja, seura, varasija }) näyttää nimen listassa heti, ennen kuin API:n välimuisti

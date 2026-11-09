@@ -53,6 +53,11 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   Targets in the results: with squad cards (`MOBIILI_RYHMAT`) or Compak devices (`MOBIILI_LAITTEET`), tapping a station
   score in `HenkiloTulokset.jsx` shows its targets from `MOBIILI Layout N` or `MOBIILI Rata N`
   (`src/utils/mobiiliKiekot.js`, `src/hooks/useMobiiliKiekot.js`), matched by name.
+- Competition info (Info page, `src/KisaInfo.jsx`, `src/utils/kisaInfo.js`): the default page of an upcoming competition
+  (running and finished ones open on results) with quick buttons to Ilmoittautuneet / Aikataulu / sign-up / invitation, the
+  `KISANSPEKSIT` Kisainfo keys, sign-up state and the `OHJE:` documents. Tabs have addresses `#kisa-<id>/<tab>`
+  (`src/utils/competitionView.js`). The front page lists running, upcoming (soonest first) and finished competitions,
+  with registry columns I (place), J (discipline) and K (organiser) on the cards.
 - Knockout final (Finaali page, `src/FinaaliKaavio.jsx`, `src/utils/finaali.js`): an optional `FINAALI` tab, filled by the
   organiser, one row per match (round, seeds, shooters, scores, winner); drawn as a bracket per class with the bronze match under the final.
 - `api/kisa.js` reads tabs with one Sheets API `values:batchGet` and returns them as CSV in JSON. CDN cache

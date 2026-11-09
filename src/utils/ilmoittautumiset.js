@@ -160,6 +160,14 @@ function asetuksenTakaraja(asetus) {
   return null;
 }
 
+// Takaraja näytettäväksi Helsingin aikaa ("1.3.2027 klo 18.00").
+export function muotoileTakaraja(takaraja, locale = 'fi') {
+  if (!takaraja) return '';
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fi-FI', {
+    timeZone: HELSINKI, day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  }).format(takaraja);
+}
+
 // Sarjavalikko: ILMOITTAUTUMISEN_SARJAT pilkuilla tai puolipisteillä erotettuna; tyhjä = vapaa teksti.
 export function lomakkeenSarjat(asetus) {
   return [...new Set(String(asetus ?? '').split(/[,;]/).map(valit).filter(Boolean))];
