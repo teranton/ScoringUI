@@ -64,6 +64,8 @@ export function useKisaData({ kisat, valittuKisa }) {
   const [kisaVirheBySheet, setKisaVirheBySheet] = useState({});
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
+  // Kisa, jonka avaushaku on jo tehty: tilan vaihtuessa avausefekti ajetaan uudelleen, mutta se ei ole uusi avaus.
+  const avattuKisaRef = useRef(null);
   // Etusivun speksihaulla on oma lippunsa, ettei se estä samaan aikaan avatun kisan täyttä hakua.
   const speksitInFlightRef = useRef({});
   const esihakuAjastinRef = useRef(null);
@@ -244,9 +246,14 @@ export function useKisaData({ kisat, valittuKisa }) {
   }, []);
 
   useEffect(() => {
-    if (!valittuKisa || !valittuKisa.apiUrl) return;
+    if (!valittuKisa || !valittuKisa.apiUrl) {
+      avattuKisaRef.current = null;
+      return;
+    }
 
     const sheetId = valittuKisa.apiUrl;
+    const tapa = avattuKisaRef.current === valittuKisa ? 'paivitys' : 'avaus';
+    avattuKisaRef.current = valittuKisa;
 
     const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
     const cacheData = kisaCacheRef.current[sheetId] || null;
@@ -263,7 +270,7 @@ export function useKisaData({ kisat, valittuKisa }) {
     // Pelkällä FINISHED-asetuksella päättynyt haetaan aina, jotta asetuksen poisto tulee näkyviin.
     const ohitaHaku = !ESIKATSELU && onkoStaattinen && onkoPaattynytPaivista(valittuKisa) && !puuttuuPakollistaKisaDataa && onkoDataTuore;
     if (!ohitaHaku) {
-      haeKisaData(valittuKisa, onkoStaattinen);
+      haeKisaData(valittuKisa, onkoStaattinen, tapa);
     } else {
       // Päättynyt kisa, jonka data on kunnossa välimuistissa: vanha live-päivityksen virhe ei enää koske sitä.
       setKisaVirheBySheet((prev) => (prev[sheetId] ? { ...prev, [sheetId]: null } : prev));

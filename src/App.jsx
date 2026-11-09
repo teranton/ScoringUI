@@ -83,8 +83,8 @@ function labelForStatus(status, locale) {
 export default function App() {
   const theme = 'default';
   const locale = 'fi';
-  const { kisat, ladataanKisalista, virhe } = useKilpailurekisteri();
-  const { valittuKisa, aktiivinenSivu, setAktiivinenSivu, avaaKisa, palaaEtusivulle } = useKisaReititys({ kisat, ladataanKisalista });
+  const { kisat, ladataanKisalista, rekisteriHaettu, virhe } = useKilpailurekisteri();
+  const { valittuKisa, aktiivinenSivu, setAktiivinenSivu, avaaKisa, palaaEtusivulle } = useKisaReititys({ kisat, ladataanKisalista, rekisteriHaettu });
   const { kisaStatusById, nykyisenKisanData, ladataanKisaa, valitunKisanVirhe, ajastaEsihaku, peruEsihaku } = useKisaData({ kisat, valittuKisa });
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');

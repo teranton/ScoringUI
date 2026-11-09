@@ -1,8 +1,9 @@
 // Reititys: etusivu tai avattu kisa (#kisa-<id>), selaimen Takaisin-painike ja vierityskohdan palautus.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { analytiikkaPolku, kirjaaSivunakyma } from '../utils/analytiikka';
+import { kirjaaSivunakyma, sivunakymanPolku } from '../utils/analytiikka';
+import { lueHashinKisaId } from '../utils/kisaHash';
 
-export function useKisaReititys({ kisat, ladataanKisalista }) {
+export function useKisaReititys({ kisat, ladataanKisalista, rekisteriHaettu }) {
   const [valittuKisa, setValittuKisa] = useState(null);
   const [aktiivinenSivu, setAktiivinenSivu] = useState('tulokset');
   // Kasvaa selaimen Takaisin/Eteenpäin-siirrossa, jotta hash luetaan uudelleen (Eteenpäin kisaan).
@@ -53,7 +54,7 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
 
     const kasitteleSelaimenTakaisin = () => {
       // Eteenpäin kisaan: etusivun kohta talteen ja kisa ylhäältä. Takaisin etusivulle: palautetaan kohta.
-      if ((window.location.hash || '').startsWith('#kisa-')) {
+      if (lueHashinKisaId(window.location.hash)) {
         etusivunVieritysRef.current = window.scrollY;
         vieritysKohdeRef.current = 0;
       } else {
@@ -71,10 +72,7 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
   useEffect(() => {
     if (ladataanKisalista || kisat.length === 0 || valittuKisa) return;
 
-    const hash = window.location.hash || '';
-    if (!hash.startsWith('#kisa-')) return;
-
-    const hashId = decodeURIComponent(hash.slice('#kisa-'.length));
+    const hashId = lueHashinKisaId(window.location.hash);
     if (!hashId) return;
 
     const loydettyKisa = kisat.find((k) => String(k.id) === hashId);
@@ -94,18 +92,16 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
     }
   }, [kisat, ladataanKisalista, valittuKisa, historiaSiirto]);
 
-  // Sivunäyttö analytiikkaan: etusivu tai kisa omana sivunaan. Suoran linkin (#kisa-<id>) kisaa odotetaan, kunnes
-  // kisalista on ladattu ja kisa avattu, ettei sama käynti kirjaudu ensin etusivuksi. Välilehtien vaihtoa ei kirjata.
-  const hashKisaId = (() => {
-    const hash = window.location.hash || '';
-    return hash.startsWith('#kisa-') ? decodeURIComponent(hash.slice('#kisa-'.length)) : '';
-  })();
-  const odotetaanHashinKisaa = !valittuKisa && Boolean(hashKisaId)
-    && (ladataanKisalista || kisat.some((k) => String(k.id) === hashKisaId));
-  const sivunakymanPolku = odotetaanHashinKisaa ? null : analytiikkaPolku(valitunKisanId);
+  // Sivunäyttö analytiikkaan: etusivu tai kisa omana sivunaan (/kisa/<id>). Välilehtien vaihtoa ei kirjata.
+  const sivunakymanPolkuNyt = sivunakymanPolku({
+    valittuKisaId: valitunKisanId,
+    hashKisaId: lueHashinKisaId(window.location.hash),
+    kisat,
+    rekisteriHaettu
+  });
   useEffect(() => {
-    kirjaaSivunakyma(sivunakymanPolku);
-  }, [sivunakymanPolku]);
+    kirjaaSivunakyma(sivunakymanPolkuNyt);
+  }, [sivunakymanPolkuNyt]);
 
   return { valittuKisa, aktiivinenSivu, setAktiivinenSivu, avaaKisa, palaaEtusivulle };
 }

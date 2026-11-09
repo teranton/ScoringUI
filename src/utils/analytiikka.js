@@ -20,6 +20,15 @@ export function analytiikkaPolku(kisaId) {
   return kisaId == null || kisaId === '' ? '/' : `/kisa/${encodeURIComponent(String(kisaId))}`;
 }
 
+// Sivunäytön polku tai null, kun suoran linkin (#kisa-<id>) kisaa vielä odotetaan: se voi löytyä tuoreesta
+// rekisteristä, vaikka selaimeen tallennetusta puuttuisi. Näin sama käynti ei kirjaudu ensin etusivuksi.
+export function sivunakymanPolku({ valittuKisaId, hashKisaId, kisat, rekisteriHaettu }) {
+  if (valittuKisaId != null && valittuKisaId !== '') return analytiikkaPolku(valittuKisaId);
+  if (!hashKisaId) return '/';
+  const loytyy = (kisat || []).some((k) => String(k.id) === hashKisaId);
+  return loytyy || !rekisteriHaettu ? null : '/';
+}
+
 export function kirjaaSivunakyma(polku) {
   if (!polku || polku === viimeisinPolku) return;
   viimeisinPolku = polku;

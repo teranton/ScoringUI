@@ -23,6 +23,8 @@ export function useKilpailurekisteri() {
   ));
   const [ladataanKisalista, setLadataanKisalista] = useState(() => !tallennettuRekisteri);
   const [virhe, setVirhe] = useState(null);
+  // Tuore rekisteri haettu (tai haku epäonnistui); ladataanKisalista on false jo heti, jos tallennettu lista on.
+  const [rekisteriHaettu, setRekisteriHaettu] = useState(false);
 
   useEffect(() => {
     let peruttu = false;
@@ -48,7 +50,10 @@ export function useKilpailurekisteri() {
         // Tallennettu lista jää näkyviin, jos sellainen on.
         if (!peruttu && !tallennettuRekisteri) setVirhe("Kilpailurekisterin lataus epäonnistui.");
       } finally {
-        if (!peruttu) setLadataanKisalista(false);
+        if (!peruttu) {
+          setLadataanKisalista(false);
+          setRekisteriHaettu(true);
+        }
       }
     }
 
@@ -58,5 +63,5 @@ export function useKilpailurekisteri() {
     };
   }, [onkoPiilotettujenKisojenOverride, tallennettuRekisteri]);
 
-  return { kisat, ladataanKisalista, virhe };
+  return { kisat, ladataanKisalista, rekisteriHaettu, virhe };
 }
