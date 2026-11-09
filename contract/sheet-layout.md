@@ -311,8 +311,8 @@ Writes (created on the first save or change of device if missing):
   (`9.11.2026 klo 10.05.07`), empty = mobile entry. Written by the holder (device menu ☰ › Siirry paperikortteihin,
   `POST ?toiminto=paperi` with `paalle`, log `RATA JATKUU PAPERILLA (…)` / `RATA JATKUU MOBIILINA (…)`) or by the office
   (ScoringLib 📱 Mobiilikirjaus › Rata tai ryhmä jatkuu paperilla, log device `KILPAILUTOIMISTO`). A change of device keeps it. While it is set
-  the device stops entry and lists its unfinished cards to copy onto paper; it still sends unsent marks, and only the
-  holder's "Jatka mobiilikirjausta" empties it. `avaa` and `tallenna` return it as `paperilla`.
+  the device stops entry and lists its unfinished cards to copy onto paper; it still sends unsent marks. The holder's
+  "Jatka mobiilikirjausta" or the office menu empties it (ScoringLib re-reads the cell before writing). `avaa` and `tallenna` return it as `paperilla`.
 - Paper results on opening a layout: when the layout has `PAPERILLA` or `LINJA` `paperiValmiit`, or the device asks with
   header `X-Kirjaus-Paperi: 1` (it returned from paper in the last 2 hours, then re-opens every 3 min, or took the layout
   with a PIN), `avaa` also reads the main tab as cells (`spreadsheets.get`, as for `SUORAAN` below) and returns
