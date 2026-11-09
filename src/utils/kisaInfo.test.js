@@ -25,6 +25,7 @@ test('kisanInfo lukee Kisainfo-avaimet ja OHJE-rivit', () => {
     ['OHJE:', 'Ilmoittautumislinkki', 'https://www.suomisport.fi/events/abc']
   ];
   const info = kisanInfo(rivit, { paikka: 'Oulainen', jarjestaja: 'Ei käytetä' });
+  assert.equal(kisanInfo([...otsikko, ['Järjestävät', 'Järjestävät seurat:', 'NoSA']], { jarjestaja: 'Vanha' }).jarjestaja, 'NoSA');
   assert.equal(info.laji, 'English Sporting');
   assert.equal(info.kiekkoja, 80);
   assert.equal(info.kuvaus, 'Kauden avaus.\nKahvio auki.\n\nTervetuloa!');

@@ -87,7 +87,7 @@ so column order can change but header names must not.
   `TESTI` = permanent test competition, any other value is ignored),
   J discipline (optional, `KILPAILUTYYPPI`: `COMPAK`, `SPORTING`, `FITASC`, `ESP`, shown as a chip on the front-page card and
   as Laji on the Info page; any other text is shown as it is), K organiser (optional, shown on the card and as Järjestäjä when
-  the sheet has no `JARJESTAJA`). ScoringLib fills J and K for a new competition. The API reads A:K.
+  the sheet has neither `JARJESTAJA` nor `Järjestävät seurat:`). ScoringLib fills J and K for a new competition. The API reads A:K.
   I place (optional): a place name in Finland (`Oulainen`, looked up by the Finnish Meteorological Institute) or
   coordinates with decimals (`64.27, 24.81` or `64,27 24,81`). With a place, upcoming and running competitions show a
   weather forecast from the Finnish Meteorological Institute for one day (the start day of an upcoming competition, the next competition day of a
@@ -136,7 +136,7 @@ what is filled. All Kisainfo keys are optional, read like the other keys (Avain 
 | Laji | `KILPAILUTYYPPI` | `COMPAK`, `SPORTING`, `FITASC`, `ESP` (shown as Compak Sporting, Sporting, FITASC Sporting, English Sporting) | registry J |
 | Laji, kiekkoa | `KIEKKOMAARA` | whole number of targets | none |
 | Paikka (with a Google Maps search link) | `KISAPAIKKA` | address or place name | registry I unless it is coordinates |
-| Järjestäjä | `JARJESTAJA` | club or organiser name | registry K, then `Järjestävät seurat:` |
+| Järjestäjä | `JARJESTAJA` | club or organiser name | `Järjestävät seurat:`, then registry K |
 | Yhteystiedot | `YHTEYSTIETO` | free text; email addresses and phone numbers (`+358…` or `0…`, 7+ digits) become links | none |
 | Ilmoittaudu (button, for `SUOMISPORT`) | `ILMOITTAUTUMISLINKKI` | `https` link to the sign-up (Suomisport event) | the first `OHJE:` row whose title contains "ilmoittau" |
 | Osallistumismaksu | `OSALLISTUMISMAKSU` | a number (shown as euros) or text | none |
@@ -204,7 +204,6 @@ The master template groups the keys into sections by function (heading rows in t
 |---|---|---|
 | Kisan aikana | `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS` | UI |
 | Kilpailun rakenne | `KILPAILUTYYPPI`, `OSALLISTUJAT`, `LAYOUT/KISA`, `Asemien määrä`, `Päivätuloksia kpl` | `LAYOUT/KISA` UI and Lib, `KILPAILUTYYPPI` UI (Info page) and Lib, others Lib |
-| Kisainfo | `KUVAUS`, `KIEKKOMAARA`, `KISAPAIKKA`, `JARJESTAJA`, `YHTEYSTIETO`, `ILMOITTAUTUMISLINKKI` | UI (Info page); ScoringLib fills `KIEKKOMAARA` and `JARJESTAJA` at creation |
 | Radat ja asemat | `RATAn_NIMI`, `RATAn_OHJELMA`, the station table (columns F:I) | UI and Lib |
 | Ilmoittautuminen ja saapuminen | `ILMOITTAUTUMISTAPA`, `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`, `ILMOITTAUTUMISEN_MAKSIMI`, `ILMOITTAUTUMISEN_VARASIJAT`; `MAKSU_KISAPAIKALLA`, `OSALLISTUMISMAKSU` | sign-up keys and `OSALLISTUMISMAKSU` (Info page) UI and Lib, `MAKSU_KISAPAIKALLA` Lib |
 | Aikataulu ja ryhmät | `ALOITUS_AIKA`, `AMPUJAN_AIKA`, `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`, `ALOITUSTAPA` | `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALOITUS_AIKA` (Info page) UI, all Lib |
@@ -212,6 +211,7 @@ The master template groups the keys into sections by function (heading rows in t
 | Mobiilikirjaus ja tuloskortit | `MOBIILI_TULOKSET`, `Tyhjän ruudun symboli` | `MOBIILI_TULOKSET` UI and Lib, the symbol Lib |
 | Tulokset ja palkintojako | `RATKO_PALKINTO_SIJA`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA` | UI and Lib (`RATKO_PALKINTO_SIJA` UI only) |
 | Tuonnit | `Vain päivätulokset` | Lib |
+| Kisainfo | `KUVAUS`, `KIEKKOMAARA`, `KISAPAIKKA`, `JARJESTAJA`, `YHTEYSTIETO`, `ILMOITTAUTUMISLINKKI` | UI (Info page); ScoringLib fills `KIEKKOMAARA` at creation |
 | Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI (`OHJE:` on the Info page) |
 
 Because keys are read only from the Avain column, a Selite or help text equal to a key (the master had "Ilmoittautumistapa"

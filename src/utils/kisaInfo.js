@@ -139,7 +139,8 @@ export function kisanInfo(speksiRivit, kisa = {}) {
     kuvaus: monirivinen(speksiArvo(rivit, 'KUVAUS'), 2000),
     paikka,
     karttaUrl: karttaLinkki(paikka),
-    jarjestaja: arvo('JARJESTAJA') || rekisteri.jarjestaja || arvo('Järjestävät seurat:'),
+    // Taulukon arvot ensin, jotta järjestäjän korjaus näkyy; rekisterin K on vara (vanhat kisat).
+    jarjestaja: arvo('JARJESTAJA') || arvo('Järjestävät seurat:') || rekisteri.jarjestaja,
     yhteystieto: yhteystiedonOsat(speksiArvo(rivit, 'YHTEYSTIETO')),
     ilmoittautumisLinkki,
     ilmoittautuminenSuomisportissa: onkoSuomisport(ilmoittautumisLinkki),
