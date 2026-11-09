@@ -5,6 +5,9 @@
 // kirjaus jatkuu: sovellus aukeaa palvelutyöntekijän välimuistista ja kortit lähtevät, kun yhteys palaa.
 // Radalla on yksi laite kerrallaan (haltija). Rata siirtyy toiselle laitteelle luovuttamalla (verkossa),
 // siirto-QR-koodilla (vanha laite ilman verkkoa) tai kilpailutoimiston vaihto-PIN-koodilla (vanha laite poissa).
+// Rata voi jatkua paperikorteilla (☰ › Siirry paperikortteihin tai kilpailutoimiston valikosta): laite pysäyttää kirjauksen
+// ja näyttää kesken jääneet kortit kopioitaviksi. Kun kirjaus jatkuu mobiilina, laite ohittaa ampujat, joiden radan tulos
+// on jo pääsivulla paperilta (paperiValmiit).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ASEMAN_KOHTEET, KOHTEITA, kuittaa, lahettamattomat, lueKoodi as lueKoodinSisalto, merkitOf, merkitse,
@@ -22,6 +25,7 @@ import {
   laitteenNimi, linjaTekstina, linjaTilasta, lueSiirto, otaLinja, otaTaydennykset, radanNimi, siirtoLinkki, yhdistaSiirto
 } from './haltija.js';
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
+import { PaperiNakyma } from './Paperi.jsx';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
@@ -232,7 +236,14 @@ function RataNakyma({ koodi, onVaihda }) {
         const korvattu = Boolean(tilaRef.current.haltija) && !data.haltija?.oma && !data.haltija?.tamaLaite;
         setTila((t) => ({
           ...taydennettyna(
-            { ...t, avaus: data, kortit: yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }) },
+            {
+              ...t,
+              avaus: data,
+              kortit: yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }),
+              // Taulukon paperitila, paitsi kun tämän laitteen oma siirto paperille odottaa yhteyttä.
+              ...(t.paperiPaikallinen ? {} : { paperilla: data.paperilla || '' }),
+              paperiValmiit: paperiValmiitAvauksesta(data.paperiTulokset)
+            },
             data.haltija?.oma ? data.taydennykset : null,
             data.kohteita
           ),
@@ -350,7 +361,9 @@ function RataNakyma({ koodi, onVaihda }) {
       tarkistettuRef.current = Date.now();
       setTila((t) => ({
         ...taydennettyna({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }, data.taydennykset, t.avaus?.kohteita),
-        ...(linjaMuuttui ? { lahetettyLinja: linja } : {})
+        ...(linjaMuuttui ? { lahetettyLinja: linja } : {}),
+        // Kilpailutoimisto on voinut siirtää radan paperille (tai takaisin) ScoringLibin valikosta.
+        ...(typeof data.paperilla === 'string' && !t.paperiPaikallinen ? { paperilla: data.paperilla } : {})
       }));
       setSynk({ virhe: '', viimeksi: Date.now(), katkesi: null });
       taustaRef.current = false;
@@ -466,16 +479,18 @@ function RataNakyma({ koodi, onVaihda }) {
   const ohjelma = jasennaOhjelma(tila.ohjelma) || kisanOhjelma;
   const ohjelmaTeksti = ohjelma ? ohjelmaTekstiksi(ohjelma) : '';
   const vuorot = useMemo(() => (ohjelma ? laskeVuorot(jono, ohjelma) : []), [jono, ohjelma]);
-  const tilanne = useMemo(() => linjanTilanne(vuorot, tila.kortit, tila.keskeyttaneet), [vuorot, tila.kortit, tila.keskeyttaneet]);
+  // Linjalla ohitetaan keskeyttäneet ja paperikortilla radan päättäneet (tulos jo pääsivulla).
+  const ohitettavat = useMemo(() => [...tila.keskeyttaneet, ...(tila.paperiValmiit || [])], [tila.keskeyttaneet, tila.paperiValmiit]);
+  const tilanne = useMemo(() => linjanTilanne(vuorot, tila.kortit, ohitettavat), [vuorot, tila.kortit, ohitettavat]);
   // Seuraavaksi: kierroksen uusi tulija asemalla 1, jos hän ei ole vielä ampunut (voi ohittaa tai pitää tauon), ja jono.
   const tulevat = useMemo(
-    () => seuraavatAmpujat(jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet),
-    [jono, vuorot, tilanne, tila.kortit, tila.keskeyttaneet]
+    () => seuraavatAmpujat(jono, vuorot, tilanne, tila.kortit, ohitettavat),
+    [jono, vuorot, tilanne, tila.kortit, ohitettavat]
   );
   // Radan ampuneet (tai keskeyttäneet), uusin ensin: ampuja voi tarkistaa tuloksensa näytöltä.
   const valmiit = useMemo(
-    () => valmiitAmpujat(vuorot, tilanne, tila.kortit, tila.keskeyttaneet),
-    [vuorot, tilanne, tila.kortit, tila.keskeyttaneet]
+    () => valmiitAmpujat(vuorot, tilanne, tila.kortit, ohitettavat),
+    [vuorot, tilanne, tila.kortit, ohitettavat]
   );
   const kohta = valinta || tilanne?.kohta || null;
   const vuorossa = tilanne && !valinta ? tilanne.vuoro : null;
@@ -694,6 +709,59 @@ function RataNakyma({ koodi, onVaihda }) {
     }
   };
 
+  // Rata paperille (paalle) tai takaisin mobiiliin taulukkoon (MOBIILI_LAITTEET PAPERILLA). Ilman yhteyttä paperille
+  // siirto jää laitteelle (paperiPaikallinen) ja lähtee, kun yhteys palaa. Palauttaa true, kun taulukko päivittyi.
+  const asetaPaperi = useCallback(async (paalle) => {
+    const { haltija } = tilaRef.current;
+    if (!haltija) return false;
+    try {
+      const res = await fetch('/api/kirjaus?toiminto=paperi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${koodi}` },
+        body: JSON.stringify({ laite, haltija, paalle, linja: linjaTilasta(tilaRef.current) })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.korvattu) {
+        setTila((t) => ({ ...t, haltija: null, korvattu: korvausTieto(data.haltija, 0) }));
+        return false;
+      }
+      if (!res.ok) throw new Error(data.error || `Virhe ${res.status}`);
+      setTila((t) => ({ ...t, paperilla: data.paperilla || '', paperiPaikallinen: false, lahetettyLinja: linjaTekstina(t) }));
+      return true;
+    } catch (error) {
+      if (paalle) setTila((t) => ({ ...t, paperilla: t.paperilla || aikaNyt(), paperiPaikallinen: true }));
+      else window.alert(`Kirjausta ei saatu jatkumaan (${error instanceof TypeError ? 'ei yhteyttä' : error.message}). Yritä uudelleen.`);
+      return false;
+    }
+  }, [koodi, laite]);
+
+  // Laitteella odottava siirto paperille lähtee, kun laite on haltija ja yhteys toimii: yritetään jokaisen onnistuneen
+  // lähetyksen jälkeen, kunnes taulukko päivittyy.
+  const paperiOdottaa = Boolean(tila.paperiPaikallinen && tila.haltija);
+  useEffect(() => {
+    if (paperiOdottaa && synk.viimeksi) asetaPaperi(true);
+  }, [paperiOdottaa, synk.viimeksi, asetaPaperi]);
+
+  // Valikosta: viimeiset merkinnät lähetetään (jos yhteys toimii), sitten rata paperille. Kirjaus pysähtyy heti.
+  const siirryPaperille = async () => {
+    setValikko(false);
+    if (!window.confirm(`Siirretäänkö ${kohde} paperikortteihin? Kirjaus pysähtyy tällä laitteella, ja kesken jääneet kortit näytetään kopioitaviksi paperille.`)) return;
+    for (let kierros = 0; kierros < 12; kierros++) {
+      if (!lahettaaRef.current) await laheta();
+      await new Promise((r) => { setTimeout(r, 250); });
+      if (!lahettaaRef.current && lahettamattomat(tilaRef.current.kortit).length === 0) break;
+    }
+    if (!tilaRef.current.haltija) {
+      setTila((t) => ({ ...t, paperilla: t.paperilla || aikaNyt(), paperiPaikallinen: true }));
+      return;
+    }
+    await asetaPaperi(true);
+  };
+
+  const jatkaMobiilina = async () => {
+    if (await asetaPaperi(false)) setLatausKierros((n) => n + 1);
+  };
+
   // Siirtolinkki QR-koodina: haltija-avain ja lähettämättömät kortit uudelle laitteelle ilman verkkoa.
   const siirtoOsoite = () => siirtoLinkki({
     perus: `${window.location.origin}${window.location.pathname}${window.location.search}`,
@@ -761,6 +829,7 @@ function RataNakyma({ koodi, onVaihda }) {
       laitteenNimi={laitteenNimi(laite)}
       onLuovuta={tila.haltija ? luovuta : null}
       onSiirra={tila.haltija ? () => { setValikko(false); setSiirto(true); } : null}
+      onPaperille={tila.paperilla ? null : siirryPaperille}
       hereilla={hereilla}
       lataus={lataus}
       viimeksi={synk.viimeksi}
@@ -814,6 +883,34 @@ function RataNakyma({ koodi, onVaihda }) {
     );
   }
 
+  // Rata jatkuu paperilla: kirjaus pysähtyy, kesken jääneet kortit näytetään kopioitaviksi. Lähetys jatkuu taustalla.
+  if (tila.paperilla) {
+    const kesken = Object.keys(tila.kortit).map(Number).sort((a, b) => a - b).filter((nro) => {
+      const n = taytetyt(merkitOf(tila.kortit, nro));
+      return n > 0 && n < KOHTEITA && !tila.keskeyttaneet.includes(nro) && !(tila.paperiValmiit || []).includes(nro);
+    });
+    return (
+      <main className="flex h-screen supports-[height:100dvh]:h-[100dvh] flex-col overflow-hidden bg-slate-100 text-slate-900">
+        {otsikko}
+        <div className="max-h-[50dvh] shrink-0 overflow-y-auto">{valikkoNakyma}</div>
+        <PaperiNakyma
+          kohde={kohde}
+          aika={tila.paperilla}
+          paikallinen={tila.paperiPaikallinen}
+          lahettamatta={lahettamatta}
+          onJatka={tila.haltija ? jatkaMobiilina : null}
+          onLataaLoki={lataaLoki}
+        >
+          {kesken.length === 0
+            ? <p className="rounded bg-white p-3 text-sm">Ei kesken jääneitä kortteja.</p>
+            : kesken.map((nro) => (
+              <AmpujaRivi key={nro} ampuja={{ nro, nimi: nimi(nro) }} merkit={merkitOf(tila.kortit, nro)} lahetetty={tila.kortit[nro]?.lahetetty !== false} kohta={null} />
+            ))}
+        </PaperiNakyma>
+      </main>
+    );
+  }
+
   if (!ohjelma || muokkaaOhjelmaa) {
     return (
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">
@@ -841,6 +938,7 @@ function RataNakyma({ koodi, onVaihda }) {
       korostus={korostus}
       valmis={valmis}
       keskeyttanyt={tila.keskeyttaneet.includes(nro)}
+      paperilla={(tila.paperiValmiit || []).includes(nro)}
       onKeskeyta={korjaustila ? () => vaihdaKeskeytys(nro) : null}
       onValitse={korjaustila ? (i) => setValinta({ nro, i }) : null}
     />
@@ -928,7 +1026,8 @@ function RataNakyma({ koodi, onVaihda }) {
         <div className="min-w-0 rounded-lg border-2 border-transparent bg-slate-700 p-0.5 text-center text-white sm:p-1">
           <div className="whitespace-nowrap text-[10px] uppercase opacity-80">Valmis</div>
           <div className="whitespace-nowrap text-base leading-7 font-bold sm:text-xl">
-            {viimeisinValmis === null ? '–' : tila.keskeyttaneet.includes(viimeisinValmis) ? 'kesk.' : `${osumat(merkitOf(tila.kortit, viimeisinValmis))}/${KOHTEITA}`}
+            {viimeisinValmis === null ? '–' : tila.keskeyttaneet.includes(viimeisinValmis) ? 'kesk.'
+              : (tila.paperiValmiit || []).includes(viimeisinValmis) ? 'paperi' : `${osumat(merkitOf(tila.kortit, viimeisinValmis))}/${KOHTEITA}`}
           </div>
           <div className="truncate text-[11px]">{viimeisinValmis ? `${viimeisinValmis} ${nimi(viimeisinValmis).split(' ')[0]}` : ''}</div>
         </div>
@@ -1069,12 +1168,18 @@ const korvausTieto = (haltija, kirjattu, taydennetty) => ({
   nimi: haltija?.nimi || '', otettu: haltija?.otettu || '', vapaa: Boolean(haltija?.vapaa), kirjattu: kirjattu || 0, taydennetty: taydennetty || 0
 });
 
+// Avauksen paperitulokset { nro: tulos } → numerot, jotka linja ohittaa.
+const paperiValmiitAvauksesta = (tulokset) => Object.keys(tulokset || {}).map(Number).filter((n) => Number.isInteger(n) && n > 0).sort((a, b) => a - b);
+
+// Laitteen aika samassa muodossa kuin taulukon aikaleima (api/_lib/kirjausData.js aikaleima).
+const aikaNyt = () => new Date().toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' });
+
 // Laitteelle tallennettu tila; vanhan version lisätyt (pelkät numerot) menevät jonon loppuun.
 function alkutila(tallessa) {
   const t = {
     kortit: {}, historia: [], lisatyt: [], ohitetut: [], tauot: [], tauotPois: [], keskeyttaneet: [], ohjelma: null, avaus: null,
     haltija: null, siirtoAvain: null, korvattu: null, luovutettu: false, lahetettyLinja: null, tarkistaLinja: false,
-    sovelletutTaydennykset: {}, taydennysIlmoitus: 0,
+    sovelletutTaydennykset: {}, taydennysIlmoitus: 0, paperilla: '', paperiPaikallinen: false, paperiValmiit: [],
     ...tallessa
   };
   return { ...t, lisatyt: t.lisatyt.map((l) => (typeof l === 'number' ? { nro: l } : l)) };
@@ -1113,7 +1218,7 @@ function OhjelmaEditori({ alku, kisanArvo, kisanOhjelma, sarake, onTallenna, onP
 
 function Valikko({
   ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorjaa, aanet, onAanet, nollaAani, onNollaAani, onTyhjenna,
-  hereilla, lataus, viimeksi, tallennus, asennus, onKopioiKoodi, onLataaLoki, laitteenNimi: nimi, onLuovuta, onSiirra
+  hereilla, lataus, viimeksi, tallennus, asennus, onKopioiKoodi, onLataaLoki, laitteenNimi: nimi, onLuovuta, onSiirra, onPaperille
 }) {
   const [nro, setNro] = useState('');
   return (
@@ -1177,6 +1282,15 @@ function Valikko({
           ole verkkoa, uusi laite skannaa tämän näytön koodin (lähettämättömät kortit siirtyvät sen mukana).
         </span>
       </div>
+      {onPaperille && (
+        <div className="flex flex-col gap-2 rounded border border-slate-300 p-2">
+          <button type="button" className="self-start rounded border border-amber-700 bg-amber-50 px-3 py-2" onClick={onPaperille}>Siirry paperikortteihin</button>
+          <span className="text-slate-600">
+            Kun laite ei jaksa (akku, kylmä, rikkoutuva näyttö) eikä toista laitetta ole: kirjaus pysähtyy, ja kesken jääneet
+            kortit näytetään kopioitaviksi paperille. Kilpailutoimisto näkee radan olevan paperilla.
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onVaihdaRata}>Vaihda ratakoodi</button>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onLataaLoki}>Lataa merkintäloki</button>

@@ -52,7 +52,7 @@ export function onPaaValilehti(nimi) {
 
 // Mobiilikirjauksen välilehdet julkisiin näkymiin vain alla luetelluin sarakkein (otsikon mukaan):
 // Compak-kortit (MOBIILI Rata N) ilman laitetta ja versiota ratanäkymälle (src/LiveRadat.jsx), radan laitteista
-// (MOBIILI_LAITTEET) vain linjan tila, ryhmäkorteista (MOBIILI Layout N) numero, nimi, asemien osumat ja kiekot
+// (MOBIILI_LAITTEET) vain linjan tila ja paperitila, ryhmäkorteista (MOBIILI Layout N) numero, nimi, asemien osumat ja kiekot
 // tulosten kiekkonäkymälle (src/HenkiloTulokset.jsx) ja ryhmäpuhelimista (MOBIILI_RYHMAT) vain ryhmän numero
 // (onko ryhmäkortteja). Laitteiden tunnukset, haltijan nimi, PIN-virheet ja täydennykset eivät lähde API:sta.
 const KOHDE = Array.from({ length: 25 }, (_, i) => String(i + 1));
@@ -60,7 +60,7 @@ const KOHDE = Array.from({ length: 25 }, (_, i) => String(i + 1));
 const JULKISET_SARAKKEET = [
   { valilehti: /^mobiili rata (\d{1,3})$/, nimi: (n) => `MOBIILI Rata ${Number(n)}`,
     sarake: (o) => ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', ...KOHDE].includes(o) },
-  { valilehti: /^mobiili_laitteet$/, nimi: () => 'MOBIILI_LAITTEET', sarake: (o) => ['RATA', 'LINJA', 'LINJA PÄIVITETTY'].includes(o) },
+  { valilehti: /^mobiili_laitteet$/, nimi: () => 'MOBIILI_LAITTEET', sarake: (o) => ['RATA', 'LINJA', 'LINJA PÄIVITETTY', 'PAPERILLA'].includes(o) },
   { valilehti: /^mobiili layout (\d{1,2})$/, nimi: (n) => `MOBIILI Layout ${Number(n)}`,
     sarake: (o) => o === 'NRO' || o === 'NIMI' || /^ASEMA \d+$/.test(o) || /^\d+\/\d+$/.test(o) },
   { valilehti: /^mobiili_ryhmat$/, nimi: () => 'MOBIILI_RYHMAT', sarake: (o) => o === 'RYHMÄ' },

@@ -135,3 +135,22 @@ export function suoraTulos({ solu, vanha, uusi, sarake }) {
 // Kohteet, joiden tulos muuttuu: kortti on nyt tai oli ennen valmis, ja tulos on eri kuin ennen (sama tulos ei kirjoita
 // eikä lue pääsivua; ennen SUORAAN-asetusta valmistuneet tuodaan ScoringLibin Tuo mobiilitulokset -valikosta).
 export const muuttuvat = (kohteet) => kohteet.filter((k) => k.uusi !== k.vanha);
+
+// Paperikortilta kirjoitetut radan tulokset (laite rikki, rata jatkui paperilla): pääsivun tulossarakkeen käsin kirjoitettu
+// arvo ampujalla, jonka mobiilikortti ei ole valmis. Radan laite ohittaa nämä ampujat linjalla (linja paperiValmiit), kun
+// kirjaus jatkuu mobiilina. Kaava, taulukkokaavan sarake ja tyhjä solu eivät ole paperitulos.
+// tiedot: paaSolut().tiedot (otsikko rivillä 1), kortit: [{ nro, merkit }]. Palauttaa { [nro]: arvo tekstinä }.
+export function paperiTulokset(tiedot, sarake, kortit = []) {
+  const s = paaSarakkeet((tiedot?.[0] || []).map((t) => t?.arvo));
+  const c = s.tulos[sarake];
+  if (c === undefined || kaavaSarakkeet(tiedot, [c]).has(c)) return {};
+  const valmiit = new Set(kortit.filter((k) => kompakTulos(k.merkit) !== null).map((k) => k.nro));
+  const tulos = {};
+  (tiedot || []).forEach((r, i) => {
+    const nro = i === 0 ? Number.NaN : Number.parseInt(r?.[s.nro]?.arvo, 10);
+    const t = r?.[c];
+    if (!(nro > 0) || valmiit.has(nro) || tulos[nro] !== undefined || !t || t.kaava || t.taytetty || tyhja(t.arvo)) return;
+    tulos[nro] = String(t.arvo).trim();
+  });
+  return tulos;
+}

@@ -206,7 +206,7 @@ test('tallenna: haltija ottaa radan, kortti ja loki yhdellä kirjoituksella; van
   const body = { laite: 'laite-1', haltija: h1, kortit: [{ nro: 3, nimi: 'Cederberg C', merkit: MERKIT, versio: VERSIO }] };
   const res = await tallenna(body);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { tallennetut: [3], uudemmat: [] });
+  assert.deepEqual(res.body, { tallennetut: [3], uudemmat: [], paperilla: '' });
   assert.equal(lukuja, 1, 'haltija ja kortit yhdellä luvulla');
   assert.equal(kirjoitukset, 1);
   const tab = taulukko['MOBIILI Rata 2'].rivit;
@@ -218,7 +218,7 @@ test('tallenna: haltija ottaa radan, kortti ja loki yhdellä kirjoituksella; van
 
   // Sama lähetys uudelleen: kuitataan, ei kirjoiteta eikä lokiteta.
   const uudelleen = await kutsu({ method: 'POST', toiminto: 'tallenna', body: JSON.stringify(body) });
-  assert.deepEqual(uudelleen.body, { tallennetut: [3], uudemmat: [] });
+  assert.deepEqual(uudelleen.body, { tallennetut: [3], uudemmat: [], paperilla: '' });
   assert.equal(taulukko.MOBIILI_LOKI.rivit.length, 3);
 
   // Vanhempi versio: palautetaan taulukon kortti.
@@ -672,4 +672,47 @@ test('suora tulos: ryhmäkortin kuitattu ja valmis asema omaan tulossarakkeeseen
     { layout: 1, nro: 5, merkit: 'X'.repeat(25), versio: VERSIO + 2, kuitatut: ['2'] }
   ] });
   assert.deepEqual(paa[2].slice(3, 5), ['', 15]);
+});
+
+test('paperi: haltija siirtää radan paperille ja takaisin; avaus kertoo paperilta kirjoitetut tulokset', async () => {
+  alusta();
+  // Vanha MOBIILI_LAITTEET ennen PAPERILLA-saraketta: luku ei mene ruudukon yli, kirjoitus leventää.
+  taulukko.MOBIILI_LAITTEET = { id: 77, rivit: [['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY', 'TÄYDENNYKSET']], sarakkeita: 10 };
+  taulukko['OSALLISTUJAT+TULOKSET'] = { id: 9, rivit: [
+    ['NRO', 'SARJA', 'NIMI', 1, 2], [1, 'Y', 'Aaltonen A', '', 22], [3, 'Y', 'Cederberg C', '', 19], [4, 'Y', 'Dahl D', '', { kaava: '=20', arvo: 20 }],
+    [2, 'Y', 'Berg B', '', 25]
+  ] };
+  const h = await ota('laite-1');
+  assert.equal(taulukko.MOBIILI_LAITTEET.sarakkeita, 11);
+  await tallenna({ laite: 'laite-1', haltija: h, kortit: [
+    { nro: 3, merkit: MERKIT, versio: VERSIO }, { nro: 2, merkit: 'X'.repeat(25), versio: VERSIO }
+  ] });
+
+  // Vain haltija.
+  assert.equal((await kutsu({ method: 'POST', toiminto: 'paperi', body: { laite: 'laite-2', haltija: h, paalle: true } })).statusCode, 409);
+  assert.equal((await kutsu({ method: 'POST', toiminto: 'paperi', body: { laite: 'laite-1', haltija: h } })).statusCode, 400);
+  const paalle = await kutsu({ method: 'POST', toiminto: 'paperi', body: { laite: 'laite-1', haltija: h, paalle: true, linja: { ohitetut: [4] } } });
+  assert.equal(paalle.statusCode, 200);
+  assert.ok(paalle.body.paperilla);
+  assert.equal(taulukko.MOBIILI_LAITTEET.rivit[2][10], paalle.body.paperilla);
+  assert.match(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], /^RATA JATKUU PAPERILLA/);
+  assert.deepEqual(JSON.parse(taulukko.MOBIILI_LAITTEET.rivit[2][7]).ohitetut, [4]);
+
+  // Tallennus ja avaus kertovat paperitilan; avaus myös paperitulokset keskeneräisille korteille (kaava ja valmis kortti eivät).
+  const t = await tallenna({ laite: 'laite-1', haltija: h, kortit: [] });
+  assert.equal(t.body.paperilla, paalle.body.paperilla);
+  const avattu = await kutsu({ laite: 'laite-1', haltija: h });
+  assert.equal(avattu.body.paperilla, paalle.body.paperilla);
+  assert.deepEqual(avattu.body.paperiTulokset, { 1: '22', 3: '19' });
+
+  // Haltijan vaihto ei muuta paperitilaa; takaisin mobiiliin tyhjentää sen.
+  const pin = vaihtoPin({ sheetId: ID, sarake: 2, sukupolvi: 1 }, process.env.KIRJAUS_SALAISUUS);
+  const otto = await kutsu({ method: 'POST', toiminto: 'ota', body: { laite: 'laite-2', pin } });
+  assert.equal(otto.statusCode, 200);
+  assert.equal(taulukko.MOBIILI_LAITTEET.rivit[2][10], paalle.body.paperilla);
+  const pois = await kutsu({ method: 'POST', toiminto: 'paperi', body: { laite: 'laite-2', haltija: otto.body.haltija, paalle: false } });
+  assert.equal(pois.statusCode, 200);
+  assert.equal(pois.body.paperilla, '');
+  assert.equal(taulukko.MOBIILI_LAITTEET.rivit[2][10], '');
+  assert.match(taulukko.MOBIILI_LOKI.rivit.at(-1)[7], /^RATA JATKUU MOBIILINA/);
 });

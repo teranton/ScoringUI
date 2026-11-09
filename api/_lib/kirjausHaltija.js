@@ -12,12 +12,16 @@ import { KOHTEITA, MAKS_NRO, puhdasTeksti, tarkistaLinja } from './kirjausData.j
 export { tarkistaLinja };
 
 export const LAITTEET_VALILEHTI = 'MOBIILI_LAITTEET';
-export const LAITTEET_OTSIKKO = ['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY', 'TÄYDENNYKSET'];
+export const LAITTEET_OTSIKKO = ['RATA', 'SUKUPOLVI', 'LAITE', 'LAITTEEN NIMI', 'OTETTU', 'TAPA', 'PIN-VIRHEET', 'LINJA', 'LINJA PÄIVITETTY', 'TÄYDENNYKSET', 'PAPERILLA'];
 // LINJA-sarakkeen indeksi: haltijan vaihto kirjoittaa sarakkeet ennen sitä, linjan tallennus vain LINJA-sarakkeet.
 export const LINJA_SARAKE = 7;
 // TÄYDENNYKSET: korvattujen laitteiden merkinnät { nro: merkit } radan haltijalle. Vain korvattu laite kirjoittaa
 // tämän solun (haltija ei), joten radan kortteja kirjoittaa edelleen vain haltija.
 export const TAYDENNYS_SARAKE = 9;
+// PAPERILLA: aika, jolloin rata (tai ryhmä) siirtyi paperikortteihin (laite rikki, akku loppui), tyhjä = mobiilikirjaus.
+// Kirjoittaa radan haltija (☰ › Siirry paperikortteihin, Jatka mobiilikirjausta) tai kilpailutoimisto ScoringLibin
+// valikosta. Haltijan vaihto ei muuta sitä, joten uusi laite näkee radan olevan paperilla.
+export const PAPERI_SARAKE = 10;
 export const MAKS_PIN_VIRHEET = 10;
 const MAKS_LAITTEEN_NIMI = 40;
 
@@ -49,7 +53,8 @@ export function vaihtoPin({ sheetId, sarake, sukupolvi }, salaisuus) {
 // täydennysten avain on "<layout>:<nro>" ja merkkejä on layoutin kiekkojen verran.
 export const RYHMAT_OTSIKKO = ['RYHMÄ', ...LAITTEET_OTSIKKO.slice(1)];
 
-// MOBIILI_LAITTEET- tai MOBIILI_RYHMAT-rivi → { sukupolvi, laite, nimi, otettu, tapa, pinVirheet, linja, taydennykset }.
+// MOBIILI_LAITTEET- tai MOBIILI_RYHMAT-rivi → { sukupolvi, laite, nimi, otettu, tapa, pinVirheet, linja, taydennykset,
+// paperilla }.
 // Puuttuva rivi on vapaa rata tai ryhmä.
 export function lueLaiteRivi(rivi, { ryhma = false } = {}) {
   const r = Array.isArray(rivi) ? rivi : [];
@@ -71,7 +76,8 @@ export function lueLaiteRivi(rivi, { ryhma = false } = {}) {
     tapa: String(r[5] ?? ''),
     pinVirheet: luku(r[6]),
     linja,
-    taydennykset: lueTaydennykset(r[TAYDENNYS_SARAKE], ryhma)
+    taydennykset: lueTaydennykset(r[TAYDENNYS_SARAKE], ryhma),
+    paperilla: puhdasTeksti(r[PAPERI_SARAKE], 40)
   };
 }
 

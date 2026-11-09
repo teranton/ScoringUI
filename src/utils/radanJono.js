@@ -130,8 +130,8 @@ export function radanJono({ aikataulut, sarake, ratojaPaivassa }) {
   return { aikataulu: paiva.nimi, kaista: kaista + 1, kierros, jono, nimet };
 }
 
-// Linjan tila, jonka uusi laite saa radan mukana: laitteella lisätyt ja ohitetut ampujat, tauot, keskeyttäneet
-// ja laitteella valittu ohjelma (src/kirjaus/KirjausApp.jsx). API tarkistaa tallennuksen
+// Linjan tila, jonka uusi laite saa radan mukana: laitteella lisätyt ja ohitetut ampujat, tauot, keskeyttäneet,
+// paperikortilla radan päättäneet (paperiValmiit: tulos on pääsivulla, mobiilikortti kesken) ja laitteella valittu ohjelma (src/kirjaus/KirjausApp.jsx). API tarkistaa tallennuksen
 // (api/_lib/kirjausHaltija.js), julkinen ratanäkymä lukee MOBIILI_LAITTEET-välilehden LINJA-solun samalla funktiolla. Palauttaa { linja } (siistitty) tai { virhe }.
 const MAKS_LISTA = 300;
 export function tarkistaLinja(linja) {
@@ -155,6 +155,7 @@ export function tarkistaLinja(linja) {
       tauot: numerot(linja.tauot),
       tauotPois: numerot(linja.tauotPois),
       keskeyttaneet: numerot(linja.keskeyttaneet),
+      paperiValmiit: numerot(linja.paperiValmiit),
       ohjelma
     }
   };

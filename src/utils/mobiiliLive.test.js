@@ -87,3 +87,29 @@ test('radanLiveTila: radalla ei aikataulua, ohjelma puuttuu: vuoroja ei arvata',
   assert.deepEqual(tila.valmiit, [2]);
   assert.equal(tila.nimet[7], 'Laitteella lisätty');
 });
+
+test('radanLiveTila: paperilla jatkuva rata ja paperikortilla radan päättäneet', () => {
+  const aikataulut = [{ nimi: 'Aikataulu', rivit: AIKATAULU }];
+  const csv = [
+    'RATA,LINJA,LINJA PÄIVITETTY,PAPERILLA',
+    '1,"{""paperiValmiit"":[1]}",9.11.2026 klo 10.00.00,9.11.2026 klo 10.05.07'
+  ].join('\n');
+  const [rata] = lueRadanLaitteet(csv);
+  assert.equal(rata.paperilla, '9.11.2026 klo 10.05.07');
+  assert.deepEqual(rata.linja.paperiValmiit, [1]);
+
+  // Paperilla: ei linjaa eikä jonoa, mobiilissa kesken jääneet ja valmiit kortit.
+  const kortit = { 1: { merkit: merkit(7) }, 2: { merkit: merkit(3) }, 3: { merkit: merkit(25) } };
+  const paperilla = radanLiveTila({ speksitRivit: SPEKSIT, aikataulut, sarake: 1, kortit, linja: rata.linja, paperilla: rata.paperilla });
+  assert.equal(paperilla.paperilla, rata.paperilla);
+  assert.deepEqual(paperilla.linja, []);
+  assert.deepEqual(paperilla.tulevat, []);
+  assert.deepEqual(paperilla.kesken, [2]);
+  assert.deepEqual(paperilla.valmiit, [3, 1]);
+
+  // Mobiilina jatkettaessa paperilla radan päättänyt ohitetaan linjalla kuten keskeyttänyt.
+  const jatko = radanLiveTila({ speksitRivit: SPEKSIT, aikataulut, sarake: 1, kortit: { 1: { merkit: merkit(7) } }, linja: rata.linja });
+  assert.equal(jatko.paperilla, '');
+  assert.ok(jatko.tilanne);
+  assert.notEqual(jatko.tilanne.vuoro.nro, 1);
+});

@@ -46,7 +46,7 @@ test('siirron yhdistäminen: uudempi versio voittaa, siirretyt lähetetään, li
 });
 
 test('linjan tila ja laitteen nimi', () => {
-  assert.deepEqual(linjaTilasta({ ohitetut: [2], kortit: {} }), { lisatyt: [], ohitetut: [2], tauot: [], tauotPois: [], keskeyttaneet: [], ohjelma: null });
+  assert.deepEqual(linjaTilasta({ ohitetut: [2], kortit: {} }), { lisatyt: [], ohitetut: [2], tauot: [], tauotPois: [], keskeyttaneet: [], paperiValmiit: [], ohjelma: null });
   assert.deepEqual(otaLinja({ ohjelma: 'SDD', tauot: [1] }, { tauot: [] }), { ohjelma: null, tauot: [] });
   assert.equal(laitteenNimi('abcd-1234', 'Mozilla/5.0 (Linux; Android 14) AppleWebKit Chrome/130 Mobile Safari'), 'Android Chrome …1234');
   assert.equal(laitteenNimi('abcd-9f9f', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Version/18.0 Mobile/15E148 Safari/604.1'), 'iPhone Safari …9f9f');
