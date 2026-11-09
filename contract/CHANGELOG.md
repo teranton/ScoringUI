@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Competition info: new optional `KISANSPEKSIT` section Kisainfo with the keys `KUVAUS`, `LAJI`, `KIEKKOMAARA`, `KISAPAIKKA`,
+  `JARJESTAJA`, `YHTEYSTIETO`, `ILMOITTAUTUMISLINKKI`, shown on ScoringUI's new Info page (the first tab and default page of
+  an upcoming competition; it replaces the Materiaalit tab and lists the `OHJE:` rows). The UI now also shows
+  `KILPAILUTYYPPI`, `OSALLISTUMISMAKSU`, `ALOITUS_AIKA` and `Järjestävät seurat:` there. New optional registry columns
+  J (discipline) and K (organiser); the API reads A:K. Discipline values add `TRAP`, `SKEET` (shot on the Compak structure,
+  `KILPAILUTYYPPI` stays `COMPAK`) and `MUU` (no discipline shown). Additive: sheets and registry rows without them show what they have.
+
 - Mobile entry can use up to four writer service accounts (`KIRJURI_CLIENT_EMAIL_2..4`); ScoringLib's `KIRJURI_PALVELUTILI`
   lists them and shares the sheet with every one. No tab or header change.
 

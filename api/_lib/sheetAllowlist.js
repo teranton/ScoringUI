@@ -116,7 +116,7 @@ const yhdistaRekisteri = luoYhdistaja();
 async function haeRekisteriGooglesta() {
   const asiakas = await haeGoogleAsiakas();
   const res = await pyyntoUudelleenyrittaen((opts) => asiakas.request(opts), {
-    url: `https://sheets.googleapis.com/v4/spreadsheets/${REKISTERI_SHEET_ID}/values/A:I?valueRenderOption=FORMATTED_VALUE`
+    url: `https://sheets.googleapis.com/v4/spreadsheets/${REKISTERI_SHEET_ID}/values/A:K?valueRenderOption=FORMATTED_VALUE`
   });
   return rivitCsvksi(res.data.values || []);
 }

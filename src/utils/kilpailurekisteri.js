@@ -75,7 +75,10 @@ export function parsiKilpailurekisteri(raakaRivit) {
         piilotettu: tulkitseRekisterinTotuusarvo(row[6]) === true,
         onkoRanking: onkoRankingTyyppi(row[7]),
         onkoTesti: onkoTestiTyyppi(row[7]),
-        paikka: String(row[8] || '').trim()
+        paikka: String(row[8] || '').trim(),
+        // J laji (COMPAK, SPORTING, FITASC, ESP, TRAP, SKEET, MUU) ja K järjestäjä; ScoringLib täyttää uudelle kisalle.
+        laji: String(row[9] || '').trim(),
+        jarjestaja: String(row[10] || '').trim()
       });
     }
   }
@@ -128,4 +131,41 @@ export function ryhmitteleKisatVuosittain(kisat, kuluvaVuosi) {
   }
 
   return { aktiiviset, vanhat, ilmanVuotta };
+}
+
+// Etusivun osat: { kaynnissa, tulevat, ranking, paattyneet: [{ vuosi, kisat, auki }], ilmanVuotta }.
+// statusById: kisan näkyvä tila (useKisaData.kisaStatusById). Tulevat lähimmästä alkaen (testikisat ensin), päättyneet
+// vuosittain uusimmasta alkaen; kuluvan vuoden päättyneet ovat auki, vanhemmat vuodet suljettuina.
+// Käynnissä oleva kauden ranking on omana osanaan, ettei se peitä kisapäivän kisaa.
+export function jaaEtusivunOsiin(kisat, statusById, kuluvaVuosi) {
+  const kaynnissa = [];
+  const tulevat = [];
+  const ranking = [];
+  const paattyneetKisat = [];
+  const ilmanVuotta = [];
+
+  for (const kisa of kisat) {
+    const status = statusById?.[kisa.id]?.status || 'tulossa';
+    const vuosi = kisa.onkoTesti ? kuluvaVuosi : haeKisanVuosi(kisa);
+    if (!Number.isInteger(vuosi)) ilmanVuotta.push(kisa);
+    else if (status === 'paattynyt') paattyneetKisat.push(kisa);
+    else if (kisa.onkoRanking) ranking.push(kisa);
+    else if (status === 'kaynnissa' || status === 'tauolla') kaynnissa.push(kisa);
+    else tulevat.push(kisa);
+  }
+
+  // Rekisteri on uusin ensin (parsiKilpailurekisteri); tulevat käännetään lähimmästä alkaen, testikisat pysyvät ensin.
+  const alkuAvain = (kisa) => muunnaPaivamaaraJarjestysavaimeksi(kisa.alkuPvm) || '9999';
+  tulevat.sort((a, b) => {
+    if (a.onkoTesti !== b.onkoTesti) return a.onkoTesti ? -1 : 1;
+    return alkuAvain(a).localeCompare(alkuAvain(b));
+  });
+
+  const { aktiiviset, vanhat } = ryhmitteleKisatVuosittain(paattyneetKisat, kuluvaVuosi);
+  const paattyneet = [
+    ...aktiiviset.map((r) => ({ ...r, auki: true })),
+    ...vanhat.map((r) => ({ ...r, auki: false }))
+  ];
+
+  return { kaynnissa, tulevat, ranking, paattyneet, ilmanVuotta };
 }

@@ -5,6 +5,7 @@ import {
   arvioiJoukkuekisaNimesta,
   haeKisanVuosi,
   parsiKilpailurekisteri,
+  jaaEtusivunOsiin,
   ryhmitteleKisatVuosittain
 } from './kilpailurekisteri.js';
 
@@ -12,7 +13,7 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
   const kisat = parsiKilpailurekisteri([
     ['ID', 'Nimi', 'Alku', 'Loppu', 'SheetId', 'Joukkue', 'Piilotettu'],
     ['k1', 'Kevätkisa', '2026-04-05', '2026-04-05', 'sheet-1', 'true', ''],
-    ['k2', 'SM 2026', '2026-06-06', '2026-06-07', 'sheet-2', '', '1', '', ' Oulainen '],
+    ['k2', 'SM 2026', '2026-06-06', '2026-06-07', 'sheet-2', '', '1', '', ' Oulainen ', 'ESP', ' OulA '],
     ['', '', '', '', '', '', '']
   ]);
 
@@ -27,7 +28,9 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       piilotettu: true,
       onkoRanking: false,
       onkoTesti: false,
-      paikka: 'Oulainen'
+      paikka: 'Oulainen',
+      laji: 'ESP',
+      jarjestaja: 'OulA'
     },
     {
       id: 'k1',
@@ -39,7 +42,9 @@ test('parsiKilpailurekisteri ohittaa otsikkorivin ja muuntaa ISO-päivät suomal
       piilotettu: false,
       onkoRanking: false,
       onkoTesti: false,
-      paikka: ''
+      paikka: '',
+      laji: '',
+      jarjestaja: ''
     }
   ]);
 });
@@ -122,4 +127,36 @@ test('parsiKilpailurekisteri: TESTI-kisa säilyttää päivänsä, on ennen oike
   const { aktiiviset, vanhat } = ryhmitteleKisatVuosittain(kisat, 2026);
   assert.deepEqual(aktiiviset.map((r) => [r.vuosi, r.kisat.map((k) => k.id)]), [[2026, ['t', 's']]]);
   assert.deepEqual(vanhat.map((r) => r.vuosi), [2024]);
+});
+
+test('jaaEtusivunOsiin: käynnissä, tulevat lähimmästä alkaen, ranking ja päättyneet vuosittain', () => {
+  const kisat = parsiKilpailurekisteri([
+    ['t1', 'Testi', '2026-01-01', '', 's0', '', '1', 'TESTI'],
+    ['a', 'Kesä 2027', '2027-07-01', '', 's1'],
+    ['b', 'Kevät 2027', '2027-03-07', '', 's2'],
+    ['c', 'Nyt', '2026-11-09', '', 's3'],
+    ['d', 'Syys 2026', '2026-09-26', '', 's4'],
+    ['e', 'Kesä 2025', '2025-07-01', '', 's5'],
+    ['r', 'Ranking', '2026-04-01', '2026-12-31', 's6', '', '', 'RANKING'],
+    ['x', 'Ei päivää', '', '', 's7']
+  ]);
+  const tila = { t1: 'tulossa', a: 'tulossa', b: 'tulossa', c: 'kaynnissa', d: 'paattynyt', e: 'paattynyt', r: 'kaynnissa', x: 'tulossa' };
+  const statusById = Object.fromEntries(Object.entries(tila).map(([id, status]) => [id, { status }]));
+  const osat = jaaEtusivunOsiin(kisat, statusById, 2026);
+
+  assert.deepEqual(osat.kaynnissa.map((k) => k.id), ['c']);
+  assert.deepEqual(osat.tulevat.map((k) => k.id), ['t1', 'b', 'a']);
+  assert.deepEqual(osat.ranking.map((k) => k.id), ['r']);
+  assert.deepEqual(osat.paattyneet.map((r) => [r.vuosi, r.kisat.map((k) => k.id), r.auki]), [[2026, ['d'], true], [2025, ['e'], false]]);
+  assert.deepEqual(osat.ilmanVuotta.map((k) => k.id), ['x']);
+});
+
+test('jaaEtusivunOsiin: tauolla oleva kisa on käynnissä, päättynyt ranking päättyneissä', () => {
+  const kisat = parsiKilpailurekisteri([
+    ['p', 'Tauko', '2026-11-08', '2026-11-09', 's1'],
+    ['r', 'Ranking 2025', '2025-04-01', '2025-09-30', 's2', '', '', 'RANKING']
+  ]);
+  const osat = jaaEtusivunOsiin(kisat, { p: { status: 'tauolla' }, r: { status: 'paattynyt' } }, 2026);
+  assert.deepEqual(osat.kaynnissa.map((k) => k.id), ['p']);
+  assert.deepEqual(osat.paattyneet.map((r) => [r.vuosi, r.kisat.map((k) => k.id), r.auki]), [[2025, ['r'], false]]);
 });

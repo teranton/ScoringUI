@@ -31,7 +31,7 @@ Layout version: 1 (first pass, written from the UI code on 2026-10-07).
 | `MOBIILI Layout N`, `MOBIILI_RYHMAT` | Squad phone (`api/kirjaus.js`, writer account) | `HenkiloTulokset.jsx`, `utils/mobiiliKiekot.js` through `api/kisa.js`, only the public columns (see "Targets in the results") |
 | `RANKING_vvvv` (season ranking sheet, e.g. `RANKING_2026`) | Sheet formulas from the ranking sheet's `TULOKSET` / `KISAT` tabs | `RankingTulokset.jsx`, `utils/rankingTulokset.js` |
 | `KISAT` (season ranking sheet) | Tero | `RankingTulokset.jsx`, `utils/rankingTulokset.js` (competition names) |
-| Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition; column I is the place for the weather forecast, `api/saa.js`) |
+| Competition registry sheet (fixed id in `api/_lib/sheetAllowlist.js`) | Tero | `App.jsx` through `api/rekisteri.js`, `api/_lib/sheetAllowlist.js` (column E: the API only serves sheets listed here; columns C/D set how long `api/kisa.js` caches a competition; column I is the place for the weather forecast, `api/saa.js`; columns I, J and K are shown on the front-page cards and the Info page) |
 
 Tab names are matched case-insensitively, ignoring leading and trailing spaces (`api/_lib/sheetsData.js`). `Timetable` is not requested or served (the API only serves `Aikataulu*`).
 
@@ -85,6 +85,10 @@ so column order can change but header names must not.
 - Competition registry: A id, B name, C start date, D end date, E sheet id (a bare id: the UI passes it to the API unchanged and the API allowlist only accepts ids), F team competition flag,
   G hidden flag (flags: `1`/`true`/`yes`/`on`/`x` = yes, `0`/`false`/`no`/`off` = no), H type (`RANKING` = season ranking,
   `TESTI` = permanent test competition, any other value is ignored),
+  J discipline (optional: `COMPAK`, `SPORTING`, `FITASC`, `ESP`, `TRAP`, `SKEET`, or `MUU` = not shown; ScoringLib writes the new
+  competition form's type, so a Trap competition has `TRAP` here while its `KILPAILUTYYPPI` is `COMPAK`; shown as a chip on the front-page card and
+  as Laji on the Info page; any other text is shown as it is), K organiser (optional, shown on the card and as Järjestäjä when
+  the sheet has neither `JARJESTAJA` nor `Järjestävät seurat:`). ScoringLib fills J and K for a new competition. The API reads A:K.
   I place (optional): a place name in Finland (`Oulainen`, looked up by the Finnish Meteorological Institute) or
   coordinates with decimals (`64.27, 24.81` or `64,27 24,81`). With a place, upcoming and running competitions show a
   weather forecast from the Finnish Meteorological Institute for one day (the start day of an upcoming competition, the next competition day of a
@@ -120,6 +124,38 @@ runs until `FINISHED`. The API caches it by C and D like a competition (without 
   holds `1` when that result counts in the total.
 - Category filters combine the `Sarja` values: Seniorit = `Y56`, `Y66`, `Y73`; Juniorit = `Y17`, `Y20`;
   Naiset = `N`; Open = everyone. Places inside a filter follow the sheet's order.
+
+## Competition info (Info page and front page)
+
+The competition view's Info tab (`src/KisaInfo.jsx`, `src/utils/kisaInfo.js`) is the first tab of an upcoming competition
+and the page it opens on; running and finished competitions open on results and keep Info as a later tab. It shows only
+what is filled. All Kisainfo keys are optional, read like the other keys (Avain column, the cell right of the key):
+
+| Shown as | Key | Value | Fallback |
+|---|---|---|---|
+| Kuvaus | `KUVAUS` | free text, line breaks kept (up to 2000 characters) | none |
+| Laji | `LAJI` | `TRAP`, `SKEET`, `MUU` (no discipline shown) or any text; for a discipline shot on the Compak structure, whose `KILPAILUTYYPPI` is `COMPAK` | registry J, then `KILPAILUTYYPPI` (`COMPAK`, `SPORTING`, `FITASC`, `ESP`, shown as Compak Sporting, Sporting, FITASC Sporting, English Sporting) |
+| Laji, kiekkoa | `KIEKKOMAARA` | whole number of targets | none |
+| Paikka (with a Google Maps search link) | `KISAPAIKKA` | address or place name | registry I unless it is coordinates |
+| Järjestäjä | `JARJESTAJA` | club or organiser name | `Järjestävät seurat:`, then registry K |
+| Yhteystiedot | `YHTEYSTIETO` | free text; email addresses and phone numbers (`+358…` or `0…`, 7+ digits) become links | none |
+| Ilmoittaudu (button, for `SUOMISPORT`) | `ILMOITTAUTUMISLINKKI` | `https` link to the sign-up (Suomisport event) | the first `OHJE:` row whose title contains "ilmoittau" |
+| Osallistumismaksu | `OSALLISTUMISMAKSU` | a number (shown as euros) or text | none |
+| Ensimmäinen lähtö | `ALOITUS_AIKA` | `09:00:00` or `9:00` | none |
+| Sarjat | `ILMOITTAUTUMISEN_SARJAT` | as for the sign-up form | none |
+| Kilpailukutsu (button) | `OHJE:` rows | the first row whose title contains "kutsu" | none |
+
+The Info page also lists every `OHJE:` row (it replaces the old Materiaalit tab) and, for an upcoming competition, the
+sign-up state from the sign-up keys and the `Ilmoittautuneet` tab and sources (`ILMOITTAUTUMISTAPA`, the deadline, the
+limit and waiting places).
+
+Addresses: `#kisa-<id>` opens the competition on its default tab, `#kisa-<id>/<tab>` on a tab (`info`, `tulokset`,
+`taulukko`, `joukkueet`, `finaali`, `ilmoittautuneet`, `aikataulu`, `live`, `ryhmat`; the old `materiaalit` opens `info`).
+A tab that isn't available falls back to results, or to Info before the competition.
+
+The front page lists running competitions first (status from the registry dates and `KILPAILUNSTATUS`), then upcoming
+ones soonest first, then a running season ranking, then finished competitions by year (the current year open, older years
+folded). Cards show registry I (place), J (discipline) and K (organiser).
 
 ## Squad editing (organisers)
 
@@ -168,15 +204,16 @@ The master template groups the keys into sections by function (heading rows in t
 | Section | Keys | Read by |
 |---|---|---|
 | Kisan aikana | `KILPAILUNSTATUS`, `AIKATAULU_NAKYVYYS`, `LOGOT_NAKYVYYS` | UI |
-| Kilpailun rakenne | `KILPAILUTYYPPI`, `OSALLISTUJAT`, `LAYOUT/KISA`, `Asemien määrä`, `Päivätuloksia kpl` | `LAYOUT/KISA` UI and Lib, others Lib |
+| Kilpailun rakenne | `KILPAILUTYYPPI`, `OSALLISTUJAT`, `LAYOUT/KISA`, `Asemien määrä`, `Päivätuloksia kpl` | `LAYOUT/KISA` UI and Lib, `KILPAILUTYYPPI` UI (Info page) and Lib, others Lib |
 | Radat ja asemat | `RATAn_NIMI`, `RATAn_OHJELMA`, the station table (columns F:I) | UI and Lib |
-| Ilmoittautuminen ja saapuminen | `ILMOITTAUTUMISTAPA`, `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`, `ILMOITTAUTUMISEN_MAKSIMI`, `ILMOITTAUTUMISEN_VARASIJAT`; `MAKSU_KISAPAIKALLA`, `OSALLISTUMISMAKSU` | sign-up keys UI and Lib, payment keys Lib |
-| Aikataulu ja ryhmät | `ALOITUS_AIKA`, `AMPUJAN_AIKA`, `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`, `ALOITUSTAPA` | `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO` UI, all Lib |
-| Tuomarointi ja korostukset | `Ei tuomaroivat:`, `Bib tuomaroivat`, `Korostukset päällä`, `Syötössä korostukset`, `Isäntäseura`, `Järjestävät seurat:` | `Ei tuomaroivat:` UI (squad editor), all Lib or sheet formulas |
+| Ilmoittautuminen ja saapuminen | `ILMOITTAUTUMISTAPA`, `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`, `ILMOITTAUTUMISEN_MAKSIMI`, `ILMOITTAUTUMISEN_VARASIJAT`; `MAKSU_KISAPAIKALLA`, `OSALLISTUMISMAKSU` | sign-up keys and `OSALLISTUMISMAKSU` (Info page) UI and Lib, `MAKSU_KISAPAIKALLA` Lib |
+| Aikataulu ja ryhmät | `ALOITUS_AIKA`, `AMPUJAN_AIKA`, `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`, `ALOITUSTAPA` | `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALOITUS_AIKA` (Info page) UI, all Lib |
+| Tuomarointi ja korostukset | `Ei tuomaroivat:`, `Bib tuomaroivat`, `Korostukset päällä`, `Syötössä korostukset`, `Isäntäseura`, `Järjestävät seurat:` | `Ei tuomaroivat:` UI (squad editor), `Järjestävät seurat:` UI (Info page fallback), all Lib or sheet formulas |
 | Mobiilikirjaus ja tuloskortit | `MOBIILI_TULOKSET`, `Tyhjän ruudun symboli` | `MOBIILI_TULOKSET` UI and Lib, the symbol Lib |
 | Tulokset ja palkintojako | `RATKO_PALKINTO_SIJA`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA` | UI and Lib (`RATKO_PALKINTO_SIJA` UI only) |
 | Tuonnit | `Vain päivätulokset` | Lib |
-| Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI |
+| Kisainfo | `KUVAUS`, `LAJI`, `KIEKKOMAARA`, `KISAPAIKKA`, `JARJESTAJA`, `YHTEYSTIETO`, `ILMOITTAUTUMISLINKKI` | UI (Info page); ScoringLib fills `KIEKKOMAARA` and, for Trap / Skeet / Muu, `LAJI` at creation |
+| Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI (`OHJE:` on the Info page) |
 
 Because keys are read only from the Avain column, a Selite or help text equal to a key (the master had "Ilmoittautumistapa"
 left of `ILMOITTAUTUMISTAPA`) is never taken for the key, in the UI (`avainOsumat`: `speksiArvo`, `haeAsetusSpekseista`,

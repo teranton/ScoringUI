@@ -7,14 +7,15 @@ import { parsiFinaalit } from './utils/finaali';
 import Ilmoittautuneet from './Ilmoittautuneet';
 import IlmoittautumisLomake from './IlmoittautumisLomake';
 import { ilmoittautuneidenNimet, lisattavatIlmoittautuneet, lomakkeenTila, paikkatilanne } from './utils/ilmoittautumiset';
-import MateriaaliNakyma from './MateriaaliNakyma';
+import KisaInfo from './KisaInfo';
 import RankingTulokset from './RankingTulokset';
 import RyhmaJako from './RyhmaJako';
 import { googleClientId } from './utils/googleKayttaja';
 import { ryhmaKokoAsetuksesta } from './utils/ryhmaMuokkaus';
 import { parseCsvRows } from './utils/csv';
 import { muodostaTulosteAikataulu } from './utils/aikatauluRadat';
-import { extractMaterialGuidesFromRows, extractSponsorLogosFromRows } from './utils/materials';
+import { extractSponsorLogosFromRows } from './utils/materials';
+import { kisanInfo, kisanPaivat, lajinNimi, rekisterinTiedot } from './utils/kisaInfo';
 import { parseAsemaSpeksitRows } from './utils/henkiloTulokset';
 import { lueRadanLaitteet } from './utils/mobiiliLive';
 import { onkoRyhmaKortteja } from './utils/mobiiliKiekot';
@@ -35,12 +36,12 @@ import {
 } from './utils/kisaAsetukset';
 import {
   arvioiJoukkuekisaNimesta,
-  ryhmitteleKisatVuosittain
+  jaaEtusivunOsiin
 } from './utils/kilpailurekisteri';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
-import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, FileText, Printer, Radio, Medal } from 'lucide-react';
+import { Trophy, Table2, ClipboardList, CalendarDays, Users, ChevronRight, ChevronDown, Home, Hourglass, Info, Printer, Radio, Medal } from 'lucide-react';
 import { haeTekstit } from './i18n';
 import SaaEnnuste from './components/SaaEnnuste';
 import { lataaAnalytiikka, trackAnalyticsEvent } from './utils/analytiikka';
@@ -84,7 +85,7 @@ export default function App() {
   const theme = 'default';
   const locale = 'fi';
   const { kisat, ladataanKisalista, virhe } = useKilpailurekisteri();
-  const { valittuKisa, aktiivinenSivu, setAktiivinenSivu, avaaKisa, palaaEtusivulle } = useKisaReititys({ kisat, ladataanKisalista });
+  const { valittuKisa, aktiivinenSivu: valittuSivu, setAktiivinenSivu, valitseSivu, avaaKisa, palaaEtusivulle } = useKisaReititys({ kisat, ladataanKisalista });
   const { kisaStatusById, nykyisenKisanData, ladataanKisaa, valitunKisanVirhe, ajastaEsihaku, peruEsihaku } = useKisaData({ kisat, valittuKisa });
   const [avoinnaVanhatVuodet, setAvoinnaVanhatVuodet] = useState({});
   const [aktiivinenAikatauluKey, setAktiivinenAikatauluKey] = useState('');
@@ -164,25 +165,25 @@ export default function App() {
   const onkoAikatauluPreviewOverride = ['1', 'true', 'yes', 'on'].includes(aikatauluPreviewOverrideEnv);
   const yhteysSahkoposti = String(import.meta.env.VITE_CONTACT_EMAIL || 'tt.tulospalvelu@gmail.com').trim();
 
-  const avaaKisaNakyma = (kisa) => {
+  // sivu: etusivun kortin painike (esim. 'ilmoittautuneet'); ilman sitä kisa avautuu tilansa oletussivulle.
+  const avaaKisaNakyma = (kisa, sivu = null) => {
     trackAnalyticsEvent('competition_open', {
       competitionId: String(kisa?.id || ''),
       competitionName: String(kisa?.nimi || ''),
-      status: String(kisaStatusById[kisa?.id]?.status || '')
+      status: String(kisaStatusById[kisa?.id]?.status || ''),
+      view: String(sivu || 'oletus')
     });
-    avaaKisa(kisa);
+    avaaKisa(kisa, sivu);
   };
 
 
   const muotoileKisaPaivatTekstiksi = (alku, loppu) => {
-    if (!alku) return 'Päivämäärä ei tiedossa';
-    if (!loppu || alku === loppu) return `📅 ${alku}`;
-    return `📅 ${alku} – ${loppu}`;
+    return alku ? `📅 ${kisanPaivat(alku, loppu)}` : tx.dateUnknown;
   };
 
   const kuluvaVuosi = new Date().getFullYear();
 
-  const kisaRyhmat = useMemo(() => ryhmitteleKisatVuosittain(kisat, kuluvaVuosi), [kisat, kuluvaVuosi]);
+  const etusivunOsat = useMemo(() => jaaEtusivunOsiin(kisat, kisaStatusById, kuluvaVuosi), [kisat, kisaStatusById, kuluvaVuosi]);
 
   // Esiladataan näkymäpalat, kun ensimmäinen kisa on auki. Epäonnistunut esilataus yritetään uudelleen avattaessa.
   const onkoKisaDataa = Boolean(nykyisenKisanData) && !valittuKisa?.onkoRanking;
@@ -345,13 +346,10 @@ export default function App() {
     return !onkoKisaPaattynyt;
   })();
   const onkoOmaAikatauluTuloste = Boolean(tulosteAikataulu) && Boolean(ladatutPalat.tulosteAikataulu);
-  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && onkoOmaAikatauluTuloste;
-  // Taulukkonäkymässä tulostetaan taulukon oma A4-tuloste (myös Ctrl+P), ei vieritettävää näytön taulukkoa.
-  const tulostetaanTaulukko = !tulosteenAika && aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && Boolean(nykyisenKisanData?.henkilotCsvRaw) && Boolean(ladatutPalat.taulukko);
-  const onkoMateriaaleja = useMemo(() => {
-    const rivit = nykyisenKisanParsitutRivit.speksitRows || [];
-    return extractMaterialGuidesFromRows(rivit).length > 0;
-  }, [nykyisenKisanParsitutRivit.speksitRows]);
+  const kisanInfoTiedot = useMemo(
+    () => kisanInfo(nykyisenKisanParsitutRivit.speksitRows || [], valittuKisa || {}),
+    [nykyisenKisanParsitutRivit.speksitRows, valittuKisa]
+  );
 
   const onkoJoukkueTuloksetSallittu = valittuKisa
     ? (valittuKisa.joukkueKisaAsetus ?? arvioiJoukkuekisaNimesta(valittuKisa.nimi))
@@ -382,13 +380,16 @@ export default function App() {
   ].filter((a) => (aikatauluValilehdet ? aikatauluValilehdet.includes(a.nimi) : String(a.raw || '').trim())),
   [aikatauluCsvRaw, aikatauluLaCsvRaw, aikatauluSuCsvRaw, aikatauluValilehdet]);
 
-  // Jos valittu välilehti ei ole sallittu, vaihdetaan se jo renderöinnin aikana (ei ylimääräistä effect-kierrosta).
-  const seuraavaAktiivinenSivu = laskeSeuraavaAktiivinenSivu({
+  // Näytettävä sivu. Kunnes kisan tiedot ovat tiedossa, valittua sivua ei vaihdeta (ilman tietoja ilmoittautuneet,
+  // aikataulu ja tulokset eivät ole vielä sallittuja, ja kisapäivän kisa on "Tulossa"). Oletussivua ('oletus') ei
+  // tallenneta: se lasketaan joka kerta, joten välimuistin vanhat tiedot eivät jätä kisapäivän kisaa Info-sivulle,
+  // kun tuore KILPAILUNSTATUS = RUNNING saapuu. Muu kielletty sivu vaihdetaan jo renderöinnin aikana.
+  const odotetaanTietoja = !nykyisenKisanData && !valitunKisanVirhe;
+  const aktiivinenSivu = odotetaanTietoja ? valittuSivu : laskeSeuraavaAktiivinenSivu({
     valittuKisa,
-    aktiivinenSivu,
+    aktiivinenSivu: valittuSivu,
     onkoAikatauluSallittu,
     onkoIlmoittautuneita,
-    onkoMateriaaleja,
     onkoJoukkueKisa,
     onkoFinaali,
     onkoKisaPaattynyt,
@@ -398,51 +399,104 @@ export default function App() {
     onkoRyhmaMuokkausSallittu,
     onkoLiveSallittu
   });
-  if (seuraavaAktiivinenSivu !== aktiivinenSivu) {
-    setAktiivinenSivu(seuraavaAktiivinenSivu);
+  if (valittuSivu !== 'oletus' && aktiivinenSivu !== valittuSivu) {
+    setAktiivinenSivu(aktiivinenSivu);
   }
+  const tulostetaanAikataulu = !tulosteenAika && aktiivinenSivu === 'aikataulu' && onkoAikatauluSallittu && onkoOmaAikatauluTuloste;
+  // Taulukkonäkymässä tulostetaan taulukon oma A4-tuloste (myös Ctrl+P), ei vieritettävää näytön taulukkoa.
+  const tulostetaanTaulukko = !tulosteenAika && aktiivinenSivu === 'taulukko' && onkoTaulukkoSallittu && Boolean(nykyisenKisanData?.henkilotCsvRaw) && Boolean(ladatutPalat.taulukko);
 
   if (ladataanKisalista) {
     return <div data-theme={theme} className="px-4 py-16 text-center text-[hsl(var(--muted-foreground))]">{tx.loadingRegistry}</div>;
   }
 
+  const esihakuTapahtumat = (kisa) => ({
+    onPointerEnter: (event) => { if (event.pointerType === 'mouse') ajastaEsihaku(kisa); },
+    onPointerLeave: peruEsihaku,
+    onFocus: () => ajastaEsihaku(kisa),
+    onBlur: peruEsihaku
+  });
+
+  // Käynnissä olevan, tulevan ja rankingin kortti. Tulevan kortissa on suora painike ilmoittautuneisiin.
   const renderKisaKortti = (kisa) => {
     const statusData = kisaStatusById[kisa.id] || laskeKisanPaivaStatus(kisa);
     const onValittavissa = Boolean(kisa.apiUrl);
+    const onTuleva = statusData.status === 'tulossa' && !kisa.onkoRanking;
+    const { paikka, jarjestaja } = rekisterinTiedot(kisa);
+    const laji = lajinNimi(kisa.laji, { lyhyt: true });
+    const lisatieto = [paikka, jarjestaja].filter(Boolean).join(' · ');
 
     return (
-      <button
-        type="button"
+      <Card
         key={kisa.id}
-        disabled={!onValittavissa}
-        onClick={() => {
-          if (!onValittavissa) return;
-          avaaKisaNakyma(kisa);
-        }}
-        onPointerEnter={(event) => { if (onValittavissa && event.pointerType === 'mouse') ajastaEsihaku(kisa); }}
-        onPointerLeave={peruEsihaku}
-        onFocus={() => { if (onValittavissa) ajastaEsihaku(kisa); }}
-        onBlur={peruEsihaku}
-        className="w-full text-left"
-        aria-disabled={!onValittavissa}
+        className={`transition-all hover:border-[hsl(var(--border))] hover:shadow-md ${onValittavissa ? '' : 'opacity-60'}`}
       >
-        <Card
-          className={`transition-all hover:border-[hsl(var(--border))] hover:shadow-md ${onValittavissa ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2`}
+        <button
+          type="button"
+          disabled={!onValittavissa}
+          onClick={() => avaaKisaNakyma(kisa)}
+          {...(onValittavissa ? esihakuTapahtumat(kisa) : {})}
+          className={`w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 ${onValittavissa ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+          aria-disabled={!onValittavissa}
         >
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex flex-col gap-1">
+          <CardContent className="flex items-start justify-between gap-3 p-4">
+            <div className="flex min-w-0 flex-col gap-1">
               <div translate="no" className="text-lg font-semibold text-[hsl(var(--foreground))]">{kisa.nimi}</div>
               <div className="text-sm text-[hsl(var(--muted-foreground))]">
                 {muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}
+                {lisatieto && <span translate="no"> · {lisatieto}</span>}
               </div>
               <SaaEnnuste kisa={kisa} status={statusData.status} locale={locale} />
             </div>
-            <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <Badge variant={statusToBadgeVariant(statusData.status)}>{labelForStatus(statusData.status, locale)}</Badge>
+              {laji && <Badge variant="outline" translate="no">{laji}</Badge>}
+            </div>
           </CardContent>
-        </Card>
-      </button>
+        </button>
+        {onTuleva && onValittavissa && (
+          <div className="flex gap-2 px-4 pb-4">
+            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => avaaKisaNakyma(kisa, 'ilmoittautuneet')} {...esihakuTapahtumat(kisa)}>
+              <ClipboardList className="h-4 w-4" aria-hidden="true" />
+              {tx.registrations}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={() => avaaKisaNakyma(kisa, 'info')} {...esihakuTapahtumat(kisa)}>
+              <Info className="h-4 w-4" aria-hidden="true" />
+              {tx.info}
+            </Button>
+          </div>
+        )}
+      </Card>
     );
   };
+
+  // Päättyneen kisan tiivis rivi: nimi, päivät ja "Tulokset".
+  const renderPaattynytRivi = (kisa) => {
+    const onValittavissa = Boolean(kisa.apiUrl);
+    return (
+      <li key={kisa.id}>
+        <button
+          type="button"
+          disabled={!onValittavissa}
+          onClick={() => avaaKisaNakyma(kisa)}
+          {...(onValittavissa ? esihakuTapahtumat(kisa) : {})}
+          className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[hsl(var(--muted))]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--ring))] ${onValittavissa ? '' : 'cursor-not-allowed opacity-60'}`}
+        >
+          <span className="min-w-0">
+            <span translate="no" className="block font-medium text-[hsl(var(--foreground))]">{kisa.nimi}</span>
+            <span className="block text-xs text-[hsl(var(--muted-foreground))]">{muotoileKisaPaivatTekstiksi(kisa.alkuPvm, kisa.loppuPvm)}</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center text-sm text-[hsl(var(--primary))]">
+            {kisa.onkoRanking ? tx.ranking : tx.results}
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </span>
+        </button>
+      </li>
+    );
+  };
+
+  const osioOtsikko = 'text-sm font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]';
+  const rivilista = 'divide-y divide-[hsl(var(--border))] overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]';
 
   // --- NÄKYMÄ 1: ETUSIVU ---
   if (!valittuKisa) {
@@ -470,49 +524,61 @@ export default function App() {
 
         {virhe && <div className="text-sm font-medium text-rose-600">{virhe}</div>}
 
-        <div className="flex flex-col gap-3 md:gap-4">
-          {kisaRyhmat.aktiiviset.map((ryhma) => (
-            <section key={`aktiivinen-${ryhma.vuosi}`} className="space-y-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-                {ryhma.vuosi}
-              </h2>
-              <div className="flex flex-col gap-2.5 md:gap-3">
-                {ryhma.kisat.map(renderKisaKortti)}
-              </div>
+        <div className="flex flex-col gap-4 md:gap-5">
+          {etusivunOsat.kaynnissa.length > 0 && (
+            <section className="space-y-2">
+              <h2 className={osioOtsikko}>{tx.runningNow}</h2>
+              <div className="flex flex-col gap-2.5 md:gap-3">{etusivunOsat.kaynnissa.map(renderKisaKortti)}</div>
             </section>
-          ))}
+          )}
 
-          {kisaRyhmat.vanhat.map((ryhma) => {
+          <section className="space-y-2">
+            <h2 className={osioOtsikko}>{tx.upcoming}</h2>
+            {etusivunOsat.tulevat.length > 0
+              ? <div className="flex flex-col gap-2.5 md:gap-3">{etusivunOsat.tulevat.map(renderKisaKortti)}</div>
+              : !virhe && <p className="text-sm text-[hsl(var(--muted-foreground))]">{tx.noUpcoming}</p>}
+          </section>
+
+          {etusivunOsat.ranking.length > 0 && (
+            <section className="space-y-2">
+              <h2 className={osioOtsikko}>{tx.ranking}</h2>
+              <div className="flex flex-col gap-2.5 md:gap-3">{etusivunOsat.ranking.map(renderKisaKortti)}</div>
+            </section>
+          )}
+
+          {etusivunOsat.paattyneet.map((ryhma) => {
+            if (ryhma.auki) {
+              return (
+                <section key={`paattyneet-${ryhma.vuosi}`} className="space-y-2">
+                  <h2 className={osioOtsikko}>{tx.finished} {ryhma.vuosi}</h2>
+                  <ul className={rivilista}>{ryhma.kisat.map(renderPaattynytRivi)}</ul>
+                </section>
+              );
+            }
             const onAuki = Boolean(avoinnaVanhatVuodet[ryhma.vuosi]);
             return (
-              <section key={`vanha-${ryhma.vuosi}`} className="space-y-2">
+              <section key={`paattyneet-${ryhma.vuosi}`} className="space-y-2">
                 <button
                   type="button"
                   onClick={() => setAvoinnaVanhatVuodet((prev) => ({ ...prev, [ryhma.vuosi]: !prev[ryhma.vuosi] }))}
+                  aria-expanded={onAuki}
                   className="flex w-full items-center justify-between rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-left transition-colors hover:bg-[hsl(var(--muted))]/30"
                 >
                   <span className="inline-flex items-center gap-2 text-sm font-semibold text-[hsl(var(--foreground))]">
                     {onAuki ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
                     {ryhma.vuosi}
                   </span>
-                  <span className="text-xs text-[hsl(var(--muted-foreground))]">{ryhma.kisat.length} kisaa</span>
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">{ryhma.kisat.length} {tx.competitionsCount}</span>
                 </button>
-
-                {onAuki && (
-                  <div className="flex flex-col gap-2.5 md:gap-3">
-                    {ryhma.kisat.map(renderKisaKortti)}
-                  </div>
-                )}
+                {onAuki && <ul className={rivilista}>{ryhma.kisat.map(renderPaattynytRivi)}</ul>}
               </section>
             );
           })}
 
-          {kisaRyhmat.ilmanVuotta.length > 0 && (
+          {etusivunOsat.ilmanVuotta.length > 0 && (
             <section className="space-y-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">Muut</h2>
-              <div className="flex flex-col gap-2.5 md:gap-3">
-                {kisaRyhmat.ilmanVuotta.map(renderKisaKortti)}
-              </div>
+              <h2 className={osioOtsikko}>{tx.other}</h2>
+              <div className="flex flex-col gap-2.5 md:gap-3">{etusivunOsat.ilmanVuotta.map(renderKisaKortti)}</div>
             </section>
           )}
         </div>
@@ -568,52 +634,58 @@ export default function App() {
       </Card>
 
       {!valittuKisa.onkoRanking && <nav className="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden app-print-hide-nav">
+        {onkoKisaTulossa && (
+          <Button onClick={() => valitseSivu('info')} variant={aktiivinenSivu === 'info' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Info className="h-4 w-4" aria-hidden="true" />
+            {tx.info}
+          </Button>
+        )}
         {onkoTuloksetSallittu && (
-          <Button onClick={() => setAktiivinenSivu('tulokset')} variant={aktiivinenSivu === 'tulokset' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+          <Button onClick={() => valitseSivu('tulokset')} variant={aktiivinenSivu === 'tulokset' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Trophy className="h-4 w-4" aria-hidden="true" />
             {tx.results}
           </Button>
         )}
         {onkoTaulukkoSallittu && (
-          <Button onClick={() => setAktiivinenSivu('taulukko')} variant={aktiivinenSivu === 'taulukko' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+          <Button onClick={() => valitseSivu('taulukko')} variant={aktiivinenSivu === 'taulukko' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Table2 className="h-4 w-4" aria-hidden="true" />
             {tx.table}
           </Button>
         )}
         {onkoJoukkueKisa && (
-          <Button onClick={() => setAktiivinenSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+          <Button onClick={() => valitseSivu('joukkueet')} variant={aktiivinenSivu === 'joukkueet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Users className="h-4 w-4" aria-hidden="true" />
             {tx.teamResults}
           </Button>
         )}
         {onkoFinaali && (
-          <Button onClick={() => setAktiivinenSivu('finaali')} variant={aktiivinenSivu === 'finaali' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+          <Button onClick={() => valitseSivu('finaali')} variant={aktiivinenSivu === 'finaali' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Medal className="h-4 w-4" aria-hidden="true" />
             {tx.final}
           </Button>
         )}
         {onkoIlmoittautuneita && (
-          <Button onClick={() => setAktiivinenSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+          <Button onClick={() => valitseSivu('ilmoittautuneet')} variant={aktiivinenSivu === 'ilmoittautuneet' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <ClipboardList className="h-4 w-4" aria-hidden="true" />
             {tx.registrations}
           </Button>
         )}
         {onkoAikatauluSallittu && (
-          <Button onClick={() => setAktiivinenSivu('aikataulu')} variant={aktiivinenSivu === 'aikataulu' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+          <Button onClick={() => valitseSivu('aikataulu')} variant={aktiivinenSivu === 'aikataulu' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <CalendarDays className="h-4 w-4" aria-hidden="true" />
             {tx.timetable}
           </Button>
         )}
         {onkoLiveSallittu && (
-          <Button onClick={() => setAktiivinenSivu('live')} variant={aktiivinenSivu === 'live' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+          <Button onClick={() => valitseSivu('live')} variant={aktiivinenSivu === 'live' ? 'default' : 'outline'} size="sm" className="gap-1.5">
             <Radio className="h-4 w-4" aria-hidden="true" />
             {tx.liveLanes}
           </Button>
         )}
-        {onkoMateriaaleja && (
-          <Button onClick={() => setAktiivinenSivu('materiaalit')} variant={aktiivinenSivu === 'materiaalit' ? 'default' : 'outline'} size="sm" className="gap-1.5">
-            <FileText className="h-4 w-4" aria-hidden="true" />
-            {tx.materials}
+        {!onkoKisaTulossa && (
+          <Button onClick={() => valitseSivu('info')} variant={aktiivinenSivu === 'info' ? 'default' : 'outline'} size="sm" className="gap-1.5">
+            <Info className="h-4 w-4" aria-hidden="true" />
+            {tx.info}
           </Button>
         )}
         {onkoTuloksetSallittu && nykyisenKisanData?.henkilotCsvRaw && (
@@ -758,10 +830,19 @@ export default function App() {
               locale={locale}
             />
           )}
-          {aktiivinenSivu === 'materiaalit' && onkoMateriaaleja && nykyisenKisanData && (
-            <div className="mx-auto w-full max-w-3xl">
-              <MateriaaliNakyma specsCsv={nykyisenKisanData.speksitCsvRaw} locale={locale} />
-            </div>
+          {aktiivinenSivu === 'info' && (
+            <KisaInfo
+              info={kisanInfoTiedot}
+              kisaPaivat={kisanPaivat(valittuKisa.alkuPvm, valittuKisa.loppuPvm)}
+              onkoTulossa={onkoKisaTulossa}
+              lomake={ilmoittautumisLomake}
+              tilanne={ilmoittautumisTilanne}
+              onkoIlmoittautuneita={onkoIlmoittautuneita}
+              onkoAikatauluSallittu={onkoAikatauluSallittu}
+              onkoTuloksetSallittu={onkoTuloksetSallittu}
+              valitseSivu={valitseSivu}
+              locale={locale}
+            />
           )}
           {aktiivinenSivu === 'joukkueet' && onkoJoukkueKisa && (
             <div className="mx-auto w-full max-w-3xl">
@@ -779,7 +860,7 @@ export default function App() {
       <footer className="pt-1 text-center text-xs text-[hsl(var(--muted-foreground))]">
         {onkoRyhmaMuokkausSallittu && aktiivinenSivu !== 'ryhmat' && (
           <div className="pb-1 app-print-hide-nav">
-            <button type="button" className="underline hover:text-[hsl(var(--foreground))]" onClick={() => setAktiivinenSivu('ryhmat')}>
+            <button type="button" className="underline hover:text-[hsl(var(--foreground))]" onClick={() => valitseSivu('ryhmat')}>
               {txRyhmat.openEditor}
             </button>
           </div>
