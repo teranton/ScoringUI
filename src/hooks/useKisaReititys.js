@@ -1,8 +1,9 @@
 // Reititys: etusivu tai avattu kisa (#kisa-<id>), selaimen Takaisin-painike ja vierityskohdan palautus.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { trackAnalyticsEvent } from '../utils/analytiikka';
+import { kirjaaSivunakyma, sivunakymanPolku } from '../utils/analytiikka';
+import { lueHashinKisaId } from '../utils/kisaHash';
 
-export function useKisaReititys({ kisat, ladataanKisalista }) {
+export function useKisaReititys({ kisat, ladataanKisalista, rekisteriHaettu }) {
   const [valittuKisa, setValittuKisa] = useState(null);
   const [aktiivinenSivu, setAktiivinenSivu] = useState('tulokset');
   // Kasvaa selaimen Takaisin/Eteenpäin-siirrossa, jotta hash luetaan uudelleen (Eteenpäin kisaan).
@@ -25,10 +26,6 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
   };
 
   const palaaEtusivulle = () => {
-    trackAnalyticsEvent('back_home', {
-      competitionId: String(valittuKisa?.id || ''),
-      fromView: String(aktiivinenSivu || '')
-    });
     if (window.history.state?.view === 'competition' && !window.history.state?.directLink) {
       window.history.back();
       return;
@@ -57,7 +54,7 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
 
     const kasitteleSelaimenTakaisin = () => {
       // Eteenpäin kisaan: etusivun kohta talteen ja kisa ylhäältä. Takaisin etusivulle: palautetaan kohta.
-      if ((window.location.hash || '').startsWith('#kisa-')) {
+      if (lueHashinKisaId(window.location.hash)) {
         etusivunVieritysRef.current = window.scrollY;
         vieritysKohdeRef.current = 0;
       } else {
@@ -75,10 +72,7 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
   useEffect(() => {
     if (ladataanKisalista || kisat.length === 0 || valittuKisa) return;
 
-    const hash = window.location.hash || '';
-    if (!hash.startsWith('#kisa-')) return;
-
-    const hashId = decodeURIComponent(hash.slice('#kisa-'.length));
+    const hashId = lueHashinKisaId(window.location.hash);
     if (!hashId) return;
 
     const loydettyKisa = kisat.find((k) => String(k.id) === hashId);
@@ -98,12 +92,16 @@ export function useKisaReititys({ kisat, ladataanKisalista }) {
     }
   }, [kisat, ladataanKisalista, valittuKisa, historiaSiirto]);
 
+  // Sivunäyttö analytiikkaan: etusivu tai kisa omana sivunaan (/kisa/<id>). Välilehtien vaihtoa ei kirjata.
+  const sivunakymanPolkuNyt = sivunakymanPolku({
+    valittuKisaId: valitunKisanId,
+    hashKisaId: lueHashinKisaId(window.location.hash),
+    kisat,
+    rekisteriHaettu
+  });
   useEffect(() => {
-    trackAnalyticsEvent('view_change', {
-      view: String(valittuKisa ? aktiivinenSivu : 'home'),
-      competitionId: String(valittuKisa?.id || '')
-    });
-  }, [aktiivinenSivu, valittuKisa]);
+    kirjaaSivunakyma(sivunakymanPolkuNyt);
+  }, [sivunakymanPolkuNyt]);
 
   return { valittuKisa, aktiivinenSivu, setAktiivinenSivu, avaaKisa, palaaEtusivulle };
 }

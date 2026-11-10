@@ -64,6 +64,8 @@ export function useKisaData({ kisat, valittuKisa }) {
   const [kisaVirheBySheet, setKisaVirheBySheet] = useState({});
   const kisaCacheRef = useRef(kisaCache);
   const fetchInFlightRef = useRef({});
+  // Kisa, jonka avaushaku on jo tehty: tilan vaihtuessa avausefekti ajetaan uudelleen, mutta se ei ole uusi avaus.
+  const avattuKisaRef = useRef(null);
   // Etusivun speksihaulla on oma lippunsa, ettei se estä samaan aikaan avatun kisan täyttä hakua.
   const speksitInFlightRef = useRef({});
   const esihakuAjastinRef = useRef(null);
@@ -155,7 +157,10 @@ export function useKisaData({ kisat, valittuKisa }) {
     : 'tulossa';
 
   // 2. KISADATAN HAKU BACKENDISTÄ. Sama funktio palvelee kisan avausta, live-päivitystä ja esihakua.
-  const haeKisaData = useCallback(async (kisa, onkoStaattinen, esihaku = false) => {
+  // tapa: 'avaus', 'paivitys' tai 'esihaku'. Analytiikkaan kirjataan vain avaus: live-päivitys 20 s välein
+  // kuluttaisi Vercel Analyticsin ilmaisen kuukausikiintiön yhden ison kisan aikana.
+  const haeKisaData = useCallback(async (kisa, onkoStaattinen, tapa = 'avaus') => {
+    const kirjaaAnalytiikkaan = tapa === 'avaus';
     const sheetId = kisa.apiUrl;
     const kisaId = kisa.id;
     if (fetchInFlightRef.current[sheetId]) return;
@@ -180,14 +185,13 @@ export function useKisaData({ kisat, valittuKisa }) {
 
       console.log(`[CLIENT FETCH] Data ladattu (${onkoStaattinen ? 'STAATTINEN' : 'LIVE'}, ${tulos.timing?.source || '?'}): ${durationMs}ms`);
 
-      trackAnalyticsEvent('competition_fetch', {
+      if (kirjaaAnalytiikkaan) trackAnalyticsEvent('competition_fetch', {
         competitionId: String(kisaId || ''),
         mode: onkoStaattinen ? 'static' : 'live',
         ok: 'true',
         durationMs,
         sheets: String(sivut.length),
-        source: String(tulos.timing?.source || ''),
-        prefetch: esihaku ? 'true' : 'false'
+        source: String(tulos.timing?.source || '')
       });
 
       const uusiData = {
@@ -227,11 +231,10 @@ export function useKisaData({ kisat, valittuKisa }) {
       console.error("Datan päivitys epäonnistui palvelimelta:", err);
       // Myös esihaun virhe näytetään: jos kisa avataan esihaun aikana, avaus odottaa juuri tätä hakua.
       setKisaVirheBySheet((prev) => ({ ...prev, [sheetId]: "Tietojen päivitys epäonnistui taustalla." }));
-      trackAnalyticsEvent('competition_fetch', {
+      if (kirjaaAnalytiikkaan) trackAnalyticsEvent('competition_fetch', {
         competitionId: String(kisaId || ''),
         mode: onkoStaattinen ? 'static' : 'live',
-        ok: 'false',
-        prefetch: esihaku ? 'true' : 'false'
+        ok: 'false'
       });
     } finally {
       fetchInFlightRef.current[sheetId] = false;
@@ -243,9 +246,14 @@ export function useKisaData({ kisat, valittuKisa }) {
   }, []);
 
   useEffect(() => {
-    if (!valittuKisa || !valittuKisa.apiUrl) return;
+    if (!valittuKisa || !valittuKisa.apiUrl) {
+      avattuKisaRef.current = null;
+      return;
+    }
 
     const sheetId = valittuKisa.apiUrl;
+    const tapa = avattuKisaRef.current === valittuKisa ? 'paivitys' : 'avaus';
+    avattuKisaRef.current = valittuKisa;
 
     const onkoStaattinen = valitunKisanEfektiivinenStatus === 'paattynyt';
     const cacheData = kisaCacheRef.current[sheetId] || null;
@@ -262,7 +270,7 @@ export function useKisaData({ kisat, valittuKisa }) {
     // Pelkällä FINISHED-asetuksella päättynyt haetaan aina, jotta asetuksen poisto tulee näkyviin.
     const ohitaHaku = !ESIKATSELU && onkoStaattinen && onkoPaattynytPaivista(valittuKisa) && !puuttuuPakollistaKisaDataa && onkoDataTuore;
     if (!ohitaHaku) {
-      haeKisaData(valittuKisa, onkoStaattinen);
+      haeKisaData(valittuKisa, onkoStaattinen, tapa);
     } else {
       // Päättynyt kisa, jonka data on kunnossa välimuistissa: vanha live-päivityksen virhe ei enää koske sitä.
       setKisaVirheBySheet((prev) => (prev[sheetId] ? { ...prev, [sheetId]: null } : prev));
@@ -275,11 +283,11 @@ export function useKisaData({ kisat, valittuKisa }) {
 
     // Live-kisoille käynnistetään taustapäivitys
     const kasitteleNakymattomyys = () => {
-      if (!document.hidden) haeKisaData(valittuKisa, false);
+      if (!document.hidden) haeKisaData(valittuKisa, false, 'paivitys');
     };
 
     const intervalli = setInterval(() => {
-      if (!document.hidden) haeKisaData(valittuKisa, false);
+      if (!document.hidden) haeKisaData(valittuKisa, false, 'paivitys');
     }, valittuKisa.onkoRanking ? RANKING_PAIVITYS_VALI_MS : LIVE_PAIVITYS_VALI_MS);
 
     document.addEventListener('visibilitychange', kasitteleNakymattomyys);
@@ -301,7 +309,7 @@ export function useKisaData({ kisat, valittuKisa }) {
     if (onkoKunnossa && ika < (onkoStaattinen ? PAATTYNEEN_TUOREUS_MS : LIVE_ESIHAKU_VALI_MS)) return;
     esihakuKaynnissaRef.current = true;
     try {
-      await haeKisaData(kisa, onkoStaattinen, true);
+      await haeKisaData(kisa, onkoStaattinen, 'esihaku');
     } finally {
       esihakuKaynnissaRef.current = false;
     }
