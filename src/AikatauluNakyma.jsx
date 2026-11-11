@@ -4,6 +4,7 @@ import { createPerfLogger, isPerfLoggingEnabled, perfNow } from './utils/perf';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
+import { mittaaTeksti } from './utils/tekstinLeveys';
 import { haeTekstit } from './i18n';
 import { extractTitleSuffixFromFirstRow, muodostaRataRivit, taukoTyyppi, toSortValue, tunnistaRataSarakkeet } from './utils/aikatauluRadat';
 
@@ -74,18 +75,11 @@ function getGroupCellStyle(groupIndex) {
   return { backgroundColor: style.bg, borderLeftColor: style.border };
 }
 
-let laneNameMeasureCanvas = null;
 function measureShooterTextWidth(text) {
   const value = String(text || '').trim();
   if (!value) return 0;
-  if (typeof document === 'undefined') return value.length * 6.5;
-  if (!laneNameMeasureCanvas) {
-    laneNameMeasureCanvas = document.createElement('canvas');
-  }
-  const context = laneNameMeasureCanvas.getContext('2d');
-  if (!context) return value.length * 6.5;
-  context.font = '500 12px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-  return context.measureText(value).width;
+  const leveys = mittaaTeksti(value, '500 12px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif');
+  return leveys ?? value.length * 6.5;
 }
 
 function onkoPelkaNumero(value) {

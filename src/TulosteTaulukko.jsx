@@ -2,18 +2,14 @@
 // HenkiloTaulukko renderöi tämän tulostuksen ajaksi App:n tulostejuureen (portaali), joten myös selaimen oma
 // tulostus (Ctrl+P) käyttää tätä eikä vieritettävää näytön taulukkoa. Näkyy vain tulostettaessa (index.css).
 import { laskeTulosteSarakeLeveydet, laskeTulosteTaulukonKoko, muodostaTulosteRatko } from './utils/henkiloTaulukko';
+import { mittaaTeksti } from './utils/tekstinLeveys';
 import { haeTekstit } from './i18n';
 
-let mittausCanvas = null;
 
 // Tekstin leveys em-yksiköissä tulosteen fontilla (index.css .tuloste-root).
 function mittaaTulosteTeksti(teksti) {
-  if (typeof document === 'undefined') return undefined;
-  if (!mittausCanvas) mittausCanvas = document.createElement('canvas');
-  const context = mittausCanvas.getContext('2d');
-  if (!context) return undefined;
-  context.font = '100px "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  return context.measureText(teksti).width / 100;
+  const leveys = mittaaTeksti(teksti, '100px "Segoe UI", Roboto, Helvetica, Arial, sans-serif');
+  return leveys === undefined ? undefined : leveys / 100;
 }
 
 function muotoileTulostusaika(pvm, locale) {

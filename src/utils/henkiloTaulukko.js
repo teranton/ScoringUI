@@ -2,6 +2,7 @@
 // HenkiloTaulukko-näkymän puhdas parsinta- ja laskentalogiikka.
 import { muodostaRatkoNakyma } from './henkiloTulokset.js';
 import { haeTekstit } from '../i18n.js';
+import { mittaaTeksti } from './tekstinLeveys.js';
 
 export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
   if (!Array.isArray(raakaRivit) || raakaRivit.length < 2) return [];
@@ -280,18 +281,45 @@ const TASOT = {
 // Vierityspalkin ja reunojen varaus, ettei taulukko mene juuri ja juuri yli.
 const LEVEYS_VARA = 8;
 
-// Seura-sarakkeen leveys pisimmän seuran nimen mukaan, enintään tason maksimi (pidemmät katkaistaan).
-// Mobiilin maksimi 70 px mahduttaa "Trapp-73":n (text-xs ~52 px + px-2).
-// Merkin leveys on arvio Interin keskileveydestä; desktopilla text-sm ja px-3, muuten text-xs ja px-2.
+// Club (Seura) column width: fits the longest club name, or the bold header with its sort arrow if that is
+// wider, capped at the level's maximum (longer names are truncated with an ellipsis).
+// seuraTeksti holds the measured text width in px per level (from mittaaSeuraTeksti). Without a measurement
+// the width is estimated from the number of characters.
+// Font sizes and padding must match HenkiloTaulukko.jsx's TEKSTIKOKO and seuraPadding classes:
+// desktop text-sm + px-3, mobile text-xs and compact 11 px + pl-1.5 pr-0.5. The cell also has a 1 px right border.
 const SEURA_MIN = 40;
-const SEURA_MERKKI = { desktop: 7.7, mobile: 6.6, compact: 6.6 };
-const SEURA_PADDING = { desktop: 24, mobile: 16, compact: 16 };
+export const SEURA_FONTTI_PX = { desktop: 14, mobile: 12, compact: 11 };
+const SEURA_MERKKI = { desktop: 7.7, mobile: 6.6, compact: 6.1 };
+const SEURA_PADDING = { desktop: 24, mobile: 8, compact: 8 };
+const SEURA_REUNA = 1;
+// Safety margin for rounding and font rendering differences, so the longest name is not cut by a pixel.
+const SEURA_VARA = 1;
 
-function laskeSeuraLeveys(taso, seuraMerkit) {
+function laskeSeuraLeveys(taso, seuraMerkit, seuraTeksti) {
   const maksimi = TASOT[taso].seura;
-  if (!(seuraMerkit > 0)) return maksimi;
-  const tarve = Math.ceil(seuraMerkit * SEURA_MERKKI[taso]) + SEURA_PADDING[taso];
+  const mitattu = seuraTeksti?.[taso];
+  const teksti = Number.isFinite(mitattu) && mitattu > 0
+    ? mitattu
+    : (seuraMerkit > 0 ? seuraMerkit * SEURA_MERKKI[taso] : null);
+  if (teksti === null) return maksimi;
+  const tarve = Math.ceil(teksti) + SEURA_PADDING[taso] + SEURA_REUNA + SEURA_VARA;
   return Math.max(SEURA_MIN, Math.min(maksimi, tarve));
+}
+
+// Measures, for each level, the widest of the club names (normal weight) and the header (bold, with a sort
+// arrow) in the page's font. Returns null if text can't be measured; the width is then estimated.
+export function mittaaSeuraTeksti(seurat, otsikko, fonttiPerhe, mittaa = mittaaTeksti) {
+  const nimet = [...new Set(seurat.map((s) => String(s || '').trim()).filter(Boolean))];
+  if (nimet.length === 0) return null;
+  const perhe = fonttiPerhe || 'sans-serif';
+  const tulos = {};
+  for (const [taso, px] of Object.entries(SEURA_FONTTI_PX)) {
+    let pisin = mittaa(`${otsikko} ▼`, `700 ${px}px ${perhe}`);
+    if (pisin === undefined) return null;
+    for (const nimi of nimet) pisin = Math.max(pisin, mittaa(nimi, `400 ${px}px ${perhe}`) ?? 0);
+    tulos[taso] = pisin;
+  }
+  return tulos;
 }
 
 // Valitsee taulukon asettelun käytettävissä olevan leveyden mukaan. Leveä Seura pudotetaan ensin, jotta
@@ -305,6 +333,7 @@ export function laskeTaulukkoAsettelu({
   onkoSarja = false,
   onkoSeura = true,
   seuraMerkit = 0,
+  seuraTeksti = null,
   paivienMaara = 0,
   kaikkiSarakkeet = false
 } = {}) {
@@ -323,7 +352,7 @@ export function laskeTaulukkoAsettelu({
       ['compact', ilman('seura', 'paivat', 'sarja')]
     ];
 
-  const tasonLeveydet = (taso) => ({ ...TASOT[taso], seura: laskeSeuraLeveys(taso, seuraMerkit) });
+  const tasonLeveydet = (taso) => ({ ...TASOT[taso], seura: laskeSeuraLeveys(taso, seuraMerkit, seuraTeksti) });
   const laskeLeveys = (l, sarakkeet, rata) => l.sija + l.nimi + l.yht
     + (sarakkeet.sarja ? l.sarja : 0)
     + (sarakkeet.seura ? l.seura : 0)
