@@ -183,6 +183,22 @@ test('laskeTaulukkoAsettelu: Seura on pisimmän seuran levyinen, enintään taso
   assert.equal(trapp.leveydet.seura, 69);
 });
 
+test('laskeTaulukkoAsettelu: mitattu seuran nimi määrää Seura-leveyden (teksti + padding + reuna + vara)', () => {
+  // Trapp-73 tiiviissä (11 px) n. 44 px: 45 + 16 + 1 + 2 = 64, ei arvion 69 tai maksimin 70.
+  const tiivis = laskeTaulukkoAsettelu({
+    leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2, kaikkiSarakkeet: true,
+    seuraMerkit: 8, seuraTeksti: { desktop: 56.2, mobile: 48.1, compact: 44.1 }
+  });
+  assert.equal(tiivis.taso, 'compact');
+  assert.equal(tiivis.leveydet.seura, 64);
+
+  const lyhyt = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 3, seuraTeksti: { desktop: 10, mobile: 9, compact: 8 } });
+  assert.equal(lyhyt.leveydet.seura, 40);
+
+  const pitka = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 30, seuraTeksti: { desktop: 230, mobile: 200, compact: 180 } });
+  assert.equal(pitka.leveydet.seura, 140);
+});
+
 test('parsiTaulukkoAmpujat trimmaa sarjan', () => {
   const rivit = [HENKILOT[0], ['1', 'Matti', ' N ', 'Seura A', '50', '48', '98', '25', '24', '24', '', '']];
   assert.equal(parsiTaulukkoAmpujat(rivit, 3)[0].sarja, 'N');

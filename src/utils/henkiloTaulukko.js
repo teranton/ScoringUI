@@ -281,17 +281,48 @@ const TASOT = {
 const LEVEYS_VARA = 8;
 
 // Seura-sarakkeen leveys pisimmän seuran nimen mukaan, enintään tason maksimi (pidemmät katkaistaan).
-// Mobiilin maksimi 70 px mahduttaa "Trapp-73":n (text-xs ~52 px + px-2).
-// Merkin leveys on arvio Interin keskileveydestä; desktopilla text-sm ja px-3, muuten text-xs ja px-2.
+// seuraTeksti = pisimmän seuran nimen leveys (px) tasoittain, selaimessa mitattuna (mittaaSeuraTeksti);
+// ilman mittausta arvioidaan merkkimäärästä. Tekstikoko: desktop text-sm, mobile text-xs, compact 11 px
+// (HenkiloTaulukko TEKSTIKOKO); padding desktopilla px-3, muuten px-2, ja 1 px oikea reuna.
 const SEURA_MIN = 40;
-const SEURA_MERKKI = { desktop: 7.7, mobile: 6.6, compact: 6.6 };
+export const SEURA_FONTTI_PX = { desktop: 14, mobile: 12, compact: 11 };
+const SEURA_MERKKI = { desktop: 7.7, mobile: 6.6, compact: 6.1 };
 const SEURA_PADDING = { desktop: 24, mobile: 16, compact: 16 };
+const SEURA_REUNA = 1;
+// Mittauksen pyöristys ja fontin vaihtelu, ettei lyhin mahtuva nimi katkea yhden pikselin takia.
+const SEURA_VARA = 2;
 
-function laskeSeuraLeveys(taso, seuraMerkit) {
+function laskeSeuraLeveys(taso, seuraMerkit, seuraTeksti) {
   const maksimi = TASOT[taso].seura;
+  const mitattu = seuraTeksti?.[taso];
+  if (Number.isFinite(mitattu) && mitattu > 0) {
+    const tarve = Math.ceil(mitattu) + SEURA_PADDING[taso] + SEURA_REUNA + SEURA_VARA;
+    return Math.max(SEURA_MIN, Math.min(maksimi, tarve));
+  }
   if (!(seuraMerkit > 0)) return maksimi;
   const tarve = Math.ceil(seuraMerkit * SEURA_MERKKI[taso]) + SEURA_PADDING[taso];
   return Math.max(SEURA_MIN, Math.min(maksimi, tarve));
+}
+
+// Mittaa pisimmän seuran nimen leveyden tasoittain canvasilla sivun omalla fontilla.
+// Palauttaa null, jos mittaus ei onnistu (testit, SSR), jolloin leveys arvioidaan merkkimäärästä.
+let mittausKonteksti = null;
+export function mittaaSeuraTeksti(seurat, fonttiPerhe) {
+  if (typeof document === 'undefined') return null;
+  try {
+    mittausKonteksti = mittausKonteksti || document.createElement('canvas').getContext('2d');
+  } catch {
+    return null;
+  }
+  if (!mittausKonteksti) return null;
+  const nimet = [...new Set(seurat.map((s) => String(s || '').trim()).filter(Boolean))];
+  if (nimet.length === 0) return null;
+  const tulos = {};
+  for (const [taso, px] of Object.entries(SEURA_FONTTI_PX)) {
+    mittausKonteksti.font = `400 ${px}px ${fonttiPerhe || 'sans-serif'}`;
+    tulos[taso] = nimet.reduce((pisin, nimi) => Math.max(pisin, mittausKonteksti.measureText(nimi).width), 0);
+  }
+  return tulos;
 }
 
 // Valitsee taulukon asettelun käytettävissä olevan leveyden mukaan. Leveä Seura pudotetaan ensin, jotta
@@ -305,6 +336,7 @@ export function laskeTaulukkoAsettelu({
   onkoSarja = false,
   onkoSeura = true,
   seuraMerkit = 0,
+  seuraTeksti = null,
   paivienMaara = 0,
   kaikkiSarakkeet = false
 } = {}) {
@@ -323,7 +355,7 @@ export function laskeTaulukkoAsettelu({
       ['compact', ilman('seura', 'paivat', 'sarja')]
     ];
 
-  const tasonLeveydet = (taso) => ({ ...TASOT[taso], seura: laskeSeuraLeveys(taso, seuraMerkit) });
+  const tasonLeveydet = (taso) => ({ ...TASOT[taso], seura: laskeSeuraLeveys(taso, seuraMerkit, seuraTeksti) });
   const laskeLeveys = (l, sarakkeet, rata) => l.sija + l.nimi + l.yht
     + (sarakkeet.sarja ? l.sarja : 0)
     + (sarakkeet.seura ? l.seura : 0)

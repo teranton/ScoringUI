@@ -13,6 +13,7 @@ import {
   laskeRataTilastot,
   laskeTaulukkoAsettelu,
   listaaSarjat,
+  mittaaSeuraTeksti,
   onkoAliTulosPuuttuu,
   onkoRatkoNakyvissa,
   parsiTaulukkoAmpujat,
@@ -205,6 +206,11 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const onkoSuTuloksia = ampujat.some((a) => a.su !== null);
   const seuraMerkit = ampujat.reduce((pisin, a) => Math.max(pisin, String(a.seura || '').trim().length), 0);
   const onkoSeuroja = seuraMerkit > 0;
+  // Pisimmän seuran nimen todellinen leveys sivun fontilla; merkkimääräarvio liioittelee (esim. Trapp-73).
+  const seuraTeksti = useMemo(() => {
+    if (!onkoSeuroja || typeof window === 'undefined') return null;
+    return mittaaSeuraTeksti(ampujat.map((a) => a.seura), window.getComputedStyle(document.body).fontFamily);
+  }, [ampujat, onkoSeuroja]);
 
   const asettelu = useMemo(() => laskeTaulukkoAsettelu({
     leveys: taulukkoNakymaLeveys,
@@ -213,9 +219,10 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
     onkoSarja: sarjaSuodatin === KAIKKI_SARJAT || sarjaSuodatin === HIGH_GUN,
     onkoSeura: onkoSeuroja,
     seuraMerkit,
+    seuraTeksti,
     paivienMaara: (onkoLaTuloksia ? 1 : 0) + (onkoSuTuloksia ? 1 : 0),
     kaikkiSarakkeet
-  }), [taulukkoNakymaLeveys, radatList.length, naytaRatkoSarake, sarjaSuodatin, onkoSeuroja, seuraMerkit, onkoLaTuloksia, onkoSuTuloksia, kaikkiSarakkeet]);
+  }), [taulukkoNakymaLeveys, radatList.length, naytaRatkoSarake, sarjaSuodatin, onkoSeuroja, seuraMerkit, seuraTeksti, onkoLaTuloksia, onkoSuTuloksia, kaikkiSarakkeet]);
 
   const kokoLuokka = asettelu.taso;
   const leveydet = asettelu.leveydet;
