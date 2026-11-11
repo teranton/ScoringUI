@@ -50,7 +50,10 @@ const TEKSTIT = jaadyta({
       error: 'Radan tietojen päivitys epäonnistui. Yritetään uudelleen.',
       delay: 'Noin 15–30 s viiveellä',
       fetched: 'haettu',
-      lastScore: 'viimeisin merkintä'
+      lastScore: 'viimeisin merkintä',
+      onPaper: 'Rata jatkuu paperikorteilla{aika}. Tulokset tulevat tulossivulle kilpailutoimiston kautta.',
+      unfinishedOnMobile: 'Mobiilissa kesken jääneet kortit',
+      finishedOnPaper: 'Paperilla'
     },
     kisaStatus: {
       kaynnissa: 'Käynnissä',
@@ -176,6 +179,7 @@ const TEKSTIT = jaadyta({
       shotsNone: 'Asemalle ei ole mobiilikirjauksen kiekkotietoja.',
       shotsError: 'Kiekkojen haku epäonnistui. Yritä hetken päästä uudelleen.',
       shotsDiffer: 'tuloksissa {tulos}',
+      shotsPaper: 'mobiilikortti kesken, tuloksissa {tulos} (esim. paperikortilta)',
       layout: 'Rata'
     },
     rankingTulokset: {
@@ -372,7 +376,10 @@ const TEKSTIT = jaadyta({
       error: 'Could not update the layout. Retrying.',
       delay: 'About 15–30 s behind',
       fetched: 'fetched',
-      lastScore: 'last score'
+      lastScore: 'last score',
+      onPaper: 'This layout continues on paper cards{aika}. Results reach the results page through the office.',
+      unfinishedOnMobile: 'Cards left unfinished on the mobile device',
+      finishedOnPaper: 'On paper'
     },
     kisaStatus: {
       kaynnissa: 'Ongoing',
@@ -498,6 +505,7 @@ const TEKSTIT = jaadyta({
       shotsError: 'Could not load the targets. Try again shortly.',
       shotsNone: 'No mobile scoring targets for this stage.',
       shotsDiffer: 'results show {tulos}',
+      shotsPaper: 'mobile card unfinished, results show {tulos} (e.g. from a paper card)',
       layout: 'Layout'
     },
     rankingTulokset: {

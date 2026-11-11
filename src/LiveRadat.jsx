@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AmpujaRivi from './kirjaus/AmpujaRivi.jsx';
 import { merkitOf } from './kirjaus/kortit.js';
 import { parseCsvRows } from './utils/csv';
-import { LAITTEET_VALILEHTI, lueRadanKortit, lueRadanLaitteet, mobiiliValilehti, radanLiveTila } from './utils/mobiiliLive';
+import { LAITTEET_VALILEHTI, lueAika, lueRadanKortit, lueRadanLaitteet, mobiiliValilehti, radanLiveTila } from './utils/mobiiliLive';
 import { haeTekstit } from './i18n';
 
 const PAIVITYS_VALI_MS = 15 * 1000;
@@ -93,13 +93,12 @@ export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetC
   const kortitCsv = data?.[mobiiliValilehti(sarake)] || '';
   const laitteetLive = data?.[LAITTEET_VALILEHTI] ?? laitteetCsv;
   const radanKortit = useMemo(() => lueRadanKortit(kortitCsv), [kortitCsv]);
-  const linja = useMemo(
-    () => lueRadanLaitteet(laitteetLive).find((r) => r.sarake === sarake)?.linja || null,
-    [laitteetLive, sarake]
-  );
+  const laiteRivi = useMemo(() => lueRadanLaitteet(laitteetLive).find((r) => r.sarake === sarake) || null, [laitteetLive, sarake]);
+  const linja = laiteRivi?.linja || null;
+  const paperilla = laiteRivi?.paperilla || '';
   const tila = useMemo(() => (sarake ? radanLiveTila({
-    speksitRivit, aikataulut: aikatauluRivit, sarake, kortit: radanKortit.kortit, korttiNimet: radanKortit.nimet, linja
-  }) : null), [speksitRivit, aikatauluRivit, sarake, radanKortit, linja]);
+    speksitRivit, aikataulut: aikatauluRivit, sarake, kortit: radanKortit.kortit, korttiNimet: radanKortit.nimet, linja, paperilla
+  }) : null), [speksitRivit, aikatauluRivit, sarake, radanKortit, linja, paperilla]);
   const rataNimi = (n) => {
     const nimi = n === sarake ? tila?.rataNimi : '';
     return `${tx.lane} ${n}${nimi ? ` · ${nimi}` : ''}`;
@@ -136,6 +135,8 @@ export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetC
       kohta={kohta?.nro === nro ? kohta.i : null}
       valmis={valmis}
       keskeyttanyt={tila.keskeyttaneet.includes(nro)}
+      paperilla={tila.paperiValmiit.includes(nro)}
+      paperillaTeksti={tx.finishedOnPaper}
     />
   );
 
@@ -153,7 +154,7 @@ export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetC
 
         {ladattu && (
           <>
-            {naytaJono && seuraava && (
+            {naytaJono && seuraava && !tila.paperilla && (
               <div className="mx-2 mt-2 rounded-lg bg-white px-2 py-1 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="shrink-0 text-xs font-semibold text-slate-500">{tx.next}</span>
@@ -168,9 +169,15 @@ export default function LiveRadat({ sheetId, speksitRivit, aikataulut, laitteetC
               </div>
             )}
 
+            {tila.paperilla && (
+              <p className="mx-2 mt-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-950">
+                {tx.onPaper.replace('{aika}', lueAika(tila.paperilla) ? ` (${lueAika(tila.paperilla).kello})` : '')}
+              </p>
+            )}
             <div className="flex flex-col gap-1 px-2 py-2 sm:gap-2">
               {eiKortteja && <p className="rounded bg-white p-3 text-sm">{tx.noScores}</p>}
-              {tila.kesken && !eiKortteja && <p className="rounded bg-white p-3 text-sm">{tx.noProgram}</p>}
+              {tila.kesken && !eiKortteja && !tila.paperilla && <p className="rounded bg-white p-3 text-sm">{tx.noProgram}</p>}
+              {tila.paperilla && tila.kesken?.length > 0 && <div className="text-sm font-semibold">{tx.unfinishedOnMobile}</div>}
               {!tila.kesken && !tila.tilanne && tila.jono.length === 0 && !eiKortteja && <p className="rounded bg-white p-3 text-sm">{tx.noQueue}</p>}
               {!tila.kesken && !tila.tilanne && tila.jono.length > 0 && <p className="rounded bg-white p-3 font-semibold text-green-800">{tx.allDone}</p>}
               {tila.linja.map((l) => kortti(l.nro))}

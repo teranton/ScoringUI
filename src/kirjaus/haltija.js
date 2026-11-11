@@ -13,7 +13,7 @@ export function radanNimi(sarake, nimi) {
 }
 
 // Linjan tila, joka siirtyy uudelle laitteelle radan mukana (palvelin tallentaa sen MOBIILI_LAITTEET-välilehdelle).
-export const LINJAN_KENTAT = ['lisatyt', 'ohitetut', 'tauot', 'tauotPois', 'keskeyttaneet', 'ohjelma'];
+export const LINJAN_KENTAT = ['lisatyt', 'ohitetut', 'tauot', 'tauotPois', 'keskeyttaneet', 'paperiValmiit', 'ohjelma'];
 export const linjaTilasta = (tila) => Object.fromEntries(LINJAN_KENTAT.map((k) => [k, tila[k] ?? (k === 'ohjelma' ? null : [])]));
 export const linjaTekstina = (tila) => JSON.stringify(linjaTilasta(tila));
 

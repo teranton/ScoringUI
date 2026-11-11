@@ -1,8 +1,9 @@
 // Ampujan Compak-kortti: 5 asemaa × 5 kiekkoa, osumat / ammutut. Kirjauslaitteella (KirjausApp.jsx) kiekkoja ja
 // keskeytystä voi napauttaa korjaustilassa; julkisessa ratanäkymässä (src/LiveRadat.jsx) kortti on vain luettava.
+// paperilla: ampuja päätti radan paperikortilla (tulos pääsivulla), mobiilikortti jäi kesken.
 import { ASEMAN_KOHTEET, KOHTEITA, osumat, taytetyt } from './kortit.js';
 
-export default function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, valmis, keskeyttanyt, onKeskeyta, onValitse }) {
+export default function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, valmis, keskeyttanyt, paperilla, paperillaTeksti = 'Paperilla', onKeskeyta, onValitse }) {
   const aktiivinen = kohta !== null;
   const asemat = Array.from({ length: KOHTEITA / ASEMAN_KOHTEET }, (_, a) => a);
   const reuna = korostus === 'korjaus' ? 'border-amber-600' : aktiivinen ? 'border-blue-700' : 'border-transparent';
@@ -20,6 +21,9 @@ export default function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus,
           </button>
         ) : keskeyttanyt && (
           <span className="shrink-0 rounded bg-slate-700 px-2 text-[11px] leading-5 text-white sm:text-xs">Keskeytti</span>
+        )}
+        {paperilla && !keskeyttanyt && (
+          <span className="shrink-0 rounded bg-amber-600 px-2 text-[11px] leading-5 text-white sm:text-xs">{paperillaTeksti}</span>
         )}
         <span className="shrink-0 text-lg leading-tight font-bold sm:text-xl">
           {osumat(merkit)}

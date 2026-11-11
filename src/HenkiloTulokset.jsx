@@ -552,7 +552,7 @@ const kiekkoRyhmat = ({ merkit, compak }) => (compak
   : [{ alku: 0, merkit }]);
 
 // Aseman kiekot ryhmäpuhelimen tai Compak-kirjauslaitteen kortilta: X osuma, 0 ohi. Jos taulukon tulos on eri kuin kortin osumat
-// (esim. tulos korjattu paperikortilta), molemmat näytetään.
+// (esim. tulos korjattu paperikortilta), molemmat näytetään. Keskeneräinen kortti, jolla on tulos, jatkui paperilla.
 function AsemanKiekot({ asema, tulos, kiekot, tila, tx }) {
   const tulosNum = Number.parseInt(tulos, 10);
   return (
@@ -584,7 +584,9 @@ function AsemanKiekot({ asema, tulos, kiekot, tila, tx }) {
           </div>
           <div className="mt-1 text-xs text-slate-500">
             {kiekot.osumat} / {kiekot.merkit.length}
-            {!Number.isNaN(tulosNum) && tulosNum !== kiekot.osumat && ` · ${tx.shotsDiffer.replace('{tulos}', tulosNum)}`}
+            {!Number.isNaN(tulosNum) && (kiekot.merkit.includes('-')
+              ? ` · ${tx.shotsPaper.replace('{tulos}', tulosNum)}`
+              : tulosNum !== kiekot.osumat && ` · ${tx.shotsDiffer.replace('{tulos}', tulosNum)}`)}
           </div>
         </>
       )}

@@ -213,6 +213,9 @@ test('ilmoittautumisten lähteistä vain nimi, sarja, seura ja siirtomerkintä',
     ['Sukunimi', 'Etunimi', 'Sarja', 'Seura'],
     ['Rantonen', 'Tero', 'Y', 'OMAS']
   ]);
+  // Radan laitteista vain rata, linja ja paperitila (ei laitteen tunnusta eikä nimeä).
+  assert.deepEqual(julkisetSarakkeet('MOBIILI_LAITTEET', [['RATA', 'SUKUPOLVI', 'LAITE', 'LINJA', 'PAPERILLA'], [1, 2, 'x', '{}', '9.11.2026 klo 10.05.07']]),
+    [['RATA', 'LINJA', 'PAPERILLA'], [1, '{}', '9.11.2026 klo 10.05.07']]);
   const oma = [['AIKALEIMA', 'SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SÄHKÖPOSTI', 'PUHELIN', 'LISÄTIETOJA', 'SIIRRETTY']];
   assert.deepEqual(julkisetSarakkeet('ILMOITTAUTUMISET', oma), [['SUKUNIMI', 'ETUNIMI', 'NIMI', 'SARJA', 'SEURA', 'SIIRRETTY']]);
 });

@@ -5,6 +5,8 @@
 // Ryhmää kirjaa yksi puhelin kerrallaan; toinen puhelin ottaa ryhmän luovutuksen jälkeen tai kilpailutoimiston ryhmän
 // PIN-koodilla (esim. akku loppui), jolloin
 // edellisen puhelimen lähettämättömät merkinnät täydentävät uuden puhelimen tyhjiä kiekkoja.
+// Ryhmä voi jatkaa paperikortilla (☰ › Siirry paperikortteihin tai kilpailutoimiston valikosta): puhelin pysäyttää
+// kirjauksen ja näyttää kesken jääneet kortit kopioitaviksi; jatkettaessa kirjaaja valitsee aseman valikosta.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   aloitusAsema, aloitusLayout, asemaJarjestys, asemaKesken, asemaKuitattu, asemanSiirto, kierrata, kuittaaAsema, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, korttiAvain, kuittaa, lahettamattomat,
@@ -22,6 +24,8 @@ import { useAkku } from './useAkku.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import { KohdeMerkki, PinLomake } from './Haltija.jsx';
+import { PaperiNakyma } from './Paperi.jsx';
+import { paperiVastauksesta, usePaperi } from './paperi.js';
 import { soita } from './aanet.js';
 import { Asennus, SynkMerkki } from './Yhteiset.jsx';
 
@@ -37,6 +41,7 @@ const KELLO_MS = 30000;
 const alkutila = (tallessa) => ({
   kortit: {}, historia: [], keskeyttaneet: [], avaus: null, haltija: null, korvattu: null, luovutettu: false,
   layout: null, asema: null, valittu: null, aanet: true, sovelletutTaydennykset: {}, taydennysIlmoitus: 0, hylattyIlmoitus: 0,
+  paperilla: '', paperiPaikallinen: false,
   ...tallessa
 });
 
@@ -62,6 +67,8 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const [toinenLaite, setToinenLaite] = useState(null);
 
   const tilaRef = useRef(tila);
+  // Puhelimen omien paperimuutosten laskuri (paperi.js): vanhentunut tallennusvastaus ei kumoa niitä.
+  const paperiVersioRef = useRef(0);
   const lahettaaRef = useRef(false);
   const otetaanRef = useRef(false);
   const taustaRef = useRef(false);
@@ -127,8 +134,10 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
         const korvattu = Boolean(tilaRef.current.haltija) && !data.haltija?.oma && !data.haltija?.tamaLaite;
         setTila((t) => {
           const kortit = sovitaPituudet(yhdistaPalvelimelta(t.kortit, data.kortit, { kaikki: true }), data.layoutit || [], t.avaus?.layoutit || []);
+          // Taulukon paperitila, paitsi kun tämän puhelimen oma siirto paperille odottaa yhteyttä.
+          const paperi = t.paperiPaikallinen ? {} : { paperilla: data.paperilla || '' };
           return {
-            ...taydennettyna({ ...t, avaus: data, kortit }, data.haltija?.oma ? data.taydennykset : null, data.layoutit),
+            ...taydennettyna({ ...t, avaus: data, kortit, ...paperi }, data.haltija?.oma ? data.taydennykset : null, data.layoutit),
             ...(korvattu && lahettamattomat(t.kortit).length === 0 ? { haltija: null, korvattu: korvausTieto(data.haltija, 0) } : {})
           };
         });
@@ -177,6 +186,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       return;
     }
     lahettaaRef.current = true;
+    const paperiVersio = paperiVersioRef.current;
     try {
       const res = await fetch('/api/kirjaus?toiminto=tallenna', {
         method: 'POST',
@@ -198,7 +208,10 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       const hylatyt = (data.hylatyt || []).filter((h) => h.syy === 'ryhma' || h.syy === 'layout').length;
       setTila((t) => ({
         ...taydennettyna({ ...t, kortit: kuittaa(t.kortit, lahetetyt, data) }, data.taydennykset, t.avaus?.layoutit),
-        hylattyIlmoitus: (t.hylattyIlmoitus || 0) + hylatyt
+        hylattyIlmoitus: (t.hylattyIlmoitus || 0) + hylatyt,
+        // Kilpailutoimisto on voinut siirtää ryhmän paperille (tai takaisin) ScoringLibin valikosta. Ennen puhelimen omaa
+        // paperimuutosta lähteneen pyynnön vastaus ei kumoa sitä.
+        ...paperiVastauksesta(t, data.paperilla, paperiVersioRef.current !== paperiVersio)
       }));
       // Layoutin asemajako muuttui taulukossa: ryhmän tiedot haetaan uudelleen ja kortit sovitetaan.
       if ((data.hylatyt || []).some((h) => h.syy === 'kohteet')) setLatausKierros((n) => n + 1);
@@ -462,6 +475,18 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     }
   };
 
+  const paivitaRyhma = useCallback(() => setLatausKierros((n) => n + 1), []);
+  const ryhmanKorvaus = useCallback((haltija) => setTila((t) => ({ ...t, haltija: null, korvattu: korvausTieto(haltija, 0) })), []);
+  const odottavatKortit = useCallback((t) => lahettamattomat(t.kortit), []);
+  const { siirryPaperille: kysyPaperille, jatkaMobiilina } = usePaperi({
+    koodi, laite, tila, tilaRef, setTila, laheta, lahettaaRef, odottavat: odottavatKortit,
+    versioRef: paperiVersioRef, synkViimeksi: synk.viimeksi, onKorvattu: ryhmanKorvaus, onJatkettu: paivitaRyhma
+  });
+  const siirryPaperille = () => {
+    setValikko(false);
+    kysyPaperille(`Siirretäänkö ryhmä ${tila.avaus?.ryhma} paperikortille? Kirjaus pysähtyy tällä puhelimella, ja kesken jääneet kortit näytetään kopioitaviksi paperille.`);
+  };
+
   if (!avaus) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 bg-white p-6 text-slate-900">
@@ -526,6 +551,15 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           : <span className="text-slate-600">Ryhmä otetaan tälle puhelimelle, kun yhteys toimii.</span>}
         <span className="text-slate-600">Toinen puhelin voi myös ottaa ryhmän skannaamalla ryhmän QR-koodin (esim. jos akku loppuu).</span>
       </div>
+      {!tila.paperilla && (
+        <div className="flex flex-col gap-2 rounded border border-slate-300 p-2">
+          <button type="button" className="self-start rounded border border-amber-700 bg-amber-50 px-3 py-2" onClick={siirryPaperille}>Siirry paperikortteihin</button>
+          <span className="text-slate-600">
+            Kun puhelin ei jaksa (akku, kylmä) eikä toista puhelinta ole: kirjaus pysähtyy, ja kesken jääneet kortit näytetään
+            kopioitaviksi paperille.
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={vaihdaKoodi}>Vaihda koodi</button>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={lataaLoki}>Lataa merkintäloki</button>
@@ -549,6 +583,40 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           onOta={otaRyhma}
           onPaivita={() => setLatausKierros((n) => n + 1)}
         />
+      </main>
+    );
+  }
+
+  // Ryhmä jatkuu paperilla: kirjaus pysähtyy, kesken jääneet layoutit näytetään kopioitaviksi. Lähetys jatkuu taustalla.
+  if (tila.paperilla) {
+    const kesken = jarjestys.flatMap((l) => ampujat.map((a) => ({ l, a, merkit: merkitOf(tila.kortit, l, a.nro) })))
+      .filter(({ merkit, a }) => !tila.keskeyttaneet.includes(a.nro) && taytetyt(merkit) > 0 && merkit.includes('-'));
+    return (
+      <main className="flex h-screen supports-[height:100dvh]:h-[100dvh] flex-col overflow-hidden bg-slate-100 text-slate-900">
+        {otsikko}
+        <div className="max-h-[50dvh] shrink-0 overflow-y-auto">{valikkoNakyma}</div>
+        <PaperiNakyma
+          ryhma
+          kohde={`Ryhmä ${avaus.ryhma}`}
+          aika={tila.paperilla}
+          paikallinen={tila.paperiPaikallinen}
+          lahettamatta={lahettamatta}
+          onJatka={tila.haltija ? jatkaMobiilina : null}
+          onLataaLoki={lataaLoki}
+        >
+          {kesken.length === 0
+            ? <p className="rounded bg-white p-3 text-sm">Ei kesken jääneitä kortteja.</p>
+            : kesken.map(({ l, a, merkit }) => (
+              <div key={`${l.nro}:${a.nro}`} className="rounded-lg bg-white p-2 text-sm">
+                <div className="font-semibold">{l.nimi} · {a.nro} {a.nimi}</div>
+                <div className="flex flex-wrap gap-x-3 font-mono">
+                  {pisteet(l).map((p) => (
+                    <span key={p.id}>{p.id}: {[...merkit.slice(p.alku, p.loppu)].map((m) => (m === 'X' ? 'X' : m === 'O' ? '0' : '·')).join('')}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+        </PaperiNakyma>
       </main>
     );
   }

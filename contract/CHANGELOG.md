@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Paper fallback for mobile entry: new last column `PAPERILLA` (K) in `MOBIILI_LAITTEET` and `MOBIILI_RYHMAT` (the time a
+  layout or squad switched to paper cards, written by the holder device or by ScoringLib's office menu), served to the live
+  view. `LINJA` gains `paperiValmiit` (shooters who finished the layout on paper). Additive: old tabs are widened on the next
+  save, older devices ignore the column, and the reader tolerates its absence. ScoringLib's Tuo mobiilitulokset lists
+  incomplete cards with a paper result separately and checks the paper value against the mobile marks.
+
 - Mobile entry can use up to four writer service accounts (`KIRJURI_CLIENT_EMAIL_2..4`); ScoringLib's `KIRJURI_PALVELUTILI`
   lists them and shares the sheet with every one. No tab or header change.
 

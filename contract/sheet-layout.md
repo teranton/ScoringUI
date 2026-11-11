@@ -295,16 +295,31 @@ Writes (created on the first save or change of device if missing):
   device's card. A log made before `HUOM` existed (7 columns) is widened on the next
   change of device or save.
 - `MOBIILI_LAITTEET`: the device holding each layout, so one device writes a layout at a time. Header
-  `RATA, SUKUPOLVI, LAITE, LAITTEEN NIMI, OTETTU, TAPA, PIN-VIRHEET, LINJA, LINJA PÄIVITETTY, TÄYDENNYKSET`; layout N is
-  on row N + 1 (a tab made before `TÄYDENNYKSET` is widened).
+  `RATA, SUKUPOLVI, LAITE, LAITTEEN NIMI, OTETTU, TAPA, PIN-VIRHEET, LINJA, LINJA PÄIVITETTY, TÄYDENNYKSET, PAPERILLA`;
+  layout N is on row N + 1 (a tab made before `TÄYDENNYKSET` or `PAPERILLA` is widened on the next change of device or
+  save, and read only as wide as it is). Columns are written by position (`PAPERILLA` is column K).
   `SUKUPOLVI` grows on every change of device; a device's key is valid only for its own generation, so a replaced device
   can no longer write. `LAITE` empty = free: the next device takes the layout without a PIN. A taken layout changes
   device with the old device's key (its menu: release, or a QR transfer) or the takeover PIN, an HMAC of
   `pin|sheetId|N|SUKUPOLVI` (ScoringLib shows it in 📱 Mobiilikirjaus › Laitteen vaihto: PIN-koodit). Ten wrong PINs lock
   the takeover until ScoringLib shows the PINs again (it writes `PIN-VIRHEET` = 0). `LINJA` is the device's line state as
   JSON (shooters added or skipped on the device, breaks, retired shooters, the device's program), so the next device
-  carries on the same line. `TÄYDENNYKSET` is JSON `{ "<NRO>": "<25 marks X/O/->" }` from replaced devices, written only
-  by them.
+  carries on the same line. `LINJA` `paperiValmiit` lists shooters who finished the layout on a paper card (their result
+  is on the main tab while the mobile card is incomplete): the line skips them like retired shooters. `TÄYDENNYKSET` is
+  JSON `{ "<NRO>": "<25 marks X/O/->" }` from replaced devices, written only by them.
+- `PAPERILLA` (both `MOBIILI_LAITTEET` and `MOBIILI_RYHMAT`): the time the layout or squad switched to paper cards
+  (`9.11.2026 klo 10.05.07`), empty = mobile entry. Written by the holder (device menu ☰ › Siirry paperikortteihin,
+  `POST ?toiminto=paperi` with `paalle`, log `RATA JATKUU PAPERILLA (…)` / `RATA JATKUU MOBIILINA (…)`) or by the office
+  (ScoringLib 📱 Mobiilikirjaus › Rata tai ryhmä jatkuu paperilla, log device `KILPAILUTOIMISTO`). A change of device keeps it. While it is set
+  the device stops entry and lists its unfinished cards to copy onto paper; it still sends unsent marks. The holder's
+  "Jatka mobiilikirjausta" or the office menu empties it (ScoringLib re-reads the cell before writing). `avaa` and `tallenna` return it as `paperilla`.
+- Paper results on opening a layout: when the layout has `PAPERILLA` or `LINJA` `paperiValmiit`, or the device asks with
+  header `X-Kirjaus-Paperi: 1` (it returned from paper in the last 2 hours, then re-opens every 3 min, or took the layout
+  with a PIN), `avaa` also reads the main tab as cells (`spreadsheets.get`, as for `SUORAAN` below) and returns
+  `paperiTulokset` `{ "<NRO>": "<value>" }`: a typed value (not a formula, not an array-formula column) in result column N
+  for a shooter whose `MOBIILI Rata N` card is not complete and whose card `NIMI` (if any) shares a word with the main
+  tab's `NIMI`. The device puts these in `LINJA` `paperiValmiit`. `null` = not read (or the read failed): the device
+  keeps the list it has.
 
 ### Squad phone (Sporting / FITASC / ESP)
 
@@ -351,11 +366,14 @@ The signed entry link is never the public link.
 - The competition page's live request adds `MOBIILI_LAITTEET`; the tab polls `MOBIILI Rata N` + `MOBIILI_LAITTEET`
   every 15 s while visible. Both are served **only with these columns** (by header, others dropped in
   `api/_lib/sheetsData.js` `julkisetSarakkeet`, also in every cache and snapshot): `MOBIILI Rata N`: `NRO`, `NIMI`,
-  `TULOS`, `PÄIVITETTY`, `1`..`25`; `MOBIILI_LAITTEET`: `RATA`, `LINJA`, `LINJA PÄIVITETTY`. Device ids, the holder's
+  `TULOS`, `PÄIVITETTY`, `1`..`25`; `MOBIILI_LAITTEET`: `RATA`, `LINJA`, `LINJA PÄIVITETTY`, `PAPERILLA`. Device ids, the holder's
   name, PIN errors and `TÄYDENNYKSET` never leave the API.
 - The line is computed as on the device (`src/kirjaus/linja.js`): the queue from the `Aikataulu*` lane grid (as above,
   with `LAYOUT/PÄIVÄ`), the device's `LINJA` (added / skipped shooters, breaks, retired, program), the program from
-  `LINJA`, else `RATAn_OHJELMA`, else `SSSD`, and the marks on the cards. The layout name is `RATAn_NIMI`.
+  `LINJA`, else `RATAn_OHJELMA`, else `SSSD`, and the marks on the cards. The layout name is `RATAn_NIMI`. Shooters in
+  `LINJA` `paperiValmiit` are skipped like retired ones and marked "Paperilla".
+- A layout with `PAPERILLA` shows "Rata jatkuu paperikorteilla (klo …)" instead of the line and the queue, then the cards
+  left unfinished on mobile and the finished cards.
 - The device creates the `MOBIILI` tabs during the competition. A requested `MOBIILI` tab missing from an API server's
   cached tab list makes it fetch the list again when the list is over 1 min old (other tabs: 10 min), and the page
   keeps the last value of a tab the response reports missing, so the live tab doesn't come and go.
@@ -377,7 +395,7 @@ targets (hidden by default): from the squad phone's card (Sporting / FITASC / ES
   (`LAITE`, `VERSIO`, `RYHMÄ`, `HYVÄKSYTTY`, `KUITATUT` are dropped), and for `MOBIILI Rata N` as in the live view.
 - `Tulokset Y` has no shooter number, so the card is matched by name (trimmed, spaces collapsed, case and U+200B ignored);
   a name on two card numbers, or twice in `Tulokset Y`, is not shown. Station k is result column k. When the result differs from the card's hits, both
-  are shown.
+  are shown. An incomplete card with a result says the mobile card is unfinished and shows the result (e.g. from a paper card).
 
 ### Results into the result columns (`MOBIILI_TULOKSET`)
 
@@ -389,7 +407,9 @@ targets (hidden by default): from the squad phone's card (Sporting / FITASC / ES
   station.
 - `TOIMISTO`: `api/kirjaus.js` writes nothing to the main tab. ScoringLib's 📱 Mobiilikirjaus › Tuo mobiilitulokset
   tuloksiin copies complete results into empty result cells (`MobiiliTulokset.js`, reads the card tabs by header) and
-  lists differences, incomplete cards and squad cards without `HYVÄKSYTTY`.
+  lists differences, incomplete cards and squad cards without `HYVÄKSYTTY`. An incomplete card whose result cell is filled
+  (finished on paper) is listed apart from the incomplete ones, and flagged when the paper value cannot match the mobile
+  marks (fewer than its hits, or more than its hits plus its unmarked targets).
 - `SUORAAN`: on a save that changes a complete result (it became complete, changed, or stopped being complete),
   `api/kirjaus.js` reads the main tab as cells (`spreadsheets.get`, `userEnteredValue` and `effectiveValue`) and writes
   the result in the same `batchUpdate` as the card. A save that leaves the result as it was reads nothing more; results

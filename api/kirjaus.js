@@ -3,7 +3,7 @@
 // POST ?toiminto=tallenna kirjoittaa kortit kisan MOBIILI Rata N -välilehdelle ja lokin MOBIILI_LOKI-välilehdelle.
 // Radalla on yksi haltijalaite kerrallaan (api/_lib/kirjausHaltija.js, MOBIILI_LAITTEET): POST ?toiminto=ota ottaa
 // radan (vapaan suoraan, varatun siirtoavaimella tai kilpailutoimiston PIN-koodilla), POST ?toiminto=vapauta luovuttaa
-// sen. Korvatun laitteen kortteja ei tallenneta: ne kirjataan lokiin ristiriitoina kilpailutoimistolle.
+// sen, POST ?toiminto=paperi siirtää radan paperikortteihin tai takaisin mobiiliin. Korvatun laitteen kortteja ei tallenneta: ne kirjataan lokiin ristiriitoina kilpailutoimistolle.
 // Ryhmäkoodilla (Sporting / FITASC / ESP) samat toiminnot koskevat yhtä ryhmää: avaa antaa ryhmän ampujat, layoutit
 // asemineen ja kortit, tallenna kirjoittaa MOBIILI Layout N -välilehdille vain ryhmän ampujien kortteja, ja haltija on
 // MOBIILI_RYHMAT-välilehdellä. Varatun ryhmän saa toiselle puhelimelle kuten radan: luovutuksella tai kilpailutoimiston
@@ -30,14 +30,16 @@ import {
   tarkistaTallennus
 } from './_lib/kirjausData.js';
 import {
-  LAITTEET_OTSIKKO, LAITTEET_VALILEHTI, LINJA_SARAKE, MAKS_PIN_VIRHEET, RYHMAT_OTSIKKO, TAYDENNYS_SARAKE, haltijaAvain,
+  LAITTEET_OTSIKKO, LAITTEET_VALILEHTI, LINJA_SARAKE, MAKS_PIN_VIRHEET, PAPERI_SARAKE, RYHMAT_OTSIKKO, TAYDENNYS_SARAKE, haltijaAvain,
   haltijaRivi, julkinenHaltija, laitteenNimi, lisaaTaydennys, lueLaiteRivi, onHaltija, tarkistaLinja, vaihtoPin
 } from './_lib/kirjausHaltija.js';
 import {
   PAA_VALILEHTI, RYHMAT_VALILEHTI, asemaJako, layoutValilehti, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko,
   ryhmaKorttiOtsikko, ryhmaKorttiRivi, ryhmanAmpujat, ryhmanVuorot, tarkistaRyhmaTallennus
 } from './_lib/kirjausRyhma.js';
-import { asemaTulokset, kaavaSarakkeet, kompakTulos, muuttuvat, onSuoraan, paaSolut, suoraTulos, tulosSolut } from './_lib/kirjausTulokset.js';
+import {
+  asemaTulokset, kaavaSarakkeet, kompakTulos, muuttuvat, onSuoraan, paaSolut, paperiTulokset, suoraTulos, tulosSolut
+} from './_lib/kirjausTulokset.js';
 
 const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
 const META_TTL_MS = 5 * 60 * 1000;
@@ -111,10 +113,15 @@ const riviSoluiksi = (rivi) => ({ values: rivi.map(solu) });
 const solut = (tab, rivi, sarake, arvot) => ({ updateCells: {
   start: { sheetId: tab.id, rowIndex: rivi, columnIndex: sarake }, rows: [riviSoluiksi(arvot)], fields: 'userEnteredValue'
 } });
-const laiteAlue = (tab, sarake) => `${valilehtiAlue(tab.nimi)}!A${sarake + 1}:${String.fromCharCode(64 + LAITTEET_OTSIKKO.length)}${sarake + 1}`;
+// Haltijarivin alue; välilehti ennen uusimpia sarakkeita (TÄYDENNYKSET, PAPERILLA) luetaan omaan leveyteensä asti (alue yli
+// ruudukon on virhe), ja kirjoittavat toiminnot leventävät sen ensin (varmista).
+const laiteAlue = (tab, sarake) => {
+  const leveys = Math.min(LAITTEET_OTSIKKO.length, Number.isInteger(tab.sarakkeita) && tab.sarakkeita > 0 ? tab.sarakkeita : LAITTEET_OTSIKKO.length);
+  return `${valilehtiAlue(tab.nimi)}!A${sarake + 1}:${String.fromCharCode(64 + leveys)}${sarake + 1}`;
+};
 const salaisuus = () => process.env.KIRJAUS_SALAISUUS;
 
-async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija }, res) {
+async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija, paperi }, res) {
   // Aina tuoreet välilehdet: toisen palvelinilmentymän muisti ei tiedä toisen laitteen luomasta tai
   // poistetusta MOBIILI-välilehdestä, ja vaihtolaite saisi tyhjät kortit (tai luku kaatuisi).
   const meta = await metatiedot(request, sheetId, { tuore: true });
@@ -122,6 +129,7 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija
   const kohteet = kohdistaValilehdet([...AIKATAULU_VALILEHDET, 'KISANSPEKSIT'], nimet).loydetyt;
   const mobiili = etsiValilehti(meta, mobiiliValilehti(sarake));
   const laitteet = etsiValilehti(meta, LAITTEET_VALILEHTI);
+  const paa = etsiValilehti(meta, PAA_VALILEHTI);
 
   // Korttirivit muotoilemattomina: 13-numeroinen VERSIO ei saa tulla tieteellisenä merkintänä.
   const omatAlueet = [
@@ -144,6 +152,20 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija
   const rivi = lueLaiteRivi((laiteRivit || [])[0]);
   const julkinen = julkinenHaltija(rivi, laite);
 
+  // Paperikortilta kirjoitetut tulokset (laite ohittaa ne linjalla, kun rata jatkuu paperin jälkeen mobiilina). Pääsivu
+  // luetaan vain, kun rata on ollut paperilla (PAPERILLA, linjan paperiValmiit) tai laite pyytää (palasi paperilta, otti
+  // radan PIN-koodilla). null = ei luettu tai luku epäonnistui: laite pitää aiemmat.
+  let paperiTuloksetArvo = null;
+  if (paa && (paperi || rivi.paperilla || rivi.linja?.paperiValmiit?.length > 0)) {
+    try {
+      const nimet = new Map((korttiRivit || []).filter(Array.isArray).map((r) => [Number.parseInt(r[0], 10), String(r[1] ?? '')]));
+      const paaTiedot = await paaSoluina(request, sheetId, paa);
+      paperiTuloksetArvo = paperiTulokset(paaTiedot.tiedot, sarake, kortit.map((k) => ({ ...k, nimi: nimet.get(k.nro) })));
+    } catch (error) {
+      console.warn('[KIRJAUS] Paperitulosten luku epäonnistui:', String(googleViesti(error) || error?.message).slice(0, 200));
+    }
+  }
+
   return laheta(res, 200, {
     kisa: meta.otsikko,
     sarake,
@@ -161,8 +183,18 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija
     linja: rivi.linja,
     // Korvattujen laitteiden merkinnät: haltija täyttää niillä korttiensa tyhjät kiekot (src/kirjaus/haltija.js).
     taydennykset: rivi.taydennykset,
+    // Rata jatkuu paperikorteilla (aika) tai '' ja paperilta kirjoitetut tulokset { nro: tulos } keskeneräisille korteille.
+    paperilla: rivi.paperilla,
+    paperiTulokset: paperiTuloksetArvo,
     voimassaAsti
   });
+}
+
+// Pääsivun solut (syöte ja laskettu arvo) yhdellä spreadsheets.get-kutsulla: { rivit, tiedot } (paaSolut).
+async function paaSoluina(request, sheetId, paa) {
+  const params = new URLSearchParams({ ranges: valilehtiAlue(paa.nimi), fields: 'sheets(data(rowData(values(userEnteredValue,effectiveValue))))' });
+  const res = await request({ url: `${SHEETS}/${sheetId}?${params.toString()}` });
+  return paaSolut(res.data?.sheets?.[0]?.data?.[0]?.rowData);
 }
 
 const onJoOlemassa = (error) => googleStatus(error) === 400 && /already exists/i.test(googleViesti(error));
@@ -330,7 +362,8 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
     vanha?.merkit || '', kortti.merkit, huomio(kortti.nro).join(', ')]);
   await kirjoitaTuloksin(request, sheetId, tabit.loki, requests, tulokset, lokirivit);
   const taydennykset = Object.keys(rivi.taydennykset).length > 0 ? { taydennykset: rivi.taydennykset } : {};
-  return { status: 200, body: { tallennetut, uudemmat, ...taydennykset } };
+  // paperilla: kilpailutoimisto on voinut siirtää radan paperille; laite näkee sen seuraavassa tallennuksessa tai tarkistuksessa.
+  return { status: 200, body: { tallennetut, uudemmat, paperilla: rivi.paperilla, ...taydennykset } };
 }
 
 // --- Ryhmäpuhelin (Sporting / FITASC / ESP) ---
@@ -401,6 +434,7 @@ async function avaaRyhma(request, { sheetId, ryhma, voimassaAsti }, { laite, hal
     kortit,
     haltija: { ...julkinen, oma: julkinen.oma && onHaltija(haltija, rivi, { sheetId, sarake: kohde.tunnus, laite }, salaisuus()) },
     taydennykset: rivi.taydennykset,
+    paperilla: rivi.paperilla,
     voimassaAsti
   });
 }
@@ -568,7 +602,7 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
   await kirjoitaTuloksin(request, sheetId, tabit.loki, requests, tulokset, lokirivit);
   if (levennetyt.size > 0) metaMuisti.delete(sheetId);
   const taydennykset = Object.keys(rivi.taydennykset).length > 0 ? { taydennykset: rivi.taydennykset } : {};
-  return { status: 200, body: { tallennetut, uudemmat, hylatyt, ...taydennykset } };
+  return { status: 200, body: { tallennetut, uudemmat, hylatyt, paperilla: rivi.paperilla, ...taydennykset } };
 }
 
 // Hyväksynnän aika riville: laitteen aika, taulukossa jo oleva (true: laite sai hyväksynnän taulukosta) tai tyhjä.
@@ -596,9 +630,7 @@ async function suoratTulokset(request, sheetId, meta, kohteet) {
     valitut.filter((k) => k.uusi !== null).forEach((k) => lisaa(k.avain, { teksti: `TULOS ${k.uusi} EI KIRJOITETTU: VÄLILEHTEÄ ${PAA_VALILEHTI} EI LÖYDY` }));
     return tulos;
   }
-  const params = new URLSearchParams({ ranges: valilehtiAlue(paa.nimi), fields: 'sheets(data(rowData(values(userEnteredValue,effectiveValue))))' });
-  const res = await request({ url: `${SHEETS}/${sheetId}?${params.toString()}` });
-  const { rivit, tiedot } = paaSolut(res.data?.sheets?.[0]?.data?.[0]?.rowData);
+  const { rivit, tiedot } = await paaSoluina(request, sheetId, paa);
   const paikat = tulosSolut(rivit, valitut);
   paikat.filter((k) => k.puuttuu && k.uusi !== null).forEach((k) => lisaa(k.avain, { teksti: `TULOS ${k.uusi} EI KIRJOITETTU: ${k.puuttuu}` }));
   const loydetyt = paikat.filter((k) => !k.puuttuu);
@@ -795,6 +827,40 @@ async function vapauta(request, avain, req, res) {
   });
 }
 
+// Rata tai ryhmä jatkuu paperikorteilla (paalle: true) tai taas mobiilina (false). Vain haltija; kilpailutoimisto kirjoittaa
+// saman solun ScoringLibin valikosta (Rata jatkuu paperilla). Haltija ei vaihdu: laite voi vielä lähettää merkintänsä ja
+// jatkaa myöhemmin. Radan linjan tila tallennetaan samalla.
+async function paperi(request, avain, req, res) {
+  const kohde = kohdeOf(avain);
+  const runko = runkoOf(req);
+  const laite = typeof runko?.laite === 'string' ? runko.laite : '';
+  if (!onLaitetunnus(laite)) return laheta(res, 400, { error: 'Laitteen tunnus puuttuu' });
+  if (typeof runko?.paalle !== 'boolean') return laheta(res, 400, { error: 'paalle puuttuu' });
+  let linja = null;
+  if (runko?.linja !== undefined && !kohde.ryhma) {
+    const t = tarkistaLinja(runko.linja);
+    if (t.virhe) return laheta(res, 400, { error: t.virhe });
+    linja = t.linja;
+  }
+  return uudelleenPoistetulla(avain, async () => {
+    const { tabit, rivi } = await lueHaltija(request, avain, kohde);
+    if (!onHaltija(runko?.haltija, rivi, { sheetId: avain.sheetId, sarake: kohde.tunnus, laite }, salaisuus())) {
+      const error = kohde.ryhma ? 'Tämä puhelin ei enää kirjaa ryhmää' : 'Tämä laite ei ole enää radan laite';
+      return laheta(res, 409, { error, korvattu: true, haltija: julkinenHaltija(rivi, laite) });
+    }
+    const aika = aikaleima();
+    const paperilla = runko.paalle ? (rivi.paperilla || aika) : '';
+    const nimi = kohde.ryhma ? 'RYHMÄ' : 'RATA';
+    const teksti = runko.paalle ? `${nimi} JATKUU PAPERILLA (${rivi.nimi || laite})` : `${nimi} JATKUU MOBIILINA (${rivi.nimi || laite})`;
+    await batchUpdate(request, avain.sheetId, [
+      solut(tabit.laitteet, kohde.rivi, PAPERI_SARAKE, [paperilla]),
+      ...(linja ? [solut(tabit.laitteet, kohde.rivi, LINJA_SARAKE, [JSON.stringify(linja), aika])] : []),
+      { appendCells: { sheetId: tabit.loki.id, rows: [riviSoluiksi([aika, lokinKohde(kohde), '', laite, '', '', '', teksti])], fields: 'userEnteredValue' } }
+    ]);
+    return laheta(res, 200, { paperilla });
+  });
+}
+
 let valitsin = null;
 const kirjuriValitsin = () => {
   if (!valitsin) {
@@ -806,7 +872,7 @@ const kirjuriValitsin = () => {
   return valitsin;
 };
 
-const TOIMINNOT = { avaa: 'GET', tallenna: 'POST', ota: 'POST', vapauta: 'POST' };
+const TOIMINNOT = { avaa: 'GET', tallenna: 'POST', ota: 'POST', vapauta: 'POST', paperi: 'POST' };
 
 export default async function handler(req, res) {
   const toiminto = String(req.query?.toiminto || '');
@@ -825,11 +891,12 @@ export default async function handler(req, res) {
     if (toiminto === 'avaa') {
       const laite = String(req.headers?.['x-kirjaus-laite'] || '');
       const haltija = String(req.headers?.['x-kirjaus-haltija'] || '');
-      const tiedot = { laite: onLaitetunnus(laite) ? laite : '', haltija };
+      const tiedot = { laite: onLaitetunnus(laite) ? laite : '', haltija, paperi: req.headers?.['x-kirjaus-paperi'] === '1' };
       return await (ryhmalle ? avaaRyhma : avaa)(request, avain, tiedot, res);
     }
     if (toiminto === 'ota') return await ota(request, avain, req, res);
     if (toiminto === 'vapauta') return await vapauta(request, avain, req, res);
+    if (toiminto === 'paperi') return await paperi(request, avain, req, res);
     return await (ryhmalle ? tallennaRyhma : tallenna)(request, avain, req, res);
   } catch (error) {
     return lahetaGoogleVirhe(res, error, error?.kirjausVaihe);

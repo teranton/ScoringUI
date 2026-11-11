@@ -28,6 +28,10 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   One device holds a layout at a time (`api/_lib/kirjausHaltija.js`, tab `MOBIILI_LAITTEET`): it hands over from its menu
   (release, or a QR transfer link when offline, `src/kirjaus/haltija.js`), or a new device takes over with the office's
   one-time PIN from ScoringLib. A replaced device's marks are handed to the holder, which fills its empty targets (only the holder writes cards); differences are logged.
+  A layout or squad can continue on paper cards (`PAPERILLA` in `MOBIILI_LAITTEET` / `MOBIILI_RYHMAT`, set from the device
+  menu, `toiminto=paperi`, or ScoringLib's office menu): the device stops entry and lists its unfinished cards to copy onto
+  paper (`src/kirjaus/Paperi.jsx`), Radat live shows the layout as on paper, and when entry resumes the Compak line skips
+  shooters whose result was typed from paper (`avaa` `paperiTulokset` → `LINJA` `paperiValmiit`).
   A squad code (Sporting / FITASC / ESP, from ScoringLib's Näytä ryhmäkoodit list, not printed on the cards) opens the squad phone (`src/kirjaus/RyhmaKirjaus.jsx`,
   `ryhma.js`, `api/_lib/kirjausRyhma.js`): targets station by station (from the timetable's starting stand `Ryhmä N · asema S`,
   wrapping; FITASC pegs from `RATAn_OHJELMA`, singles then doubles); each shooter confirms every stand (`KUITATUT`) and the

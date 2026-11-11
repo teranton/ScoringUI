@@ -44,7 +44,7 @@ test('linjan tila: vain tunnetut kentät', () => {
   });
   assert.deepEqual(linja, {
     lisatyt: [{ nro: 5, nimi: 'Uusi Ampuja', jalkeen: null, kierroksesta: 2 }],
-    ohitetut: [1, 2], tauot: [], tauotPois: [], keskeyttaneet: [], ohjelma: null
+    ohitetut: [1, 2], tauot: [], tauotPois: [], keskeyttaneet: [], paperiValmiit: [], ohjelma: null
   });
 });
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  asemaTulokset, kaavaSarakkeet, kompakTulos, muuttuvat, onSuoraan, paaSarakkeet, paaSolut, suoraTulos, tulosSolut
+  asemaTulokset, kaavaSarakkeet, kompakTulos, muuttuvat, onSuoraan, paaSarakkeet, paaSolut, paperiTulokset, suoraTulos, tulosSolut
 } from './kirjausTulokset.js';
 
 test('MOBIILI_TULOKSET: vain SUORAAN kirjoittaa', () => {
@@ -81,4 +81,29 @@ test('pääsivu soluina: kaava ja taulukkokaavan täyttämä sarake tunnistetaan
 test('muuttuvat: vain kohteet, joiden valmis tulos muuttuu', () => {
   assert.deepEqual(muuttuvat([{ uusi: null, vanha: null }, { uusi: 3, vanha: null }, { uusi: null, vanha: 2 }, { uusi: 4, vanha: 4 }]),
     [{ uusi: 3, vanha: null }, { uusi: null, vanha: 2 }]);
+});
+
+test('paperitulokset: käsin kirjoitettu tulos keskeneräiselle kortille; kaava, taulukkokaava ja valmis kortti eivät', () => {
+  const t = (v) => (v === '' ? {} : { userEnteredValue: typeof v === 'number' ? { numberValue: v } : { stringValue: v }, effectiveValue: typeof v === 'number' ? { numberValue: v } : { stringValue: v } });
+  const kaava = { userEnteredValue: { formulaValue: '=20' }, effectiveValue: { numberValue: 20 } };
+  const { tiedot } = paaSolut([
+    { values: [t('NRO'), t('NIMI'), t('1'), t('2')] },
+    { values: [t(1), t('Aalto'), t(22), t('')] },
+    { values: [t(2), t('Berg'), kaava, t(25)] },
+    { values: [t(3), t('Carl'), t(18), t('')] },
+    { values: [t(4), t('Dahl'), t(''), t('')] }
+  ]);
+  const kortit = [{ nro: 1, merkit: 'X'.repeat(7) + '-'.repeat(18) }, { nro: 3, merkit: 'X'.repeat(25) }];
+  assert.deepEqual(paperiTulokset(tiedot, 1, kortit), { 1: '22' });
+  assert.deepEqual(paperiTulokset(tiedot, 2, kortit), { 2: '25' });
+  assert.deepEqual(paperiTulokset(tiedot, 5, kortit), {});
+  // Kortin nimi ei täsmää pääsivuun (numerot vaihtuneet): ei paperitulos.
+  assert.deepEqual(paperiTulokset(tiedot, 1, [{ ...kortit[0], nimi: 'Muu Ampuja' }, kortit[1]]), {});
+  // Taulukkokaavan täyttämä sarake ei ole paperia.
+  const { tiedot: taulukko } = paaSolut([
+    { values: [t('NRO'), t('1')] },
+    { values: [t(1), { userEnteredValue: { formulaValue: '=ARRAYFORMULA(A2:A)' }, effectiveValue: { numberValue: 1 } }] },
+    { values: [t(2), { effectiveValue: { numberValue: 2 } }] }
+  ]);
+  assert.deepEqual(paperiTulokset(taulukko, 1, []), {});
 });

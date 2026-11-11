@@ -1,6 +1,6 @@
 // Julkinen ratanäkymä (src/LiveRadat.jsx): Compak-radan tilanne mobiilikirjauksen korteista, kuten kirjauslaitteen
 // näytöllä. Lähteet api/kisa.js:n kautta: MOBIILI Rata N (kortit), MOBIILI_LAITTEET (linjan tila; API antaa vain
-// sarakkeet RATA, LINJA ja LINJA PÄIVITETTY), aikataulut ja KISANSPEKSIT. Puhtaita funktioita (mobiiliLive.test.js).
+// sarakkeet RATA, LINJA, LINJA PÄIVITETTY ja PAPERILLA), aikataulut ja KISANSPEKSIT. Puhtaita funktioita (mobiiliLive.test.js).
 import { parseCsvRows } from './csv.js';
 import { radanJono, speksiArvo, tarkistaLinja } from './radanJono.js';
 import { KOHTEITA, taytetyt } from '../kirjaus/kortit.js';
@@ -25,13 +25,15 @@ export function lueAika(teksti) {
   return { arvo: (((vuosi * 100 + kk) * 100 + pv) * 100 + h) * 10000 + min * 100 + (s || 0), kello: `${h}.${String(min).padStart(2, '0')}` };
 }
 
-// MOBIILI_LAITTEET → [{ sarake, linja, paivitetty }] radan mukaan. Rivi on radalla, jolla on ollut laite.
+// MOBIILI_LAITTEET → [{ sarake, linja, paivitetty, paperilla }] radan mukaan. Rivi on radalla, jolla on ollut laite.
+// paperilla: aika, jolloin rata siirtyi paperikortteihin, tai ''.
 export function lueRadanLaitteet(csv) {
   const rivit = parseCsvRows(csv || '');
   const otsikko = otsikot(rivit[0]);
   const iRata = otsikko.indexOf('RATA');
   const iLinja = otsikko.indexOf('LINJA');
   const iPaivitetty = otsikko.indexOf('LINJA PÄIVITETTY');
+  const iPaperilla = otsikko.indexOf('PAPERILLA');
   if (iRata === -1) return [];
   const radat = new Map();
   rivit.slice(1).forEach((rivi) => {
@@ -43,7 +45,11 @@ export function lueRadanLaitteet(csv) {
     } catch {
       linja = null;
     }
-    radat.set(sarake, { sarake, linja, paivitetty: iPaivitetty === -1 ? '' : String(rivi[iPaivitetty] || '') });
+    radat.set(sarake, {
+      sarake, linja,
+      paivitetty: iPaivitetty === -1 ? '' : String(rivi[iPaivitetty] || ''),
+      paperilla: iPaperilla === -1 ? '' : String(rivi[iPaperilla] || '').trim()
+    });
   });
   return [...radat.values()].sort((a, b) => a.sarake - b.sarake);
 }
@@ -81,35 +87,42 @@ export function lueRadanKortit(csv) {
 // (laitteella valittu, muuten RATAn_OHJELMA), tilanne korttien merkinnöistä. Ilman ohjelmaa vuoroja ei lasketa
 // (laitekaan ei kirjaa ennen kuin ohjelma on valittu): kesken = keskeneräiset kortit numerojärjestyksessä.
 // aikataulut: [{ nimi, rivit }] järjestyksessä Aikataulu, Aikataulu La, Aikataulu Su (olemassa olevat välilehdet).
-export function radanLiveTila({ speksitRivit = [], aikataulut = [], sarake, kortit = {}, korttiNimet = {}, linja = null }) {
+// Paperikortilla radan päättäneet (linjan paperiValmiit) ohitetaan kuten keskeyttäneet. Paperilla jatkuvalla radalla
+// (paperilla = aika) linjaa ja jonoa ei lasketa: kesken = mobiilissa kesken jääneet kortit, valmiit = valmiit kortit.
+export function radanLiveTila({ speksitRivit = [], aikataulut = [], sarake, kortit = {}, korttiNimet = {}, linja = null, paperilla = '' }) {
   const ratojaPaivassa = Number.parseInt(speksiArvo(speksitRivit, 'LAYOUT/PÄIVÄ'), 10) || 0;
   const tiedot = radanJono({ aikataulut, sarake, ratojaPaivassa });
   const ohjelma = jasennaOhjelma(linja?.ohjelma) || jasennaOhjelma(speksiArvo(speksitRivit, `RATA${sarake}_OHJELMA`));
   const keskeyttaneet = linja?.keskeyttaneet || [];
+  const paperiValmiit = linja?.paperiValmiit || [];
+  const ohitettavat = [...keskeyttaneet, ...paperiValmiit];
   const nimet = { ...tiedot.nimet, ...korttiNimet };
   const jono = linjanJono(tiedot.jono, linja || {}, nimet);
   jono.forEach((a) => {
     if (a.nimi) nimet[a.nro] = a.nimi;
   });
-  const perus = { rataNimi: speksiArvo(speksitRivit, `RATA${sarake}_NIMI`), loytyi: tiedot.aikataulu !== null, jono, keskeyttaneet, nimet };
-  if (!ohjelma) {
+  const perus = {
+    rataNimi: speksiArvo(speksitRivit, `RATA${sarake}_NIMI`), loytyi: tiedot.aikataulu !== null, jono, keskeyttaneet, paperiValmiit,
+    nimet, paperilla: paperilla || ''
+  };
+  if (!ohjelma || paperilla) {
     const numerot = Object.keys(kortit).map(Number).sort((a, b) => a - b);
-    const valmis = (nro) => taytetyt(kortit[nro].merkit) === KOHTEITA || keskeyttaneet.includes(nro);
+    const valmis = (nro) => taytetyt(kortit[nro].merkit) === KOHTEITA || ohitettavat.includes(nro);
     return {
-      ...perus, ohjelma: '', tilanne: null, linja: [], tulevat: [],
+      ...perus, ohjelma: ohjelma ? ohjelmaTekstiksi(ohjelma) : '', tilanne: null, linja: [], tulevat: [],
       kesken: numerot.filter((nro) => !valmis(nro)),
       valmiit: numerot.filter(valmis).reverse()
     };
   }
   const vuorot = laskeVuorot(jono, ohjelma);
-  const tilanne = linjanTilanne(vuorot, kortit, keskeyttaneet);
+  const tilanne = linjanTilanne(vuorot, kortit, ohitettavat);
   return {
     ...perus,
     ohjelma: ohjelmaTekstiksi(ohjelma),
     tilanne,
     linja: tilanne?.linja || [],
     kesken: null,
-    tulevat: seuraavatAmpujat(jono, vuorot, tilanne, kortit, keskeyttaneet),
-    valmiit: valmiitAmpujat(vuorot, tilanne, kortit, keskeyttaneet)
+    tulevat: seuraavatAmpujat(jono, vuorot, tilanne, kortit, ohitettavat),
+    valmiit: valmiitAmpujat(vuorot, tilanne, kortit, ohitettavat)
   };
 }
