@@ -207,10 +207,15 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const seuraMerkit = ampujat.reduce((pisin, a) => Math.max(pisin, String(a.seura || '').trim().length), 0);
   const onkoSeuroja = seuraMerkit > 0;
   // Pisimmän seuran nimen todellinen leveys sivun fontilla; merkkimääräarvio liioittelee (esim. Trapp-73).
+  // Avaimena seurojen nimet, ettei jokainen datan päivitys mittaa uudelleen ja hajota asettelu-memoa.
+  const seuraAvain = useMemo(
+    () => [...new Set(ampujat.map((a) => String(a.seura || '').trim()).filter(Boolean))].sort().join('\n'),
+    [ampujat]
+  );
   const seuraTeksti = useMemo(() => {
-    if (!onkoSeuroja || typeof window === 'undefined') return null;
-    return mittaaSeuraTeksti(ampujat.map((a) => a.seura), window.getComputedStyle(document.body).fontFamily);
-  }, [ampujat, onkoSeuroja]);
+    if (!seuraAvain || typeof window === 'undefined') return null;
+    return mittaaSeuraTeksti(seuraAvain.split('\n'), tx.clubLabel, window.getComputedStyle(document.body).fontFamily);
+  }, [seuraAvain, tx.clubLabel]);
 
   const asettelu = useMemo(() => laskeTaulukkoAsettelu({
     leveys: taulukkoNakymaLeveys,

@@ -2,6 +2,7 @@
 // HenkiloTaulukko-näkymän puhdas parsinta- ja laskentalogiikka.
 import { muodostaRatkoNakyma } from './henkiloTulokset.js';
 import { haeTekstit } from '../i18n.js';
+import { mittaaTeksti } from './tekstinLeveys.js';
 
 export function parsiTaulukkoAmpujat(raakaRivit, ratojenMaara) {
   if (!Array.isArray(raakaRivit) || raakaRivit.length < 2) return [];
@@ -280,47 +281,41 @@ const TASOT = {
 // Vierityspalkin ja reunojen varaus, ettei taulukko mene juuri ja juuri yli.
 const LEVEYS_VARA = 8;
 
-// Seura-sarakkeen leveys pisimmän seuran nimen mukaan, enintään tason maksimi (pidemmät katkaistaan).
-// seuraTeksti = pisimmän seuran nimen leveys (px) tasoittain, selaimessa mitattuna (mittaaSeuraTeksti);
-// ilman mittausta arvioidaan merkkimäärästä. Tekstikoko: desktop text-sm, mobile text-xs, compact 11 px
-// (HenkiloTaulukko TEKSTIKOKO); padding desktopilla px-3, muuten px-2, ja 1 px oikea reuna.
+// Seura-sarakkeen leveys pisimmän seuran nimen (tai lihavoidun otsikon lajittelumerkkeineen) mukaan,
+// enintään tason maksimi (pidemmät katkaistaan). seuraTeksti = tasoittain mitattu leveys (px, mittaaSeuraTeksti);
+// ilman mittausta arvioidaan merkkimäärästä. Koot ja padding vastaavat HenkiloTaulukon TEKSTIKOKO- ja
+// otsikkoPadding-luokkia (desktop text-sm px-3, mobile text-xs px-2, compact 11 px px-2); 1 px oikea reuna.
 const SEURA_MIN = 40;
 export const SEURA_FONTTI_PX = { desktop: 14, mobile: 12, compact: 11 };
 const SEURA_MERKKI = { desktop: 7.7, mobile: 6.6, compact: 6.1 };
 const SEURA_PADDING = { desktop: 24, mobile: 16, compact: 16 };
 const SEURA_REUNA = 1;
-// Mittauksen pyöristys ja fontin vaihtelu, ettei lyhin mahtuva nimi katkea yhden pikselin takia.
+// Mittauksen pyöristys ja fontin vaihtelu, ettei pisin nimi katkea pikselin takia.
 const SEURA_VARA = 2;
 
 function laskeSeuraLeveys(taso, seuraMerkit, seuraTeksti) {
   const maksimi = TASOT[taso].seura;
   const mitattu = seuraTeksti?.[taso];
-  if (Number.isFinite(mitattu) && mitattu > 0) {
-    const tarve = Math.ceil(mitattu) + SEURA_PADDING[taso] + SEURA_REUNA + SEURA_VARA;
-    return Math.max(SEURA_MIN, Math.min(maksimi, tarve));
-  }
-  if (!(seuraMerkit > 0)) return maksimi;
-  const tarve = Math.ceil(seuraMerkit * SEURA_MERKKI[taso]) + SEURA_PADDING[taso];
+  const teksti = Number.isFinite(mitattu) && mitattu > 0
+    ? mitattu
+    : (seuraMerkit > 0 ? seuraMerkit * SEURA_MERKKI[taso] : null);
+  if (teksti === null) return maksimi;
+  const tarve = Math.ceil(teksti) + SEURA_PADDING[taso] + SEURA_REUNA + SEURA_VARA;
   return Math.max(SEURA_MIN, Math.min(maksimi, tarve));
 }
 
-// Mittaa pisimmän seuran nimen leveyden tasoittain canvasilla sivun omalla fontilla.
-// Palauttaa null, jos mittaus ei onnistu (testit, SSR), jolloin leveys arvioidaan merkkimäärästä.
-let mittausKonteksti = null;
-export function mittaaSeuraTeksti(seurat, fonttiPerhe) {
-  if (typeof document === 'undefined') return null;
-  try {
-    mittausKonteksti = mittausKonteksti || document.createElement('canvas').getContext('2d');
-  } catch {
-    return null;
-  }
-  if (!mittausKonteksti) return null;
+// Mittaa tasoittain pisimmän seuran nimen (normaali paino) ja otsikon (lihava, lajittelumerkin kanssa)
+// leveyden sivun fonttipinolla. null, jos mittaus ei onnistu: leveys arvioidaan silloin merkkimäärästä.
+export function mittaaSeuraTeksti(seurat, otsikko, fonttiPerhe, mittaa = mittaaTeksti) {
   const nimet = [...new Set(seurat.map((s) => String(s || '').trim()).filter(Boolean))];
   if (nimet.length === 0) return null;
+  const perhe = fonttiPerhe || 'sans-serif';
   const tulos = {};
   for (const [taso, px] of Object.entries(SEURA_FONTTI_PX)) {
-    mittausKonteksti.font = `400 ${px}px ${fonttiPerhe || 'sans-serif'}`;
-    tulos[taso] = nimet.reduce((pisin, nimi) => Math.max(pisin, mittausKonteksti.measureText(nimi).width), 0);
+    let pisin = mittaa(`${otsikko} ▼`, `700 ${px}px ${perhe}`);
+    if (pisin === undefined) return null;
+    for (const nimi of nimet) pisin = Math.max(pisin, mittaa(nimi, `400 ${px}px ${perhe}`) ?? 0);
+    tulos[taso] = pisin;
   }
   return tulos;
 }
