@@ -285,15 +285,15 @@ const LEVEYS_VARA = 8;
 // wider, capped at the level's maximum (longer names are truncated with an ellipsis).
 // seuraTeksti holds the measured text width in px per level (from mittaaSeuraTeksti). Without a measurement
 // the width is estimated from the number of characters.
-// Font sizes and padding must match HenkiloTaulukko.jsx's TEKSTIKOKO and otsikkoPadding classes:
-// desktop text-sm + px-3, mobile text-xs + px-2, compact 11 px + px-2. The cell also has a 1 px right border.
+// Font sizes and padding must match HenkiloTaulukko.jsx's TEKSTIKOKO and seuraPadding classes:
+// desktop text-sm + px-3, mobile text-xs and compact 11 px + pl-1.5 pr-0.5. The cell also has a 1 px right border.
 const SEURA_MIN = 40;
 export const SEURA_FONTTI_PX = { desktop: 14, mobile: 12, compact: 11 };
 const SEURA_MERKKI = { desktop: 7.7, mobile: 6.6, compact: 6.1 };
-const SEURA_PADDING = { desktop: 24, mobile: 16, compact: 16 };
+const SEURA_PADDING = { desktop: 24, mobile: 8, compact: 8 };
 const SEURA_REUNA = 1;
 // Safety margin for rounding and font rendering differences, so the longest name is not cut by a pixel.
-const SEURA_VARA = 2;
+const SEURA_VARA = 1;
 
 function laskeSeuraLeveys(taso, seuraMerkit, seuraTeksti) {
   const maksimi = TASOT[taso].seura;

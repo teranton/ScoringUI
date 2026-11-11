@@ -501,6 +501,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const seuraStyle = { width: `${leveydet.seura}px`, minWidth: `${leveydet.seura}px`, maxWidth: `${leveydet.seura}px` };
   const riviKorkeus = kokoLuokka === 'desktop' ? 'h-11' : 'h-9';
   const otsikkoPadding = kokoLuokka === 'desktop' ? 'px-3' : 'px-2';
+  // The club column is left aligned and the La/Su/Yht columns after it are centred, so on phones it needs
+  // little padding on the right. Keep in step with SEURA_PADDING in utils/henkiloTaulukko.js.
+  const seuraPadding = kokoLuokka === 'desktop' ? 'px-3' : 'pl-1.5 pr-0.5';
 
   const otsikkoLuokka = (tyyppi) => (OTSIKKO_LUOKAT[tyyppi] || OTSIKKO_LUOKAT.stage)(kokoLuokka);
   const soluLuokka = (tyyppi) => (SOLU_LUOKAT[tyyppi] || SOLU_LUOKAT.stage)(kokoLuokka);
@@ -643,7 +646,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                         )}
 
                         {naytaSeuraSarake && (
-                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30 text-left', otsikkoPadding)} style={seuraStyle}>
+                          <th className={cn(otsikkoLuokka('fixed'), 'sticky top-0 z-30 text-left', seuraPadding)} style={seuraStyle}>
                             <button type="button" className="w-full text-left" onClick={() => paivitaJarjestys('seura')}>
                               {tx.clubLabel}{jarjestysMerkki('seura')}
                             </button>
@@ -773,7 +776,7 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
                           )}
 
                           {naytaSeuraSarake && (
-                            <td className={cn('bg-white group-hover:bg-slate-50/30 text-left text-slate-700 border-r border-slate-200/60 truncate', TEKSTIKOKO[kokoLuokka], otsikkoPadding)} style={seuraStyle}>
+                            <td className={cn('bg-white group-hover:bg-slate-50/30 text-left text-slate-700 border-r border-slate-200/60 truncate', TEKSTIKOKO[kokoLuokka], seuraPadding)} style={seuraStyle}>
                               <span translate="no">{ampuja.seura || '—'}</span>
                             </td>
                           )}

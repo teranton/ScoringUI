@@ -171,7 +171,7 @@ test('laskeTaulukkoAsettelu: kaikki sarakkeet -tilassa mitään ei piiloteta', (
 
 test('laskeTaulukkoAsettelu: Seura on pisimmän seuran levyinen, enintään tason maksimi', () => {
   const lyhyet = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 4 });
-  assert.equal(lyhyet.leveydet.seura, 58);
+  assert.equal(lyhyet.leveydet.seura, 57);
 
   const pitkat = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 35 });
   assert.equal(pitkat.leveydet.seura, 140);
@@ -181,22 +181,22 @@ test('laskeTaulukkoAsettelu: Seura on pisimmän seuran levyinen, enintään taso
   assert.equal(mobiili.leveydet.seura, 70);
 
   const trapp = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2, seuraMerkit: 8 });
-  assert.equal(trapp.leveydet.seura, 70);
+  assert.equal(trapp.leveydet.seura, 63);
 
-  // Compact estimate: 8 × 6.1 → 49 + 16 + 1 + 2 = 68.
+  // Compact estimate: 8 × 6.1 → 49 + 8 + 1 + 1 = 59.
   const tiivisArvio = laskeTaulukkoAsettelu({ leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2, kaikkiSarakkeet: true, seuraMerkit: 8 });
   assert.equal(tiivisArvio.taso, 'compact');
-  assert.equal(tiivisArvio.leveydet.seura, 68);
+  assert.equal(tiivisArvio.leveydet.seura, 59);
 });
 
 test('laskeTaulukkoAsettelu: mitattu seuran nimi määrää Seura-leveyden (teksti + padding + reuna + vara)', () => {
-  // Trapp-73 at 11 px is about 44 px: 45 + 16 + 1 + 2 = 64, not the old estimate's 69 or the 70 px maximum.
+  // Trapp-73 at 11 px is about 44 px: 45 + 8 + 1 + 1 = 55, not the old estimate's 69 or the 70 px maximum.
   const tiivis = laskeTaulukkoAsettelu({
     leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2, kaikkiSarakkeet: true,
     seuraMerkit: 8, seuraTeksti: { desktop: 56.2, mobile: 48.1, compact: 44.1 }
   });
   assert.equal(tiivis.taso, 'compact');
-  assert.equal(tiivis.leveydet.seura, 64);
+  assert.equal(tiivis.leveydet.seura, 55);
 
   const lyhyt = laskeTaulukkoAsettelu({ leveys: 1280, ratojenMaara: 6, seuraMerkit: 3, seuraTeksti: { desktop: 10, mobile: 9, compact: 8 } });
   assert.equal(lyhyt.leveydet.seura, 40);
