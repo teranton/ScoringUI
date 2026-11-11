@@ -281,16 +281,18 @@ const TASOT = {
 // Vierityspalkin ja reunojen varaus, ettei taulukko mene juuri ja juuri yli.
 const LEVEYS_VARA = 8;
 
-// Seura-sarakkeen leveys pisimmän seuran nimen (tai lihavoidun otsikon lajittelumerkkeineen) mukaan,
-// enintään tason maksimi (pidemmät katkaistaan). seuraTeksti = tasoittain mitattu leveys (px, mittaaSeuraTeksti);
-// ilman mittausta arvioidaan merkkimäärästä. Koot ja padding vastaavat HenkiloTaulukon TEKSTIKOKO- ja
-// otsikkoPadding-luokkia (desktop text-sm px-3, mobile text-xs px-2, compact 11 px px-2); 1 px oikea reuna.
+// Club (Seura) column width: fits the longest club name, or the bold header with its sort arrow if that is
+// wider, capped at the level's maximum (longer names are truncated with an ellipsis).
+// seuraTeksti holds the measured text width in px per level (from mittaaSeuraTeksti). Without a measurement
+// the width is estimated from the number of characters.
+// Font sizes and padding must match HenkiloTaulukko.jsx's TEKSTIKOKO and otsikkoPadding classes:
+// desktop text-sm + px-3, mobile text-xs + px-2, compact 11 px + px-2. The cell also has a 1 px right border.
 const SEURA_MIN = 40;
 export const SEURA_FONTTI_PX = { desktop: 14, mobile: 12, compact: 11 };
 const SEURA_MERKKI = { desktop: 7.7, mobile: 6.6, compact: 6.1 };
 const SEURA_PADDING = { desktop: 24, mobile: 16, compact: 16 };
 const SEURA_REUNA = 1;
-// Mittauksen pyöristys ja fontin vaihtelu, ettei pisin nimi katkea pikselin takia.
+// Safety margin for rounding and font rendering differences, so the longest name is not cut by a pixel.
 const SEURA_VARA = 2;
 
 function laskeSeuraLeveys(taso, seuraMerkit, seuraTeksti) {
@@ -304,8 +306,8 @@ function laskeSeuraLeveys(taso, seuraMerkit, seuraTeksti) {
   return Math.max(SEURA_MIN, Math.min(maksimi, tarve));
 }
 
-// Mittaa tasoittain pisimmän seuran nimen (normaali paino) ja otsikon (lihava, lajittelumerkin kanssa)
-// leveyden sivun fonttipinolla. null, jos mittaus ei onnistu: leveys arvioidaan silloin merkkimäärästä.
+// Measures, for each level, the widest of the club names (normal weight) and the header (bold, with a sort
+// arrow) in the page's font. Returns null if text can't be measured; the width is then estimated.
 export function mittaaSeuraTeksti(seurat, otsikko, fonttiPerhe, mittaa = mittaaTeksti) {
   const nimet = [...new Set(seurat.map((s) => String(s || '').trim()).filter(Boolean))];
   if (nimet.length === 0) return null;

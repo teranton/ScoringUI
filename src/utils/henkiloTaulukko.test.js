@@ -183,14 +183,14 @@ test('laskeTaulukkoAsettelu: Seura on pisimmän seuran levyinen, enintään taso
   const trapp = laskeTaulukkoAsettelu({ leveys: 1024, ratojenMaara: 24, naytaRatko: true, onkoSarja: true, paivienMaara: 2, seuraMerkit: 8 });
   assert.equal(trapp.leveydet.seura, 70);
 
-  // Arvio tiiviissä: 8 × 6.1 = 49 + 16 + 1 + 2 = 68.
+  // Compact estimate: 8 × 6.1 → 49 + 16 + 1 + 2 = 68.
   const tiivisArvio = laskeTaulukkoAsettelu({ leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2, kaikkiSarakkeet: true, seuraMerkit: 8 });
   assert.equal(tiivisArvio.taso, 'compact');
   assert.equal(tiivisArvio.leveydet.seura, 68);
 });
 
 test('laskeTaulukkoAsettelu: mitattu seuran nimi määrää Seura-leveyden (teksti + padding + reuna + vara)', () => {
-  // Trapp-73 tiiviissä (11 px) n. 44 px: 45 + 16 + 1 + 2 = 64, ei arvion 69 tai maksimin 70.
+  // Trapp-73 at 11 px is about 44 px: 45 + 16 + 1 + 2 = 64, not the old estimate's 69 or the 70 px maximum.
   const tiivis = laskeTaulukkoAsettelu({
     leveys: 390, ratojenMaara: 8, naytaRatko: true, onkoSarja: true, paivienMaara: 2, kaikkiSarakkeet: true,
     seuraMerkit: 8, seuraTeksti: { desktop: 56.2, mobile: 48.1, compact: 44.1 }
@@ -207,7 +207,7 @@ test('laskeTaulukkoAsettelu: mitattu seuran nimi määrää Seura-leveyden (teks
 
 test('mittaaSeuraTeksti: pisin nimi tai lihava otsikko lajittelumerkkeineen, tasoittain', () => {
   const kutsut = [];
-  // Mittari: merkkiä kohden puolet fonttikoosta, lihava 1.2-kertainen.
+  // Fake measure: half the font size per character, bold 1.2 times wider.
   const mittaa = (teksti, fontti) => {
     kutsut.push(fontti);
     const [, paino, px] = fontti.match(/^(\d+) (\d+)px/);
@@ -217,7 +217,7 @@ test('mittaaSeuraTeksti: pisin nimi tai lihava otsikko lajittelumerkkeineen, tas
   assert.deepEqual(pitkat, { desktop: 56, mobile: 48, compact: 44 });
   assert.ok(kutsut.every((f) => f.endsWith(' Inter')));
 
-  // Lyhyillä nimillä otsikko "Seura ▼" (7 merkkiä, lihava) on leveämpi.
+  // With short names the bold header "Seura ▼" (7 characters) is wider.
   const lyhyet = mittaaSeuraTeksti(['HSA'], 'Seura', 'Inter', mittaa);
   assert.equal(lyhyet.compact, 7 * 11 * 0.5 * 1.2);
 

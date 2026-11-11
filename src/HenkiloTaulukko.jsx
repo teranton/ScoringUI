@@ -206,8 +206,9 @@ export default function HenkiloTaulukko({ data, parsedRows, parsedSpeksit, kisaS
   const onkoSuTuloksia = ampujat.some((a) => a.su !== null);
   const seuraMerkit = ampujat.reduce((pisin, a) => Math.max(pisin, String(a.seura || '').trim().length), 0);
   const onkoSeuroja = seuraMerkit > 0;
-  // Pisimmän seuran nimen todellinen leveys sivun fontilla; merkkimääräarvio liioittelee (esim. Trapp-73).
-  // Avaimena seurojen nimet, ettei jokainen datan päivitys mittaa uudelleen ja hajota asettelu-memoa.
+  // Real width of the longest club name in the page's font (the character count estimate was too wide,
+  // e.g. for Trapp-73). Keyed by the club names, so a data refresh with the same clubs doesn't measure
+  // again or recompute the layout.
   const seuraAvain = useMemo(
     () => [...new Set(ampujat.map((a) => String(a.seura || '').trim()).filter(Boolean))].sort().join('\n'),
     [ampujat]

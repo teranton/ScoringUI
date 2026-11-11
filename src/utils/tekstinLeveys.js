@@ -1,5 +1,5 @@
-// Tekstin leveys (px) annetulla CSS-fontilla canvasilla mitattuna. Yksi jaettu canvas.
-// Palauttaa undefined, jos mittaus ei onnistu (ei DOMia tai canvasia: testit, SSR).
+// Width of a text in px in the given CSS font, measured with one shared canvas.
+// Returns undefined when it can't be measured (no DOM or canvas, e.g. in tests).
 let konteksti = null;
 
 export function mittaaTeksti(teksti, fontti) {
