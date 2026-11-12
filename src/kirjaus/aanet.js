@@ -16,7 +16,9 @@ function kontekstiKayttoon() {
 const AANET = {
   osuma: { aalto: 'square', voimakkuus: 0.8, savelet: [[1320, 0, 0.09]] },
   peru: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[660, 0, 0.08], [440, 0.1, 0.12]] },
-  korjaus: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[523, 0, 0.08], [784, 0.1, 0.12]] }
+  korjaus: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[523, 0, 0.08], [784, 0.1, 0.12]] },
+  // Ulkoisen napin painallus, jota ei kirjattu (valikko auki, korjaustila): kirjaaja kuulee sen katsomatta näyttöä.
+  hylatty: { aalto: 'sawtooth', voimakkuus: 0.5, savelet: [[180, 0, 0.12], [180, 0.18, 0.12]] }
 };
 
 // Nollan äänivaihtoehdot (valitaan laitteella). nolla laskee; nolla2 (tuplan molemmat ohi, toinen) nousee.

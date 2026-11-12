@@ -1,17 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { OLETUSNAPIT, lueNapit, nappiTekstina, opetaNappi, tallennaNapit, toimintoNappaimesta } from './napit.js';
+import { OLETUSNAPIT, jasennaNapit, nappiTekstina, onOletus, opetaNappi, toimintoNappaimesta } from './napit.js';
 
 const painallus = (code, lisat = {}) => ({ code, repeat: false, ctrlKey: false, metaKey: false, altKey: false, target: { tagName: 'BODY' }, ...lisat });
-
-function muistiVarasto() {
-  const data = new Map();
-  return {
-    getItem: (k) => (data.has(k) ? data.get(k) : null),
-    setItem: (k, v) => data.set(k, String(v)),
-    removeItem: (k) => data.delete(k)
-  };
-}
 
 test('käsiohjaimen ja kaukosäätimen oletusnäppäimet', () => {
   assert.equal(toimintoNappaimesta(painallus('KeyX')), 'X');
@@ -31,32 +22,33 @@ test('pidetty näppäin, yhdistelmät ja tekstikenttä eivät merkitse', () => {
   assert.equal(toimintoNappaimesta(painallus('KeyO', { target: { tagName: 'DIV', isContentEditable: true } })), null);
 });
 
-test('opetettu näppäin korvaa toiminnon näppäimet ja poistuu muilta', () => {
+test('opetettu näppäin lisätään toiminnolle ja poistuu muilta', () => {
   const napit = opetaNappi(OLETUSNAPIT, 'O', 'PageDown');
-  assert.deepEqual(napit.O, ['PageDown']);
+  assert.deepEqual(napit.O, ['KeyO', 'PageUp', 'PageDown']);
   assert.deepEqual(napit.X, ['KeyX']);
   assert.deepEqual(napit.PERU, OLETUSNAPIT.PERU);
   assert.equal(toimintoNappaimesta(painallus('PageDown'), napit), 'O');
-  assert.equal(toimintoNappaimesta(painallus('KeyO'), napit), null);
+  // Käsiohjaimen kirjain toimii edelleen.
+  assert.equal(toimintoNappaimesta(painallus('KeyO'), napit), 'O');
 });
 
-test('napit tallentuvat laitteelle ja oletukset palautuvat', () => {
-  const varasto = muistiVarasto();
-  assert.equal(lueNapit(varasto), OLETUSNAPIT);
-  const napit = opetaNappi(OLETUSNAPIT, 'X', 'Enter');
-  tallennaNapit(napit, varasto);
-  assert.deepEqual(lueNapit(varasto), napit);
-  tallennaNapit(OLETUSNAPIT, varasto);
-  assert.equal(lueNapit(varasto), OLETUSNAPIT);
+test('tuntematonta näppäintä ei opeteta', () => {
+  assert.equal(opetaNappi(OLETUSNAPIT, 'X', ''), null);
+  assert.equal(opetaNappi(OLETUSNAPIT, 'X', 'Unidentified'), null);
 });
 
-test('rikkinäinen tallennus ei estä kirjausta', () => {
-  const varasto = muistiVarasto();
-  varasto.setItem('kirjaus-napit', '{rikki');
-  assert.equal(lueNapit(varasto), OLETUSNAPIT);
-  varasto.setItem('kirjaus-napit', JSON.stringify({ X: ['KeyZ'] }));
-  assert.deepEqual(lueNapit(varasto), { X: ['KeyZ'], O: OLETUSNAPIT.O, PERU: OLETUSNAPIT.PERU });
-  assert.equal(lueNapit({ getItem: () => { throw new Error('estetty'); } }), OLETUSNAPIT);
+test('oletukset tunnistetaan sisällöstä', () => {
+  assert.equal(onOletus(OLETUSNAPIT), true);
+  assert.equal(onOletus(JSON.parse(JSON.stringify(OLETUSNAPIT))), true);
+  assert.equal(onOletus(opetaNappi(OLETUSNAPIT, 'X', 'Enter')), false);
+});
+
+test('tallennetut napit: puuttuva toiminto saa oletukset ilman jo käytettyjä', () => {
+  assert.equal(jasennaNapit(null), OLETUSNAPIT);
+  assert.equal(jasennaNapit('rikki'), OLETUSNAPIT);
+  const napit = jasennaNapit({ X: ['KeyO', ''], PERU: ['KeyP'] });
+  assert.deepEqual(napit, { X: ['KeyO'], O: ['PageUp'], PERU: ['KeyP'] });
+  assert.equal(toimintoNappaimesta(painallus('KeyO'), napit), 'X');
 });
 
 test('näppäin luettavaksi', () => {

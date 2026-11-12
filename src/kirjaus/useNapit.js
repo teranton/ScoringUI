@@ -1,10 +1,11 @@
 // Ulkoisten nappien painallukset kirjaukseen (napit.js). Käsittelijä luetaan viitteestä, joten se näkee aina
 // tuoreimman tilan ilman, että kuuntelija vaihtuu joka piirrossa.
-import { useEffect, useRef, useState } from 'react';
-import { lueNapit, tallennaNapit, toimintoNappaimesta } from './napit.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toimintoNappaimesta } from './napit.js';
+import { lueNapit, tallennaNapit } from './varasto.js';
 
 export function useNapit(kaytossa, onToiminto) {
-  const [napit, setNapit] = useState(() => lueNapit());
+  const [napit, setNapit] = useState(lueNapit);
   const kasittelija = useRef(onToiminto);
   useEffect(() => {
     kasittelija.current = onToiminto;
@@ -19,13 +20,21 @@ export function useNapit(kaytossa, onToiminto) {
       e.preventDefault();
       kasittelija.current(toiminto);
     };
+    // Välilyönti ja Enter painavat kohdistettua painiketta myös näppäintä vapautettaessa.
+    const vapauta = (e) => {
+      if (toimintoNappaimesta(e, napit)) e.preventDefault();
+    };
     window.addEventListener('keydown', kuuntele);
-    return () => window.removeEventListener('keydown', kuuntele);
+    window.addEventListener('keyup', vapauta);
+    return () => {
+      window.removeEventListener('keydown', kuuntele);
+      window.removeEventListener('keyup', vapauta);
+    };
   }, [kaytossa, napit]);
 
-  const asetaNapit = (uudet) => {
+  const asetaNapit = useCallback((uudet) => {
     tallennaNapit(uudet);
     setNapit(uudet);
-  };
+  }, []);
   return [napit, asetaNapit];
 }

@@ -25,7 +25,7 @@ import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
 import { useNapit } from './useNapit.js';
-import { TOIMINNOT, OLETUSNAPIT, nappiTekstina, opetaNappi } from './napit.js';
+import { TOIMINNOT, OLETUSNAPIT, kirjoituskentta, nappiTekstina, onOletus, opetaNappi } from './napit.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import AmpujaRivi from './AmpujaRivi.jsx';
@@ -710,12 +710,17 @@ function RataNakyma({ koodi, onVaihda }) {
   const haltijanTila = avaus?.haltija;
   const varattu = !tila.haltija && !tila.siirtoAvain && haltijanTila && !haltijanTila.oma && !haltijanTila.vapaa && !haltijanTila.tamaLaite;
 
-  // Ulkoiset napit (tuomarin käsiohjain) vain kirjausnäkymässä: ei valikossa, ohjelman muokkauksessa,
-  // siirrossa eikä kun rata ei ole tällä laitteella. Lukitus ei estä: napin painallus on aina tarkoituksellinen.
-  const kirjausNakyvissa = Boolean(avaus) && Boolean(ohjelma) && !valikko && !muokkaaOhjelmaa
+  // Ulkoiset napit (tuomarin käsiohjain) vain kirjausnäkymässä: ei ohjelman muokkauksessa, siirrossa eikä kun rata
+  // ei ole tällä laitteella. Lukitus ei estä: napin painallus on aina tarkoituksellinen. Valikon ollessa auki ja
+  // korjaustilassa painallusta ei kirjata, ja siitä kuuluu hylkäysääni, koska kirjaaja ei välttämättä katso näyttöä.
+  const kirjausNakyvissa = Boolean(avaus) && Boolean(ohjelma) && !muokkaaOhjelmaa
     && !(siirto && tila.haltija) && !tila.korvattu && !tila.luovutettu && !varattu;
   const [napit, setNapit] = useNapit(kirjausNakyvissa, (toiminto) => {
-    if (korjaustila) return;
+    if (valikko || korjaustila || valinta || (toiminto !== 'PERU' && !tilanne)) {
+      if (tila.aanet !== false) soita('hylatty');
+      navigator.vibrate?.([80, 60, 80]);
+      return;
+    }
     if (toiminto === 'PERU') peruViimeisin();
     else merkitseKohta(toiminto);
   });
@@ -1207,20 +1212,24 @@ function Valikko({
   );
 }
 
-// Ulkoiset napit: nykyiset näppäimet ja opetus. Opetuksen aikana seuraava painallus (mikä tahansa näppäin)
-// asetetaan toiminnolle; kirjauksen kuuntelija on valikon ajan pois, joten painallus ei merkitse kiekkoa.
+// Ulkoiset napit: nykyiset näppäimet ja opetus. Opetuksen aikana seuraava painallus (mikä tahansa näppäin tekstikentän
+// ulkopuolella) lisätään toiminnolle. Kuuntelija on kaappausvaiheessa ja pysäyttää painalluksen, joten kirjauksen
+// kuuntelija ei näe sitä (ei hylkäysääntä).
 function NapitAsetus({ napit, onNapit }) {
   const [opetettava, setOpetettava] = useState(null);
   useEffect(() => {
     if (!opetettava) return undefined;
     const opeta = (e) => {
-      if (e.repeat || ['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || kirjoituskentta(e.target)) return;
+      if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
       e.preventDefault();
-      if (e.code !== 'Escape') onNapit(opetaNappi(napit, opetettava, e.code));
+      e.stopPropagation();
+      const uudet = e.code === 'Escape' ? null : opetaNappi(napit, opetettava, e.code);
+      if (uudet) onNapit(uudet);
       setOpetettava(null);
     };
-    window.addEventListener('keydown', opeta);
-    return () => window.removeEventListener('keydown', opeta);
+    window.addEventListener('keydown', opeta, true);
+    return () => window.removeEventListener('keydown', opeta, true);
   }, [opetettava, napit, onNapit]);
 
   return (
@@ -1242,7 +1251,7 @@ function NapitAsetus({ napit, onNapit }) {
       ))}
       <div className="flex items-center justify-between gap-2">
         <span className="text-slate-600">Napit merkitsevät vain kirjausnäkymässä, eivät valikon ollessa auki.</span>
-        {napit !== OLETUSNAPIT && (
+        {!onOletus(napit) && (
           <button type="button" className="shrink-0 rounded border border-slate-400 px-3 py-2" onClick={() => onNapit(OLETUSNAPIT)}>Oletukset</button>
         )}
       </div>

@@ -3,9 +3,12 @@
 // ja IndexedDB:hen (varakopio, ja palvelutyöntekijä lähettää sieltä taustalla, kun sivu on suljettu).
 // Lisäksi jokainen napautus kirjataan IndexedDB:n merkintälokiin ennen kuin näyttö päivittyy.
 // Tietokannan nimi ja rakenne ovat samat public/kirjaus-sw.js:ssä.
+import { jasennaNapit, onOletus } from './napit.js';
+
 const KOODI = 'scoringui:kirjaus:koodi';
 const LAITE = 'scoringui:kirjaus:laite';
 const SIIRTO = 'scoringui:kirjaus:siirto';
+const NAPIT = 'scoringui:kirjaus:napit';
 const radanAvain = (sheetId, sarake) => `scoringui:kirjaus:${sheetId}:${sarake}`;
 
 const TIETOKANTA = 'scoringui-kirjaus';
@@ -34,6 +37,10 @@ function kirjoita(avain, arvo) {
 
 export const lueKoodi = () => lue(KOODI);
 export const tallennaKoodi = (koodi) => kirjoita(KOODI, koodi);
+
+// Ulkoiset napit (napit.js) koko laitteelle; oletuksia ei tallenneta.
+export const lueNapit = () => jasennaNapit(lue(NAPIT));
+export const tallennaNapit = (napit) => kirjoita(NAPIT, onOletus(napit) ? null : napit);
 
 // Toiselta laitteelta siirtolinkillä tullut rata ({ koodi, siirto }) odottaa, kunnes radan näkymä yhdistää sen.
 export const tallennaOdottavaSiirto = (arvo) => kirjoita(SIIRTO, arvo);
