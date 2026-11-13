@@ -24,7 +24,7 @@ import {
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
-import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
+import { pyydaTaustalahetys, useAsennus, toisaallaTeksti, useIkkunaVahti, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import AmpujaRivi from './AmpujaRivi.jsx';
 import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
@@ -76,10 +76,41 @@ export default function KirjausApp() {
     setKoodi(uusi || '');
   };
 
+  const sisalto = koodi ? lueKoodinSisalto(koodi) : null;
+  // Sama rata tai ryhmä kirjaa vain yhdessä ikkunassa (selain ja asennettu sovellus, sovellus.js).
+  const kohde = sisalto ? `${sisalto.sheetId}:${sisalto.ryhma != null ? `r${sisalto.ryhma}` : sisalto.sarake}` : '';
+  const ikkuna = useIkkunaVahti(kohde);
+
   if (!koodi) return <KoodiNakyma onKoodi={vaihdaKoodi} />;
+  if (ikkuna.tila === 'avataan') return <main className="min-h-screen bg-white" />;
+  if (ikkuna.tila === 'toisaalla') return <ToisaallaNakyma toisaalla={ikkuna.toisaalla} sovellus={ikkuna.sovellus} onJatka={ikkuna.jatkaTassa} />;
+  const avain = `${koodi}:${ikkuna.kierros}`;
   // Ryhmäkoodi (Sporting / FITASC / ESP): ryhmäpuhelin; ratakoodi: Compak-radan laite.
-  if (lueKoodinSisalto(koodi)?.ryhma) return <RyhmaNakyma key={koodi} koodi={koodi} onVaihda={() => vaihdaKoodi('')} />;
-  return <RataNakyma key={koodi} koodi={koodi} onVaihda={() => vaihdaKoodi('')} />;
+  if (sisalto?.ryhma != null) return <RyhmaNakyma key={avain} koodi={koodi} onVaihda={() => vaihdaKoodi('')} />;
+  return <RataNakyma key={avain} koodi={koodi} onVaihda={() => vaihdaKoodi('')} />;
+}
+
+// Kirjaus jatkuu toisessa ikkunassa (yleensä Chromen "Vaihda sovellukseen" jätti välilehden auki): tämä ikkuna ei
+// tallenna eikä lähetä mitään. Sivu ei voi sulkea välilehteä itse, joten käyttäjä sulkee sen.
+function ToisaallaNakyma({ toisaalla, sovellus, onJatka }) {
+  const missa = toisaallaTeksti(sovellus, toisaalla.sovellus);
+  return (
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 bg-white p-6 text-slate-900">
+      <h1 className="text-2xl font-bold">Kirjaus jatkuu {missa}</h1>
+      <p>
+        {sovellus
+          ? 'Tämä sovellusikkuna on pysäytetty, ettei kirjaus ole auki kahdessa paikassa.'
+          : 'Voit sulkea tämän välilehden. Se on pysäytetty, ettei kirjaus ole auki kahdessa paikassa.'}
+        {' '}Merkinnät ja lähettämättömät kortit ovat tallessa, ja kirjaus jatkuu siellä.
+      </p>
+      {toisaalla.sovellus && !sovellus && /Android/.test(navigator.userAgent) && (
+        <p className="text-slate-600">Avaa kirjaus jatkossa aloitusnäytön Kirjaus-kuvakkeesta.</p>
+      )}
+      <button type="button" className="rounded border border-slate-400 px-4 py-3" onClick={onJatka}>
+        {sovellus ? 'Jatka kirjausta tässä sovelluksessa' : 'Jatka kirjausta tässä selaimessa'}
+      </button>
+    </main>
+  );
 }
 
 function KoodiNakyma({ onKoodi }) {
