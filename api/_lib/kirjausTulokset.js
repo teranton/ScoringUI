@@ -10,12 +10,13 @@
 // Pääsivu luetaan soluina (spreadsheets.get, userEnteredValue ja effectiveValue). Ei Google-kutsuja (kirjausTulokset.test.js).
 import { normalisoiAsetus } from '../../src/utils/kisaAsetukset.js';
 import { KOHTEITA, laskeTulos, speksiArvo } from './kirjausData.js';
+import { vahennetty } from '../../src/kirjaus/tapahtumat.js';
 
 export const onSuoraan = (speksit) => normalisoiAsetus(speksiArvo(speksit, 'MOBIILI_TULOKSET')) === 'SUORAAN';
 
-// Compak-kortin tulos tai null (kesken).
-export const kompakTulos = (merkit) => (typeof merkit === 'string' && merkit.length === KOHTEITA && !merkit.includes('-')
-  ? laskeTulos(merkit) : null);
+// Compak-kortin tulos tai null (kesken): osumat − kortin vähennykset (tapahtumat.js), ei alle nollan.
+export const kompakTulos = (merkit, tapahtumat = '') => (typeof merkit === 'string' && merkit.length === KOHTEITA && !merkit.includes('-')
+  ? vahennetty(laskeTulos(merkit), tapahtumat) : null);
 
 // Aseman tunnus vertailuun: puhelin saa tunnukset muotoiltuina (avaus), tallennus lukee ne muotoilemattomina ("1,0" = 1).
 const asemaTunnus = (id) => {
@@ -24,8 +25,9 @@ const asemaTunnus = (id) => {
   return t !== '' && Number.isFinite(luku) ? String(luku) : t.toUpperCase();
 };
 
-// Ryhmäkortin asemien tulokset [{ sarake, tulos }]: tulos null, kun asema on kesken tai kuittaamatta.
-// kortti: { merkit, kuitatut, hyvaksytty } (lueRyhmaKorttiRivi tai laitteen kortti).
+// Ryhmäkortin asemien tulokset [{ sarake, tulos }]: tulos null, kun asema on kesken tai kuittaamatta. Aseman tulos on
+// osumat − aseman kiekoille kirjatut vähennykset (tapahtumat.js), ei alle nollan.
+// kortti: { merkit, kuitatut, hyvaksytty, tapahtumat } (lueRyhmaKorttiRivi tai laitteen kortti).
 export function asemaTulokset(layout, kortti) {
   if (!kortti || typeof kortti.merkit !== 'string' || kortti.merkit.length !== layout.kohteita) {
     return layout.asemat.map((a) => ({ sarake: a.sarake, tulos: null }));
@@ -33,10 +35,11 @@ export function asemaTulokset(layout, kortti) {
   const kuitatut = (kortti.kuitatut || []).map(asemaTunnus);
   let alku = 0;
   return layout.asemat.map((a) => {
+    const a0 = alku;
     const osa = kortti.merkit.slice(alku, alku + a.kohteita);
     alku += a.kohteita;
     const kuitattu = Boolean(kortti.hyvaksytty) || (!layout.ohjelma && kuitatut.includes(asemaTunnus(a.id)));
-    return { sarake: a.sarake, tulos: kuitattu && !osa.includes('-') ? laskeTulos(osa) : null };
+    return { sarake: a.sarake, tulos: kuitattu && !osa.includes('-') ? vahennetty(laskeTulos(osa), kortti.tapahtumat || '', a0, alku) : null };
   });
 }
 

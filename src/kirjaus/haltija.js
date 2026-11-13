@@ -2,6 +2,7 @@
 // Palvelin pitää kirjaa radan haltijalaitteesta (api/_lib/kirjausHaltija.js); tämä on laitteen puoli.
 
 import { uusiVersio } from './kortit.js';
+import { tapahtumaTeksti } from './tapahtumat.js';
 
 // Radan nimi vaihdon näkymiin: "Rata 2 (R2)". Kilpailutoimiston PIN-lista nimeää radat samoin (ScoringLib pinRivi),
 // joten PIN-koodin pyytäjä näkee, minkä radan koodi tarvitaan.
@@ -40,7 +41,8 @@ export function laitteenNimi(laite, ua = (typeof navigator === 'undefined' ? '' 
 
 // --- Siirtolinkki ---
 // kirjaus.html#k=<ratakoodi>&h=<haltija-avain>&c=<kortit>&t=<linja>
-// Kortit: "nro.versio(36-kantainen).merkit" alaviivalla erotettuna, merkeistä lopun ampumattomat (-) pois.
+// Kortit: "nro.versio(36-kantainen).merkit[.tapahtumat]" alaviivalla erotettuna, merkeistä lopun ampumattomat (-) pois;
+// tapahtumat (tapahtumat.js) base64url-muodossa vain, kun kortilla on niitä.
 // Linja: base64url-JSON. Vain lähettämättömät kortit, jotta QR-koodi pysyy luettavana.
 
 const base64url = (teksti) => btoa(String.fromCharCode(...new TextEncoder().encode(teksti)))
@@ -50,7 +52,7 @@ const base64urlTekstiksi = (b) => new TextDecoder().decode(
 );
 
 export function siirtoLinkki({ perus, koodi, haltija, kortit, linja }) {
-  const c = kortit.map((k) => `${k.nro}.${k.versio.toString(36)}.${k.merkit.replace(/-+$/, '')}`).join('_');
+  const c = kortit.map((k) => `${k.nro}.${k.versio.toString(36)}.${k.merkit.replace(/-+$/, '')}${k.tapahtumat ? `.${base64url(k.tapahtumat)}` : ''}`).join('_');
   const osat = [`k=${koodi}`, `h=${haltija}`];
   if (c) osat.push(`c=${c}`);
   if (linja) osat.push(`t=${base64url(JSON.stringify(linja))}`);
@@ -64,11 +66,17 @@ export function lueSiirto(hash, kohteita = 25) {
   const haltija = p.get('h');
   if (!haltija || !/^h1\.\d+\.[A-Za-z0-9_-]+$/.test(haltija)) return { koodi, siirto: null };
   const kortit = (p.get('c') || '').split('_').filter(Boolean).flatMap((osa) => {
-    const [nro, versio, merkit = ''] = osa.split('.');
+    const [nro, versio, merkit = '', tap = ''] = osa.split('.');
     const n = Number.parseInt(nro, 10);
     const v = Number.parseInt(versio, 36);
     if (!Number.isInteger(n) || n < 1 || !Number.isSafeInteger(v) || v < 1 || !/^[XO-]*$/.test(merkit) || merkit.length > kohteita) return [];
-    return [{ nro: n, versio: v, merkit: merkit.padEnd(kohteita, '-') }];
+    let tapahtumat;
+    try {
+      tapahtumat = tap ? tapahtumaTeksti(base64urlTekstiksi(tap)) : '';
+    } catch {
+      tapahtumat = '';
+    }
+    return [{ nro: n, versio: v, merkit: merkit.padEnd(kohteita, '-'), ...(tapahtumat ? { tapahtumat } : {}) }];
   });
   let linja;
   try {
@@ -84,7 +92,9 @@ export function yhdistaSiirto(tila, siirto) {
   let kortit = tila.kortit || {};
   for (const k of siirto.kortit) {
     const oma = kortit[k.nro];
-    if (!oma || k.versio > oma.versio) kortit = { ...kortit, [k.nro]: { merkit: k.merkit, versio: k.versio, lahetetty: false } };
+    if (!oma || k.versio > oma.versio) {
+      kortit = { ...kortit, [k.nro]: { merkit: k.merkit, versio: k.versio, lahetetty: false, ...(k.tapahtumat ? { tapahtumat: k.tapahtumat } : {}) } };
+    }
   }
   // Laitteen oma vanha avain pois: rata otetaan siirtoavaimella, ei mahdollisesti vanhentuneella avaimella.
   return { ...otaLinja(tila, siirto.linja), kortit, haltija: null, siirtoAvain: siirto.haltija, luovutettu: false, korvattu: null };
@@ -110,7 +120,7 @@ export function otaTaydennykset(kortit, taydennykset, sovelletut = {}, kohteita 
     }).join('');
     uudetSovelletut[nro] = merkit;
     if (muuttui) {
-      uudetKortit = { ...uudetKortit, [nro]: { merkit: uudet, versio: uusiVersio(oma?.versio, nyt), lahetetty: false } };
+      uudetKortit = { ...uudetKortit, [nro]: { ...oma, merkit: uudet, versio: uusiVersio(oma?.versio, nyt), lahetetty: false } };
       taytetyt++;
     }
   }

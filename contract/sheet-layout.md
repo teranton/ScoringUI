@@ -173,7 +173,7 @@ The master template groups the keys into sections by function (heading rows in t
 | Ilmoittautuminen ja saapuminen | `ILMOITTAUTUMISTAPA`, `ILMOITTAUTUMINEN_PAATTYY`, `ILMOITTAUTUMISEN_SARJAT`, `ILMOITTAUTUMISEN_MAKSIMI`, `ILMOITTAUTUMISEN_VARASIJAT`; `MAKSU_KISAPAIKALLA`, `OSALLISTUMISMAKSU` | sign-up keys UI and Lib, payment keys Lib |
 | Aikataulu ja ryhmät | `ALOITUS_AIKA`, `AMPUJAN_AIKA`, `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO`, `ALKUPAIVA`, `RYHMAVALI`, `ISTUNTOTAUKO`, `ALOITUSTAPA` | `LAYOUT/PÄIVÄ`, `AIKATAULU_MALLI`, `AIKATAULURYHMAKOKO` UI, all Lib |
 | Tuomarointi ja korostukset | `Ei tuomaroivat:`, `Bib tuomaroivat`, `Korostukset päällä`, `Syötössä korostukset`, `Isäntäseura`, `Järjestävät seurat:` | `Ei tuomaroivat:` UI (squad editor), all Lib or sheet formulas |
-| Mobiilikirjaus ja tuloskortit | `MOBIILI_TULOKSET`, `Tyhjän ruudun symboli` | `MOBIILI_TULOKSET` UI and Lib, the symbol Lib |
+| Mobiilikirjaus ja tuloskortit | `MOBIILI_TULOKSET`, `TOIMINTAHAIRIOT`, `Tyhjän ruudun symboli` | `MOBIILI_TULOKSET` UI and Lib, `TOIMINTAHAIRIOT` UI, the symbol Lib |
 | Tulokset ja palkintojako | `RATKO_PALKINTO_SIJA`, `OPEN_SARJA`, `HIGH_GUN`, `HIGH_GUN_POIS_SARJOISTA` | UI and Lib (`RATKO_PALKINTO_SIJA` UI only) |
 | Tuonnit | `Vain päivätulokset` | Lib |
 | Logot ja ohjeet | `LOGO:` / `OHJE:` rows, always last | UI |
@@ -283,8 +283,9 @@ stand on. The card format does not depend on this; marks are still written per t
 
 Writes (created on the first save or change of device if missing):
 - `MOBIILI Rata N` (N = result column `1`..`N` of `OSALLISTUJAT+TULOKSET`): header row
-  `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, 1..25`; the shooter with number n is on row n + 1. Marks `X` hit,
-  `O` miss, empty not shot; `TULOS` counts the `X`s; `NIMI` is the name the device showed. A save with a version not
+  `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, 1..25, TAPAHTUMAT, VÄHENNYS`; the shooter with number n is on row n + 1. Marks `X` hit,
+  `O` miss, empty not shot; `TULOS` counts the `X`s; `NIMI` is the name the device showed. `TAPAHTUMAT` and `VÄHENNYS`
+  are described under "Malfunctions, warnings and deductions"; a tab made before them is widened on the next save. A save with a version not
   newer than `VERSIO` writes nothing. The card row and its log row are written in one request.
 - `MOBIILI_LOKI`: one appended row per accepted save: `AIKA, RATA, NRO, LAITE, VERSIO, ENNEN, JÄLKEEN, HUOM`.
   `HUOM` on a save is empty or holds the direct result notes (`MOBIILI_TULOKSET` below). A change of device adds a row with `RATA OTETTU: …` or `RATA LUOVUTETTU …` (no shooter).
@@ -328,8 +329,8 @@ A squad code (payload `r` = squad number instead of `c`; ScoringLib lists them a
 
 Writes (created on the first save if missing):
 - `MOBIILI Layout N` (N = layout 1..): header `NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, RYHMÄ, HYVÄKSYTTY`, then
-  `ASEMA <k>` per station (hits on station k, k = result column), the targets `<k>/<1..max>` station by station, and
-  last `KUITATUT`: the stands the shooter has confirmed on the phone, comma separated (phone stand ids: station table
+  `ASEMA <k>` per station (hits on station k, k = result column), the targets `<k>/<1..max>` station by station,
+  `KUITATUT`, and last `TAPAHTUMAT`, `VÄHENNYS` (see "Malfunctions, warnings and deductions"). `KUITATUT` is the stands the shooter has confirmed on the phone, comma separated (phone stand ids: station table
   ids, FITASC pegs 1..n). Shooter n on row n + 1; `NIMI` from the main tab; `HYVÄKSYTTY` is the time the shooter
   confirmed the last stand, i.e. the whole card (empty again after any change; a change on a stand also removes that
   stand from `KUITATUT`). Rows written before `KUITATUT` existed read as no stand confirmations. Only the squad's own shooters are written; other cards are refused and logged
@@ -339,6 +340,25 @@ Writes (created on the first save if missing):
   row n + 1). Another phone takes a held squad only after the holder releases it or with the squad's office PIN
   (ScoringLib's Laitteen vaihto: PIN-koodit lists held squads; the PIN is `vaihtoPin` with `r<squad>` in place of the
   layout, and `PIN-VIRHEET` counts wrong PINs as for layouts). `TÄYDENNYKSET` keys are `"<layout>:<NRO>"`, marks as long as the layout.
+
+### Malfunctions, warnings and deductions
+
+The Compak device and the squad phone record gun or cartridge malfunctions (toimintahäiriö), referee warnings and
+deductions on the card. Each belongs to a target of the card (the device shows it as a shaded corner of that target).
+
+- `TAPAHTUMAT`: `; `-separated entries `<type><target>[x<n>][ <reason>]`, targets 1-based in card order (Compak 1..25,
+  squad card the layout's targets in station order): `H` malfunction (the target is shot again, no mark), `N` malfunction
+  over the limit (the target is marked `O`), `V` warning, `R` deduction of n targets (default 1). Example
+  `H5; N12; V12 Ase auki; R20x2 Myöhästyi`. The reason has no `;`; at most 40 entries.
+- `VÄHENNYS`: total deducted targets on the card (empty when none). `TULOS` and `ASEMA <k>` stay the hits.
+- `KISANSPEKSIT` key `TOIMINTAHAIRIOT` (section "Mobiilikirjaus ja tuloskortit", one digit 0..9, default 2): malfunctions
+  allowed per card, i.e. per 25-target Compak round or per squad layout card (FITASC Sporting and Compak: two per
+  round of 25; set the key for other rules). The device asks before the next one is scored lost (`N`).
+- The result of a card or station is hits minus the deductions on its targets, never below 0: written directly with
+  `MOBIILI_TULOKSET` = `SUORAAN` and imported the same way by ScoringLib's Tuo mobiilitulokset. On a squad card a
+  deduction also clears the shooter's confirmation of that station (they confirm the new result); a warning or a
+  malfunction does not. `MOBIILI_LOKI` `HUOM` gets `TAPAHTUMAT: <list>` (or `TAPAHTUMAT POISTETTU`) when they change.
+- Not public: the live view and the targets in the results serve neither column.
 
 ### Public live view (`api/kisa.js`)
 

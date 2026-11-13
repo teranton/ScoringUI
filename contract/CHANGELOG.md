@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Mobile entry records malfunctions, warnings and deductions: new columns `TAPAHTUMAT` and `VÄHENNYS` at the end of
+  `MOBIILI Rata N` and `MOBIILI Layout N` (existing tabs are widened on the next save) and a new optional `KISANSPEKSIT`
+  key `TOIMINTAHAIRIOT` (allowed malfunctions per card, default 2). The result written to the main tab (and imported by
+  ScoringLib) is hits minus deductions. Additive: cards without events read as before. ScoringLib's import reads the
+  new columns by header.
+
 - Mobile entry can use up to four writer service accounts (`KIRJURI_CLIENT_EMAIL_2..4`); ScoringLib's `KIRJURI_PALVELUTILI`
   lists them and shares the sheet with every one. No tab or header change.
 

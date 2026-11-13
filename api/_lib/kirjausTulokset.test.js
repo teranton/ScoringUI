@@ -14,6 +14,8 @@ test('Compak-kortin tulos vain kun kaikki 25 kiekkoa on merkitty', () => {
   assert.equal(kompakTulos('XXXXO'.repeat(5)), 20);
   assert.equal(kompakTulos('XXXXO'.repeat(4) + '----X'), null);
   assert.equal(kompakTulos(undefined), null);
+  assert.equal(kompakTulos('XXXXO'.repeat(5), 'R3x2; V4; H9'), 18, 'vähennykset pois');
+  assert.equal(kompakTulos('O'.repeat(25), 'R3'), 0, 'ei alle nollan');
 });
 
 const LAYOUT = { nro: 1, asemat: [{ sarake: 3, id: 'C', kohteita: 2 }, { sarake: 4, id: 'D', kohteita: 3 }], kohteita: 5 };
@@ -25,6 +27,8 @@ test('ryhmäkortin asemat: valmis ja kuitattu asema, koko kortin hyväksyntä ku
   // Muotoiltu ja muotoilematon tunnus ovat sama asema.
   const numerot = { ...LAYOUT, asemat: [{ sarake: 3, id: 1, kohteita: 2 }, { sarake: 4, id: '2', kohteita: 3 }] };
   assert.deepEqual(asemaTulokset(numerot, { merkit: 'XOXXO', kuitatut: ['1,0', '2'] }), [{ sarake: 3, tulos: 1 }, { sarake: 4, tulos: 2 }]);
+  assert.deepEqual(asemaTulokset(LAYOUT, { merkit: 'XOXXO', hyvaksytty: 'x', tapahtumat: 'R4; V1' }), [{ sarake: 3, tulos: 1 }, { sarake: 4, tulos: 1 }],
+    'vähennys kiekon asemalta');
   assert.deepEqual(asemaTulokset(LAYOUT, null), [{ sarake: 3, tulos: null }, { sarake: 4, tulos: null }]);
   // FITASC-pisteet: puhelimen asemat eivät ole taulukon asemia, joten vain koko kortin hyväksyntä.
   const fitasc = { nro: 1, asemat: [{ sarake: 1, id: '1', kohteita: 3 }], kohteita: 3, ohjelma: [{ sinkut: 1, tuplat: 1 }] };

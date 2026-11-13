@@ -1,5 +1,8 @@
 // Mobiilikirjauksen korttilogiikka (Compak): merkinnät, seuraava kohde, peruutus ja synkronoinnin yhdistäminen.
-// Kortti: { merkit: 25 merkkiä X/O/-, versio: kasvava luku, lahetetty: onko tämä versio tallessa taulukossa }.
+// Kortti: { merkit: 25 merkkiä X/O/-, versio: kasvava luku, lahetetty: onko tämä versio tallessa taulukossa,
+// tapahtumat: toimintahäiriöt, varoitukset ja vähennykset tekstinä (tapahtumat.js; puuttuu = ei tapahtumia) }.
+import { hairiot, lisaa } from './tapahtumat.js';
+
 export const KOHTEITA = 25;
 export const ASEMAN_KOHTEET = 5;
 export const MAKS_HISTORIA = 200;
@@ -13,30 +16,43 @@ export const onValmis = (merkit) => taytetyt(merkit) === KOHTEITA;
 // Versio kasvaa aina, vaikka kello olisi jäljessä: millisekunnit, vähintään edellinen + 1.
 export const uusiVersio = (edellinen, nyt = Date.now()) => Math.max(nyt, (edellinen || 0) + 1);
 
-// Asettaa merkin; palauttaa { kortit, historia } uusina olioina.
-export function merkitse({ kortit, historia }, { nro, i }, merkki, nyt = Date.now()) {
+export const tapahtumatOf = (kortit, nro) => kortit[nro]?.tapahtumat || '';
+
+// Muuttaa kiekon i merkin ja/tai kortin tapahtumat (tapahtumat.js); historia muistaa molemmat perumista varten.
+function muutaKorttia({ kortit, historia }, { nro, i }, { merkki, tapahtumat }, nyt) {
   const vanha = kortit[nro];
   const merkit = merkitOf(kortit, nro);
-  if (i < 0 || i >= KOHTEITA || merkit[i] === merkki) return { kortit, historia };
-  const uudet = merkit.slice(0, i) + merkki + merkit.slice(i + 1);
+  const vanhatTap = tapahtumatOf(kortit, nro);
+  const uusiMerkki = merkki ?? merkit[i];
+  const uudetTap = tapahtumat ?? vanhatTap;
+  if (i < 0 || i >= KOHTEITA || (uusiMerkki === merkit[i] && uudetTap === vanhatTap)) return { kortit, historia };
+  const uudet = merkit.slice(0, i) + uusiMerkki + merkit.slice(i + 1);
   return {
-    kortit: { ...kortit, [nro]: { merkit: uudet, versio: uusiVersio(vanha?.versio, nyt), lahetetty: false } },
-    historia: [...historia, { nro, i, ennen: merkit[i] }].slice(-MAKS_HISTORIA)
+    kortit: { ...kortit, [nro]: { merkit: uudet, versio: uusiVersio(vanha?.versio, nyt), lahetetty: false, ...(uudetTap ? { tapahtumat: uudetTap } : {}) } },
+    historia: [...historia, { nro, i, ennen: merkit[i], ...(uudetTap !== vanhatTap ? { tapEnnen: vanhatTap } : {}) }].slice(-MAKS_HISTORIA)
   };
 }
 
-// Peruu viimeisimmän merkinnän. Palauttaa { kortit, historia, kohta } tai null, jos ei ole perumista.
+// Asettaa merkin; palauttaa { kortit, historia } uusina olioina.
+export const merkitse = (tila, kohta, merkki, nyt = Date.now()) => muutaKorttia(tila, kohta, { merkki }, nyt);
+
+// Korvaa kortin tapahtumat (varoitus, vähennys, poisto); kiekko i on historiaa ja perumista varten.
+export const muutaTapahtumia = (tila, kohta, tapahtumat, nyt = Date.now()) => muutaKorttia(tila, kohta, { tapahtumat }, nyt);
+
+// Toimintahäiriö kiekossa i: rajan sisällä kiekko jää uusittavaksi (H), rajan yli se merkitään nollaksi (N).
+export function hairio(tila, kohta, raja, nyt = Date.now()) {
+  const tap = tapahtumatOf(tila.kortit, kohta.nro);
+  const yli = hairiot(tap) >= raja;
+  return muutaKorttia(tila, kohta, yli ? { merkki: 'O', tapahtumat: lisaa(tap, { t: 'N', i: kohta.i }) } : { tapahtumat: lisaa(tap, { t: 'H', i: kohta.i }) }, nyt);
+}
+
+// Peruu viimeisimmän merkinnän tai tapahtuman. Palauttaa { kortit, historia, kohta } tai null, jos ei ole perumista.
 export function peru({ kortit, historia }, nyt = Date.now()) {
   const viimeinen = historia[historia.length - 1];
   if (!viimeinen) return null;
-  const { nro, i, ennen } = viimeinen;
-  const merkit = merkitOf(kortit, nro);
-  const uudet = merkit.slice(0, i) + ennen + merkit.slice(i + 1);
-  return {
-    kortit: { ...kortit, [nro]: { merkit: uudet, versio: uusiVersio(kortit[nro]?.versio, nyt), lahetetty: false } },
-    historia: historia.slice(0, -1),
-    kohta: { nro, i }
-  };
+  const { nro, i, ennen, tapEnnen } = viimeinen;
+  const { kortit: uudet } = muutaKorttia({ kortit, historia: [] }, { nro, i }, { merkki: ennen, tapahtumat: tapEnnen }, nyt);
+  return { kortit: uudet, historia: historia.slice(0, -1), kohta: { nro, i } };
 }
 
 // Palvelimen kortit paikallisiin: uudempi versio voittaa, sama versio merkitään lähetetyksi (eri merkit samalla
@@ -48,8 +64,9 @@ export function yhdistaPalvelimelta(kortit, palvelimen, { kaikki = false } = {})
   for (const p of palvelimen || []) {
     nahdyt.add(String(p.nro));
     const oma = tulos[p.nro];
-    if (!oma || p.versio > oma.versio || (p.versio === oma.versio && p.merkit !== oma.merkit)) {
-      tulos = { ...tulos, [p.nro]: { merkit: p.merkit, versio: p.versio, lahetetty: true } };
+    const eri = p.merkit !== oma?.merkit || (p.tapahtumat || '') !== (oma?.tapahtumat || '');
+    if (!oma || p.versio > oma.versio || (p.versio === oma.versio && eri)) {
+      tulos = { ...tulos, [p.nro]: { merkit: p.merkit, versio: p.versio, lahetetty: true, ...(p.tapahtumat ? { tapahtumat: p.tapahtumat } : {}) } };
     } else if (p.versio === oma.versio && !oma.lahetetty) tulos = { ...tulos, [p.nro]: { ...oma, lahetetty: true } };
     else if (kaikki && p.versio < oma.versio && oma.lahetetty) tulos = { ...tulos, [p.nro]: { ...oma, lahetetty: false } };
   }
@@ -66,7 +83,7 @@ export function lahettamattomat(kortit, maks = 30) {
   return Object.entries(kortit)
     .filter(([, k]) => !k.lahetetty)
     .slice(0, maks)
-    .map(([nro, k]) => ({ nro: Number(nro), merkit: k.merkit, versio: k.versio }));
+    .map(([nro, k]) => ({ nro: Number(nro), merkit: k.merkit, versio: k.versio, ...(k.tapahtumat ? { tapahtumat: k.tapahtumat } : {}) }));
 }
 
 // Tallennuksen vastaus: lähetetyt versiot merkitään tallennetuiksi (jos niitä ei ole sillä välin muutettu),

@@ -192,3 +192,24 @@ test('asemajako: lähtee kortin mukana, muutos sovitetaan asema kerrallaan, pois
   assert.equal(kuitattu[korttiAvain(1, 4)].hylatty, true);
   assert.deepEqual(lahettamattomat(kuitattu), []);
 });
+
+test('toimintahäiriö ja vähennys ryhmäkortilla: vähennys poistaa aseman hyväksynnän, varoitus ei', async () => {
+  const { hairio, muutaTapahtumia, tapahtumatOf } = await import('./ryhma.js');
+  let t = tila();
+  t = hairio(t, L1, { nro: 4, i: 0 }, 1, 1);
+  assert.equal(merkitOf(t.kortit, L1, 4)[0], '-', 'häiriö: kiekko uusitaan');
+  t = hairio(t, L1, { nro: 4, i: 0 }, 1, 2);
+  assert.equal(merkitOf(t.kortit, L1, 4)[0], 'O', 'raja ylitetty: nolla');
+  assert.equal(tapahtumatOf(t.kortit, L1, 4), 'H1; N1');
+  t = merkitse(t, L1, { nro: 4, i: 1 }, 'X', 3);
+  t = { ...t, kortit: kuittaaAsema(t.kortit, L1, 4, 0, 4) };
+  assert.ok(asemaKuitattu(t.kortit, L1, 4, 0));
+  const v = muutaTapahtumia(t, L1, { nro: 4, i: 1 }, 'H1; N1; V2', 5);
+  assert.ok(asemaKuitattu(v.kortit, L1, 4, 0), 'varoitus ei muuta tulosta');
+  const r = muutaTapahtumia(v, L1, { nro: 4, i: 1 }, 'H1; N1; V2; R2', 6);
+  assert.ok(!asemaKuitattu(r.kortit, L1, 4, 0), 'vähennys muuttaa aseman tuloksen');
+  assert.equal(tapahtumatOf(peru(r, [L1], 7).kortit, L1, 4), 'H1; N1; V2');
+  assert.equal(lahettamattomat(r.kortit, 60, [L1])[0].tapahtumat, 'H1; N1; V2; R2');
+  const p = yhdistaPalvelimelta({}, [{ layout: 1, nro: 4, merkit: 'OX---', versio: 9, tapahtumat: 'R2' }]);
+  assert.equal(p[korttiAvain(1, 4)].tapahtumat, 'R2');
+});
