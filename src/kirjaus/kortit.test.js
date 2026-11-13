@@ -96,3 +96,13 @@ test('tapahtumat kulkevat lähetyksessä ja palvelimelta', () => {
   const p = yhdistaPalvelimelta({ 4: { ...kortit[4], lahetetty: true } }, [{ nro: 4, merkit: '-'.repeat(25), versio: 5, tapahtumat: 'V1; R2' }]);
   assert.equal(p[4].tapahtumat, 'V1; R2', 'sama versio, eri tapahtumat: taulukko voittaa');
 });
+
+test('pelkän tapahtuman peruminen ei palauta kiekkoon vanhaa merkkiä', async () => {
+  const { hairio } = await import('./kortit.js');
+  let t = hairio({ kortit: {}, historia: [] }, { nro: 1, i: 6 }, 2, 1);
+  // Täydennys (ei historiaa) merkitsee kiekon välissä.
+  t = { ...t, kortit: { 1: { ...t.kortit[1], merkit: '------X' + '-'.repeat(18) } } };
+  const p = peru(t, 2);
+  assert.equal(p.kortit[1].merkit[6], 'X');
+  assert.equal(p.kortit[1].tapahtumat, undefined);
+});

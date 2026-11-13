@@ -132,7 +132,7 @@ test('lähetys, kuittaus, hylätty ja palvelimen kortit', () => {
   t = merkitse(t, L1, { nro: 4, i: 0 }, 'X', 50);
   t = merkitse(t, L2, { nro: 9, i: 0 }, 'O', 60);
   const lahetetyt = lahettamattomat(t.kortit);
-  assert.deepEqual(lahetetyt, [{ layout: 1, nro: 4, merkit: 'X----', versio: 50 }, { layout: 2, nro: 9, merkit: 'O----', versio: 60 }]);
+  assert.deepEqual(lahetetyt, [{ layout: 1, nro: 4, merkit: 'X----', versio: 50, tapahtumat: '' }, { layout: 2, nro: 9, merkit: 'O----', versio: 60, tapahtumat: '' }]);
   const k = kuittaa(t.kortit, lahetetyt, { tallennetut: [{ layout: 1, nro: 4 }], hylatyt: [{ layout: 2, nro: 9, syy: 'ryhma' }],
     uudemmat: [{ layout: 2, nro: 5, merkit: 'XXXXX', versio: 70, hyvaksytty: true }] });
   assert.deepEqual(lahettamattomat(k), []);

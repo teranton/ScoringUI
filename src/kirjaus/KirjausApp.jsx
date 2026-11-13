@@ -10,7 +10,7 @@ import {
   ASEMAN_KOHTEET, KOHTEITA, hairio, kuittaa, lahettamattomat, lueKoodi as lueKoodinSisalto, merkitOf, merkitse,
   muutaTapahtumia, osumat, peru, tapahtumatOf, taytetyt, yhdistaPalvelimelta
 } from './kortit.js';
-import { OLETUS_HAIRIORAJA, hairiot, kiekonSelite, kiekonTapahtumat, lisaa, poista, tapahtumaMuutos, varoitukset } from './tapahtumat.js';
+import { OLETUS_HAIRIORAJA, hairiot, kiekonSelite, kiekonTapahtumat, lisaa, poista, TAYNNA_VIESTI, taynna, tapahtumaMuutos, varoitukset } from './tapahtumat.js';
 import {
   ASEMIA, OHJELMAT, jasennaOhjelma, laskeVuorot, linjanJono, linjanTilanne, ohjelmaTekstiksi, seuraavatAmpujat, valmiitAmpujat
 } from './linja.js';
@@ -564,6 +564,7 @@ function RataNakyma({ koodi, onVaihda }) {
   const kirjaaHairio = () => {
     if (korjaustila || valinta || !tilanne || liianPian()) return;
     const { kohta: k } = tilanne;
+    if (taynna(tapahtumatOf(tila.kortit, k.nro))) return window.alert(TAYNNA_VIESTI);
     const n = hairiot(tapahtumatOf(tila.kortit, k.nro)) + 1;
     const yli = n > hairioRaja;
     if (yli && !window.confirm(`${n}. toimintahäiriö: sallittu ${hairioRaja} kierroksella. Kiekko merkitään NOLLAKSI. Jatketaanko?`)) return;
@@ -584,6 +585,7 @@ function RataNakyma({ koodi, onVaihda }) {
       if (!window.confirm(`Poistetaanko kiekon tapahtumat (${kiekonSelite(tap, k.i)})?`)) return;
       uudet = poista(tap, k.i);
     } else {
+      if (taynna(tap)) return window.alert(TAYNNA_VIESTI);
       const aiemmat = varoitukset(tap);
       const kysymys = tyyppi === 'V'
         ? `Varoitus: ${k.nro} ${nimi(k.nro)}.${aiemmat ? ` Kortilla on jo ${aiemmat} varoitus${aiemmat > 1 ? 'ta' : ''}.` : ''} Syy (vapaaehtoinen):`

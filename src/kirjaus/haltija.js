@@ -42,7 +42,7 @@ export function laitteenNimi(laite, ua = (typeof navigator === 'undefined' ? '' 
 // --- Siirtolinkki ---
 // kirjaus.html#k=<ratakoodi>&h=<haltija-avain>&c=<kortit>&t=<linja>
 // Kortit: "nro.versio(36-kantainen).merkit[.tapahtumat]" alaviivalla erotettuna, merkeistä lopun ampumattomat (-) pois;
-// tapahtumat (tapahtumat.js) base64url-muodossa vain, kun kortilla on niitä.
+// tapahtumat (tapahtumat.js) base64url-muodossa ('_' → '~', koska '_' erottaa kortit) vain, kun kortilla on niitä.
 // Linja: base64url-JSON. Vain lähettämättömät kortit, jotta QR-koodi pysyy luettavana.
 
 const base64url = (teksti) => btoa(String.fromCharCode(...new TextEncoder().encode(teksti)))
@@ -52,7 +52,7 @@ const base64urlTekstiksi = (b) => new TextDecoder().decode(
 );
 
 export function siirtoLinkki({ perus, koodi, haltija, kortit, linja }) {
-  const c = kortit.map((k) => `${k.nro}.${k.versio.toString(36)}.${k.merkit.replace(/-+$/, '')}${k.tapahtumat ? `.${base64url(k.tapahtumat)}` : ''}`).join('_');
+  const c = kortit.map((k) => `${k.nro}.${k.versio.toString(36)}.${k.merkit.replace(/-+$/, '')}${k.tapahtumat ? `.${base64url(k.tapahtumat).replace(/_/g, '~')}` : ''}`).join('_');
   const osat = [`k=${koodi}`, `h=${haltija}`];
   if (c) osat.push(`c=${c}`);
   if (linja) osat.push(`t=${base64url(JSON.stringify(linja))}`);
@@ -72,7 +72,7 @@ export function lueSiirto(hash, kohteita = 25) {
     if (!Number.isInteger(n) || n < 1 || !Number.isSafeInteger(v) || v < 1 || !/^[XO-]*$/.test(merkit) || merkit.length > kohteita) return [];
     let tapahtumat;
     try {
-      tapahtumat = tap ? tapahtumaTeksti(base64urlTekstiksi(tap)) : '';
+      tapahtumat = tap ? tapahtumaTeksti(base64urlTekstiksi(tap.replace(/~/g, '_'))) : '';
     } catch {
       tapahtumat = '';
     }

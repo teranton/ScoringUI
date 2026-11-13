@@ -169,9 +169,9 @@ function lahetettavat(rivi) {
     .map(([nro, k]) => (k.layout
       ? {
         layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, ...(k.kuitatut?.length ? { kuitatut: k.kuitatut } : {}),
-        ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}), ...(k.tapahtumat ? { tapahtumat: k.tapahtumat } : {}), ...jako(k.layout)
+        ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}), tapahtumat: k.tapahtumat || '', ...jako(k.layout)
       }
-      : { nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '', ...(k.tapahtumat ? { tapahtumat: k.tapahtumat } : {}) }));
+      : { nro: Number(nro), merkit: k.merkit, versio: k.versio, nimi: nimet[nro] || '', tapahtumat: k.tapahtumat || '' }));
 }
 
 // Korvatun laitteen tila takaisin tietokantaan (sama muoto kuin KirjausApp: haltija pois, korvattu-tieto).

@@ -99,6 +99,10 @@ export function hairioRaja(arvo) {
   return Number(t);
 }
 
+// Kortilla on jo enimmäismäärä tapahtumia: uutta ei voi lisätä (laite kertoo sen kirjaajalle).
+export const taynna = (tapahtumat) => jasennaTapahtumat(tapahtumat).length >= MAKS_TAPAHTUMIA;
+export const TAYNNA_VIESTI = `Kortilla on jo ${MAKS_TAPAHTUMIA} häiriötä, varoitusta tai vähennystä. Kirjaa lisät paperille ja kerro toimistolle.`;
+
 export function lisaa(tapahtumat, tapahtuma) {
   return tapahtumaTeksti([...jasennaTapahtumat(tapahtumat), tapahtuma]);
 }

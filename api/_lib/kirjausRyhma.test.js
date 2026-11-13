@@ -115,7 +115,7 @@ test('tallennuksen tarkistus', () => {
   const laite = (l) => /^[a-z0-9-]{4,}$/.test(l);
   const kortti = { layout: 1, nro: 4, merkit: 'XO-', versio: 10 };
   assert.deepEqual(tarkistaRyhmaTallennus({ laite: 'laite-1', haltija: 'h', kortit: [kortti] }, laite),
-    { laite: 'laite-1', haltija: 'h', kortit: [{ ...kortti, hyvaksytty: null, kuitatut: [], tapahtumat: '' }] });
+    { laite: 'laite-1', haltija: 'h', kortit: [{ ...kortti, hyvaksytty: null, kuitatut: [], tapahtumat: undefined }] });
   assert.equal(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, tapahtumat: 'V3 Ase' }] }, laite).kortit[0].tapahtumat, 'V3 Ase');
   assert.ok(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, tapahtumat: 'V4' }] }, laite).virhe, 'kiekko kortin ulkopuolella');
   assert.deepEqual(tarkistaRyhmaTallennus({ laite: 'laite-1', kortit: [{ ...kortti, kuitatut: ['1', 'P 3', '1'] }] }, laite).kortit[0].kuitatut, ['1', 'P 3']);

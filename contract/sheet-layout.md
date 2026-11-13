@@ -358,6 +358,9 @@ deductions on the card. Each belongs to a target of the card (the device shows i
   `MOBIILI_TULOKSET` = `SUORAAN` and imported the same way by ScoringLib's Tuo mobiilitulokset. On a squad card a
   deduction also clears the shooter's confirmation of that station (they confirm the new result); a warning or a
   malfunction does not. `MOBIILI_LOKI` `HUOM` gets `TAPAHTUMAT: <list>` (or `TAPAHTUMAT POISTETTU`) when they change.
+- A save without the `tapahtumat` field (an app from before this change) keeps the tab's events. A replaced device's
+  events are not handed to the holder; when they differ from the tab, `MOBIILI_LOKI` gets
+  `TAPAHTUMAT EI TALLENNETTU, TARKISTA: <list>` for the office.
 - Not public: the live view and the targets in the results serve neither column.
 
 ### Public live view (`api/kisa.js`)

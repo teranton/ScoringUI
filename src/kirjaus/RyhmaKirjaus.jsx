@@ -12,7 +12,7 @@ import {
   hairio, muutaTapahtumia, tapahtumatOf, yhdistaPalvelimelta
 } from './ryhma.js';
 import {
-  KOROSTUSNIMET, OLETUS_HAIRIORAJA, hairiot, kiekonKorostus, kiekonSelite, kiekonTapahtumat, korostusTyyli, lisaa, poista, vahennys, varoitukset
+  KOROSTUSNIMET, OLETUS_HAIRIORAJA, hairiot, jasennaTapahtumat, kiekonKorostus, kiekonSelite, kiekonTapahtumat, korostusTyyli, lisaa, poista, TAYNNA_VIESTI, taynna, vahennys, varoitukset
 } from './tapahtumat.js';
 import { lueKoodi as lueKoodinSisalto } from './kortit.js';
 import {
@@ -375,6 +375,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const hairioRaja = Number.isInteger(avaus?.hairioRaja) ? avaus.hairioRaja : OLETUS_HAIRIORAJA;
   const kirjaaHairio = () => {
     if (!layout || !kohta || korjaustila || liianPian()) return;
+    if (taynna(tapahtumatOf(tila.kortit, layout, kohta.nro))) return window.alert(TAYNNA_VIESTI);
     const n = hairiot(tapahtumatOf(tila.kortit, layout, kohta.nro)) + 1;
     const yli = n > hairioRaja;
     if (yli && !window.confirm(`${n}. toimintahäiriö: sallittu ${hairioRaja} layoutilla. Kiekko merkitään NOLLAKSI. Jatketaanko?`)) return;
@@ -400,6 +401,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       if (!window.confirm(`Poistetaanko kiekon tapahtumat (${kiekonSelite(tap, k.i)})?`)) return;
       uudet = poista(tap, k.i);
     } else {
+      if (taynna(tap)) return window.alert(TAYNNA_VIESTI);
       const aiemmat = varoitukset(tap);
       const kysymys = tyyppi === 'V'
         ? `Varoitus: ${k.nro} ${nimi(k.nro)}.${aiemmat ? ` Kortilla on jo ${aiemmat} varoitus${aiemmat > 1 ? 'ta' : ''}.` : ''} Syy (vapaaehtoinen):`
@@ -702,7 +704,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           const kortti = tila.kortit[korttiAvain(layout.nro, a.nro)];
           const keskeytti = tila.keskeyttaneet.includes(a.nro);
           const asemalla = merkit.slice(alku, loppu);
-          const tap = kortti?.tapahtumat || '';
+          const tap = jasennaTapahtumat(kortti?.tapahtumat || '');
           const asemanVahennys = vahennys(tap, alku, loppu);
           const aktiivinen = kohta?.nro === a.nro && !korjaustila;
           return (
@@ -729,7 +731,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                   const vari = m === 'X' ? 'bg-green-700 text-white' : m === 'O' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-400';
                   const luokat = `flex h-7 w-7 items-center justify-center rounded-sm text-xs font-bold ${vari} ${aktiivinen && kohta.i === i ? 'ring-2 ring-blue-700 ring-offset-1' : ''}`;
                   // Häiriö, varoitus ja vähennys kiekon kulman sävynä (tapahtumat.js).
-                  const korostus = tap ? kiekonKorostus(tap, i) : null;
+                  const korostus = tap.length ? kiekonKorostus(tap, i) : null;
                   const selite = korostus ? kiekonSelite(tap, i) || KOROSTUSNIMET[korostus] : '';
                   const tyyli = korostusTyyli(korostus);
                   if (korjaustila && tuomaritila) {
@@ -760,7 +762,8 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                 <div key={a.nro} className="flex items-center gap-2 text-sm">
                   <span className="min-w-0 flex-1 truncate">{a.nro} {a.nimi}</span>
                   <span className="shrink-0 text-xs text-slate-500">
-                    {asemaJarjestys(layout).map((k) => osumat(merkit.slice(asemat[k].alku, asemat[k].loppu))).join(' + ')}
+                    {asemaJarjestys(layout).map((k) => Math.max(0, osumat(merkit.slice(asemat[k].alku, asemat[k].loppu))
+                      - vahennys(kortti?.tapahtumat || '', asemat[k].alku, asemat[k].loppu))).join(' + ')}
                   </span>
                   <b className="shrink-0">{Math.max(0, osumat(merkit) - vahennys(kortti?.tapahtumat || ''))}/{layout.kohteita}</b>
                   {kortti?.hyvaksytty

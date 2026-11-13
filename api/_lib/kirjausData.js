@@ -120,7 +120,9 @@ export function tarkistaTallennus(runko) {
   return {
     laite,
     haltija,
-    kortit: kortit.map((k) => ({ nro: k.nro, nimi: nimi(k.nimi), merkit: k.merkit, versio: k.versio, tapahtumat: normalisoi(k.tapahtumat || '') })),
+    kortit: kortit.map((k) => ({ nro: k.nro, nimi: nimi(k.nimi), merkit: k.merkit, versio: k.versio, 
+      // Puuttuva kenttä (sovellus ennen tapahtumia) = taulukon tapahtumat ennallaan (api/kirjaus.js).
+      tapahtumat: k.tapahtumat === undefined ? undefined : normalisoi(k.tapahtumat) })),
     linja: runko?.linja
   };
 }

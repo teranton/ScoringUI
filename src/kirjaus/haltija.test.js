@@ -78,3 +78,13 @@ test('radan nimi vaihdon näkymissä kuten kilpailutoimiston PIN-listassa', () =
   assert.equal(radanNimi(2, '2'), 'Rata 2');
   assert.equal(radanNimi(2, 'Rata 12'), 'Rata 2 (Rata 12)');
 });
+
+test('siirtolinkki: tapahtumat kulkevat, myös kun base64 sisältää alaviivan', async () => {
+  const { siirtoLinkki, lueSiirto } = await import('./haltija.js');
+  const kortit = [{ nro: 3, versio: 7, merkit: 'XO' + '-'.repeat(23), tapahtumat: 'V1 ???' }, { nro: 4, versio: 8, merkit: 'X' + '-'.repeat(24) }];
+  const linkki = siirtoLinkki({ perus: 'https://x/kirjaus.html', koodi: 'v1.a.b', haltija: 'h1.1.abc', kortit, linja: null });
+  const { siirto } = lueSiirto(linkki.split('#')[1]);
+  assert.equal(siirto.kortit.length, 2);
+  assert.equal(siirto.kortit[0].tapahtumat, 'V1 ???');
+  assert.equal(siirto.kortit[1].tapahtumat, undefined);
+});

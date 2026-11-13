@@ -126,7 +126,8 @@ test('korttirivi menee ja tulee samana', () => {
 
 test('tallennuksen tarkistus', () => {
   const ok = { laite: 'laite-1234', kortit: [{ nro: 1, merkit: MERKIT, versio: 1, ylim: 1 }] };
-  assert.deepEqual(tarkistaTallennus(ok), { laite: 'laite-1234', haltija: '', kortit: [{ nro: 1, nimi: '', merkit: MERKIT, versio: 1, tapahtumat: '' }], linja: undefined });
+  assert.deepEqual(tarkistaTallennus(ok), { laite: 'laite-1234', haltija: '', kortit: [{ nro: 1, nimi: '', merkit: MERKIT, versio: 1, tapahtumat: undefined }], linja: undefined });
+  assert.equal(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: '' }] }).kortit[0].tapahtumat, '', 'tyhjä poistaa');
   assert.equal(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: 'h5;  V7  Ase auki ' }] }).kortit[0].tapahtumat, 'H5; V7 Ase auki');
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: 'H26' }] }).virhe, 'kiekko kortin ulkopuolella');
   assert.ok(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: 'Q1' }] }).virhe);

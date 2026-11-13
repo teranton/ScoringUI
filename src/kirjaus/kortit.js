@@ -29,7 +29,10 @@ function muutaKorttia({ kortit, historia }, { nro, i }, { merkki, tapahtumat }, 
   const uudet = merkit.slice(0, i) + uusiMerkki + merkit.slice(i + 1);
   return {
     kortit: { ...kortit, [nro]: { merkit: uudet, versio: uusiVersio(vanha?.versio, nyt), lahetetty: false, ...(uudetTap ? { tapahtumat: uudetTap } : {}) } },
-    historia: [...historia, { nro, i, ennen: merkit[i], ...(uudetTap !== vanhatTap ? { tapEnnen: vanhatTap } : {}) }].slice(-MAKS_HISTORIA)
+    // ennen vain, kun merkki muuttui: pelkän tapahtuman peruminen ei palauta kiekkoon vanhaa merkkiä (täydennys välissä).
+    historia: [...historia, {
+      nro, i, ...(uusiMerkki !== merkit[i] ? { ennen: merkit[i] } : {}), ...(uudetTap !== vanhatTap ? { tapEnnen: vanhatTap } : {})
+    }].slice(-MAKS_HISTORIA)
   };
 }
 
@@ -83,7 +86,8 @@ export function lahettamattomat(kortit, maks = 30) {
   return Object.entries(kortit)
     .filter(([, k]) => !k.lahetetty)
     .slice(0, maks)
-    .map(([nro, k]) => ({ nro: Number(nro), merkit: k.merkit, versio: k.versio, ...(k.tapahtumat ? { tapahtumat: k.tapahtumat } : {}) }));
+    // tapahtumat lähtee aina (myös tyhjänä): puuttuva kenttä (vanha sovellus) jättää taulukon tapahtumat ennalleen.
+    .map(([nro, k]) => ({ nro: Number(nro), merkit: k.merkit, versio: k.versio, tapahtumat: k.tapahtumat || '' }));
 }
 
 // Tallennuksen vastaus: lähetetyt versiot merkitään tallennetuiksi (jos niitä ei ole sillä välin muutettu),

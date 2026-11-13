@@ -248,7 +248,8 @@ function korvatunKortit(sarake, laite, kortit, tallessa, taydennykset, aika) {
   kortit.forEach((kortti, i) => {
     const vanha = lueKorttiRivi((tallessa[i] || [])[0]);
     const t = taydenna(vanha?.merkit || '-'.repeat(KOHTEITA), kortti.merkit);
-    if (t.taytetty === 0 && t.eri === 0) return;
+    const tapEri = korvatunTapahtumat(vanha, kortti);
+    if (t.taytetty === 0 && t.eri === 0 && !tapEri) return;
     if (t.taytetty > 0) {
       uudet = lisaaTaydennys(uudet, kortti.nro, kortti.merkit);
       taydennetyt++;
@@ -256,11 +257,19 @@ function korvatunKortit(sarake, laite, kortit, tallessa, taydennykset, aika) {
     if (t.eri > 0) eroavat++;
     const huom = [
       t.taytetty > 0 ? 'KORVATTU LAITE: VÄLITETTY RADAN LAITTEELLE' : 'KORVATTU LAITE',
-      t.eri > 0 ? `${t.eri} ERI MERKINTÄÄ, TAULUKON MERKINTÄ JÄI` : ''
+      t.eri > 0 ? `${t.eri} ERI MERKINTÄÄ, TAULUKON MERKINTÄ JÄI` : '',
+      tapEri
     ].filter(Boolean).join(', ');
     lokirivit.push([aika, sarake, kortti.nro, laite, kortti.versio, vanha?.merkit || '', kortti.merkit, huom]);
   });
   return { taydennykset: uudet, lokirivit, taydennetyt, eroavat };
+}
+
+// Korvatun laitteen tapahtumat (häiriöt, varoitukset, vähennykset), jotka poikkeavat taulukosta: niitä ei välitetä
+// haltijalle (merkinnät täydennetään vain tyhjiin kiekkoihin), vaan ne kirjataan lokiin toimiston tarkistettaviksi.
+function korvatunTapahtumat(vanha, kortti) {
+  if (kortti.tapahtumat === undefined || kortti.tapahtumat === (vanha?.tapahtumat || '')) return '';
+  return `TAPAHTUMAT EI TALLENNETTU, TARKISTA: ${kortti.tapahtumat || '(ei tapahtumia)'}`;
 }
 
 // Korvatun laitteen tallennus jonossa (TÄYDENNYKSET luetaan ja kirjoitetaan saman radan muista tallennuksista erikseen).
@@ -310,6 +319,8 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
   const kirjattavat = [];
   kortit.forEach((kortti, i) => {
     const vanha = lueKorttiRivi((tallessa[i] || [])[0]);
+    // Sovellus ennen tapahtumia ei lähetä niitä: taulukon tapahtumat säilyvät.
+    if (kortti.tapahtumat === undefined) kortti.tapahtumat = vanha?.tapahtumat || '';
     if (vanha && vanha.versio >= kortti.versio) {
       // Sama versio on jo tallessa (uudelleenlähetys) tai taulukossa on uudempi: ei kirjoiteta.
       if (vanha.versio === kortti.versio && vanha.merkit === kortti.merkit && vanha.tapahtumat === kortti.tapahtumat) tallennetut.push(kortti.nro);
@@ -430,7 +441,8 @@ async function korvatunRyhmaTallennus(request, sheetId, kohde, tabit, laite, kor
   const lokirivit = [...vieraat];
   for (const { kortti, layout, vanha } of kortit) {
     const t = taydenna(vanha?.merkit || '-'.repeat(layout.kohteita), kortti.merkit);
-    if (t.taytetty === 0 && t.eri === 0) continue;
+    const tapEri = korvatunTapahtumat(vanha, kortti);
+    if (t.taytetty === 0 && t.eri === 0 && !tapEri) continue;
     if (t.taytetty > 0) {
       taydennykset = lisaaTaydennys(taydennykset, ryhmanTunnus(kortti), kortti.merkit);
       taydennetyt++;
@@ -439,6 +451,7 @@ async function korvatunRyhmaTallennus(request, sheetId, kohde, tabit, laite, kor
     const huom = [
       t.taytetty > 0 ? 'KORVATTU PUHELIN: VÄLITETTY RYHMÄN PUHELIMELLE' : 'KORVATTU PUHELIN',
       t.eri > 0 ? `${t.eri} ERI MERKINTÄÄ, TAULUKON MERKINTÄ JÄI` : '',
+      tapEri,
       `RYHMÄ ${kohde.rivi}`
     ].filter(Boolean).join(', ');
     lokirivit.push([aika, `Layout ${layout.nro}`, kortti.nro, laite, kortti.versio, vanha?.merkit || '', kortti.merkit, huom]);
@@ -540,6 +553,7 @@ async function tallennaRyhmaKerran(request, avain, { laite, haltija, kortit }) {
   const uudemmat = [];
   const kirjattavat = [];
   for (const { kortti, layout, vanha } of kelvot) {
+    if (kortti.tapahtumat === undefined) kortti.tapahtumat = vanha?.tapahtumat || '';
     if (vanha && vanha.versio >= kortti.versio) {
       if (vanha.versio === kortti.versio && vanha.merkit === kortti.merkit && vanha.tapahtumat === kortti.tapahtumat) {
         tallennetut.push({ layout: layout.nro, nro: kortti.nro });

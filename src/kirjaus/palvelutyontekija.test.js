@@ -34,7 +34,7 @@ test('lahetettavat: vain lähettämättömät kortit nimineen', () => {
     7: { merkit: 'O'.repeat(25), versio: 2, lahetetty: true }
   };
   assert.deepEqual(lahetettavat(rivi({ kortit, avaus: { nimet: { 3: 'Matti' } } })), [
-    { nro: 3, merkit: 'X'.repeat(25), versio: 5, nimi: 'Matti' }
+    { nro: 3, merkit: 'X'.repeat(25), versio: 5, nimi: 'Matti', tapahtumat: '' }
   ]);
 });
 
@@ -59,8 +59,8 @@ test('lahetettavat: ryhmäpuhelimen kortit layoutin kanssa, hylätyt eivät läh
     '2:4': { layout: 2, nro: 4, merkit: 'X--', versio: 7, lahetetty: false, hyvaksytty: null }
   };
   assert.deepEqual(lahetettavat(rivi({ kortit })), [
-    { layout: 1, nro: 4, merkit: 'XO-', versio: 5, hyvaksytty: 1800000000000 },
-    { layout: 2, nro: 4, merkit: 'X--', versio: 7 }
+    { layout: 1, nro: 4, merkit: 'XO-', versio: 5, hyvaksytty: 1800000000000, tapahtumat: '' },
+    { layout: 2, nro: 4, merkit: 'X--', versio: 7, tapahtumat: '' }
   ]);
   // Asemajako avauksen layouteista, kuten sivulla (ryhma.js lahettamattomat).
   const avaus = { layoutit: [{ nro: 1, asemat: [{ kohteita: 1 }, { kohteita: 2 }] }] };

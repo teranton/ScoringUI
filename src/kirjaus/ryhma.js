@@ -212,7 +212,9 @@ function muutaKorttia({ kortit, historia }, layout, { nro, i }, { merkki, tapaht
         hyvaksytty: tulosMuuttui ? null : (vanha?.hyvaksytty ?? null), ...(uudetTap ? { tapahtumat: uudetTap } : {})
       }
     },
-    historia: [...historia, { layout: layout.nro, nro, i, ennen: merkit[i], ...(uudetTap !== vanhatTap ? { tapEnnen: vanhatTap } : {}) }].slice(-200)
+    historia: [...historia, {
+      layout: layout.nro, nro, i, ...(uusiMerkki !== merkit[i] ? { ennen: merkit[i] } : {}), ...(uudetTap !== vanhatTap ? { tapEnnen: vanhatTap } : {})
+    }].slice(-200)
   };
 }
 
@@ -300,7 +302,7 @@ export function lahettamattomat(kortit, maks = 60, layoutit = []) {
       return {
         layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio,
         ...(k.kuitatut?.length ? { kuitatut: k.kuitatut } : {}), ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}),
-        ...(k.tapahtumat ? { tapahtumat: k.tapahtumat } : {}), ...(layout ? { jako: asemaJako(layout) } : {})
+        tapahtumat: k.tapahtumat || '', ...(layout ? { jako: asemaJako(layout) } : {})
       };
     });
 }

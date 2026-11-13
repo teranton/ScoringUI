@@ -275,7 +275,8 @@ export function tarkistaRyhmaTallennus(runko, onLaitetunnus) {
     kortit: kortit.map((k) => ({
       layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio, hyvaksytty: k.hyvaksytty || null,
       kuitatut: [...new Set((k.kuitatut || []).map((x) => x.trim()).filter(Boolean))], ...(k.jako ? { jako: k.jako } : {}),
-      tapahtumat: normalisoi(k.tapahtumat || '')
+      // Puuttuva kenttä (sovellus ennen tapahtumia) = taulukon tapahtumat ennallaan (api/kirjaus.js).
+      tapahtumat: k.tapahtumat === undefined ? undefined : normalisoi(k.tapahtumat)
     }))
   };
 }
