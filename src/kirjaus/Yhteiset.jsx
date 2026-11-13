@@ -34,6 +34,12 @@ export function Asennus({ asennus, onKopioiKoodi, koodiTeksti = 'Kopioi ratakood
       ) : (
         <p className="text-slate-600">Selaimen valikosta: Asenna sovellus tai Lisää aloitusnäytölle.</p>
       ))}
+      {!onIos() && (
+        <p className="text-slate-600">
+          Asennuksen jälkeen avaa kirjaus aloitusnäytön kuvakkeesta. Selaimen &quot;Vaihda sovellukseen&quot; tai
+          &quot;Avaa sovelluksessa&quot; jättää välilehden auki: se pysähtyy, kun sovellus aukeaa, ja sen voi sulkea.
+        </p>
+      )}
     </div>
   );
 }

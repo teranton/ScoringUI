@@ -103,3 +103,61 @@ export function useTakaisinVahti(kasittele) {
     };
   }, []);
 }
+
+// Androidin ja tietokoneen Chromessa selain ja asennettu sovellus jakavat saman tallennuksen ja laitetunnuksen.
+// Chromen "Vaihda sovellukseen" / "Avaa sovelluksessa" avaa sovelluksen mutta jättää välilehden auki, eikä sivu voi
+// sulkea välilehteä itse. Vanha välilehti voisi silloin tallentaa vanhemman tilansa sovelluksen tilan päälle, joten
+// rata tai ryhmä on auki kirjaamassa vain yhdessä ikkunassa: aktiivinen ikkuna ilmoittaa itsestään kanavalla, ja
+// toinen pysähtyy ja kertoo, missä kirjaus jatkuu. (iPhonessa Safari ja sovellus eivät jaa tallennusta: ne ovat
+// palvelimelle eri laitteita, ja rata siirtyy niiden välillä siirtolinkillä.)
+const IKKUNAKANAVA = 'kirjaus-ikkuna';
+
+// Aktiivisen ikkunan vastaus toisen ikkunan ilmoitukseen samasta radasta tai ryhmästä: 'pysahdy', 'vastaa'
+// (tämä jatkaa, ja vastaus pysäyttää ilmoittajan) tai 'ohita'. Sovellus voittaa selaimen, ellei käyttäjä valinnut
+// selainta (pakota); muuten uusin ikkuna voittaa. Vastaus ei koskaan ole pakotettu, joten viestit eivät kierrä.
+export function ikkunanVastaus(oma, viesti) {
+  if (!viesti || viesti.id === oma.id || viesti.kohde !== oma.kohde) return 'ohita';
+  if (!viesti.pakota && oma.sovellus && !viesti.sovellus) return 'vastaa';
+  return 'pysahdy';
+}
+
+// { toisaalla, jatkaTassa, kierros }: toisaalla = null, kun tämä ikkuna kirjaa, muuten { sovellus } (missä kirjaus
+// jatkuu). jatkaTassa ottaa kirjauksen takaisin tähän ikkunaan; kierros kasvaa silloin, jotta näkymä luetaan
+// uudelleen tallennuksesta (toinen ikkuna on voinut muuttaa sitä).
+export function useIkkunaVahti(kohde) {
+  const [toisaalla, setToisaalla] = useState(null);
+  const [kierros, setKierros] = useState(0);
+  const [oma] = useState(() => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, sovellus: onAsennettu() }));
+  const toisaallaRef = useRef(null);
+  const kanavaRef = useRef(null);
+
+  useEffect(() => {
+    if (!kohde || typeof BroadcastChannel === 'undefined') return undefined;
+    const kanava = new BroadcastChannel(IKKUNAKANAVA);
+    kanavaRef.current = kanava;
+    const ilmoitus = { ...oma, kohde };
+    kanava.onmessage = (e) => {
+      if (toisaallaRef.current) return;
+      const vastaus = ikkunanVastaus(ilmoitus, e.data);
+      if (vastaus === 'vastaa') kanava.postMessage(ilmoitus);
+      if (vastaus === 'pysahdy') {
+        toisaallaRef.current = { sovellus: Boolean(e.data.sovellus) };
+        setToisaalla(toisaallaRef.current);
+      }
+    };
+    kanava.postMessage(ilmoitus);
+    return () => {
+      kanava.close();
+      kanavaRef.current = null;
+    };
+  }, [kohde, oma]);
+
+  const jatkaTassa = () => {
+    toisaallaRef.current = null;
+    setToisaalla(null);
+    setKierros((n) => n + 1);
+    kanavaRef.current?.postMessage({ ...oma, kohde, pakota: true });
+  };
+
+  return { toisaalla, jatkaTassa, kierros, sovellus: oma.sovellus };
+}
