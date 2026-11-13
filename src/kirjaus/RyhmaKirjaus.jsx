@@ -31,6 +31,8 @@ const TARKISTUS_VALI_MS = 60000;
 const LAHETYS_VIIVE_MS = 1500;
 const KESKEN_VIIVE_MS = 10000;
 const NAPAUTUSVALI_MS = 150;
+// Vahvistusnappi ei toimi heti avaamisen jälkeen, ettei hyväksyntänapin toistuva napautus osu siihen.
+const VAHVISTUSVIIVE_MS = 700;
 const KUITTAUS_MS = 6000;
 const KELLO_MS = 30000;
 
@@ -58,6 +60,9 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const [valikko, setValikko] = useState(false);
   const [lukittu, setLukittu] = useState(false);
   const [korjaustila, setKorjaustila] = useState(false);
+  // Aseman hyväksyntä vaatii vahvistuksen, ettei vahinkopainallus hyväksy: { avain, avattu }. Avain sisältää aseman
+  // merkit ja keskeyttäneet, joten vahvistus raukeaa, jos tulokset muuttuvat sen ollessa auki.
+  const [vahvistus, setVahvistus] = useState(null);
   const [kuittaus, setKuittaus] = useState(null);
   const [toinenLaite, setToinenLaite] = useState(null);
 
@@ -376,6 +381,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   // PERUlla tai automaattisesti).
   const kuittaaKaikki = () => {
     if (!layout || liianPian()) return;
+    setVahvistus(null);
     setTila((t) => {
       const mukana = ampujat.filter((a) => !t.keskeyttaneet.includes(a.nro));
       const kortit = mukana.reduce((k, a) => kuittaaAsema(k, layout, a.nro, asema), t.kortit);
@@ -394,9 +400,13 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const valitseLayout = (nro) => {
     const l = jarjestys.find((x) => x.nro === nro);
     setTila((t) => ({ ...t, layout: nro, asema: l ? aloitusAsema(l, ampujat, t.kortit, t.keskeyttaneet) : 0, valittu: null }));
+    setVahvistus(null);
     setValikko(false);
   };
-  const valitseAsema = (a) => setTila((t) => ({ ...t, layout: layout?.nro ?? null, asema: a, valittu: null }));
+  const valitseAsema = (a) => {
+    setTila((t) => ({ ...t, layout: layout?.nro ?? null, asema: a, valittu: null }));
+    setVahvistus(null);
+  };
   const valitseAmpuja = (nro) => setTila((t) => ({ ...t, layout: layout?.nro ?? null, asema, valittu: nro }));
   const seuraava = () => {
     if (!layout || !kohta) return;
@@ -486,7 +496,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
         <div className="truncate text-xs opacity-80">{layout ? `${layout.nimi} · ` : ''}{avaus.kisa}</div>
       </div>
       <SynkMerkki lahettamatta={lahettamatta} virhe={synk.virhe} katkesi={synk.katkesi} nyt={nyt} />
-      <button type="button" aria-label="Lukitse näyttö" className="rounded px-2 py-1 text-xl" onClick={() => { setValikko(false); setLukittu(true); }}>🔒</button>
+      <button type="button" aria-label="Lukitse näyttö" className="rounded px-2 py-1 text-xl" onClick={() => { setValikko(false); setVahvistus(null); setLukittu(true); }}>🔒</button>
       <button type="button" aria-label="Valikko" className="rounded px-3 py-1 text-xl" onClick={() => setValikko((v) => !v)}>☰</button>
     </header>
   );
@@ -505,7 +515,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           );
         })}
       </div>
-      <button type="button" className="rounded border border-amber-600 bg-amber-50 px-3 py-2 text-left" onClick={() => { setKorjaustila(true); setValikko(false); }}>
+      <button type="button" className="rounded border border-amber-600 bg-amber-50 px-3 py-2 text-left" onClick={() => { setKorjaustila(true); setVahvistus(null); setValikko(false); }}>
         <b>Korjaa merkintöjä</b> · muuta kiekko osumaksi tai nollaksi tai merkitse keskeytys
       </button>
       <div className="flex items-center justify-between gap-2">
@@ -571,6 +581,13 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const osa = kohta && asemat[asema].osat.length > 1 ? kohdanOsa(layout, asema, kohta.i) : null;
   const layoutValmis = ampujat.every((a) => tila.keskeyttaneet.includes(a.nro) || taytetyt(merkitOf(tila.kortit, layout, a.nro)) === layout.kohteita);
   const viimeHistoria = tila.historia[tila.historia.length - 1];
+  const vahvistusAvain = [layout.nro, asema, tila.keskeyttaneet.join(','),
+    ...aktiiviset.map((a) => [...merkitOf(tila.kortit, layout, a.nro)].slice(alku, loppu).join(''))].join('|');
+  const vahvistusAuki = kuittaamatta && vahvistus?.avain === vahvistusAvain;
+  const vahvista = () => {
+    if (!vahvistus || Date.now() - vahvistus.avattu < VAHVISTUSVIIVE_MS) return;
+    kuittaaKaikki();
+  };
 
   return (
     <main className="flex h-screen supports-[height:100dvh]:h-[100dvh] flex-col overflow-hidden bg-slate-100 text-slate-900 select-none">
@@ -707,19 +724,39 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           </>
         ) : kuittaamatta ? (
           <>
-            <div className="mb-1 text-sm">
-              Asema {asemat[asema].id} ammuttu: ampujat tarkistavat tuloksensa yltä. Huomautus? <b>Korjaa</b> ensin.
+            <div className="mb-1 min-h-10 text-sm">
+              {vahvistusAuki
+                ? <>Hyväksyvätkö <b>kaikki ampujat</b> aseman {asemat[asema].id} tuloksensa?</>
+                : <>Asema {asemat[asema].id} ammuttu: ampujat tarkistavat tuloksensa yltä. Huomautus? <b>Korjaa</b> ensin.</>}
             </div>
+            {vahvistusAuki ? (
+              // PERU pysyy paikallaan; vahvistus on Korjaa-napin kohdalla ja Peruuta hyväksyntänapin kohdalla,
+              // joten saman kohdan toistuva napautus ei hyväksy.
+              <div className="grid grid-cols-[1fr_1fr_2fr] gap-2" role="group" aria-label="Vahvista hyväksyntä">
+                <button type="button" className="flex h-14 flex-col items-center justify-center rounded-lg border-2 border-slate-400 font-semibold active:bg-slate-200 disabled:opacity-30 sm:h-20" disabled={!viimeHistoria} onClick={peruViimeisin}>
+                  <span className="text-lg leading-tight">PERU</span>
+                  {viimeHistoria && <span className="text-[11px] font-normal leading-tight text-slate-600">{viimeHistoria.nro}</span>}
+                </button>
+                <button type="button" className="flex h-14 flex-col items-center justify-center rounded-lg bg-green-700 font-bold leading-tight text-white active:bg-green-900 sm:h-20" onClick={vahvista}>
+                  <span className="text-lg">Kyllä</span>
+                  <span className="text-sm">hyväksy ✓</span>
+                </button>
+                <button type="button" className="h-14 rounded-lg border-2 border-slate-400 text-lg font-semibold active:bg-slate-200 sm:h-20" onClick={() => setVahvistus(null)}>
+                  Peruuta
+                </button>
+              </div>
+            ) : (
             <div className="grid grid-cols-[1fr_1fr_2fr] gap-2">
               <button type="button" className="flex h-14 flex-col items-center justify-center rounded-lg border-2 border-slate-400 font-semibold active:bg-slate-200 disabled:opacity-30 sm:h-20" disabled={!viimeHistoria} onClick={peruViimeisin}>
                 <span className="text-lg leading-tight">PERU</span>
                 {viimeHistoria && <span className="text-[11px] font-normal leading-tight text-slate-600">{viimeHistoria.nro}</span>}
               </button>
-              <button type="button" className="h-14 rounded-lg border-2 border-amber-600 bg-amber-50 text-lg font-bold text-amber-900 sm:h-20" onClick={() => setKorjaustila(true)}>Korjaa</button>
-              <button type="button" className="h-14 rounded-lg bg-green-700 text-lg font-bold leading-tight text-white active:bg-green-900 sm:h-20" onClick={kuittaaKaikki}>
+              <button type="button" className="h-14 rounded-lg border-2 border-amber-600 bg-amber-50 text-lg font-bold text-amber-900 sm:h-20" onClick={() => { setKorjaustila(true); setVahvistus(null); }}>Korjaa</button>
+              <button type="button" className="h-14 rounded-lg bg-green-700 text-lg font-bold leading-tight text-white active:bg-green-900 sm:h-20" onClick={() => { if (!liianPian()) setVahvistus({ avain: vahvistusAvain, avattu: Date.now() }); }}>
                 Kaikki hyväksyvät ✓
               </button>
             </div>
+            )}
           </>
         ) : (
           <>
