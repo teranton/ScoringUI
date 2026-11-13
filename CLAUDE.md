@@ -26,8 +26,9 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   and `public/kirjaus-sw.js` (scope `/kirjaus` only, so the public pages are never served from it) caches the app shell
   and sends unsent cards with Background Sync. Installable as a PWA (`public/kirjaus.webmanifest`).
   On Android and desktop Chrome the installed app shares storage and device id with the browser, and Chrome's "Switch to app"
-  leaves the tab open, so a lane or squad scores in one window only (`useIkkunaVahti` in `src/kirjaus/sovellus.js`,
-  BroadcastChannel): the app wins over a browser tab, otherwise the newest window; the other stops and says where scoring continues.
+  leaves the tab open, so a lane or squad scores in one window only (`useIkkunaVahti` in `src/kirjaus/sovellus.js`): the owner
+  window is in localStorage, a window that sees another owner (storage event, or on becoming visible) stops and says where scoring
+  continues. The app always takes over; a reloading tab first asks a running app (BroadcastChannel) and stops if it answers.
   One device holds a layout at a time (`api/_lib/kirjausHaltija.js`, tab `MOBIILI_LAITTEET`): it hands over from its menu
   (release, or a QR transfer link when offline, `src/kirjaus/haltija.js`), or a new device takes over with the office's
   one-time PIN from ScoringLib. A replaced device's marks are handed to the holder, which fills its empty targets (only the holder writes cards); differences are logged.

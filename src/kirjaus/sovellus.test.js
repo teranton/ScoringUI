@@ -1,26 +1,26 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ikkunanVastaus } from './sovellus.js';
+import { avautuvanPaatos, toisaallaTeksti } from './sovellus.js';
 
-const selain = { id: 'a', kohde: 's:3', sovellus: false };
-const sovellus = { id: 'b', kohde: 's:3', sovellus: true };
+const selain = { id: 'a', sovellus: false };
+const sovellus = { id: 'b', sovellus: true };
 
-test('ikkunanVastaus: oma viesti ja toinen rata ohitetaan', () => {
-  assert.equal(ikkunanVastaus(selain, { ...selain }), 'ohita');
-  assert.equal(ikkunanVastaus(selain, { ...sovellus, kohde: 's:4' }), 'ohita');
-  assert.equal(ikkunanVastaus(selain, null), 'ohita');
+test('avautuvanPaatos: sovellus ottaa aina, selain kysyy vain sovellukselta', () => {
+  // "Vaihda sovellukseen": sovellus ottaa kirjauksen selaimelta.
+  assert.equal(avautuvanPaatos(sovellus, selain), 'ota');
+  assert.equal(avautuvanPaatos(sovellus, { ...sovellus, id: 'c' }), 'ota');
+  assert.equal(avautuvanPaatos(sovellus, null), 'ota');
+  // Vanha välilehti latautuu uudelleen: kysyy ensin, onko sovellus auki.
+  assert.equal(avautuvanPaatos(selain, sovellus), 'kysy');
+  // Toinen välilehti tai ei omistajaa: uusin ottaa.
+  assert.equal(avautuvanPaatos(selain, { ...selain, id: 'c' }), 'ota');
+  assert.equal(avautuvanPaatos(selain, null), 'ota');
+  assert.equal(avautuvanPaatos(selain, { ...selain }), 'ota');
 });
 
-test('ikkunanVastaus: sovellus voittaa selaimen, ellei selainta valittu', () => {
-  // Sovellus aukeaa ("Vaihda sovellukseen"): selaimen välilehti pysähtyy.
-  assert.equal(ikkunanVastaus(selain, sovellus), 'pysahdy');
-  // Vanha välilehti latautuu uudelleen sovelluksen ollessa auki: sovellus vastaa, ja välilehti pysähtyy.
-  assert.equal(ikkunanVastaus(sovellus, selain), 'vastaa');
-  // Käyttäjä valitsi välilehdellä "Jatka tässä selaimessa".
-  assert.equal(ikkunanVastaus(sovellus, { ...selain, pakota: true }), 'pysahdy');
-});
-
-test('ikkunanVastaus: samanlaisista ikkunoista uusin voittaa', () => {
-  assert.equal(ikkunanVastaus(selain, { ...selain, id: 'c' }), 'pysahdy');
-  assert.equal(ikkunanVastaus(sovellus, { ...sovellus, id: 'c' }), 'pysahdy');
+test('toisaallaTeksti: missä kirjaus jatkuu', () => {
+  assert.equal(toisaallaTeksti(false, true), 'asennetussa sovelluksessa');
+  assert.equal(toisaallaTeksti(true, false), 'selaimessa');
+  assert.equal(toisaallaTeksti(false, false), 'toisessa välilehdessä');
+  assert.equal(toisaallaTeksti(true, true), 'toisessa sovellusikkunassa');
 });
