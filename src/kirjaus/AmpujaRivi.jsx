@@ -1,9 +1,13 @@
 // Ampujan Compak-kortti: 5 asemaa × 5 kiekkoa, osumat / ammutut. Kirjauslaitteella (KirjausApp.jsx) kiekkoja ja
 // keskeytystä voi napauttaa korjaustilassa; julkisessa ratanäkymässä (src/LiveRadat.jsx) kortti on vain luettava.
+// Toimintahäiriö, varoitus ja vähennys näkyvät kiekon kulman sävynä (tapahtumat.js), joten kortti ei kasva.
 import { ASEMAN_KOHTEET, KOHTEITA, osumat, taytetyt } from './kortit.js';
+import { KOROSTUSNIMET, jasennaTapahtumat, kiekonKorostus, kiekonSelite, korostusTyyli } from './tapahtumat.js';
 
-export default function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus, valmis, keskeyttanyt, onKeskeyta, onValitse }) {
+export default function AmpujaRivi({ ampuja, merkit, tapahtumat = '', lahetetty, kohta, korostus, valmis, keskeyttanyt, onKeskeyta, onValitse }) {
   const aktiivinen = kohta !== null;
+  // Tapahtumat jäsennetään kerran kortille, ei joka kiekolle.
+  const lista = tapahtumat ? jasennaTapahtumat(tapahtumat) : [];
   const asemat = Array.from({ length: KOHTEITA / ASEMAN_KOHTEET }, (_, a) => a);
   const reuna = korostus === 'korjaus' ? 'border-amber-600' : aktiivinen ? 'border-blue-700' : 'border-transparent';
   return (
@@ -35,13 +39,16 @@ export default function AmpujaRivi({ ampuja, merkit, lahetetty, kohta, korostus,
               const vari = m === 'X' ? 'bg-green-700 text-white' : m === 'O' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-400';
               const luokat = `flex h-5 items-center justify-center rounded-sm text-xs font-bold sm:h-8 ${vari} ${kohta === i ? 'ring-2 ring-blue-700 ring-offset-1' : ''}`;
               const teksti = m === 'X' ? 'X' : m === 'O' ? '0' : '';
+              const korostus = lista.length ? kiekonKorostus(lista, i) : null;
+              const tyyli = korostusTyyli(korostus);
+              const selite = korostus ? kiekonSelite(lista, i) || KOROSTUSNIMET[korostus] : '';
               // Kiekkoa voi napauttaa vain korjaustilassa ja vain, jos se on jo merkitty.
               return onValitse && m !== '-' ? (
-                <button key={i} type="button" aria-label={`Korjaa asema ${a + 1}, kiekko ${k + 1}`} className={`${luokat} ring-1 ring-amber-500`} onClick={() => onValitse(i)}>
+                <button key={i} type="button" aria-label={`Korjaa asema ${a + 1}, kiekko ${k + 1}${selite ? ` (${selite})` : ''}`} title={selite || undefined} style={tyyli} className={`${luokat} ring-1 ring-amber-500`} onClick={() => onValitse(i)}>
                   {teksti}
                 </button>
               ) : (
-                <div key={i} className={luokat}>{teksti}</div>
+                <div key={i} title={selite || undefined} aria-label={selite || undefined} style={tyyli} className={luokat}>{teksti}</div>
               );
             })}
           </div>

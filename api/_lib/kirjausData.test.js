@@ -39,7 +39,7 @@ test('sarakekirjaimet', () => {
   assert.equal(sarakeKirjain(0), 'A');
   assert.equal(sarakeKirjain(25), 'Z');
   assert.equal(sarakeKirjain(26), 'AA');
-  assert.equal(VIIMEINEN_SARAKE, 'AE');
+  assert.equal(VIIMEINEN_SARAKE, 'AG');
 });
 
 test('rata-ruudukko: otsikko nimen yllä, tyhjät paikat ja tauot ohitetaan, tuomarimerkki pois', () => {
@@ -106,10 +106,18 @@ test('speksiArvo lukee vain avaimen oikean naapurin (kuten ScoringLibin Speksit)
 
 test('korttirivi menee ja tulee samana', () => {
   const rivi = korttiRivi({ nro: 12, nimi: 'A', merkit: MERKIT, versio: 5, laite: 'abcd', aika: 'nyt' });
-  assert.equal(rivi.length, 31);
+  assert.equal(rivi.length, 33);
   assert.equal(rivi[2], 8);
   assert.equal(rivi[6 + 24], '');
-  assert.deepEqual(lueKorttiRivi(rivi.map(String)), { nro: 12, merkit: MERKIT, versio: 5, laite: 'abcd', aika: String(rivi[3]) });
+  assert.deepEqual(rivi.slice(31), ['', '']);
+  assert.deepEqual(lueKorttiRivi(rivi.map(String)), { nro: 12, merkit: MERKIT, versio: 5, laite: 'abcd', aika: String(rivi[3]), tapahtumat: '' });
+  // Tapahtumat ja vähennys kiekkojen jälkeen; TULOS on yhä osumat.
+  const tap = korttiRivi({ nro: 12, nimi: 'A', merkit: MERKIT, versio: 5, laite: 'abcd', aika: 'nyt', tapahtumat: 'H3; R12x2 Myöhästyi' });
+  assert.deepEqual(tap.slice(31), ['H3; R12x2 Myöhästyi', 2]);
+  assert.equal(tap[2], 8);
+  assert.equal(lueKorttiRivi(tap).tapahtumat, 'H3; R12x2 Myöhästyi');
+  // Rivi ennen TAPAHTUMAT-saraketta.
+  assert.equal(lueKorttiRivi(rivi.slice(0, 31)).tapahtumat, '');
   // Muotoilemattomat arvot (UNFORMATTED_VALUE): numerot lukuina.
   assert.equal(lueKorttiRivi([12, 'A', 8, 'nyt', 'abcd', 1760012345678, 'X']).versio, 1760012345678);
   assert.equal(lueKorttiRivi(['NRO', 'NIMI']), null);
@@ -118,7 +126,12 @@ test('korttirivi menee ja tulee samana', () => {
 
 test('tallennuksen tarkistus', () => {
   const ok = { laite: 'laite-1234', kortit: [{ nro: 1, merkit: MERKIT, versio: 1, ylim: 1 }] };
-  assert.deepEqual(tarkistaTallennus(ok), { laite: 'laite-1234', haltija: '', kortit: [{ nro: 1, nimi: '', merkit: MERKIT, versio: 1 }], linja: undefined });
+  assert.deepEqual(tarkistaTallennus(ok), { laite: 'laite-1234', haltija: '', kortit: [{ nro: 1, nimi: '', merkit: MERKIT, versio: 1, tapahtumat: undefined }], linja: undefined });
+  assert.equal(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: '' }] }).kortit[0].tapahtumat, '', 'tyhjä poistaa');
+  assert.equal(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: 'h5;  V7  Ase auki ' }] }).kortit[0].tapahtumat, 'H5; V7 Ase auki');
+  assert.ok(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: 'H26' }] }).virhe, 'kiekko kortin ulkopuolella');
+  assert.ok(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: 'Q1' }] }).virhe);
+  assert.ok(tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], tapahtumat: 5 }] }).virhe);
   // Pelkkä linjan tila käy ilman kortteja.
   assert.deepEqual(tarkistaTallennus({ laite: 'laite-1234', haltija: 'h1.1.x', linja: {} }).kortit, []);
   const nimella = tarkistaTallennus({ ...ok, kortit: [{ ...ok.kortit[0], nimi: ' Aho\u0007 Antti ' }] });

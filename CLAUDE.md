@@ -37,6 +37,8 @@ timetables for competitions run on Google Sheets. Deployed on Vercel.
   With `KISANSPEKSIT` `MOBIILI_TULOKSET` = `SUORAAN`, a save that completes a result (Compak card, or a squad station the
   shooter confirmed) also writes it into an empty result cell of `OSALLISTUJAT+TULOKSET` (`api/_lib/kirjausTulokset.js`);
   paper or formula cells are never changed. Default `TOIMISTO`: the office imports with ScoringLib's Tuo mobiilitulokset.
+  Malfunctions (Häiriö, limit `KISANSPEKSIT` `TOIMINTAHAIRIOT`, default 2 per card), warnings and deductions (⚑) are card
+  events (`src/kirjaus/tapahtumat.js`, column `TAPAHTUMAT`), shown as a shaded target corner; results are hits − deductions.
 - Sign-ups: the registrations list (`src/Ilmoittautuneet.jsx`) merges the `Ilmoittautuneet` tab with sign-ups not yet on
   the main tab from `Suomisport Import`, `ILMOITTAUTUMISET` and a Google Form's `Lomakevastaukset 1` / `Form Responses 1`
   (`src/utils/ilmoittautumiset.js`; the API serves only their name, class, club and `SIIRRETTY` columns). With

@@ -1,8 +1,10 @@
 // Ryhmäpuhelimen korttilogiikka (Sporting / FITASC / ESP): kortti per (layout, ampuja), kiekot asemittain.
 // Kortti: { layout, nro, merkit (X/O/-, layoutin kiekkojen verran), versio, lahetetty, kuitatut (puhelimen asemien
-// tunnukset, jotka ampuja on hyväksynyt), hyvaksytty (ms, true tai null: kaikki asemat hyväksytty) }.
+// tunnukset, jotka ampuja on hyväksynyt), hyvaksytty (ms, true tai null: kaikki asemat hyväksytty), tapahtumat
+// (toimintahäiriöt, varoitukset ja vähennykset tekstinä, tapahtumat.js; puuttuu = ei tapahtumia) }.
 // Kortit ovat oliossa avaimella "<layout>:<nro>". Puhtaat funktiot (ryhma.test.js).
 import { uusiVersio } from './kortit.js';
+import { hairiot, jasennaTapahtumat, lisaa, tapahtumaTeksti, vahennys } from './tapahtumat.js';
 
 export const korttiAvain = (layout, nro) => `${layout}:${nro}`;
 export const tyhjat = (kohteita) => '-'.repeat(kohteita);
@@ -185,28 +187,56 @@ export function seuraavaAmpuja(layout, asema, ampujat, kortit, valittu, keskeytt
   return null;
 }
 
-// Asettaa merkin; merkin muutos poistaa hyväksynnän. Palauttaa { kortit, historia }.
-export function merkitse({ kortit, historia }, layout, { nro, i }, merkki, nyt = Date.now()) {
+export const tapahtumatOf = (kortit, layout, nro) => kortit[korttiAvain(layout.nro, nro)]?.tapahtumat || '';
+
+// Muuttaa kiekon i merkin ja/tai kortin tapahtumat (tapahtumat.js). Merkin tai aseman vähennyksen muutos poistaa aseman
+// hyväksynnän ja koko kortin hyväksynnän (ampuja hyväksyy muuttuneen tuloksen); häiriö ja varoitus eivät muuta tulosta.
+function muutaKorttia({ kortit, historia }, layout, { nro, i }, { merkki, tapahtumat }, nyt) {
   const avain = korttiAvain(layout.nro, nro);
   const vanha = kortit[avain];
   const merkit = merkitOf(kortit, layout, nro);
-  if (i < 0 || i >= layout.kohteita || merkit[i] === merkki) return { kortit, historia };
-  const uudet = merkit.slice(0, i) + merkki + merkit.slice(i + 1);
-  // Muuttuneen aseman hyväksyntä poistuu (muiden asemien jää).
-  const asemaId = pisteet(layout)[pisteKiekolle(layout, i)]?.id;
-  const kuitatut = kuitatutOf(vanha, layout).filter((id) => id !== asemaId);
+  const vanhatTap = vanha?.tapahtumat || '';
+  const uusiMerkki = merkki ?? merkit[i];
+  const uudetTap = tapahtumat ?? vanhatTap;
+  if (i < 0 || i >= layout.kohteita || (uusiMerkki === merkit[i] && uudetTap === vanhatTap)) return { kortit, historia };
+  const uudet = merkit.slice(0, i) + uusiMerkki + merkit.slice(i + 1);
+  const piste = pisteet(layout)[pisteKiekolle(layout, i)];
+  const tulosMuuttui = uusiMerkki !== merkit[i]
+    || (piste && vahennys(uudetTap, piste.alku, piste.loppu) !== vahennys(vanhatTap, piste.alku, piste.loppu));
+  const kuitatut = tulosMuuttui ? kuitatutOf(vanha, layout).filter((id) => id !== piste?.id) : kuitatutOf(vanha, layout);
   return {
-    kortit: { ...kortit, [avain]: { layout: layout.nro, nro, merkit: uudet, versio: uusiVersio(vanha?.versio, nyt), lahetetty: false, kuitatut, hyvaksytty: null } },
-    historia: [...historia, { layout: layout.nro, nro, i, ennen: merkit[i] }].slice(-200)
+    kortit: {
+      ...kortit,
+      [avain]: {
+        layout: layout.nro, nro, merkit: uudet, versio: uusiVersio(vanha?.versio, nyt), lahetetty: false, kuitatut,
+        hyvaksytty: tulosMuuttui ? null : (vanha?.hyvaksytty ?? null), ...(uudetTap ? { tapahtumat: uudetTap } : {})
+      }
+    },
+    historia: [...historia, {
+      layout: layout.nro, nro, i, ...(uusiMerkki !== merkit[i] ? { ennen: merkit[i] } : {}), ...(uudetTap !== vanhatTap ? { tapEnnen: vanhatTap } : {})
+    }].slice(-200)
   };
 }
 
-// Peruu viimeisimmän merkinnän. Palauttaa { kortit, historia, kohta: { layout, nro, i } } tai null.
+// Asettaa merkin; merkin muutos poistaa aseman ja kortin hyväksynnän. Palauttaa { kortit, historia }.
+export const merkitse = (tila, layout, kohta, merkki, nyt = Date.now()) => muutaKorttia(tila, layout, kohta, { merkki }, nyt);
+
+// Korvaa kortin tapahtumat (varoitus, vähennys, poisto); kiekko i on historiaa ja perumista varten.
+export const muutaTapahtumia = (tila, layout, kohta, tapahtumat, nyt = Date.now()) => muutaKorttia(tila, layout, kohta, { tapahtumat }, nyt);
+
+// Toimintahäiriö kiekossa i: rajan sisällä kiekko jää uusittavaksi (H), rajan yli se merkitään nollaksi (N).
+export function hairio(tila, layout, kohta, raja, nyt = Date.now()) {
+  const tap = tapahtumatOf(tila.kortit, layout, kohta.nro);
+  const yli = hairiot(tap) >= raja;
+  return muutaKorttia(tila, layout, kohta, yli ? { merkki: 'O', tapahtumat: lisaa(tap, { t: 'N', i: kohta.i }) } : { tapahtumat: lisaa(tap, { t: 'H', i: kohta.i }) }, nyt);
+}
+
+// Peruu viimeisimmän merkinnän tai tapahtuman. Palauttaa { kortit, historia, kohta: { layout, nro, i, ennen } } tai null.
 export function peru({ kortit, historia }, layoutit, nyt = Date.now()) {
   const viimeinen = historia[historia.length - 1];
   const layout = viimeinen && layoutit.find((l) => l.nro === viimeinen.layout);
   if (!layout) return null;
-  const { kortit: uudet } = merkitse({ kortit, historia: [] }, layout, viimeinen, viimeinen.ennen, nyt);
+  const { kortit: uudet } = muutaKorttia({ kortit, historia: [] }, layout, viimeinen, { merkki: viimeinen.ennen, tapahtumat: viimeinen.tapEnnen }, nyt);
   return { kortit: uudet, historia: historia.slice(0, -1), kohta: viimeinen };
 }
 
@@ -245,9 +275,11 @@ export function yhdistaPalvelimelta(kortit, palvelimen, { kaikki = false } = {})
     const oma = tulos[avain];
     const palvelimelta = {
       layout: p.layout, nro: p.nro, merkit: p.merkit, versio: p.versio, lahetetty: true,
-      kuitatut: Array.isArray(p.kuitatut) ? p.kuitatut : [], hyvaksytty: p.hyvaksytty ? (oma?.hyvaksytty || true) : null
+      kuitatut: Array.isArray(p.kuitatut) ? p.kuitatut : [], hyvaksytty: p.hyvaksytty ? (oma?.hyvaksytty || true) : null,
+      ...(p.tapahtumat ? { tapahtumat: p.tapahtumat } : {})
     };
-    if (!oma || p.versio > oma.versio || (p.versio === oma.versio && p.merkit !== oma.merkit)) tulos = { ...tulos, [avain]: palvelimelta };
+    const eri = p.merkit !== oma?.merkit || (p.tapahtumat || '') !== (oma?.tapahtumat || '');
+    if (!oma || p.versio > oma.versio || (p.versio === oma.versio && eri)) tulos = { ...tulos, [avain]: palvelimelta };
     else if (p.versio === oma.versio && !oma.lahetetty) tulos = { ...tulos, [avain]: { ...oma, lahetetty: true } };
     else if (kaikki && p.versio < oma.versio && oma.lahetetty) tulos = { ...tulos, [avain]: { ...oma, lahetetty: false } };
   }
@@ -270,7 +302,7 @@ export function lahettamattomat(kortit, maks = 60, layoutit = []) {
       return {
         layout: k.layout, nro: k.nro, merkit: k.merkit, versio: k.versio,
         ...(k.kuitatut?.length ? { kuitatut: k.kuitatut } : {}), ...(k.hyvaksytty ? { hyvaksytty: k.hyvaksytty } : {}),
-        ...(layout ? { jako: asemaJako(layout) } : {})
+        tapahtumat: k.tapahtumat || '', ...(layout ? { jako: asemaJako(layout) } : {})
       };
     });
 }
@@ -314,7 +346,11 @@ export function sovitaPituudet(kortit, layoutit, vanhat = [], nyt = Date.now()) 
     } else {
       merkit = k.merkit.length > layout.kohteita ? k.merkit.slice(0, layout.kohteita) : k.merkit.padEnd(layout.kohteita, '-');
     }
-    tulos = { ...tulos, [avain]: { ...k, merkit, versio: uusiVersio(k.versio, nyt), lahetetty: false, kuitatut: [], hyvaksytty: null } };
+    // Tapahtumat jäävät, kun niiden kiekko on yhä kortilla (asemajaon muutoksessa kiekon paikka voi siirtyä: toimisto näkee lokista).
+    const tapahtumat = tapahtumaTeksti(jasennaTapahtumat(k.tapahtumat || '').filter((x) => x.i < layout.kohteita));
+    const ilman = { ...k };
+    delete ilman.tapahtumat;
+    tulos = { ...tulos, [avain]: { ...ilman, merkit, versio: uusiVersio(k.versio, nyt), lahetetty: false, kuitatut: [], hyvaksytty: null, ...(tapahtumat ? { tapahtumat } : {}) } };
   }
   return tulos;
 }
@@ -341,7 +377,13 @@ export function otaTaydennykset(kortit, taydennykset, layoutit, sovelletut = {},
     }).join('');
     uudetSovelletut[avain] = merkit;
     if (muuttui) {
-      uudet = { ...uudet, [avain]: { layout: l, nro: n, merkit: tulos, versio: uusiVersio(oma?.versio, nyt), lahetetty: false, kuitatut: kuitatutOf(oma, layout), hyvaksytty: null } };
+      uudet = {
+        ...uudet,
+        [avain]: {
+          layout: l, nro: n, merkit: tulos, versio: uusiVersio(oma?.versio, nyt), lahetetty: false, kuitatut: kuitatutOf(oma, layout), hyvaksytty: null,
+          ...(oma?.tapahtumat ? { tapahtumat: oma.tapahtumat } : {})
+        }
+      };
       taytetyt++;
     }
   }

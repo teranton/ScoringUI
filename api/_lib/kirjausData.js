@@ -3,6 +3,7 @@
 // Aikataulun jäsennys ja KISANSPEKSIT-arvot ovat src/utils/radanJono.js:ssä, koska julkinen ratanäkymä käyttää samoja.
 export { MAKS_NRO, jasennaRataruudukko, puhdasTeksti, radanJono, speksiArvo, tarkistaLinja } from '../../src/utils/radanJono.js';
 import { MAKS_NRO, puhdasTeksti } from '../../src/utils/radanJono.js';
+import { normalisoi, onkoTapahtumat, vahennys } from '../../src/kirjaus/tapahtumat.js';
 
 export const KOHTEITA = 25;
 export const AIKATAULU_VALILEHDET = ['Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
@@ -11,8 +12,11 @@ export const mobiiliValilehti = (sarake) => `MOBIILI Rata ${sarake}`;
 // Rivi = ampujan numero + 1 (rivi 1 on otsikko), joten jokaisella kortilla on kiinteä osoite (MAKS_NRO: radanJono.js).
 export const META_SARAKKEITA = 6;
 
+// Kiekkojen jälkeen TAPAHTUMAT (toimintahäiriöt, varoitukset, vähennykset: src/kirjaus/tapahtumat.js) ja VÄHENNYS
+// (kiekkoja yhteensä). TULOS on osumat; tulossarakkeeseen menee osumat − VÄHENNYS (kirjausTulokset.js).
+export const TAPAHTUMA_SARAKE = META_SARAKKEITA + KOHTEITA;
 export const KORTTI_OTSIKKO = ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO',
-  ...Array.from({ length: KOHTEITA }, (_, i) => String(i + 1))];
+  ...Array.from({ length: KOHTEITA }, (_, i) => String(i + 1)), 'TAPAHTUMAT', 'VÄHENNYS'];
 // HUOM: tyhjä tavalliselle tallennukselle; haltijan vaihdot ja korvatun laitteen hylätyt kortit (ristiriidat).
 export const LOKI_OTSIKKO = ['AIKA', 'RATA', 'NRO', 'LAITE', 'VERSIO', 'ENNEN', 'JÄLKEEN', 'HUOM'];
 
@@ -33,7 +37,7 @@ export function sarakeKirjain(indeksi) {
   }
   return s;
 }
-export const VIIMEINEN_SARAKE = sarakeKirjain(META_SARAKKEITA + KOHTEITA - 1);
+export const VIIMEINEN_SARAKE = sarakeKirjain(KORTTI_OTSIKKO.length - 1);
 
 // Sheets API:n solu: luku numerona, tyhjä tyhjentää solun, muu tekstinä (ei kaavoja).
 export function solu(arvo) {
@@ -64,12 +68,14 @@ export function aikaleima(ms = Date.now()) {
   return new Date(ms).toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' });
 }
 
-export function korttiRivi({ nro, nimi, merkit, versio, laite, aika }) {
+export function korttiRivi({ nro, nimi, merkit, versio, laite, aika, tapahtumat }) {
+  const v = vahennys(tapahtumat || '');
   return [nro, nimi || '', laskeTulos(merkit), aika, laite, versio,
-    ...[...merkit].map((m) => (m === '-' ? '' : m))];
+    ...[...merkit].map((m) => (m === '-' ? '' : m)), tapahtumat || '', v || ''];
 }
 
-// MOBIILI-välilehden rivi → { nro, merkit, versio, laite, aika } tai null (tyhjä rivi).
+// MOBIILI-välilehden rivi → { nro, merkit, versio, laite, aika, tapahtumat } tai null (tyhjä rivi). Rivi ennen
+// TAPAHTUMAT-saraketta luetaan ilman tapahtumia.
 export function lueKorttiRivi(rivi) {
   if (!Array.isArray(rivi)) return null;
   const nro = Number.parseInt(rivi[0], 10);
@@ -79,7 +85,10 @@ export function lueKorttiRivi(rivi) {
     return m === 'X' || m === 'O' ? m : '-';
   }).join('');
   const versio = Number(rivi[5]);
-  return { nro, merkit, versio: Number.isFinite(versio) ? versio : 0, laite: String(rivi[4] ?? ''), aika: String(rivi[3] ?? '') };
+  return {
+    nro, merkit, versio: Number.isFinite(versio) ? versio : 0, laite: String(rivi[4] ?? ''), aika: String(rivi[3] ?? ''),
+    tapahtumat: normalisoi(String(rivi[TAPAHTUMA_SARAKE] ?? ''))
+  };
 }
 
 // Tarkistaa tallennuspyynnön rungon. Palauttaa { laite, haltija, kortit, linja } tai { virhe }.
@@ -104,13 +113,16 @@ export function tarkistaTallennus(runko) {
     if (!onkoMerkit(k.merkit)) return { virhe: 'Virheelliset merkinnät' };
     if (!Number.isSafeInteger(k.versio) || k.versio < 1) return { virhe: 'Virheellinen versio' };
     if (k.nimi !== undefined && typeof k.nimi !== 'string') return { virhe: 'Virheellinen nimi' };
+    if (!onkoTapahtumat(k.tapahtumat, KOHTEITA)) return { virhe: 'Virheelliset tapahtumat' };
   }
   // Nimi on vain näyttöä varten (laite tuntee sen aikataulusta).
   const nimi = (n) => puhdasTeksti(n, MAKS_NIMI);
   return {
     laite,
     haltija,
-    kortit: kortit.map((k) => ({ nro: k.nro, nimi: nimi(k.nimi), merkit: k.merkit, versio: k.versio })),
+    kortit: kortit.map((k) => ({ nro: k.nro, nimi: nimi(k.nimi), merkit: k.merkit, versio: k.versio, 
+      // Puuttuva kenttä (sovellus ennen tapahtumia) = taulukon tapahtumat ennallaan (api/kirjaus.js).
+      tapahtumat: k.tapahtumat === undefined ? undefined : normalisoi(k.tapahtumat) })),
     linja: runko?.linja
   };
 }
