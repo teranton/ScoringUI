@@ -91,12 +91,15 @@ export function kiekonSelite(tapahtumat, i) {
   }).join(', ');
 }
 
-// Sallitut toimintahäiriöt per kortti KISANSPEKSIT-avaimesta TOIMINTAHAIRIOT (0..9), muuten 2 (FITASC Sporting ja
-// Compak: 2 per 25 kiekon kierros; ryhmäkortti = layout).
-export function hairioRaja(arvo) {
+// FITASCin säännöt (Compak ja FITASC Sporting): 1 toimintahäiriö per 25 kiekon layout.
+export const FITASC_HAIRIORAJA = 1;
+
+// Sallitut toimintahäiriöt per kortti KISANSPEKSIT-avaimesta TOIMINTAHAIRIOT (0..9). Ilman avainta lajin mukaan:
+// COMPAK ja FITASC 1 (ScoringLib KILPAILUTYYPIT), muut 2. Kortti = Compak-rata tai ryhmän layout.
+export function hairioRaja(arvo, tyyppi = '') {
   const t = String(arvo ?? '').trim();
-  if (!/^\d$/.test(t)) return OLETUS_HAIRIORAJA;
-  return Number(t);
+  if (/^\d$/.test(t)) return Number(t);
+  return ['COMPAK', 'FITASC'].includes(String(tyyppi ?? '').trim().toUpperCase()) ? FITASC_HAIRIORAJA : OLETUS_HAIRIORAJA;
 }
 
 // Kortilla on jo enimmäismäärä tapahtumia: uutta ei voi lisätä (laite kertoo sen kirjaajalle).

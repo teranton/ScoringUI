@@ -53,4 +53,8 @@ test('lisäys, poisto ja raja', () => {
   assert.equal(hairioRaja('0'), 0);
   assert.equal(hairioRaja('kaksi'), 2);
   assert.equal(hairioRaja('12'), 2);
+  assert.equal(hairioRaja('', 'COMPAK'), 1, 'FITASCin sääntö: 1 per 25 kiekon layout');
+  assert.equal(hairioRaja('', 'fitasc'), 1);
+  assert.equal(hairioRaja('', 'SPORTING'), 2);
+  assert.equal(hairioRaja('3', 'COMPAK'), 3, 'avain voittaa');
 });

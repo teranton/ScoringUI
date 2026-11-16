@@ -157,8 +157,8 @@ async function avaa(request, { sheetId, sarake, voimassaAsti }, { laite, haltija
     jono: tiedot.jono,
     nimet: tiedot.nimet,
     kortit: kortit.map(({ nro, merkit, versio, tapahtumat }) => ({ nro, merkit, versio, ...(tapahtumat ? { tapahtumat } : {}) })),
-    // Sallitut toimintahäiriöt per kortti (KISANSPEKSIT TOIMINTAHAIRIOT, oletus 2).
-    hairioRaja: hairioRaja(speksiArvo(speksit, 'TOIMINTAHAIRIOT')),
+    // Sallitut toimintahäiriöt per kortti (KISANSPEKSIT TOIMINTAHAIRIOT, Compakissa oletus 1).
+    hairioRaja: hairioRaja(speksiArvo(speksit, 'TOIMINTAHAIRIOT'), 'COMPAK'),
     // Radan haltija: oma = tämän laitteen haltija-avain on voimassa (sama laite ilman avainta saa sen otolla).
     haltija: { ...julkinen, oma: julkinen.oma && onHaltija(haltija, rivi, { sheetId, sarake, laite }, salaisuus()) },
     linja: rivi.linja,
@@ -423,7 +423,7 @@ async function avaaRyhma(request, { sheetId, ryhma, voimassaAsti }, { laite, hal
     ampujat,
     layoutit: layoutit.map((l) => ({ ...l, ...(vuorot[l.nro] || {}) })),
     kortit,
-    hairioRaja: hairioRaja(speksiArvo(speksit, 'TOIMINTAHAIRIOT')),
+    hairioRaja: hairioRaja(speksiArvo(speksit, 'TOIMINTAHAIRIOT'), speksiArvo(speksit, 'KILPAILUTYYPPI')),
     haltija: { ...julkinen, oma: julkinen.oma && onHaltija(haltija, rivi, { sheetId, sarake: kohde.tunnus, laite }, salaisuus()) },
     taydennykset: rivi.taydennykset,
     voimassaAsti
