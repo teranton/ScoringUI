@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  hairioRaja, hairiot, jasennaTapahtumat, kiekonKorostus, kiekonSelite, lisaa, normalisoi, onkoTapahtumat, poista,
+  hairioRaja, hairiot, hairiotAsemittain, jasennaTapahtumat, kiekonKorostus, kiekonSelite, lisaa, normalisoi, onkoTapahtumat, poista,
   tapahtumaTeksti, vahennetty, vahennys, varoitukset, yhteenveto
 } from './tapahtumat.js';
 
@@ -57,4 +57,8 @@ test('lisäys, poisto ja raja', () => {
   assert.equal(hairioRaja('', 'fitasc'), 1);
   assert.equal(hairioRaja('', 'SPORTING'), 2);
   assert.equal(hairioRaja('3', 'COMPAK'), 3, 'avain voittaa');
+  assert.equal(hairioRaja('', 'ESP'), 2);
+  assert.ok(hairiotAsemittain('ESP'));
+  assert.ok(!hairiotAsemittain('SPORTING'));
+  assert.equal(hairiot('H1; H2; N7', 5, 10), 1, 'aseman kiekot');
 });

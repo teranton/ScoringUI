@@ -213,3 +213,18 @@ test('toimintahäiriö ja vähennys ryhmäkortilla: vähennys poistaa aseman hyv
   const p = yhdistaPalvelimelta({}, [{ layout: 1, nro: 4, merkit: 'OX---', versio: 9, tapahtumat: 'R2' }]);
   assert.equal(p[korttiAvain(1, 4)].tapahtumat, 'R2');
 });
+
+test('English Sporting: toimintahäiriöt lasketaan asemittain', async () => {
+  const { hairio, tapahtumatOf } = await import('./ryhma.js');
+  let t = tila();
+  // Asema 1 = kiekot 0-1, asema 2 = kiekot 2-4; raja 1.
+  t = hairio(t, L1, { nro: 4, i: 0 }, 1, 1, true);
+  t = hairio(t, L1, { nro: 4, i: 2 }, 1, 2, true);
+  assert.equal(merkitOf(t.kortit, L1, 4)[2], '-', 'uuden aseman ensimmäinen häiriö on sallittu');
+  t = hairio(t, L1, { nro: 4, i: 2 }, 1, 3, true);
+  assert.equal(merkitOf(t.kortit, L1, 4)[2], 'O');
+  assert.equal(tapahtumatOf(t.kortit, L1, 4), 'H1; H3; N3');
+  // Koko kortin raja: toinen häiriö jo yli.
+  const k = hairio(hairio(tila(), L1, { nro: 4, i: 0 }, 1, 1), L1, { nro: 4, i: 2 }, 1, 2);
+  assert.equal(merkitOf(k.kortit, L1, 4)[2], 'O');
+});

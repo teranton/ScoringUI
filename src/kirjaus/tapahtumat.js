@@ -51,7 +51,9 @@ export function onkoTapahtumat(teksti, kohteita) {
 // Kanoninen muoto (vertailuun ja tallennukseen).
 export const normalisoi = (teksti) => tapahtumaTeksti(jasennaTapahtumat(teksti));
 
-export const hairiot = (tapahtumat) => jasennaTapahtumat(tapahtumat).filter((x) => x.t === 'H' || x.t === 'N').length;
+// Toimintahäiriöt kiekoilta alku..loppu-1 (oletus koko kortti; English Sporting laskee asemittain).
+export const hairiot = (tapahtumat, alku = 0, loppu = Infinity) => jasennaTapahtumat(tapahtumat)
+  .filter((x) => (x.t === 'H' || x.t === 'N') && x.i >= alku && x.i < loppu).length;
 export const varoitukset = (tapahtumat) => jasennaTapahtumat(tapahtumat).filter((x) => x.t === 'V').length;
 
 // Vähennykset kiekoilta alku..loppu-1 (oletus koko kortti).
@@ -95,7 +97,10 @@ export function kiekonSelite(tapahtumat, i) {
 export const FITASC_HAIRIORAJA = 1;
 
 // Sallitut toimintahäiriöt per kortti KISANSPEKSIT-avaimesta TOIMINTAHAIRIOT (0..9). Ilman avainta lajin mukaan:
-// COMPAK ja FITASC 1 (ScoringLib KILPAILUTYYPIT), muut 2. Kortti = Compak-rata tai ryhmän layout.
+// COMPAK ja FITASC 1 per layout (FITASCin säännöt), ESP 2 per asema, muut 2 per kortti (Compak-rata tai ryhmän layout).
+// Raja lasketaan asemittain (English Sporting: 2 per asema), muuten per kortti.
+export const hairiotAsemittain = (tyyppi) => String(tyyppi ?? '').trim().toUpperCase() === 'ESP';
+
 export function hairioRaja(arvo, tyyppi = '') {
   const t = String(arvo ?? '').trim();
   if (/^\d$/.test(t)) return Number(t);

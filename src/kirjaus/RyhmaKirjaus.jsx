@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   aloitusAsema, aloitusLayout, asemaJarjestys, asemaKesken, asemaKuitattu, asemanSiirto, kierrata, kuittaaAsema, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, korttiAvain, kuittaa, lahettamattomat,
   layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
-  hairio, muutaTapahtumia, tapahtumatOf, yhdistaPalvelimelta
+  hairio, hairioVali, muutaTapahtumia, tapahtumatOf, yhdistaPalvelimelta
 } from './ryhma.js';
 import {
   KOROSTUSNIMET, OLETUS_HAIRIORAJA, hairiot, jasennaTapahtumat, kiekonKorostus, kiekonSelite, kiekonTapahtumat, korostusTyyli, lisaa, poista, TAYNNA_VIESTI, taynna, vahennys, varoitukset
@@ -238,7 +238,10 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const siirto = layout ? asemanSiirto(layout, asema) : 0;
   const vuoro = useMemo(() => kierrata(ampujat, siirto), [ampujat, siirto]);
   const kohta = layout ? seuraavaKohta(layout, asema, vuoro, tila.kortit, tila.valittu, tila.keskeyttaneet) : null;
-  const vuorossaHairiot = layout && kohta ? hairiot(tapahtumatOf(tila.kortit, layout, kohta.nro)) : 0;
+  const hairioAsemittain = avaus?.hairioYksikko === 'ASEMA';
+  const hairioValiKohdalle = (k) => hairioVali(layout, k.i, hairioAsemittain);
+  const vuorossaHairiot = layout && kohta
+    ? hairiot(tapahtumatOf(tila.kortit, layout, kohta.nro), hairioValiKohdalle(kohta).alku, hairioValiKohdalle(kohta).loppu) : 0;
   const nimi = useCallback((nro) => ampujat.find((a) => a.nro === nro)?.nimi || '', [ampujat]);
 
   const odottavat = useMemo(() => lahettamattomat(tila.kortit, Infinity), [tila.kortit]);
@@ -376,13 +379,14 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const kirjaaHairio = () => {
     if (!layout || !kohta || korjaustila || liianPian()) return;
     if (taynna(tapahtumatOf(tila.kortit, layout, kohta.nro))) return window.alert(TAYNNA_VIESTI);
-    const n = hairiot(tapahtumatOf(tila.kortit, layout, kohta.nro)) + 1;
+    const vali = hairioValiKohdalle(kohta);
+    const n = hairiot(tapahtumatOf(tila.kortit, layout, kohta.nro), vali.alku, vali.loppu) + 1;
     const yli = n > hairioRaja;
-    if (yli && !window.confirm(`${n}. toimintahäiriö: sallittu ${hairioRaja} layoutilla. Kiekko merkitään NOLLAKSI. Jatketaanko?`)) return;
+    if (yli && !window.confirm(`${n}. toimintahäiriö: sallittu ${hairioRaja} ${hairioAsemittain ? 'asemalla' : 'layoutilla'}. Kiekko merkitään NOLLAKSI. Jatketaanko?`)) return;
     const ennen = merkitOf(tila.kortit, layout, kohta.nro)[kohta.i];
     kirjaa(yli ? 'häiriö, nolla' : 'häiriö', layout, kohta.nro, kohta.i, ennen, yli ? 'O' : ennen);
     setTila((t) => {
-      const uusi = hairio(t, layout, kohta, hairioRaja);
+      const uusi = hairio(t, layout, kohta, hairioRaja, Date.now(), hairioAsemittain);
       const v = kohdanOsa(layout, asema, kohta.i);
       const valmis = !merkitOf(uusi.kortit, layout, kohta.nro).slice(v.alku, v.loppu).includes('-');
       return { ...t, ...uusi, layout: layout.nro, asema, valittu: valmis ? null : kohta.nro };

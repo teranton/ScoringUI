@@ -352,8 +352,9 @@ deductions on the card. Each belongs to a target of the card (the device shows i
   `H5; N12; V12 Ase auki; R20x2 Myöhästyi`. The reason has no `;`; at most 40 entries.
 - `VÄHENNYS`: total deducted targets on the card (empty when none). `TULOS` and `ASEMA <k>` stay the hits.
 - `KISANSPEKSIT` key `TOIMINTAHAIRIOT` (section "Mobiilikirjaus ja tuloskortit", one digit 0..9): malfunctions
-  allowed per card, i.e. per 25-target Compak round or per squad layout card. Without the key: 1 for `KILPAILUTYYPPI`
-  `COMPAK` and `FITASC` (FITASC rules: one per 25-target layout; the Compak device always uses 1) and 2 otherwise. The device asks before the next one is scored lost (`N`).
+  allowed per card, i.e. per 25-target Compak round or per squad layout card, except for `KILPAILUTYYPPI` `ESP`
+  (English Sporting), where the limit is per stand. Without the key: 1 for `COMPAK` and `FITASC` (FITASC rules: one per
+  25-target layout; the Compak device always uses 1) and 2 otherwise (ESP: 2 per stand). The device asks before the next one is scored lost (`N`).
 - The result of a card or station is hits minus the deductions on its targets, never below 0: written directly with
   `MOBIILI_TULOKSET` = `SUORAAN` and imported the same way by ScoringLib's Tuo mobiilitulokset. On a squad card a
   deduction also clears the shooter's confirmation of that station (they confirm the new result); a warning or a

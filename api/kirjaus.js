@@ -37,7 +37,7 @@ import {
   PAA_VALILEHTI, RYHMAT_VALILEHTI, asemaJako, layoutValilehti, lueLayoutit, lueRyhmaKorttiRivi, onkoRyhmaMerkit, ryhmaKoko,
   ryhmaKorttiOtsikko, ryhmaKorttiRivi, ryhmanAmpujat, ryhmanVuorot, tarkistaRyhmaTallennus
 } from './_lib/kirjausRyhma.js';
-import { hairioRaja } from '../src/kirjaus/tapahtumat.js';
+import { hairioRaja, hairiotAsemittain } from '../src/kirjaus/tapahtumat.js';
 import { asemaTulokset, kaavaSarakkeet, kompakTulos, muuttuvat, onSuoraan, paaSolut, suoraTulos, tulosSolut } from './_lib/kirjausTulokset.js';
 
 const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -424,6 +424,8 @@ async function avaaRyhma(request, { sheetId, ryhma, voimassaAsti }, { laite, hal
     layoutit: layoutit.map((l) => ({ ...l, ...(vuorot[l.nro] || {}) })),
     kortit,
     hairioRaja: hairioRaja(speksiArvo(speksit, 'TOIMINTAHAIRIOT'), speksiArvo(speksit, 'KILPAILUTYYPPI')),
+    // English Sporting: raja koskee asemaa, muut lajit koko layoutin korttia.
+    hairioYksikko: hairiotAsemittain(speksiArvo(speksit, 'KILPAILUTYYPPI')) ? 'ASEMA' : 'KORTTI',
     haltija: { ...julkinen, oma: julkinen.oma && onHaltija(haltija, rivi, { sheetId, sarake: kohde.tunnus, laite }, salaisuus()) },
     taydennykset: rivi.taydennykset,
     voimassaAsti

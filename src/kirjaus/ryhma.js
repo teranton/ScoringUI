@@ -224,10 +224,19 @@ export const merkitse = (tila, layout, kohta, merkki, nyt = Date.now()) => muuta
 // Korvaa kortin tapahtumat (varoitus, vähennys, poisto); kiekko i on historiaa ja perumista varten.
 export const muutaTapahtumia = (tila, layout, kohta, tapahtumat, nyt = Date.now()) => muutaKorttia(tila, layout, kohta, { tapahtumat }, nyt);
 
+// Toimintahäiriöiden laskentaväli kiekolle i: aseman kiekot (asemittain, English Sporting) tai koko kortti.
+export function hairioVali(layout, i, asemittain = false) {
+  if (!asemittain) return { alku: 0, loppu: Infinity };
+  const p = pisteet(layout)[pisteKiekolle(layout, i)];
+  return p ? { alku: p.alku, loppu: p.loppu } : { alku: 0, loppu: Infinity };
+}
+
 // Toimintahäiriö kiekossa i: rajan sisällä kiekko jää uusittavaksi (H), rajan yli se merkitään nollaksi (N).
-export function hairio(tila, layout, kohta, raja, nyt = Date.now()) {
+// asemittain: raja koskee kiekon asemaa (English Sporting), muuten koko korttia.
+export function hairio(tila, layout, kohta, raja, nyt = Date.now(), asemittain = false) {
   const tap = tapahtumatOf(tila.kortit, layout, kohta.nro);
-  const yli = hairiot(tap) >= raja;
+  const { alku, loppu } = hairioVali(layout, kohta.i, asemittain);
+  const yli = hairiot(tap, alku, loppu) >= raja;
   return muutaKorttia(tila, layout, kohta, yli ? { merkki: 'O', tapahtumat: lisaa(tap, { t: 'N', i: kohta.i }) } : { tapahtumat: lisaa(tap, { t: 'H', i: kohta.i }) }, nyt);
 }
 
