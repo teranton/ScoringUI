@@ -39,7 +39,7 @@ test('sarakekirjaimet', () => {
   assert.equal(sarakeKirjain(0), 'A');
   assert.equal(sarakeKirjain(25), 'Z');
   assert.equal(sarakeKirjain(26), 'AA');
-  assert.equal(VIIMEINEN_SARAKE, 'AG');
+  assert.equal(VIIMEINEN_SARAKE, 'AF');
 });
 
 test('rata-ruudukko: otsikko nimen yllä, tyhjät paikat ja tauot ohitetaan, tuomarimerkki pois', () => {
@@ -106,16 +106,16 @@ test('speksiArvo lukee vain avaimen oikean naapurin (kuten ScoringLibin Speksit)
 
 test('korttirivi menee ja tulee samana', () => {
   const rivi = korttiRivi({ nro: 12, nimi: 'A', merkit: MERKIT, versio: 5, laite: 'abcd', aika: 'nyt' });
-  assert.equal(rivi.length, 33);
+  assert.equal(rivi.length, 32);
   assert.equal(rivi[2], 8);
   assert.equal(rivi[6 + 24], '');
-  assert.deepEqual(rivi.slice(31), ['', '']);
+  assert.deepEqual(rivi.slice(31), ['']);
   assert.deepEqual(lueKorttiRivi(rivi.map(String)), { nro: 12, merkit: MERKIT, versio: 5, laite: 'abcd', aika: String(rivi[3]), tapahtumat: '' });
-  // Tapahtumat ja vähennys kiekkojen jälkeen; TULOS on yhä osumat.
-  const tap = korttiRivi({ nro: 12, nimi: 'A', merkit: MERKIT, versio: 5, laite: 'abcd', aika: 'nyt', tapahtumat: 'H3; R12x2 Myöhästyi' });
-  assert.deepEqual(tap.slice(31), ['H3; R12x2 Myöhästyi', 2]);
+  // Tapahtumat kiekkojen jälkeen; TULOS on yhä osumat.
+  const tap = korttiRivi({ nro: 12, nimi: 'A', merkit: MERKIT, versio: 5, laite: 'abcd', aika: 'nyt', tapahtumat: 'H3; V12 Myöhästyi' });
+  assert.deepEqual(tap.slice(31), ['H3; V12 Myöhästyi']);
   assert.equal(tap[2], 8);
-  assert.equal(lueKorttiRivi(tap).tapahtumat, 'H3; R12x2 Myöhästyi');
+  assert.equal(lueKorttiRivi(tap).tapahtumat, 'H3; V12 Myöhästyi');
   // Rivi ennen TAPAHTUMAT-saraketta.
   assert.equal(lueKorttiRivi(rivi.slice(0, 31)).tapahtumat, '');
   // Muotoilemattomat arvot (UNFORMATTED_VALUE): numerot lukuina.

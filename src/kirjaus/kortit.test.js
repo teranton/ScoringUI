@@ -83,18 +83,18 @@ test('toimintahäiriö: rajan sisällä kiekko uusitaan, rajan yli nolla; peru p
   const p = peru(t, 13);
   assert.equal(p.kortit[3].merkit[0], '-');
   assert.equal(tapahtumatOf(p.kortit, 3), 'H1; H1');
-  const v = muutaTapahtumia(p, { nro: 3, i: 4 }, 'H1; H1; R5', 14);
-  assert.equal(tapahtumatOf(v.kortit, 3), 'H1; H1; R5');
+  const v = muutaTapahtumia(p, { nro: 3, i: 4 }, 'H1; H1; V5', 14);
+  assert.equal(tapahtumatOf(v.kortit, 3), 'H1; H1; V5');
   assert.equal(tapahtumatOf(peru(v, 15).kortit, 3), 'H1; H1');
   // Pelkkä merkintä säilyttää tapahtumat.
-  assert.equal(tapahtumatOf(merkitse(v, { nro: 3, i: 0 }, 'X', 16).kortit, 3), 'H1; H1; R5');
+  assert.equal(tapahtumatOf(merkitse(v, { nro: 3, i: 0 }, 'X', 16).kortit, 3), 'H1; H1; V5');
 });
 
 test('tapahtumat kulkevat lähetyksessä ja palvelimelta', () => {
   const kortit = { 4: { merkit: '-'.repeat(25), versio: 5, lahetetty: false, tapahtumat: 'V1' } };
   assert.equal(lahettamattomat(kortit)[0].tapahtumat, 'V1');
-  const p = yhdistaPalvelimelta({ 4: { ...kortit[4], lahetetty: true } }, [{ nro: 4, merkit: '-'.repeat(25), versio: 5, tapahtumat: 'V1; R2' }]);
-  assert.equal(p[4].tapahtumat, 'V1; R2', 'sama versio, eri tapahtumat: taulukko voittaa');
+  const p = yhdistaPalvelimelta({ 4: { ...kortit[4], lahetetty: true } }, [{ nro: 4, merkit: '-'.repeat(25), versio: 5, tapahtumat: 'V1; V2' }]);
+  assert.equal(p[4].tapahtumat, 'V1; V2', 'sama versio, eri tapahtumat: taulukko voittaa');
 });
 
 test('pelkän tapahtuman peruminen ei palauta kiekkoon vanhaa merkkiä', async () => {
@@ -105,4 +105,17 @@ test('pelkän tapahtuman peruminen ei palauta kiekkoon vanhaa merkkiä', async (
   const p = peru(t, 2);
   assert.equal(p.kortit[1].merkit[6], 'X');
   assert.equal(p.kortit[1].tapahtumat, undefined);
+});
+
+test('toistuva varoitus merkitsee kiekon nollaksi; PERU palauttaa molemmat', async () => {
+  const { varoitus, tapahtumatOf } = await import('./kortit.js');
+  let t = merkitse({ kortit: {}, historia: [] }, { nro: 2, i: 3 }, 'X', 1);
+  t = varoitus(t, { nro: 2, i: 3 }, 'Ase auki', false, 2);
+  assert.equal(t.kortit[2].merkit[3], 'X', 'ensimmäinen varoitus ei muuta merkkiä');
+  t = varoitus(t, { nro: 2, i: 7 }, '', true, 3);
+  assert.equal(t.kortit[2].merkit[7], 'O');
+  assert.equal(tapahtumatOf(t.kortit, 2), 'V4 Ase auki; V8');
+  const p = peru(t, 4);
+  assert.equal(p.kortit[2].merkit[7], '-');
+  assert.equal(tapahtumatOf(p.kortit, 2), 'V4 Ase auki');
 });

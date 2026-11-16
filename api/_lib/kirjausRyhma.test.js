@@ -90,9 +90,9 @@ test('korttirivi: asemien tulokset, kiekot ja luku takaisin', () => {
   const layout = lueLayoutit(SPEKSIT).layoutit[0];
   const otsikko = ryhmaKorttiOtsikko(layout);
   assert.deepEqual(otsikko.slice(0, 11), ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', 'RYHMÄ', 'HYVÄKSYTTY', 'ASEMA 1', 'ASEMA 2', '1/1']);
-  assert.equal(otsikko.length, 8 + 2 + 25 + 3);
+  assert.equal(otsikko.length, 8 + 2 + 25 + 2);
   assert.equal(otsikko[35], 'KUITATUT');
-  assert.deepEqual(otsikko.slice(36), ['TAPAHTUMAT', 'VÄHENNYS']);
+  assert.deepEqual(otsikko.slice(36), ['TAPAHTUMAT']);
   assert.equal(otsikko[20], '2/1');
   const merkit = 'XXOXXXXXXO' + 'XO' + '-'.repeat(13);
   assert.deepEqual(asemienTulokset(layout, merkit), [8, 1]);
@@ -102,10 +102,10 @@ test('korttirivi: asemien tulokset, kiekot ja luku takaisin', () => {
   assert.deepEqual(lueRyhmaKorttiRivi(rivi.slice(0, 35), layout).kuitatut, []);
   assert.deepEqual(rivi.slice(0, 11), [4, 'Dahl D', 9, 'nyt', 'l', 5, 2, '', 8, 1, 'X']);
   assert.deepEqual(lueRyhmaKorttiRivi(rivi, layout), { nro: 4, merkit, versio: 5, laite: 'l', aika: 'nyt', hyvaksytty: '', kuitatut: ['1'], tapahtumat: '' });
-  const tap = ryhmaKorttiRivi(layout, { nro: 4, nimi: 'Dahl D', merkit, versio: 5, laite: 'l', aika: 'nyt', ryhma: 2, kuitatut: ['1'], tapahtumat: 'N3; R11' });
-  assert.deepEqual(tap.slice(36), ['N3; R11', 1]);
+  const tap = ryhmaKorttiRivi(layout, { nro: 4, nimi: 'Dahl D', merkit, versio: 5, laite: 'l', aika: 'nyt', ryhma: 2, kuitatut: ['1'], tapahtumat: 'N3; V11' });
+  assert.deepEqual(tap.slice(36), ['N3; V11']);
   assert.equal(tap[2], 9, 'TULOS on osumat');
-  assert.equal(lueRyhmaKorttiRivi(tap, layout).tapahtumat, 'N3; R11');
+  assert.equal(lueRyhmaKorttiRivi(tap, layout).tapahtumat, 'N3; V11');
   assert.equal(lueRyhmaKorttiRivi(['', 'x'], layout), null);
   assert.ok(onkoRyhmaMerkit(merkit, 25));
   assert.ok(!onkoRyhmaMerkit(merkit, 24));

@@ -1,6 +1,6 @@
 // Ampujan Compak-kortti: 5 asemaa × 5 kiekkoa, osumat / ammutut. Kirjauslaitteella (KirjausApp.jsx) kiekkoja ja
 // keskeytystä voi napauttaa korjaustilassa; julkisessa ratanäkymässä (src/LiveRadat.jsx) kortti on vain luettava.
-// Toimintahäiriö, varoitus ja vähennys näkyvät kiekon kulman sävynä (tapahtumat.js), joten kortti ei kasva.
+// Toimintahäiriö ja varoitus näkyvät kiekon kulman sävynä (tapahtumat.js), joten kortti ei kasva.
 import { ASEMAN_KOHTEET, KOHTEITA, osumat, taytetyt } from './kortit.js';
 import { KOROSTUSNIMET, jasennaTapahtumat, kiekonKorostus, kiekonSelite, korostusTyyli } from './tapahtumat.js';
 

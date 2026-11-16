@@ -265,7 +265,7 @@ function korvatunKortit(sarake, laite, kortit, tallessa, taydennykset, aika) {
   return { taydennykset: uudet, lokirivit, taydennetyt, eroavat };
 }
 
-// Korvatun laitteen tapahtumat (häiriöt, varoitukset, vähennykset), jotka poikkeavat taulukosta: niitä ei välitetä
+// Korvatun laitteen tapahtumat (häiriöt ja varoitukset), jotka poikkeavat taulukosta: niitä ei välitetä
 // haltijalle (merkinnät täydennetään vain tyhjiin kiekkoihin), vaan ne kirjataan lokiin toimiston tarkistettaviksi.
 function korvatunTapahtumat(vanha, kortti) {
   if (kortti.tapahtumat === undefined || kortti.tapahtumat === (vanha?.tapahtumat || '')) return '';
@@ -342,7 +342,7 @@ async function tallennaKerran(request, { sheetId, sarake }, { laite, haltija, ko
   if (linja) requests.push(solut(tabit.laitteet, sarake, LINJA_SARAKE, [JSON.stringify(linja), aika]));
   const tulokset = onSuoraan(speksit)
     ? await suoratTulokset(request, sheetId, tabit.meta, kirjattavat.map(({ kortti, vanha }) => ({
-      avain: kortti.nro, nro: kortti.nro, nimi: kortti.nimi, sarake, vanha: kompakTulos(vanha?.merkit, vanha?.tapahtumat), uusi: kompakTulos(kortti.merkit, kortti.tapahtumat)
+      avain: kortti.nro, nro: kortti.nro, nimi: kortti.nimi, sarake, vanha: kompakTulos(vanha?.merkit), uusi: kompakTulos(kortti.merkit)
     })))
     : eiTuloksia();
   const lokirivit = (huomio) => kirjattavat.map(({ kortti, vanha }) => [aika, sarake, kortti.nro, laite, kortti.versio,
@@ -614,7 +614,7 @@ function hyvaksynta(hyvaksytty, vanha) {
 
 const eiTuloksia = () => ({ requests: [], huomiot: new Map() });
 
-// Lokin huomautus, kun kortin tapahtumat (toimintahäiriöt, varoitukset, vähennykset) muuttuivat: koko lista tekstinä.
+// Lokin huomautus, kun kortin tapahtumat (toimintahäiriöt ja varoitukset) muuttuivat: koko lista tekstinä.
 function tapahtumaHuomio(vanha, kortti) {
   const ennen = vanha?.tapahtumat || '';
   const nyt = kortti.tapahtumat || '';

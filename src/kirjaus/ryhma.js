@@ -1,10 +1,10 @@
 // Ryhmäpuhelimen korttilogiikka (Sporting / FITASC / ESP): kortti per (layout, ampuja), kiekot asemittain.
 // Kortti: { layout, nro, merkit (X/O/-, layoutin kiekkojen verran), versio, lahetetty, kuitatut (puhelimen asemien
 // tunnukset, jotka ampuja on hyväksynyt), hyvaksytty (ms, true tai null: kaikki asemat hyväksytty), tapahtumat
-// (toimintahäiriöt, varoitukset ja vähennykset tekstinä, tapahtumat.js; puuttuu = ei tapahtumia) }.
+// (toimintahäiriöt ja varoitukset tekstinä, tapahtumat.js; puuttuu = ei tapahtumia) }.
 // Kortit ovat oliossa avaimella "<layout>:<nro>". Puhtaat funktiot (ryhma.test.js).
 import { uusiVersio } from './kortit.js';
-import { hairiot, jasennaTapahtumat, lisaa, tapahtumaTeksti, vahennys } from './tapahtumat.js';
+import { hairiot, jasennaTapahtumat, lisaa, tapahtumaTeksti } from './tapahtumat.js';
 
 export const korttiAvain = (layout, nro) => `${layout}:${nro}`;
 export const tyhjat = (kohteita) => '-'.repeat(kohteita);
@@ -189,8 +189,8 @@ export function seuraavaAmpuja(layout, asema, ampujat, kortit, valittu, keskeytt
 
 export const tapahtumatOf = (kortit, layout, nro) => kortit[korttiAvain(layout.nro, nro)]?.tapahtumat || '';
 
-// Muuttaa kiekon i merkin ja/tai kortin tapahtumat (tapahtumat.js). Merkin tai aseman vähennyksen muutos poistaa aseman
-// hyväksynnän ja koko kortin hyväksynnän (ampuja hyväksyy muuttuneen tuloksen); häiriö ja varoitus eivät muuta tulosta.
+// Muuttaa kiekon i merkin ja/tai kortin tapahtumat (tapahtumat.js). Merkin muutos poistaa aseman hyväksynnän ja koko
+// kortin hyväksynnän (ampuja hyväksyy muuttuneen tuloksen); pelkkä häiriö tai varoitus ei muuta tulosta.
 function muutaKorttia({ kortit, historia }, layout, { nro, i }, { merkki, tapahtumat }, nyt) {
   const avain = korttiAvain(layout.nro, nro);
   const vanha = kortit[avain];
@@ -201,8 +201,7 @@ function muutaKorttia({ kortit, historia }, layout, { nro, i }, { merkki, tapaht
   if (i < 0 || i >= layout.kohteita || (uusiMerkki === merkit[i] && uudetTap === vanhatTap)) return { kortit, historia };
   const uudet = merkit.slice(0, i) + uusiMerkki + merkit.slice(i + 1);
   const piste = pisteet(layout)[pisteKiekolle(layout, i)];
-  const tulosMuuttui = uusiMerkki !== merkit[i]
-    || (piste && vahennys(uudetTap, piste.alku, piste.loppu) !== vahennys(vanhatTap, piste.alku, piste.loppu));
+  const tulosMuuttui = uusiMerkki !== merkit[i];
   const kuitatut = tulosMuuttui ? kuitatutOf(vanha, layout).filter((id) => id !== piste?.id) : kuitatutOf(vanha, layout);
   return {
     kortit: {
@@ -221,8 +220,14 @@ function muutaKorttia({ kortit, historia }, layout, { nro, i }, { merkki, tapaht
 // Asettaa merkin; merkin muutos poistaa aseman ja kortin hyväksynnän. Palauttaa { kortit, historia }.
 export const merkitse = (tila, layout, kohta, merkki, nyt = Date.now()) => muutaKorttia(tila, layout, kohta, { merkki }, nyt);
 
-// Korvaa kortin tapahtumat (varoitus, vähennys, poisto); kiekko i on historiaa ja perumista varten.
+// Korvaa kortin tapahtumat (varoitus, poisto); kiekko i on historiaa ja perumista varten.
 export const muutaTapahtumia = (tila, layout, kohta, tapahtumat, nyt = Date.now()) => muutaKorttia(tila, layout, kohta, { tapahtumat }, nyt);
+
+// Varoitus kiekkoon i (syy vapaaehtoinen); nolla: kiekko merkitään samalla nollaksi (toistuva varoitus). Yksi PERU
+// peruu molemmat.
+export const varoitus = (tila, layout, kohta, syy, nolla = false, nyt = Date.now()) => muutaKorttia(tila, layout, kohta, {
+  tapahtumat: lisaa(tapahtumatOf(tila.kortit, layout, kohta.nro), { t: 'V', i: kohta.i, syy }), ...(nolla ? { merkki: 'O' } : {})
+}, nyt);
 
 // Toimintahäiriöiden laskentaväli kiekolle i: aseman kiekot (asemittain, English Sporting) tai koko kortti.
 export function hairioVali(layout, i, asemittain = false) {

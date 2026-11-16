@@ -4,7 +4,7 @@
 // puhelin näyttää saman ryhmän ja samat asemat kuin paperikortti. Ei Google-kutsuja (kirjausRyhma.test.js).
 import { normalisoiAsetus } from '../../src/utils/kisaAsetukset.js';
 import { MAKS_NRO, puhdasTeksti, speksiArvo } from './kirjausData.js';
-import { normalisoi, onkoTapahtumat, vahennys } from '../../src/kirjaus/tapahtumat.js';
+import { normalisoi, onkoTapahtumat } from '../../src/kirjaus/tapahtumat.js';
 
 export const PAA_VALILEHTI = 'OSALLISTUJAT+TULOKSET';
 export const RYHMAT_VALILEHTI = 'MOBIILI_RYHMAT';
@@ -189,14 +189,14 @@ export const onkoRyhmaMerkit = (merkit, kohteita) => typeof merkit === 'string' 
 
 // MOBIILI Layout N -otsikko: NRO, NIMI, TULOS, PÄIVITETTY, LAITE, VERSIO, RYHMÄ, HYVÄKSYTTY, asemien tulokset
 // (ASEMA <tulossarake>), kiekot <tulossarake>/<kiekko> ja lopuksi KUITATUT (ampujan hyväksymät asemat pilkuilla;
-// lopussa, jotta ennen sitä kirjoitetut rivit luetaan ennallaan), sen jälkeen TAPAHTUMAT (toimintahäiriöt, varoitukset ja
-// vähennykset, src/kirjaus/tapahtumat.js; kiekot layoutin kiekkojärjestyksessä) ja VÄHENNYS (kiekkoja yhteensä).
+// lopussa, jotta ennen sitä kirjoitetut rivit luetaan ennallaan), sen jälkeen TAPAHTUMAT (toimintahäiriöt ja varoitukset,
+// src/kirjaus/tapahtumat.js; kiekot layoutin kiekkojärjestyksessä; eivät muuta tulosta).
 export function ryhmaKorttiOtsikko(layout) {
   return [
     'NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO', 'RYHMÄ', 'HYVÄKSYTTY',
     ...layout.asemat.map((a) => `ASEMA ${a.sarake}`),
     ...layout.asemat.flatMap((a) => Array.from({ length: a.kohteita }, (_, k) => `${a.sarake}/${k + 1}`)),
-    'KUITATUT', 'TAPAHTUMAT', 'VÄHENNYS'
+    'KUITATUT', 'TAPAHTUMAT'
   ];
 }
 
@@ -212,9 +212,8 @@ export function asemienTulokset(layout, merkit) {
 
 export function ryhmaKorttiRivi(layout, { nro, nimi, merkit, versio, laite, aika, ryhma, hyvaksytty, kuitatut, tapahtumat }) {
   const asemat = asemienTulokset(layout, merkit);
-  const v = vahennys(tapahtumat || '');
   return [nro, nimi || '', asemat.reduce((s, x) => s + x, 0), aika, laite, versio, ryhma, hyvaksytty || '',
-    ...asemat, ...[...merkit].map((m) => (m === '-' ? '' : m)), (kuitatut || []).join(','), tapahtumat || '', v || ''];
+    ...asemat, ...[...merkit].map((m) => (m === '-' ? '' : m)), (kuitatut || []).join(','), tapahtumat || ''];
 }
 
 // MOBIILI Layout N -rivi → { nro, merkit, versio, laite, aika, hyvaksytty, kuitatut, tapahtumat } tai null (tyhjä rivi).

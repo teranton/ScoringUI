@@ -3,7 +3,7 @@
 // Aikataulun jäsennys ja KISANSPEKSIT-arvot ovat src/utils/radanJono.js:ssä, koska julkinen ratanäkymä käyttää samoja.
 export { MAKS_NRO, jasennaRataruudukko, puhdasTeksti, radanJono, speksiArvo, tarkistaLinja } from '../../src/utils/radanJono.js';
 import { MAKS_NRO, puhdasTeksti } from '../../src/utils/radanJono.js';
-import { normalisoi, onkoTapahtumat, vahennys } from '../../src/kirjaus/tapahtumat.js';
+import { normalisoi, onkoTapahtumat } from '../../src/kirjaus/tapahtumat.js';
 
 export const KOHTEITA = 25;
 export const AIKATAULU_VALILEHDET = ['Aikataulu', 'Aikataulu La', 'Aikataulu Su'];
@@ -12,11 +12,11 @@ export const mobiiliValilehti = (sarake) => `MOBIILI Rata ${sarake}`;
 // Rivi = ampujan numero + 1 (rivi 1 on otsikko), joten jokaisella kortilla on kiinteä osoite (MAKS_NRO: radanJono.js).
 export const META_SARAKKEITA = 6;
 
-// Kiekkojen jälkeen TAPAHTUMAT (toimintahäiriöt, varoitukset, vähennykset: src/kirjaus/tapahtumat.js) ja VÄHENNYS
-// (kiekkoja yhteensä). TULOS on osumat; tulossarakkeeseen menee osumat − VÄHENNYS (kirjausTulokset.js).
+// Kiekkojen jälkeen TAPAHTUMAT (toimintahäiriöt ja varoitukset: src/kirjaus/tapahtumat.js). Ne eivät muuta tulosta:
+// TULOS on osumat (nollaksi merkitty kiekko on O).
 export const TAPAHTUMA_SARAKE = META_SARAKKEITA + KOHTEITA;
 export const KORTTI_OTSIKKO = ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', 'VERSIO',
-  ...Array.from({ length: KOHTEITA }, (_, i) => String(i + 1)), 'TAPAHTUMAT', 'VÄHENNYS'];
+  ...Array.from({ length: KOHTEITA }, (_, i) => String(i + 1)), 'TAPAHTUMAT'];
 // HUOM: tyhjä tavalliselle tallennukselle; haltijan vaihdot ja korvatun laitteen hylätyt kortit (ristiriidat).
 export const LOKI_OTSIKKO = ['AIKA', 'RATA', 'NRO', 'LAITE', 'VERSIO', 'ENNEN', 'JÄLKEEN', 'HUOM'];
 
@@ -69,9 +69,8 @@ export function aikaleima(ms = Date.now()) {
 }
 
 export function korttiRivi({ nro, nimi, merkit, versio, laite, aika, tapahtumat }) {
-  const v = vahennys(tapahtumat || '');
   return [nro, nimi || '', laskeTulos(merkit), aika, laite, versio,
-    ...[...merkit].map((m) => (m === '-' ? '' : m)), tapahtumat || '', v || ''];
+    ...[...merkit].map((m) => (m === '-' ? '' : m)), tapahtumat || ''];
 }
 
 // MOBIILI-välilehden rivi → { nro, merkit, versio, laite, aika, tapahtumat } tai null (tyhjä rivi). Rivi ennen

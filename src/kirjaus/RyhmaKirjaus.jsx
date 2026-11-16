@@ -9,10 +9,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   aloitusAsema, aloitusLayout, asemaJarjestys, asemaKesken, asemaKuitattu, asemanSiirto, kierrata, kuittaaAsema, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, korttiAvain, kuittaa, lahettamattomat,
   layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
-  hairio, hairioVali, muutaTapahtumia, tapahtumatOf, yhdistaPalvelimelta
+  hairio, hairioVali, muutaTapahtumia, tapahtumatOf, varoitus, yhdistaPalvelimelta
 } from './ryhma.js';
 import {
-  KOROSTUSNIMET, OLETUS_HAIRIORAJA, hairiot, jasennaTapahtumat, kiekonKorostus, kiekonSelite, kiekonTapahtumat, korostusTyyli, lisaa, poista, TAYNNA_VIESTI, taynna, vahennys, varoitukset
+  KOROSTUSNIMET, OLETUS_HAIRIORAJA, hairiot, jasennaTapahtumat, kiekonKorostus, kiekonSelite, kiekonTapahtumat, korostusTyyli, poista, TAYNNA_VIESTI, taynna, varoitukset
 } from './tapahtumat.js';
 import { lueKoodi as lueKoodinSisalto } from './kortit.js';
 import {
@@ -63,7 +63,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const [valikko, setValikko] = useState(false);
   const [lukittu, setLukittu] = useState(false);
   const [korjaustila, setKorjaustila] = useState(false);
-  // Tuomarin merkintä (varoitus, vähennys) kiekkoon: { nro, i } tai null; korjaustilassa tuomaritila valitsee kiekon napautuksella.
+  // Tuomarin merkintä (varoitus) kiekkoon: { nro, i } tai null; korjaustilassa tuomaritila valitsee kiekon napautuksella.
   const [tuomio, setTuomio] = useState(null);
   const [tuomaritila, setTuomaritila] = useState(false);
   // Aseman hyväksyntä vaatii vahvistuksen, ettei vahinkopainallus hyväksy: { avain, avattu }. Avain sisältää aseman
@@ -396,28 +396,30 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     navigator.vibrate?.([30, 40, 30]);
   };
 
-  // Varoitus, vähennys tai kiekon tapahtumien poisto (tuomarin päätös); syy kysytään (vapaaehtoinen).
+  // Varoitus tai kiekon tapahtumien poisto (tuomarin päätös); syy kysytään (vapaaehtoinen). Kortin toisesta varoituksesta
+  // alkaen kysytään, merkitäänkö kiekko nollaksi (aseman hyväksyntä poistuu; yksi PERU peruu molemmat).
   const kirjaaTuomio = (k, tyyppi) => {
     if (!layout || !k || liianPian()) return;
     const tap = tapahtumatOf(tila.kortit, layout, k.nro);
-    let uudet;
+    let nolla = false;
     if (tyyppi === 'poista') {
       if (!window.confirm(`Poistetaanko kiekon tapahtumat (${kiekonSelite(tap, k.i)})?`)) return;
-      uudet = poista(tap, k.i);
+      const uudet = poista(tap, k.i);
+      kirjaa('tapahtumat pois', layout, k.nro, k.i, tap, uudet);
+      setTila((t) => ({ ...t, ...muutaTapahtumia(t, layout, k, uudet) }));
     } else {
       if (taynna(tap)) return window.alert(TAYNNA_VIESTI);
       const aiemmat = varoitukset(tap);
-      const kysymys = tyyppi === 'V'
-        ? `Varoitus: ${k.nro} ${nimi(k.nro)}.${aiemmat ? ` Kortilla on jo ${aiemmat} varoitus${aiemmat > 1 ? 'ta' : ''}.` : ''} Syy (vapaaehtoinen):`
-        : `Vähennys 1 kiekko: ${k.nro} ${nimi(k.nro)}. Ampuja hyväksyy aseman uudelleen. Syy (vapaaehtoinen):`;
-      const syy = window.prompt(kysymys, '');
+      const syy = window.prompt(`Varoitus: ${k.nro} ${nimi(k.nro)}.${aiemmat ? ` Kortilla on jo ${aiemmat} varoitus${aiemmat > 1 ? 'ta' : ''}.` : ''} Syy (vapaaehtoinen):`, '');
       if (syy === null) return;
-      uudet = lisaa(tap, tyyppi === 'V' ? { t: 'V', i: k.i, syy } : { t: 'R', i: k.i, n: 1, syy });
+      // Toistuvasta varoituksesta kiekko merkitään yleensä nollaksi; tuomari päättää.
+      nolla = aiemmat > 0 && window.confirm(`${aiemmat + 1}. varoitus: merkitäänkö kiekko NOLLAKSI?\nOK = nolla, Peruuta = pelkkä varoitus.`);
+      const ennen = merkitOf(tila.kortit, layout, k.nro)[k.i];
+      kirjaa(nolla ? 'varoitus, nolla' : 'varoitus', layout, k.nro, k.i, ennen, nolla ? 'O' : ennen);
+      setTila((t) => ({ ...t, ...varoitus(t, layout, k, syy, nolla) }));
     }
-    kirjaa(tyyppi === 'V' ? 'varoitus' : tyyppi === 'R' ? 'vähennys' : 'tapahtumat pois', layout, k.nro, k.i, tap, uudet);
-    setTila((t) => ({ ...t, ...muutaTapahtumia(t, layout, k, uudet) }));
-    setKuittaus(`${tyyppi === 'V' ? 'Varoitus' : tyyppi === 'R' ? 'Vähennys 1' : 'Tapahtumat poistettu'}: ${kiekkoTeksti(layout, k.nro, k.i)}.`);
-    if (tila.aanet !== false) soita('korjaus');
+    setKuittaus(tyyppi === 'poista' ? `Tapahtumat poistettu: ${kiekkoTeksti(layout, k.nro, k.i)}.` : `Varoitus: ${kiekkoTeksti(layout, k.nro, k.i)}${nolla ? ' → NOLLA' : ''}.`);
+    if (tila.aanet !== false) soita(nolla ? 'nolla' : 'korjaus');
     setTuomio(null);
   };
 
@@ -709,7 +711,6 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           const keskeytti = tila.keskeyttaneet.includes(a.nro);
           const asemalla = merkit.slice(alku, loppu);
           const tap = jasennaTapahtumat(kortti?.tapahtumat || '');
-          const asemanVahennys = vahennys(tap, alku, loppu);
           const aktiivinen = kohta?.nro === a.nro && !korjaustila;
           return (
             <div key={a.nro} className={`rounded-lg border-2 px-2 py-1 ${aktiivinen ? 'border-blue-700 bg-white' : 'border-transparent bg-white'} ${keskeytti ? 'opacity-60' : ''}`}>
@@ -724,8 +725,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                 ) : keskeytti && <span className="shrink-0 rounded bg-slate-700 px-2 text-xs leading-5 text-white">Keskeytti</span>}
                 {asemaKuitattu(tila.kortit, layout, a.nro, asema) && <span className="shrink-0 rounded bg-green-700 px-1.5 text-xs leading-5 text-white">✓</span>}
                 <span className="shrink-0 text-right leading-tight">
-                  <span className="text-lg font-bold">{Math.max(0, osumat(asemalla) - asemanVahennys)}</span>
-                  {asemanVahennys > 0 && <span className="text-xs font-semibold text-purple-800"> (−{asemanVahennys})</span>}
+                  <span className="text-lg font-bold">{osumat(asemalla)}</span>
                   <span className="text-xs text-slate-500"> as. · yht. {osumat(merkit)}/{taytetyt(merkit)}{kortti && kortti.lahetetty === false ? ' •' : ''}</span>
                 </span>
               </div>
@@ -734,7 +734,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                   const i = alku + k;
                   const vari = m === 'X' ? 'bg-green-700 text-white' : m === 'O' ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-400';
                   const luokat = `flex h-7 w-7 items-center justify-center rounded-sm text-xs font-bold ${vari} ${aktiivinen && kohta.i === i ? 'ring-2 ring-blue-700 ring-offset-1' : ''}`;
-                  // Häiriö, varoitus ja vähennys kiekon kulman sävynä (tapahtumat.js).
+                  // Häiriö ja varoitus kiekon kulman sävynä (tapahtumat.js).
                   const korostus = tap.length ? kiekonKorostus(tap, i) : null;
                   const selite = korostus ? kiekonSelite(tap, i) || KOROSTUSNIMET[korostus] : '';
                   const tyyli = korostusTyyli(korostus);
@@ -766,10 +766,9 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                 <div key={a.nro} className="flex items-center gap-2 text-sm">
                   <span className="min-w-0 flex-1 truncate">{a.nro} {a.nimi}</span>
                   <span className="shrink-0 text-xs text-slate-500">
-                    {asemaJarjestys(layout).map((k) => Math.max(0, osumat(merkit.slice(asemat[k].alku, asemat[k].loppu))
-                      - vahennys(kortti?.tapahtumat || '', asemat[k].alku, asemat[k].loppu))).join(' + ')}
+                    {asemaJarjestys(layout).map((k) => osumat(merkit.slice(asemat[k].alku, asemat[k].loppu))).join(' + ')}
                   </span>
-                  <b className="shrink-0">{Math.max(0, osumat(merkit) - vahennys(kortti?.tapahtumat || ''))}/{layout.kohteita}</b>
+                  <b className="shrink-0">{osumat(merkit)}/{layout.kohteita}</b>
                   {kortti?.hyvaksytty
                     ? <span className="shrink-0 rounded bg-green-700 px-2 py-1 text-xs text-white">Hyväksytty ✓</span>
                     : <span className="shrink-0 rounded bg-amber-100 px-2 py-1 text-xs text-amber-900">Asemia hyväksymättä</span>}
@@ -794,13 +793,13 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
             <div className="mb-1 text-center text-sm leading-tight">
               <div className="truncate font-bold text-purple-900">Tuomarin merkintä: {kiekkoTeksti(layout, tuomio.nro, tuomio.i)}</div>
               <div className="truncate text-xs text-slate-600">
-                {kiekonSelite(tapahtumatOf(tila.kortit, layout, tuomio.nro), tuomio.i) || 'Merkintä näkyy kiekon kulmassa; vähennys vähennetään aseman tuloksesta.'}
+                {kiekonSelite(tapahtumatOf(tila.kortit, layout, tuomio.nro), tuomio.i)
+                  || (varoitukset(tapahtumatOf(tila.kortit, layout, tuomio.nro)) ? 'Kortilla on jo varoitus: kiekko voidaan merkitä nollaksi.' : 'Merkintä näkyy kiekon kulmassa.')}
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button type="button" className="h-14 rounded-lg border-2 border-slate-400 text-lg font-semibold active:bg-slate-200 sm:h-20" onClick={() => setTuomio(null)}>Peruuta</button>
-              <button type="button" className="h-14 rounded-lg bg-yellow-400 text-lg font-bold text-slate-900 active:bg-yellow-500 sm:h-20" onClick={() => kirjaaTuomio(tuomio, 'V')}>Varoitus</button>
-              <button type="button" className="h-14 rounded-lg bg-purple-700 text-lg font-bold text-white active:bg-purple-900 sm:h-20" onClick={() => kirjaaTuomio(tuomio, 'R')}>Vähennys −1</button>
+              <button type="button" className="h-14 rounded-lg bg-purple-700 text-lg font-bold text-white active:bg-purple-900 sm:h-20" onClick={() => kirjaaTuomio(tuomio, 'V')}>Varoitus</button>
             </div>
             {kiekonTapahtumat(tapahtumatOf(tila.kortit, layout, tuomio.nro), tuomio.i).length > 0 && (
               <button type="button" className="mt-1 w-full rounded border border-slate-400 py-1 text-sm" onClick={() => kirjaaTuomio(tuomio, 'poista')}>Poista kiekon merkinnät</button>
@@ -813,7 +812,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                 {kuittaus || (tuomaritila ? 'Tuomarin merkintä: napauta kiekkoa.' : 'Korjaustila: napauta korjattavaa kiekkoa. Asemaa voi vaihtaa yläpalkista.')}
               </span>
               <button type="button" className={`shrink-0 rounded px-2 text-xs leading-6 ${tuomaritila ? 'bg-purple-700 text-white' : 'border border-purple-500 text-purple-900'}`} onClick={() => setTuomaritila((v) => !v)}>
-                ⚑ Varoitus / vähennys
+                ⚑ Varoitus
               </button>
             </div>
             <button type="button" className="h-14 w-full rounded-lg bg-blue-800 text-lg font-bold text-white" onClick={() => { setKorjaustila(false); setTuomaritila(false); }}>Lopeta korjaus</button>
@@ -867,7 +866,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                   <button type="button" aria-label="Toimintahäiriö" className="shrink-0 rounded border border-amber-500 bg-amber-50 px-2 text-xs font-semibold leading-6 text-amber-900 active:bg-amber-200" onClick={kirjaaHairio}>
                     Häiriö{vuorossaHairiot > 0 ? ` ${vuorossaHairiot}/${hairioRaja}` : ''}
                   </button>
-                  <button type="button" aria-label="Varoitus tai vähennys" className="shrink-0 rounded border border-purple-500 bg-purple-50 px-2 text-xs font-semibold leading-6 text-purple-900 active:bg-purple-200" onClick={() => setTuomio({ nro: kohta.nro, i: kohta.i })}>⚑</button>
+                  <button type="button" aria-label="Varoitus" className="shrink-0 rounded border border-purple-500 bg-purple-50 px-2 text-xs font-semibold leading-6 text-purple-900 active:bg-purple-200" onClick={() => setTuomio({ nro: kohta.nro, i: kohta.i })}>⚑</button>
                   <button type="button" className="shrink-0 rounded border border-slate-400 px-2 text-xs leading-6" onClick={seuraava}>Seuraava ampuja ›</button>
                 </>
               )}

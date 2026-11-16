@@ -1,6 +1,6 @@
 // Mobiilikirjauksen korttilogiikka (Compak): merkinnät, seuraava kohde, peruutus ja synkronoinnin yhdistäminen.
 // Kortti: { merkit: 25 merkkiä X/O/-, versio: kasvava luku, lahetetty: onko tämä versio tallessa taulukossa,
-// tapahtumat: toimintahäiriöt, varoitukset ja vähennykset tekstinä (tapahtumat.js; puuttuu = ei tapahtumia) }.
+// tapahtumat: toimintahäiriöt ja varoitukset tekstinä (tapahtumat.js; puuttuu = ei tapahtumia) }.
 import { hairiot, lisaa } from './tapahtumat.js';
 
 export const KOHTEITA = 25;
@@ -39,8 +39,14 @@ function muutaKorttia({ kortit, historia }, { nro, i }, { merkki, tapahtumat }, 
 // Asettaa merkin; palauttaa { kortit, historia } uusina olioina.
 export const merkitse = (tila, kohta, merkki, nyt = Date.now()) => muutaKorttia(tila, kohta, { merkki }, nyt);
 
-// Korvaa kortin tapahtumat (varoitus, vähennys, poisto); kiekko i on historiaa ja perumista varten.
+// Korvaa kortin tapahtumat (varoitus, poisto); kiekko i on historiaa ja perumista varten.
 export const muutaTapahtumia = (tila, kohta, tapahtumat, nyt = Date.now()) => muutaKorttia(tila, kohta, { tapahtumat }, nyt);
+
+// Varoitus kiekkoon i (syy vapaaehtoinen); nolla: kiekko merkitään samalla nollaksi (toistuva varoitus). Yksi PERU
+// peruu molemmat.
+export const varoitus = (tila, kohta, syy, nolla = false, nyt = Date.now()) => muutaKorttia(tila, kohta, {
+  tapahtumat: lisaa(tapahtumatOf(tila.kortit, kohta.nro), { t: 'V', i: kohta.i, syy }), ...(nolla ? { merkki: 'O' } : {})
+}, nyt);
 
 // Toimintahäiriö kiekossa i: rajan sisällä kiekko jää uusittavaksi (H), rajan yli se merkitään nollaksi (N).
 export function hairio(tila, kohta, raja, nyt = Date.now()) {
