@@ -252,21 +252,18 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     if (otaHeti) otaRyhma();
   }, [otaHeti, latausKierros, otaRyhma]);
 
+  // Ryhmä ei ole tällä puhelimella: korvattu, luovutettu tai toisen puhelimen käytössä.
+  const varattu = !tila.haltija && avattuHaltija && !avattuHaltija.oma && !avattuHaltija.vapaa && !avattuHaltija.tamaLaite;
+
   // Ulkoiset napit (tuomarin käsiohjain): OSUMA ja NOLLA merkitsevät vuorossa olevan kiekon, PERU peruu viimeisimmän.
   // Vain kirjausnäkymässä (ryhmä tällä puhelimella). Aseman hyväksyntä tehdään aina näytöltä, koska ampujat
-  // tarkistavat tuloksensa siitä. Merkintää, jota ei kirjattu (valikko auki, korjaustila, asema ammuttu), seuraa
-  // hylkäysääni, koska kirjaaja ei välttämättä katso näyttöä. Lukitus ei estä: napin painallus on aina tarkoituksellinen.
-  const ryhmaMuualla = tila.korvattu || tila.luovutettu
-    || (!tila.haltija && avattuHaltija && !avattuHaltija.oma && !avattuHaltija.vapaa && !avattuHaltija.tamaLaite);
-  const [napit, setNapit] = useNapit(Boolean(avaus) && Boolean(layout) && !ryhmaMuualla, (toiminto) => {
-    if (valikko || korjaustila || (toiminto !== 'PERU' && !kohta)) {
-      if (tila.aanet !== false) soita('hylatty');
-      navigator.vibrate?.([80, 60, 80]);
-      return;
-    }
-    if (toiminto === 'PERU') peruViimeisin();
-    else merkitseKohta(toiminto);
-  });
+  // tarkistavat tuloksensa siitä. Painallus, jota ei kirjattu (valikko auki, korjaustila, asema ammuttu, ryhmä muualla),
+  // hylätään äänellä (useNapit). Lukitus ei estä: napin painallus on aina tarkoituksellinen.
+  const kirjausNakyvissa = Boolean(layout) && !tila.korvattu && !tila.luovutettu && !varattu;
+  const [napit, setNapit] = useNapit(Boolean(avaus), (toiminto) => {
+    if (!kirjausNakyvissa || valikko || korjaustila) return false;
+    return toiminto === 'PERU' ? peruViimeisin() : merkitseKohta(toiminto);
+  }, tila.aanet !== false);
 
   const korvattuAvauksessa = Boolean(tila.haltija && avattuHaltija && !avattuHaltija.oma && !avattuHaltija.tamaLaite);
   useEffect(() => {
@@ -347,7 +344,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   };
 
   const merkitseKohta = (merkki) => {
-    if (!layout || !kohta || korjaustila || liianPian()) return;
+    if (!layout || !kohta || korjaustila || liianPian()) return false;
     kirjaa('merkintä', layout, kohta.nro, kohta.i, merkitOf(tila.kortit, layout, kohta.nro)[kohta.i], merkki);
     setTila((t) => {
       const uusi = merkitse(t, layout, kohta, merkki);
@@ -360,12 +357,14 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     setKuittaus(null);
     if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : 'nolla');
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
+    return true;
   };
 
+  // Palauttaa false, jos mitään ei peruttu (ulkoisen napin hylkäysääni).
   const peruViimeisin = () => {
-    if (!avaus || liianPian()) return;
+    if (!avaus || liianPian()) return false;
     const p = peru(tila, avaus.layoutit);
-    if (!p) return;
+    if (!p) return false;
     const l = avaus.layoutit.find((x) => x.nro === p.kohta.layout);
     kirjaa('peru', l, p.kohta.nro, p.kohta.i, merkitOf(tila.kortit, l, p.kohta.nro)[p.kohta.i], p.kohta.ennen);
     setTila((t) => {
@@ -379,6 +378,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     });
     setKuittaus(`Peruttu: ${kiekkoTeksti(l, p.kohta.nro, p.kohta.i)}.`);
     if (tila.aanet !== false) soita('peru');
+    return true;
   };
 
   // Korjaustilassa merkitty kiekko vaihtuu osumasta nollaksi tai päinvastoin (hyväksyntä poistuu).
@@ -561,8 +561,6 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     </div>
   );
 
-  // Ryhmä ei ole tällä puhelimella: korvattu, luovutettu tai toisen puhelimen käytössä.
-  const varattu = !tila.haltija && avattuHaltija && !avattuHaltija.oma && !avattuHaltija.vapaa && !avattuHaltija.tamaLaite;
   if (tila.korvattu || tila.luovutettu || varattu) {
     return (
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">

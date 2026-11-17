@@ -516,7 +516,7 @@ function RataNakyma({ koodi, onVaihda }) {
   };
 
   const merkitseKohta = (merkki) => {
-    if (korjaustila || valinta || !tilanne || liianPian()) return;
+    if (korjaustila || valinta || !tilanne || liianPian()) return false;
     kirjaa('merkintä', tilanne.kohta, merkitOf(tila.kortit, tilanne.kohta.nro)[tilanne.kohta.i], merkki);
     setTila((t) => ({ ...t, ...merkitse(t, tilanne.kohta, merkki) }));
     const { nro, asema, alku, loppu } = tilanne.vuoro;
@@ -526,6 +526,7 @@ function RataNakyma({ koodi, onVaihda }) {
     const molemmatOhi = merkki === 'O' && tilanne.kohta.i > alku && merkitOf(tila.kortit, nro)[alku] === 'O';
     if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : molemmatOhi ? 'nolla2' : 'nolla', tila.nollaAani);
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
+    return true;
   };
 
   // Korjaus vaihtaa jo merkityn kiekon osumasta nollaksi tai päinvastoin; ampumattomaan ei voi merkitä.
@@ -542,10 +543,11 @@ function RataNakyma({ koodi, onVaihda }) {
     navigator.vibrate?.(30);
   };
 
+  // Palauttaa false, jos mitään ei peruttu (ulkoisen napin hylkäysääni).
   const peruViimeisin = () => {
-    if (liianPian()) return;
+    if (liianPian()) return false;
     const p = peru(tila);
-    if (!p) return;
+    if (!p) return false;
     kirjaa('peru', p.kohta, merkitOf(tila.kortit, p.kohta.nro)[p.kohta.i], merkitOf(p.kortit, p.kohta.nro)[p.kohta.i]);
     // Peru lasketaan uudelleen tuoreimmasta tilasta, ettei välissä tullut kuittaus tai avaus katoa.
     setTila((t) => {
@@ -555,6 +557,7 @@ function RataNakyma({ koodi, onVaihda }) {
     setKuittaus(`Peruttu: ${kohdeTeksti(p.kohta)}.`);
     if (tila.aanet !== false) soita('peru');
     setValinta(null);
+    return true;
   };
 
   useEffect(() => {
@@ -709,20 +712,15 @@ function RataNakyma({ koodi, onVaihda }) {
   const haltijanTila = avaus?.haltija;
   const varattu = !tila.haltija && !tila.siirtoAvain && haltijanTila && !haltijanTila.oma && !haltijanTila.vapaa && !haltijanTila.tamaLaite;
 
-  // Ulkoiset napit (tuomarin käsiohjain) vain kirjausnäkymässä: ei ohjelman muokkauksessa, siirrossa eikä kun rata
-  // ei ole tällä laitteella. Lukitus ei estä: napin painallus on aina tarkoituksellinen. Valikon ollessa auki ja
-  // korjaustilassa painallusta ei kirjata, ja siitä kuuluu hylkäysääni, koska kirjaaja ei välttämättä katso näyttöä.
+  // Ulkoiset napit (tuomarin käsiohjain) kirjaavat vain kirjausnäkymässä: ei ohjelman muokkauksessa, siirrossa eikä
+  // kun rata ei ole tällä laitteella. Lukitus ei estä: napin painallus on aina tarkoituksellinen. Muualla (myös valikon
+  // ollessa auki ja korjaustilassa) painallus hylätään äänellä, koska kirjaaja ei välttämättä katso näyttöä.
   const kirjausNakyvissa = Boolean(avaus) && Boolean(ohjelma) && !muokkaaOhjelmaa
     && !(siirto && tila.haltija) && !tila.korvattu && !tila.luovutettu && !varattu;
-  const [napit, setNapit] = useNapit(kirjausNakyvissa, (toiminto) => {
-    if (valikko || korjaustila || valinta || (toiminto !== 'PERU' && !tilanne)) {
-      if (tila.aanet !== false) soita('hylatty');
-      navigator.vibrate?.([80, 60, 80]);
-      return;
-    }
-    if (toiminto === 'PERU') peruViimeisin();
-    else merkitseKohta(toiminto);
-  });
+  const [napit, setNapit] = useNapit(Boolean(avaus), (toiminto) => {
+    if (!kirjausNakyvissa || valikko || korjaustila || valinta) return false;
+    return toiminto === 'PERU' ? peruViimeisin() : merkitseKohta(toiminto);
+  }, tila.aanet !== false);
 
   if (!avaus) {
     return (

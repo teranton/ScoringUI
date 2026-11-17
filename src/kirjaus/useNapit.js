@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toimintoNappaimesta } from './napit.js';
 import { lueNapit, tallennaNapit } from './varasto.js';
+import { soita } from './aanet.js';
 
-export function useNapit(kaytossa, onToiminto) {
+// onToiminto palauttaa true, jos painallus kirjattiin. Muuten (väärä näkymä, valikko auki, mitään ei peruttavaa,
+// liian nopea toisto) kuuluu hylkäysääni ja värinä, koska kirjaaja ei välttämättä katso näyttöä.
+export function useNapit(kaytossa, onToiminto, aanet = true) {
   const [napit, setNapit] = useState(lueNapit);
   const kasittelija = useRef(onToiminto);
+  const aanetRef = useRef(aanet);
   useEffect(() => {
     kasittelija.current = onToiminto;
+    aanetRef.current = aanet;
   });
 
   useEffect(() => {
@@ -18,7 +23,9 @@ export function useNapit(kaytossa, onToiminto) {
       if (!toiminto) return;
       // Ei sivun vieritystä (PageDown) eikä kohdistetun painikkeen painallusta.
       e.preventDefault();
-      kasittelija.current(toiminto);
+      if (kasittelija.current(toiminto)) return;
+      if (aanetRef.current) soita('hylatty');
+      navigator.vibrate?.([80, 60, 80]);
     };
     // Välilyönti ja Enter painavat kohdistettua painiketta myös näppäintä vapautettaessa.
     const vapauta = (e) => {

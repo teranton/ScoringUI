@@ -56,8 +56,18 @@ export function NapitAsetus({ napit, onNapit }) {
       if (uudet) onNapit(uudet);
       setOpetettava(null);
     };
+    // Välilyönti ja Enter painavat kohdistettua Opeta-painiketta vapautettaessa; se ei saa aloittaa opetusta uudelleen.
+    const vapauta = (e) => {
+      if (kirjoituskentta(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
     window.addEventListener('keydown', opeta, true);
-    return () => window.removeEventListener('keydown', opeta, true);
+    window.addEventListener('keyup', vapauta, true);
+    return () => {
+      window.removeEventListener('keydown', opeta, true);
+      window.removeEventListener('keyup', vapauta, true);
+    };
   }, [opetettava, napit, onNapit]);
 
   return (
