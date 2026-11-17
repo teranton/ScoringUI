@@ -349,21 +349,21 @@ export function otaTaydennykset(kortit, taydennykset, layoutit, sovelletut = {},
 }
 
 // Ulkoisen napin painalluksen tulkinta ryhmäpuhelimessa (RyhmaKirjaus.jsx). toiminto: 'X', 'O', 'PERU' tai 'HYVAKSY'
-// (pitkä OSUMA). Palauttaa 'merkitse', 'peru', 'vihje' (ei vuorossa olevaa kiekkoa, mutta pitkä OSUMA tekisi jotain:
+// (pitkä OSUMA). Palauttaa 'merkitse', 'peru', 'peruuta' (NOLLA sulkee näytöllä avatun hyväksynnän vahvistuksen), 'vihje' (ei vuorossa olevaa kiekkoa, mutta pitkä OSUMA tekisi jotain:
 // ääni kertoo, että pito hyväksyy tai siirtyy), 'hyvaksy', 'asema' (seuraavalle ampumattomalle asemalle), 'layout' (seuraavalle layoutille, kun
-// tämä on kokonaan hyväksytty), 'ohita' (pitkä OSUMA merkitsi jo kiekon) tai null (hylätään äänellä).
+// tämä on kokonaan hyväksytty, layoutKuitattu), 'ohita' (pitkä OSUMA merkitsi jo kiekon) tai null (hylätään äänellä).
 // Hyväksyntä ei onnistu lukittuna, koska ampujat tarkistavat tuloksensa näytöltä.
-export function napinToimenpide({ toiminto, kohta, kuittaamatta, lukittu, seuraavaAsema: asemalle, seuraavaLayout, layoutValmis }) {
+export function napinToimenpide({ toiminto, kohta, kuittaamatta, lukittu, vahvistusAuki, seuraavaAsema: asemalle, seuraavaLayout, layoutKuitattu }) {
   if (toiminto === 'PERU') return 'peru';
   if (toiminto === 'HYVAKSY') {
     if (kohta) return 'ohita';
     if (lukittu) return null;
     if (kuittaamatta) return 'hyvaksy';
     if (asemalle !== null && asemalle !== undefined) return 'asema';
-    return seuraavaLayout && layoutValmis ? 'layout' : null;
+    return seuraavaLayout && layoutKuitattu ? 'layout' : null;
   }
   if (kohta) return 'merkitse';
-  if (toiminto !== 'X') return null;
-  const siirrettavissa = (asemalle !== null && asemalle !== undefined) || (seuraavaLayout && layoutValmis);
-  return kuittaamatta || (!lukittu && siirrettavissa) ? 'vihje' : null;
+  if (toiminto === 'O') return vahvistusAuki ? 'peruuta' : null;
+  const siirrettavissa = (asemalle !== null && asemalle !== undefined) || (seuraavaLayout && layoutKuitattu);
+  return !lukittu && (kuittaamatta || siirrettavissa) ? 'vihje' : null;
 }

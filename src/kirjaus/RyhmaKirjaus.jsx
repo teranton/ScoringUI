@@ -73,6 +73,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const taustaRef = useRef(false);
   const tarkistettuRef = useRef(Date.now());
   const viimeNapautusRef = useRef(0);
+  const vihjeRef = useRef('');
   const jarjestysRef = useRef(tila.jarjestys || 0);
   const alkuJarjestys = useRef(tila.jarjestys || 0);
 
@@ -440,11 +441,16 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
 
   // Ulkoisen napin painallus (useNapit, tulkinta ryhma.js napinToimenpide). false = hylkäysääni, null = ei tehty mitään
   // (pitkä painallus voi seurata), true = tehty.
+  // vihjeRef: tila, jossa pitkä painallus alkoi. Jos asema muuttuu painalluksen aikana (synkronointi, toinen puhelin),
+  // vapautus ei hyväksy eikä siirrä.
   const napinToiminto = (toiminto) => {
     if (!kirjausNakyvissa || valikko || korjaustila) return false;
+    const tilaAvain = `${kuittaamatta}|${vahvistusAvain}`;
+    if (toiminto === 'HYVAKSY' && !kohta && vihjeRef.current !== tilaAvain) return false;
     const toimenpide = napinToimenpide({
-      toiminto, kohta, kuittaamatta, lukittu, seuraavaAsema: seuraavaKesken, seuraavaLayout,
-      layoutValmis: layoutHyvaksytty(layout, ampujat, tila.kortit, tila.keskeyttaneet)
+      toiminto, kohta, kuittaamatta, lukittu, vahvistusAuki: kuittaamatta && vahvistus?.avain === vahvistusAvain,
+      seuraavaAsema: seuraavaKesken, seuraavaLayout,
+      layoutKuitattu: layoutHyvaksytty(layout, ampujat, tila.kortit, tila.keskeyttaneet)
     });
     const aani = (nimi) => { if (tila.aanet !== false) soita(nimi); };
     switch (toimenpide) {
@@ -454,14 +460,21 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
       case 'vihje':
         // OSUMA ilman vuorossa olevaa kiekkoa: ääni kertoo, että pitämällä OSUMAa pohjassa asema hyväksytään tai
         // siirrytään eteenpäin. null: useNapit odottaa, vapautetaanko nappi pitkänä painalluksena.
+        vihjeRef.current = tilaAvain;
         aani('vahvista');
         return null;
+      case 'peruuta':
+        setVahvistus(null);
+        aani('peru');
+        return true;
       case 'hyvaksy': return kuittaaKaikki();
       case 'asema':
+        if (liianPian()) return false;
         valitseAsema(seuraavaKesken);
         aani('siirto');
         return true;
       case 'layout':
+        if (liianPian()) return false;
         valitseLayout(seuraavaLayout.nro);
         aani('siirto');
         return true;
