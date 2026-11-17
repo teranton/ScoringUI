@@ -24,6 +24,8 @@ import {
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
+import { useNapit } from './useNapit.js';
+import { TOIMINNOT, OLETUSNAPIT, kirjoituskentta, nappiTekstina, onOletus, opetaNappi } from './napit.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import AmpujaRivi from './AmpujaRivi.jsx';
@@ -704,6 +706,25 @@ function RataNakyma({ koodi, onVaihda }) {
     linja: linjaTilasta(tila)
   });
 
+  // Rata ei ole tällä laitteella: korvattu, luovutettu tai toisen laitteen käytössä.
+  const haltijanTila = avaus?.haltija;
+  const varattu = !tila.haltija && !tila.siirtoAvain && haltijanTila && !haltijanTila.oma && !haltijanTila.vapaa && !haltijanTila.tamaLaite;
+
+  // Ulkoiset napit (tuomarin käsiohjain) vain kirjausnäkymässä: ei ohjelman muokkauksessa, siirrossa eikä kun rata
+  // ei ole tällä laitteella. Lukitus ei estä: napin painallus on aina tarkoituksellinen. Valikon ollessa auki ja
+  // korjaustilassa painallusta ei kirjata, ja siitä kuuluu hylkäysääni, koska kirjaaja ei välttämättä katso näyttöä.
+  const kirjausNakyvissa = Boolean(avaus) && Boolean(ohjelma) && !muokkaaOhjelmaa
+    && !(siirto && tila.haltija) && !tila.korvattu && !tila.luovutettu && !varattu;
+  const [napit, setNapit] = useNapit(kirjausNakyvissa, (toiminto) => {
+    if (valikko || korjaustila || valinta || (toiminto !== 'PERU' && !tilanne)) {
+      if (tila.aanet !== false) soita('hylatty');
+      navigator.vibrate?.([80, 60, 80]);
+      return;
+    }
+    if (toiminto === 'PERU') peruViimeisin();
+    else merkitseKohta(toiminto);
+  });
+
   if (!avaus) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 bg-white p-6 text-slate-900">
@@ -768,12 +789,11 @@ function RataNakyma({ koodi, onVaihda }) {
       asennus={asennus}
       onKopioiKoodi={kopioiKoodi}
       onLataaLoki={lataaLoki}
+      napit={napit}
+      onNapit={setNapit}
     />
   );
 
-  // Rata ei ole tällä laitteella: korvattu, luovutettu tai toisen laitteen käytössä.
-  const haltijanTila = avaus.haltija;
-  const varattu = !tila.haltija && !tila.siirtoAvain && haltijanTila && !haltijanTila.oma && !haltijanTila.vapaa && !haltijanTila.tamaLaite;
   if (tila.korvattu || tila.luovutettu || varattu) {
     return (
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">
@@ -1113,7 +1133,8 @@ function OhjelmaEditori({ alku, kisanArvo, kisanOhjelma, sarake, onTallenna, onP
 
 function Valikko({
   ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorjaa, aanet, onAanet, nollaAani, onNollaAani, onTyhjenna,
-  hereilla, lataus, viimeksi, tallennus, asennus, onKopioiKoodi, onLataaLoki, laitteenNimi: nimi, onLuovuta, onSiirra
+  hereilla, lataus, viimeksi, tallennus, asennus, onKopioiKoodi, onLataaLoki, laitteenNimi: nimi, onLuovuta, onSiirra,
+  napit, onNapit
 }) {
   const [nro, setNro] = useState('');
   return (
@@ -1153,6 +1174,7 @@ function Valikko({
           ))}
         </div>
       )}
+      <NapitAsetus napit={napit} onNapit={onNapit} />
       <div className="flex items-center justify-between gap-2">
         <span>Ohjelma: <b>{ohjelma || '–'}</b></span>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onMuokkaaOhjelmaa}>Muuta</button>
@@ -1186,6 +1208,53 @@ function Valikko({
           Tyhjennä rata laitteelta (testiversio)
         </button>
       )}
+    </div>
+  );
+}
+
+// Ulkoiset napit: nykyiset näppäimet ja opetus. Opetuksen aikana seuraava painallus (mikä tahansa näppäin tekstikentän
+// ulkopuolella) lisätään toiminnolle. Kuuntelija on kaappausvaiheessa ja pysäyttää painalluksen, joten kirjauksen
+// kuuntelija ei näe sitä (ei hylkäysääntä).
+function NapitAsetus({ napit, onNapit }) {
+  const [opetettava, setOpetettava] = useState(null);
+  useEffect(() => {
+    if (!opetettava) return undefined;
+    const opeta = (e) => {
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || kirjoituskentta(e.target)) return;
+      if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const uudet = e.code === 'Escape' ? null : opetaNappi(napit, opetettava, e.code);
+      if (uudet) onNapit(uudet);
+      setOpetettava(null);
+    };
+    window.addEventListener('keydown', opeta, true);
+    return () => window.removeEventListener('keydown', opeta, true);
+  }, [opetettava, napit, onNapit]);
+
+  return (
+    <div className="flex flex-col gap-2 rounded border border-slate-300 p-2">
+      <span><b>Ulkoiset napit</b> · Bluetooth-näppäin tai tuomarin käsiohjain (paritetaan laitteen Bluetooth-asetuksista)</span>
+      {TOIMINNOT.map(({ avain, nimi }) => (
+        <div key={avain} className="flex items-center justify-between gap-2">
+          <span>
+            {nimi}: <b>{(napit[avain] || []).map(nappiTekstina).join(', ') || '–'}</b>
+          </span>
+          <button
+            type="button"
+            className={`rounded border px-3 py-2 ${opetettava === avain ? 'border-blue-800 bg-blue-800 text-white' : 'border-slate-400'}`}
+            onClick={() => setOpetettava(opetettava === avain ? null : avain)}
+          >
+            {opetettava === avain ? 'Paina nappia…' : 'Opeta'}
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-slate-600">Napit merkitsevät vain kirjausnäkymässä, eivät valikon ollessa auki.</span>
+        {!onOletus(napit) && (
+          <button type="button" className="shrink-0 rounded border border-slate-400 px-3 py-2" onClick={() => onNapit(OLETUSNAPIT)}>Oletukset</button>
+        )}
+      </div>
     </div>
   );
 }
