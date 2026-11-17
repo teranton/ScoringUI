@@ -88,7 +88,7 @@ export function NapitAsetus({ napit, onNapit }) {
         </div>
       ))}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-slate-600">Napit merkitsevät vain kirjausnäkymässä, eivät valikon ollessa auki.</span>
+        <span className="text-slate-600">Napit merkitsevät vain kirjausnäkymässä, eivät valikon ollessa auki. Ryhmäpuhelimessa OSUMAn pitäminen pohjassa 1 s hyväksyy ammutun aseman.</span>
         {!onOletus(napit) && (
           <button type="button" className="shrink-0 rounded border border-slate-400 px-3 py-2" onClick={() => onNapit(OLETUSNAPIT)}>Oletukset</button>
         )}

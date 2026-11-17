@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   aloitusAsema, aloitusLayout, asemaJarjestys, asemaKesken, asemaKuitattu, asemanSiirto, kierrata, kuittaaAsema, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, korttiAvain, kuittaa, lahettamattomat,
-  layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
+  layoutHyvaksytty, layoutJarjestys, layoutinTila, napinToimenpide, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
   yhdistaPalvelimelta
 } from './ryhma.js';
 import { lueKoodi as lueKoodinSisalto } from './kortit.js';
@@ -256,11 +256,11 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const varattu = !tila.haltija && avattuHaltija && !avattuHaltija.oma && !avattuHaltija.vapaa && !avattuHaltija.tamaLaite;
 
   // Ulkoiset napit (tuomarin käsiohjain), jotta märällä säällä ei tarvita kosketusnäyttöä (napinToiminto):
-  // OSUMA ja NOLLA merkitsevät vuorossa olevan kiekon, PERU peruu viimeisimmän. Ammutun aseman hyväksyntä kuten
-  // näytöllä kahdella painalluksella: OSUMA avaa vahvistuksen ja toinen OSUMA hyväksyy, NOLLA peruuttaa. Valmiilla
-  // asemalla OSUMA siirtyy seuraavalle asemalle tai layoutille. Vain kirjausnäkymässä (ryhmä tällä puhelimella).
-  // Painallus, jota ei kirjattu (valikko auki, korjaustila, ryhmä muualla), hylätään äänellä (useNapit). Lukitus ei
-  // estä: napin painallus on aina tarkoituksellinen.
+  // OSUMA ja NOLLA merkitsevät vuorossa olevan kiekon, PERU peruu viimeisimmän. OSUMAn pitäminen pohjassa 1 s
+  // hyväksyy ammutun aseman (kaikki ampujat) tai siirtyy valmiilta asemalta seuraavalle asemalle tai layoutille.
+  // Lyhyt painallus ei koskaan hyväksy, joten ylimääräinen osumapainallus ei hyväksy asemaa vahingossa.
+  // Vain kirjausnäkymässä (ryhmä tällä puhelimella). Painallus, jota ei tehty (valikko auki, korjaustila, ryhmä
+  // muualla), hylätään äänellä (useNapit). Lukitus ei estä merkintöjä, mutta estää hyväksynnän.
   const kirjausNakyvissa = Boolean(layout) && !tila.korvattu && !tila.luovutettu && !varattu;
   const [napit, setNapit] = useNapit(Boolean(avaus), (toiminto) => napinToiminto(toiminto), tila.aanet !== false);
 
@@ -425,54 +425,48 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     setVahvistus(null);
   };
 
+  // Aseman tila, sama näytölle ja ulkoisille napeille.
+  const aktiiviset = ampujat.filter((a) => !tila.keskeyttaneet.includes(a.nro));
+  const seuraavaKesken = layout ? seuraavaAsema(layout, asema, aktiiviset, tila.kortit) : null;
+  // Asema ammuttu, mutta joku ei ole vielä hyväksynyt sen tulostaan.
+  const kuittaamatta = Boolean(layout) && !kohta && aktiiviset.some((a) => !asemaKuitattu(tila.kortit, layout, a.nro, asema));
+  const seuraavaLayout = layout ? jarjestys.find((l) => l.nro !== layout.nro && !layoutHyvaksytty(l, ampujat, tila.kortit, tila.keskeyttaneet)) : null;
   // Hyväksynnän vahvistuksen avain: aseman merkit ja keskeyttäneet, joten vahvistus raukeaa, jos tulokset muuttuvat.
-  const aktiivisetNyt = () => ampujat.filter((a) => !tila.keskeyttaneet.includes(a.nro));
-  const vahvistusAvainNyt = () => {
-    const { alku: a, loppu: b } = asemat[asema];
-    return [layout.nro, asema, tila.keskeyttaneet.join(','),
-      ...aktiivisetNyt().map((amp) => [...merkitOf(tila.kortit, layout, amp.nro)].slice(a, b).join(''))].join('|');
-  };
+  const vahvistusAvain = layout ? [layout.nro, asema, tila.keskeyttaneet.join(','),
+    ...aktiiviset.map((a) => [...merkitOf(tila.kortit, layout, a.nro)].slice(asemat[asema].alku, asemat[asema].loppu).join(''))].join('|') : '';
   const avaaVahvistus = () => {
-    if (liianPian()) return false;
-    setVahvistus({ avain: vahvistusAvainNyt(), avattu: Date.now() });
-    return true;
+    if (!liianPian()) setVahvistus({ avain: vahvistusAvain, avattu: Date.now() });
   };
 
-  // Ulkoisen napin painallus (useNapit). Palauttaa false, jos mitään ei tehty (hylkäysääni).
+  // Ulkoisen napin painallus (useNapit, tulkinta ryhma.js napinToimenpide). false = hylkäysääni, null = ei tehty mitään
+  // (pitkä painallus voi seurata), true = tehty.
   const napinToiminto = (toiminto) => {
     if (!kirjausNakyvissa || valikko || korjaustila) return false;
-    if (toiminto === 'PERU') return peruViimeisin();
-    if (kohta) return merkitseKohta(toiminto);
-    const aktiiviset = aktiivisetNyt();
-    if (aktiiviset.some((a) => !asemaKuitattu(tila.kortit, layout, a.nro, asema))) {
-      const auki = vahvistus?.avain === vahvistusAvainNyt();
-      if (toiminto === 'O') {
-        if (!auki) return false;
-        setVahvistus(null);
-        if (tila.aanet !== false) soita('peru');
+    const toimenpide = napinToimenpide({
+      toiminto, kohta, kuittaamatta, lukittu, seuraavaAsema: seuraavaKesken, seuraavaLayout,
+      layoutValmis: layoutHyvaksytty(layout, ampujat, tila.kortit, tila.keskeyttaneet)
+    });
+    const aani = (nimi) => { if (tila.aanet !== false) soita(nimi); };
+    switch (toimenpide) {
+      case 'merkitse': return merkitseKohta(toiminto);
+      case 'peru': return peruViimeisin();
+      case 'ohita': return null;
+      case 'vihje':
+        // OSUMA ilman vuorossa olevaa kiekkoa: ääni kertoo, että pitämällä OSUMAa pohjassa asema hyväksytään tai
+        // siirrytään eteenpäin. null: useNapit odottaa, vapautetaanko nappi pitkänä painalluksena.
+        aani('vahvista');
+        return null;
+      case 'hyvaksy': return kuittaaKaikki();
+      case 'asema':
+        valitseAsema(seuraavaKesken);
+        aani('siirto');
         return true;
-      }
-      if (!auki) {
-        if (!avaaVahvistus()) return false;
-        if (tila.aanet !== false) soita('vahvista');
-        navigator.vibrate?.(30);
+      case 'layout':
+        valitseLayout(seuraavaLayout.nro);
+        aani('siirto');
         return true;
-      }
-      // Sama viive kuin näytön Kyllä-napissa, ettei toistuva painallus hyväksy vahingossa.
-      if (Date.now() - vahvistus.avattu < VAHVISTUSVIIVE_MS) return false;
-      return kuittaaKaikki();
+      default: return false;
     }
-    if (toiminto !== 'X' || liianPian()) return false;
-    const seuraavaA = seuraavaAsema(layout, asema, aktiiviset, tila.kortit);
-    if (seuraavaA !== null) {
-      valitseAsema(seuraavaA);
-    } else {
-      const seuraavaL = jarjestys.find((l) => l.nro !== layout.nro && !layoutHyvaksytty(l, ampujat, tila.kortit, tila.keskeyttaneet));
-      if (!seuraavaL) return false;
-      valitseLayout(seuraavaL.nro);
-    }
-    if (tila.aanet !== false) soita('korjaus');
-    return true;
   };
   const valitseAmpuja = (nro) => setTila((t) => ({ ...t, layout: layout?.nro ?? null, asema, valittu: nro }));
   const seuraava = () => {
@@ -640,14 +634,10 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   }
 
   const { alku, loppu } = asemat[asema];
-  const aktiiviset = ampujat.filter((a) => !tila.keskeyttaneet.includes(a.nro));
-  const seuraavaKesken = seuraavaAsema(layout, asema, aktiiviset, tila.kortit);
-  // Asema ammuttu, mutta joku ei ole vielä hyväksynyt sen tulostaan.
-  const kuittaamatta = !kohta && aktiiviset.some((a) => !asemaKuitattu(tila.kortit, layout, a.nro, asema));
   const osa = kohta && asemat[asema].osat.length > 1 ? kohdanOsa(layout, asema, kohta.i) : null;
   const layoutValmis = ampujat.every((a) => tila.keskeyttaneet.includes(a.nro) || taytetyt(merkitOf(tila.kortit, layout, a.nro)) === layout.kohteita);
   const viimeHistoria = tila.historia[tila.historia.length - 1];
-  const vahvistusAuki = kuittaamatta && vahvistus?.avain === vahvistusAvainNyt();
+  const vahvistusAuki = kuittaamatta && vahvistus?.avain === vahvistusAvain;
   const vahvista = () => {
     if (!vahvistus || Date.now() - vahvistus.avattu < VAHVISTUSVIIVE_MS) return;
     kuittaaKaikki();
@@ -768,14 +758,11 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
                 </div>
               );
             })}
-            {(() => {
-              const seuraavaLayout = jarjestys.find((l) => l.nro !== layout.nro && !layoutHyvaksytty(l, ampujat, tila.kortit, tila.keskeyttaneet));
-              return seuraavaLayout && (
-                <button type="button" className="self-start rounded border border-slate-400 px-3 py-2" onClick={() => valitseLayout(seuraavaLayout.nro)}>
-                  Seuraava layout: {seuraavaLayout.nimi}{seuraavaLayout.aika ? ` · ${seuraavaLayout.aika}` : ''}
-                </button>
-              );
-            })()}
+            {seuraavaLayout && (
+              <button type="button" className="self-start rounded border border-slate-400 px-3 py-2" onClick={() => valitseLayout(seuraavaLayout.nro)}>
+                Seuraava layout: {seuraavaLayout.nimi}{seuraavaLayout.aika ? ` · ${seuraavaLayout.aika}` : ''}
+              </button>
+            )}
           </div>
         )}
       </section>
@@ -790,8 +777,8 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           <>
             <div className="mb-1 min-h-10 text-sm">
               {vahvistusAuki
-                ? <>Hyväksyvätkö <b>kaikki ampujat</b> aseman {asemat[asema].id} tuloksensa? <span className="text-slate-600">Napeilla: OSUMA = kyllä, NOLLA = peruuta.</span></>
-                : <>Asema {asemat[asema].id} ammuttu: ampujat tarkistavat tuloksensa yltä. Huomautus? <b>Korjaa</b> ensin.</>}
+                ? <>Hyväksyvätkö <b>kaikki ampujat</b> aseman {asemat[asema].id} tuloksensa?</>
+                : <>Asema {asemat[asema].id} ammuttu: ampujat tarkistavat tuloksensa yltä. Huomautus? <b>Korjaa</b> ensin. <span className="text-slate-600">Käsiohjain: pidä OSUMA pohjassa = kaikki hyväksyvät.</span></>}
             </div>
             {vahvistusAuki ? (
               // PERU pysyy paikallaan; vahvistus on Korjaa-napin kohdalla ja Peruuta hyväksyntänapin kohdalla,

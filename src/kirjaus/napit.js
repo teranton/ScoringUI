@@ -8,6 +8,10 @@ export const TOIMINNOT = [
   { avain: 'PERU', nimi: 'PERU' }
 ];
 
+// Pitkä OSUMA-painallus (pidetään pohjassa ja vapautetaan) hyväksyy ryhmäpuhelimessa ammutun aseman tulokset
+// (useNapit). Lyhyt painallus on aina merkintä, joten tavallinen kirjaus ei voi hyväksyä vahingossa.
+export const PITKA_PAINALLUS_MS = 1000;
+
 // Oletukset: käsiohjaimen kirjaimet ja tavallisen esittelykaukosäätimen näppäimet (seuraava, edellinen, musta ruutu).
 export const OLETUSNAPIT = {
   X: ['KeyX', 'PageDown'],

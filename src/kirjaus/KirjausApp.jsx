@@ -718,6 +718,8 @@ function RataNakyma({ koodi, onVaihda }) {
   const kirjausNakyvissa = Boolean(avaus) && Boolean(ohjelma) && !muokkaaOhjelmaa
     && !(siirto && tila.haltija) && !tila.korvattu && !tila.luovutettu && !varattu;
   const [napit, setNapit] = useNapit(Boolean(avaus), (toiminto) => {
+    // Pitkä OSUMA (HYVAKSY) on Compakissa pelkkä merkintä, joka tehtiin jo painettaessa.
+    if (toiminto === 'HYVAKSY') return null;
     if (!kirjausNakyvissa || valikko || korjaustila || valinta) return false;
     return toiminto === 'PERU' ? peruViimeisin() : merkitseKohta(toiminto);
   }, tila.aanet !== false);
