@@ -19,11 +19,12 @@ import {
 import { laitteenNimi } from './haltija.js';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
+import { useNapit } from './useNapit.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import { KohdeMerkki, PinLomake } from './Haltija.jsx';
 import { soita } from './aanet.js';
-import { Asennus, SynkMerkki } from './Yhteiset.jsx';
+import { Asennus, NapitAsetus, SynkMerkki } from './Yhteiset.jsx';
 
 const SYNKRONOINTI_VALI_MS = 15000;
 const TARKISTUS_VALI_MS = 60000;
@@ -250,6 +251,22 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   useEffect(() => {
     if (otaHeti) otaRyhma();
   }, [otaHeti, latausKierros, otaRyhma]);
+
+  // Ulkoiset napit (tuomarin käsiohjain): OSUMA ja NOLLA merkitsevät vuorossa olevan kiekon, PERU peruu viimeisimmän.
+  // Vain kirjausnäkymässä (ryhmä tällä puhelimella). Aseman hyväksyntä tehdään aina näytöltä, koska ampujat
+  // tarkistavat tuloksensa siitä. Merkintää, jota ei kirjattu (valikko auki, korjaustila, asema ammuttu), seuraa
+  // hylkäysääni, koska kirjaaja ei välttämättä katso näyttöä. Lukitus ei estä: napin painallus on aina tarkoituksellinen.
+  const ryhmaMuualla = tila.korvattu || tila.luovutettu
+    || (!tila.haltija && avattuHaltija && !avattuHaltija.oma && !avattuHaltija.vapaa && !avattuHaltija.tamaLaite);
+  const [napit, setNapit] = useNapit(Boolean(avaus) && Boolean(layout) && !ryhmaMuualla, (toiminto) => {
+    if (valikko || korjaustila || (toiminto !== 'PERU' && !kohta)) {
+      if (tila.aanet !== false) soita('hylatty');
+      navigator.vibrate?.([80, 60, 80]);
+      return;
+    }
+    if (toiminto === 'PERU') peruViimeisin();
+    else merkitseKohta(toiminto);
+  });
 
   const korvattuAvauksessa = Boolean(tila.haltija && avattuHaltija && !avattuHaltija.oma && !avattuHaltija.tamaLaite);
   useEffect(() => {
@@ -522,6 +539,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
         <span>Äänet: <b>{tila.aanet !== false ? 'päällä' : 'pois'}</b></span>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={() => setTila((t) => ({ ...t, aanet: t.aanet === false }))}>{tila.aanet !== false ? 'Pois' : 'Päälle'}</button>
       </div>
+      <NapitAsetus napit={napit} onNapit={setNapit} />
       <p className="text-slate-600">
         {hereilla ? 'Näyttö pysyy päällä.' : 'Näytön päälläpito ei ole käytössä tällä selaimella.'}
         {lataus.tila === 'virhe' ? ` Ryhmän tietoja ei saatu päivitettyä (${lataus.viesti}).` : ''}
