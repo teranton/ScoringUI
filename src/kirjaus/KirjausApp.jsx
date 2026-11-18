@@ -7,9 +7,10 @@
 // siirto-QR-koodilla (vanha laite ilman verkkoa) tai kilpailutoimiston vaihto-PIN-koodilla (vanha laite poissa).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ASEMAN_KOHTEET, KOHTEITA, kuittaa, lahettamattomat, lueKoodi as lueKoodinSisalto, merkitOf, merkitse,
-  osumat, peru, taytetyt, yhdistaPalvelimelta
+  ASEMAN_KOHTEET, KOHTEITA, hairio, kuittaa, lahettamattomat, lueKoodi as lueKoodinSisalto, merkitOf, merkitse,
+  muutaTapahtumia, osumat, peru, tapahtumatOf, taytetyt, varoitus, yhdistaPalvelimelta
 } from './kortit.js';
+import { OLETUS_HAIRIORAJA, hairiot, kiekonSelite, kiekonTapahtumat, poista, TAYNNA_VIESTI, taynna, tapahtumaMuutos, varoitukset } from './tapahtumat.js';
 import {
   ASEMIA, OHJELMAT, jasennaOhjelma, laskeVuorot, linjanJono, linjanTilanne, ohjelmaTekstiksi, seuraavatAmpujat, valmiitAmpujat
 } from './linja.js';
@@ -133,6 +134,8 @@ function RataNakyma({ koodi, onVaihda }) {
   const [tallennus, setTallennus] = useState({ ok: true, pysyva: false });
   const asennus = useAsennus();
   const [valinta, setValinta] = useState(null);
+  // Varoitus vuorossa olevaan kiekkoon (kirjausnäkymän ⚑-nappi): { nro, i } tai null.
+  const [tuomio, setTuomio] = useState(null);
   const [naytetty, setNaytetty] = useState(null);
   // Korjauksen tai perumisen kuittaus hetken näytöllä: mitä muutettiin ja mistä jatketaan.
   const [kuittaus, setKuittaus] = useState(null);
@@ -560,6 +563,52 @@ function RataNakyma({ koodi, onVaihda }) {
     return true;
   };
 
+  // Toimintahäiriö vuorossa olevaan kiekkoon: rajan sisällä kiekko uusitaan, rajan yli se on nolla (vahvistetaan).
+  const hairioRaja = Number.isInteger(avaus?.hairioRaja) ? avaus.hairioRaja : OLETUS_HAIRIORAJA;
+  const kirjaaHairio = () => {
+    if (korjaustila || valinta || !tilanne || liianPian()) return;
+    const { kohta: k } = tilanne;
+    if (taynna(tapahtumatOf(tila.kortit, k.nro))) return window.alert(TAYNNA_VIESTI);
+    const n = hairiot(tapahtumatOf(tila.kortit, k.nro)) + 1;
+    const yli = n > hairioRaja;
+    if (yli && !window.confirm(`${n}. toimintahäiriö: sallittu ${hairioRaja} kierroksella. Kiekko merkitään NOLLAKSI. Jatketaanko?`)) return;
+    const ennen = merkitOf(tila.kortit, k.nro)[k.i];
+    kirjaa(yli ? 'häiriö, nolla' : 'häiriö', k, ennen, yli ? 'O' : ennen);
+    setTila((t) => ({ ...t, ...hairio(t, k, hairioRaja) }));
+    setKuittaus(yli ? `Häiriö ${n}/${hairioRaja}: ${kohdeTeksti(k)} → NOLLA.` : `Häiriö ${n}/${hairioRaja}: kiekko uusitaan.`);
+    if (tila.aanet !== false) soita(yli ? 'nolla' : 'korjaus', tila.nollaAani);
+    navigator.vibrate?.([30, 40, 30]);
+  };
+
+  // Varoitus tai kiekon tapahtumien poisto (tuomarin päätös). Syy kysytään (vapaaehtoinen); kortin toisesta varoituksesta
+  // alkaen kysytään, merkitäänkö kiekko nollaksi (yksi PERU peruu varoituksen ja nollan).
+  const kirjaaTuomio = (k, tyyppi) => {
+    if (!k || liianPian()) return;
+    const tap = tapahtumatOf(tila.kortit, k.nro);
+    let nolla = false;
+    if (tyyppi === 'poista') {
+      if (!window.confirm(`Poistetaanko kiekon tapahtumat (${kiekonSelite(tap, k.i)})?`)) return;
+      const uudet = poista(tap, k.i);
+      kirjaa('tapahtumat pois', k, tap, uudet);
+      setTila((t) => ({ ...t, ...muutaTapahtumia(t, k, uudet) }));
+    } else {
+      if (taynna(tap)) return window.alert(TAYNNA_VIESTI);
+      const aiemmat = varoitukset(tap);
+      const syy = window.prompt(`Varoitus: ${k.nro} ${nimi(k.nro)}.${aiemmat ? ` Kortilla on jo ${aiemmat} varoitus${aiemmat > 1 ? 'ta' : ''}.` : ''} Syy (vapaaehtoinen):`, '');
+      if (syy === null) return;
+      // Toistuvasta varoituksesta kiekko merkitään yleensä nollaksi; tuomari päättää.
+      nolla = aiemmat > 0 && window.confirm(`${aiemmat + 1}. varoitus: merkitäänkö kiekko NOLLAKSI?\nOK = nolla, Peruuta = pelkkä varoitus.`);
+      const ennen = merkitOf(tila.kortit, k.nro)[k.i];
+      kirjaa(nolla ? 'varoitus, nolla' : 'varoitus', k, ennen, nolla ? 'O' : ennen);
+      setTila((t) => ({ ...t, ...varoitus(t, k, syy, nolla) }));
+    }
+    korjattiinRef.current = true;
+    setKuittaus(tyyppi === 'poista' ? `Tapahtumat poistettu: ${kohdeTeksti(k)}.` : `Varoitus: ${kohdeTeksti(k)}${nolla ? ' → NOLLA' : ''}.`);
+    if (tila.aanet !== false) soita(nolla ? 'nolla' : 'korjaus', tila.nollaAani);
+    setValinta(null);
+    setTuomio(null);
+  };
+
   useEffect(() => {
     if (!kuittaus) return undefined;
     const ajastin = setTimeout(() => setKuittaus(null), KUITTAUS_MS);
@@ -853,6 +902,7 @@ function RataNakyma({ koodi, onVaihda }) {
       key={nro}
       ampuja={{ nro, nimi: nimi(nro) }}
       merkit={merkitOf(tila.kortit, nro)}
+      tapahtumat={tapahtumatOf(tila.kortit, nro)}
       lahetetty={tila.kortit[nro]?.lahetetty !== false}
       kohta={kohta?.nro === nro ? kohta.i : null}
       korostus={korostus}
@@ -867,7 +917,12 @@ function RataNakyma({ koodi, onVaihda }) {
   const viimeisinValmis = valmiit[0] ?? null;
   // Viimeisin merkintä PERU-napissa: näkee heti, mitä peruminen koskee.
   const viimeHistoria = tila.historia[tila.historia.length - 1];
-  const edellinen = viimeHistoria ? { nro: viimeHistoria.nro, merkki: merkitOf(tila.kortit, viimeHistoria.nro)[viimeHistoria.i] } : null;
+  const edellinen = viimeHistoria ? {
+    nro: viimeHistoria.nro,
+    merkki: merkitOf(tila.kortit, viimeHistoria.nro)[viimeHistoria.i],
+    tapahtuma: viimeHistoria.tapEnnen !== undefined ? tapahtumaMuutos(viimeHistoria.tapEnnen, tapahtumatOf(tila.kortit, viimeHistoria.nro)) : ''
+  } : null;
+  const vuorossaHairiot = vuorossa ? hairiot(tapahtumatOf(tila.kortit, vuorossa.nro)) : 0;
   const seuraava = tulevat[0];
   const sarja = vuorossa ? vuorossa.loppu - vuorossa.alku : 0;
 
@@ -1025,6 +1080,24 @@ function RataNakyma({ koodi, onVaihda }) {
                 <button type="button" className="h-14 rounded-lg bg-green-700 text-xl font-bold text-white active:bg-green-900 sm:h-20" onClick={korjaa}>Muuta OSUMAKSI</button>
               )}
             </div>
+            <TuomioNapit tapahtumat={tapahtumatOf(tila.kortit, valinta.nro)} i={valinta.i} onValitse={(tyyppi) => kirjaaTuomio(valinta, tyyppi)} />
+          </>
+        ) : tuomio ? (
+          <>
+            <div className="mb-1 text-center text-sm leading-tight">
+              <div className="truncate font-bold text-purple-900">Tuomarin merkintä: {kohdeTeksti(tuomio)}</div>
+              <div className="truncate text-xs text-slate-600">
+                {kiekonSelite(tapahtumatOf(tila.kortit, tuomio.nro), tuomio.i)
+                  || (varoitukset(tapahtumatOf(tila.kortit, tuomio.nro)) ? 'Kortilla on jo varoitus: kiekko voidaan merkitä nollaksi.' : 'Merkintä näkyy kiekon kulmassa.')}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" className="h-14 rounded-lg border-2 border-slate-400 text-lg font-semibold active:bg-slate-200 sm:h-20" onClick={() => setTuomio(null)}>Peruuta</button>
+              <button type="button" className="h-14 rounded-lg bg-purple-700 text-lg font-bold text-white active:bg-purple-900 sm:h-20" onClick={() => kirjaaTuomio(tuomio, 'V')}>Varoitus</button>
+            </div>
+            {kiekonTapahtumat(tapahtumatOf(tila.kortit, tuomio.nro), tuomio.i).length > 0 && (
+              <button type="button" className="mt-1 w-full rounded border border-slate-400 py-1 text-sm" onClick={() => kirjaaTuomio(tuomio, 'poista')}>Poista kiekon merkinnät</button>
+            )}
           </>
         ) : korjaustila ? (
           <>
@@ -1039,20 +1112,29 @@ function RataNakyma({ koodi, onVaihda }) {
           </>
         ) : (
           <>
-            <div className={`mb-1 h-5 truncate text-center text-sm sm:mb-2 sm:h-6 ${kuittaus ? 'rounded bg-amber-100 text-amber-900' : ''}`}>
-              {kuittaus ? (
-                <>{kuittaus} {vuorossa ? <>Jatka: <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b>, asema {vuorossa.asema + 1}</> : ''}</>
-              ) : vuorossa && (
-                <>
-                  Vuorossa <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b> · asema {vuorossa.asema + 1} ·{' '}
-                  {sarja === 2 ? <b>tupla, kiekko {kohta.i - vuorossa.alku + 1}/2</b> : 'yksittäinen'}
-                </>
-              )}
+            <div className="mb-1 flex h-6 items-center gap-1 sm:mb-2 sm:h-7">
+              <div className={`min-w-0 flex-1 truncate text-center text-sm ${kuittaus ? 'rounded bg-amber-100 text-amber-900' : ''}`}>
+                {kuittaus ? (
+                  <>{kuittaus} {vuorossa ? <>Jatka: <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b>, asema {vuorossa.asema + 1}</> : ''}</>
+                ) : vuorossa && (
+                  <>
+                    Vuorossa <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b> · asema {vuorossa.asema + 1} ·{' '}
+                    {sarja === 2 ? <b>tupla, kiekko {kohta.i - vuorossa.alku + 1}/2</b> : 'yksittäinen'}
+                  </>
+                )}
+              </div>
+              {/* Toimintahäiriö ja tuomarin merkinnät pieninä, etteivät ne vie tilaa eivätkä osu vahingossa. */}
+              <button type="button" aria-label="Toimintahäiriö" className="h-full shrink-0 rounded border border-amber-500 bg-amber-50 px-2 text-xs font-semibold text-amber-900 active:bg-amber-200 disabled:opacity-30" disabled={!tilanne} onClick={kirjaaHairio}>
+                Häiriö{vuorossaHairiot > 0 ? ` ${vuorossaHairiot}/${hairioRaja}` : ''}
+              </button>
+              <button type="button" aria-label="Varoitus" className="h-full shrink-0 rounded border border-purple-500 bg-purple-50 px-2 text-xs font-semibold text-purple-900 active:bg-purple-200 disabled:opacity-30" disabled={!tilanne} onClick={() => tilanne && setTuomio(tilanne.kohta)}>
+                ⚑
+              </button>
             </div>
             <div className="grid grid-cols-[1fr_2fr_2fr] gap-2">
               <button type="button" className="flex h-14 flex-col items-center justify-center rounded-lg border-2 border-slate-400 font-semibold active:bg-slate-200 disabled:opacity-30 sm:h-20" disabled={!edellinen} onClick={peruViimeisin}>
                 <span className="text-lg leading-tight">PERU</span>
-                {edellinen && <span className="text-[11px] font-normal leading-tight text-slate-600">{edellinen.nro}: {edellinen.merkki === 'X' ? 'osuma' : edellinen.merkki === 'O' ? 'nolla' : 'tyhjä'}</span>}
+                {edellinen && <span className="text-[11px] font-normal leading-tight text-slate-600">{edellinen.nro}: {edellinen.tapahtuma || (edellinen.merkki === 'X' ? 'osuma' : edellinen.merkki === 'O' ? 'nolla' : 'tyhjä')}</span>}
               </button>
               <button type="button" className="h-14 rounded-lg bg-red-700 text-2xl font-bold text-white active:bg-red-900 disabled:opacity-30 sm:h-20" disabled={!tilanne} onClick={() => merkitseKohta('O')}>
                 NOLLA
@@ -1205,6 +1287,17 @@ function Valikko({
           Tyhjennä rata laitteelta (testiversio)
         </button>
       )}
+    </div>
+  );
+}
+
+// Korjaustilan kiekkovalikon tuomarinapit: varoitus ja kiekon tapahtumien poisto.
+function TuomioNapit({ tapahtumat, i, onValitse }) {
+  const omat = kiekonTapahtumat(tapahtumat, i);
+  return (
+    <div className="mt-1 grid grid-cols-2 gap-2 text-sm">
+      <button type="button" className="rounded bg-purple-700 py-1.5 font-semibold text-white active:bg-purple-900" onClick={() => onValitse('V')}>Varoitus</button>
+      <button type="button" className="rounded border border-slate-400 py-1.5 disabled:opacity-30" disabled={omat.length === 0} onClick={() => onValitse('poista')}>Poista merkinnät</button>
     </div>
   );
 }
