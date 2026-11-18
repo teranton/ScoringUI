@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   aloitusAsema, aloitusLayout, asemaJarjestys, asemanSiirto, asemanVali, asemaKuitattu, kuittaaAsema, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, kierrata, korttiAvain, kuittaa, lahettamattomat,
-  layoutHyvaksytty, layoutJarjestys, layoutinTila, merkitOf, merkitse, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, yhdistaPalvelimelta
+  layoutHyvaksytty, layoutJarjestys, napinToimenpide, layoutinTila, merkitOf, merkitse, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, yhdistaPalvelimelta
 } from './ryhma.js';
 
 const L1 = { nro: 1, nimi: 'Metsä', asemat: [{ sarake: 1, id: '1', kohteita: 2 }, { sarake: 2, id: '2', kohteita: 3 }], kohteita: 5 };
@@ -191,4 +191,25 @@ test('asemajako: lähtee kortin mukana, muutos sovitetaan asema kerrallaan, pois
   const kuitattu = kuittaa(t.kortit, lahetetyt, { hylatyt: [{ layout: 1, nro: 4, syy: 'layout' }] });
   assert.equal(kuitattu[korttiAvain(1, 4)].hylatty, true);
   assert.deepEqual(lahettamattomat(kuitattu), []);
+});
+
+test('ulkoisen napin tulkinta: lyhyt OSUMA merkitsee, pitkä hyväksyy', () => {
+  const kohta = { nro: 4, i: 0 };
+  const t = (lisat) => napinToimenpide({ kohta: null, kuittaamatta: false, lukittu: false, vahvistusAuki: false, seuraavaAsema: null, seuraavaLayout: null, layoutKuitattu: false, ...lisat });
+  assert.equal(t({ toiminto: 'X', kohta }), 'merkitse');
+  assert.equal(t({ toiminto: 'O', kohta }), 'merkitse');
+  assert.equal(t({ toiminto: 'PERU' }), 'peru');
+  assert.equal(t({ toiminto: 'HYVAKSY', kohta, kuittaamatta: true }), 'ohita', 'pitkä painallus kirjauksen aikana on vain merkintä');
+  assert.equal(t({ toiminto: 'X', kuittaamatta: true }), 'vihje', 'lyhyt OSUMA ei hyväksy');
+  assert.equal(t({ toiminto: 'O', kuittaamatta: true }), null);
+  assert.equal(t({ toiminto: 'HYVAKSY', kuittaamatta: true }), 'hyvaksy');
+  assert.equal(t({ toiminto: 'HYVAKSY', kuittaamatta: true, lukittu: true }), null, 'ei hyväksyntää lukittuna');
+  assert.equal(t({ toiminto: 'X', kuittaamatta: true, lukittu: true }), null, 'lukittuna ei vihjettä hyväksynnästä');
+  assert.equal(t({ toiminto: 'O', kuittaamatta: true, vahvistusAuki: true }), 'peruuta');
+  assert.equal(t({ toiminto: 'X', seuraavaAsema: 2 }), 'vihje', 'valmiilla asemalla lyhyt OSUMA ei siirrä');
+  assert.equal(t({ toiminto: 'X' }), null, 'layout valmis eikä seuraavaa: hylätään');
+  assert.equal(t({ toiminto: 'X', seuraavaLayout: { nro: 2 }, layoutKuitattu: false }), null);
+  assert.equal(t({ toiminto: 'HYVAKSY', seuraavaAsema: 0 }), 'asema');
+  assert.equal(t({ toiminto: 'HYVAKSY', seuraavaLayout: { nro: 2 }, layoutKuitattu: false }), null, 'hyväksymätön asema jää: ei seuraavaa layoutia');
+  assert.equal(t({ toiminto: 'HYVAKSY', seuraavaLayout: { nro: 2 }, layoutKuitattu: true }), 'layout');
 });
