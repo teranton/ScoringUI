@@ -315,6 +315,44 @@ const TEKSTIT = jaadyta({
       seed: 'Sijoitus pääkilpailussa',
       tbd: 'Ratkeaa myöhemmin'
     },
+    kirjausTapahtumat: {
+      hairio: 'Häiriö',
+      hairioLaskuri: 'Häiriö {n}/{raja}',
+      varoitus: 'Varoitus',
+      varoitusNappi: '⚑ Varoitus',
+      naytaNapit: 'Häiriö tai varoitus',
+      piilotaNapit: 'Piilota häiriö ja varoitus',
+      hairioYliKierros: '{n}. toimintahäiriö: sallittu {raja} kierroksella. Kiekko merkitään NOLLAKSI. Jatketaanko?',
+      hairioYliAsema: '{n}. toimintahäiriö: sallittu {raja} asemalla. Kiekko merkitään NOLLAKSI. Jatketaanko?',
+      hairioYliLayout: '{n}. toimintahäiriö: sallittu {raja} layoutilla. Kiekko merkitään NOLLAKSI. Jatketaanko?',
+      hairioNolla: 'Häiriö {n}/{raja}: {kiekko} → NOLLA.',
+      hairioUusitaan: 'Häiriö {n}/{raja}: kiekko uusitaan.',
+      poistaKysymys: 'Poistetaanko kiekon tapahtumat ({selite})?',
+      varoitusOtsikko: 'Varoitus: {ampuja}.',
+      aiempiVaroitus: 'Kortilla on jo 1 varoitus.',
+      aiemmatVaroitukset: 'Kortilla on jo {n} varoitusta.',
+      syyKysymys: 'Syy (vapaaehtoinen):',
+      varoitusNollaKysymys: '{n}. varoitus: merkitäänkö kiekko NOLLAKSI?\nOK = nolla, Peruuta = pelkkä varoitus.',
+      poistettu: 'Tapahtumat poistettu: {kiekko}.',
+      varoitusKuittaus: 'Varoitus: {kiekko}.',
+      varoitusNollaKuittaus: 'Varoitus: {kiekko} → NOLLA.',
+      tuomarinMerkinta: 'Tuomarin merkintä: {kiekko}',
+      tuomarinMerkintaKiekkoon: 'Tuomarin merkintä kiekkoon {k}',
+      tuomaritilaOhje: 'Tuomarin merkintä: napauta kiekkoa.',
+      onJoVaroitus: 'Kortilla on jo varoitus: kiekko voidaan merkitä nollaksi.',
+      merkintaKulmassa: 'Merkintä näkyy kiekon kulmassa.',
+      peruuta: 'Peruuta',
+      poistaKiekonMerkinnat: 'Poista kiekon merkinnät',
+      poistaMerkinnat: 'Poista merkinnät',
+      taynna: 'Kortilla on jo {maks} häiriötä tai varoitusta. Kirjaa lisät paperille ja kerro toimistolle.',
+      nimiHairio: 'toimintahäiriö',
+      nimiHairioNolla: 'toimintahäiriö yli rajan (nolla)',
+      nimiVaroitus: 'varoitus',
+      muutosHairio: 'häiriö',
+      muutosHairioNolla: 'häiriö, nolla',
+      muutosVaroitus: 'varoitus',
+      muutosPoisto: 'poisto'
+    },
     saa: {
       title: 'Sääennuste',
       source: 'Sää: Ilmatieteen laitos',
@@ -637,6 +675,44 @@ const TEKSTIT = jaadyta({
       seed: 'Place in the main competition',
       tbd: 'To be decided'
     },
+    kirjausTapahtumat: {
+      hairio: 'Malfunction',
+      hairioLaskuri: 'Malfunction {n}/{raja}',
+      varoitus: 'Warning',
+      varoitusNappi: '⚑ Warning',
+      naytaNapit: 'Malfunction or warning',
+      piilotaNapit: 'Hide malfunction and warning',
+      hairioYliKierros: 'Malfunction {n}: {raja} allowed per round. The target will be scored as a MISS. Continue?',
+      hairioYliAsema: 'Malfunction {n}: {raja} allowed per stand. The target will be scored as a MISS. Continue?',
+      hairioYliLayout: 'Malfunction {n}: {raja} allowed per layout. The target will be scored as a MISS. Continue?',
+      hairioNolla: 'Malfunction {n}/{raja}: {kiekko} → MISS.',
+      hairioUusitaan: 'Malfunction {n}/{raja}: the target is repeated.',
+      poistaKysymys: 'Remove the target\'s events ({selite})?',
+      varoitusOtsikko: 'Warning: {ampuja}.',
+      aiempiVaroitus: 'The card already has 1 warning.',
+      aiemmatVaroitukset: 'The card already has {n} warnings.',
+      syyKysymys: 'Reason (optional):',
+      varoitusNollaKysymys: 'Warning {n}: score the target as a MISS?\nOK = miss, Cancel = warning only.',
+      poistettu: 'Events removed: {kiekko}.',
+      varoitusKuittaus: 'Warning: {kiekko}.',
+      varoitusNollaKuittaus: 'Warning: {kiekko} → MISS.',
+      tuomarinMerkinta: 'Referee\'s mark: {kiekko}',
+      tuomarinMerkintaKiekkoon: 'Referee\'s mark on target {k}',
+      tuomaritilaOhje: 'Referee\'s mark: tap a target.',
+      onJoVaroitus: 'The card already has a warning: the target can be scored as a miss.',
+      merkintaKulmassa: 'The mark is shown in the corner of the target.',
+      peruuta: 'Cancel',
+      poistaKiekonMerkinnat: 'Remove the target\'s marks',
+      poistaMerkinnat: 'Remove marks',
+      taynna: 'The card already has {maks} malfunctions or warnings. Record more on paper and tell the office.',
+      nimiHairio: 'malfunction',
+      nimiHairioNolla: 'malfunction over the limit (miss)',
+      nimiVaroitus: 'warning',
+      muutosHairio: 'malfunction',
+      muutosHairioNolla: 'malfunction, miss',
+      muutosVaroitus: 'warning',
+      muutosPoisto: 'removal'
+    },
     saa: {
       title: 'Weather forecast',
       source: 'Weather: Finnish Meteorological Institute',
@@ -661,4 +737,9 @@ export function haeTekstit(nakyma, locale) {
   const tekstit = TEKSTIT[kieli][nakyma];
   if (!tekstit) throw new Error(`Tuntematon tekstiosio: ${nakyma}`);
   return tekstit;
+}
+
+// Täyttää tekstin paikat {nimi} arvoilla; tuntematon paikka jää ennalleen.
+export function tayta(teksti, arvot = {}) {
+  return String(teksti).replace(/\{(\w+)\}/g, (osa, nimi) => (Object.hasOwn(arvot, nimi) ? String(arvot[nimi]) : osa));
 }

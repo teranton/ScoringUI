@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { haeTekstit } from './i18n.js';
+import { haeTekstit, tayta } from './i18n.js';
 
 const NAKYMAT = [
   'app', 'kisaStatus', 'aikataulu', 'aikatauluHaku', 'aikatauluMobiili', 'aikatauluTulostus',
   'aikatauluRyhma', 'henkiloTaulukko', 'henkiloTulokset', 'ilmoittautuminen', 'ilmoittautuneet', 'joukkueTulokset',
-  'liveRadat', 'materiaalit', 'rankingTulokset', 'ryhmaJako', 'saa', 'tulosteTulokset', 'tulosteAikataulu'
+  'kirjausTapahtumat', 'liveRadat', 'materiaalit', 'rankingTulokset', 'ryhmaJako', 'saa', 'tulosteTulokset', 'tulosteAikataulu'
 ];
 
 test('suomella ja englannilla on samat avaimet ja ei-tyhjät tekstit', () => {
@@ -28,4 +28,9 @@ test('muu kuin en palauttaa suomen', () => {
 test('tuntematon osio heittää virheen ja tekstit on jäädytetty', () => {
   assert.throws(() => haeTekstit('aikatauluu', 'fi'), /Tuntematon tekstiosio/);
   assert.ok(Object.isFrozen(haeTekstit('app', 'fi')));
+});
+
+test('tayta täyttää paikat ja jättää tuntemattomat', () => {
+  assert.equal(tayta('Häiriö {n}/{raja}', { n: 1, raja: 2 }), 'Häiriö 1/2');
+  assert.equal(tayta('{a} {b}', { a: 'x' }), 'x {b}');
 });
