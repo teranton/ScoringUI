@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   aloitusAsema, aloitusLayout, asemaJarjestys, asemaKesken, asemaKuitattu, asemanSiirto, kierrata, kuittaaAsema, kohdanOsa, pisteet, pisteKiekolle, seuraavaAsema, korttiAvain, kuittaa, lahettamattomat,
-  layoutHyvaksytty, layoutJarjestys, layoutinTila, napinToimenpide, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaAmpuja, seuraavaKohta, sovitaPituudet, taytetyt,
+  layoutHyvaksytty, layoutJarjestys, layoutinTila, napinToimenpide, merkitOf, merkitse, osumat, otaTaydennykset, peru, seuraavaKohta, sovitaPituudet, taytetyt,
   yhdistaPalvelimelta
 } from './ryhma.js';
 import { lueKoodi as lueKoodinSisalto } from './kortit.js';
@@ -482,11 +482,6 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
     }
   };
   const valitseAmpuja = (nro) => setTila((t) => ({ ...t, layout: layout?.nro ?? null, asema, valittu: nro }));
-  const seuraava = () => {
-    if (!layout || !kohta) return;
-    const nro = seuraavaAmpuja(layout, asema, vuoro, tila.kortit, kohta.nro, tila.keskeyttaneet);
-    if (nro !== null) valitseAmpuja(nro);
-  };
 
   const lataaLoki = async () => {
     const rivit = await lueMerkinnat(info.sheetId, tunnus);
@@ -647,7 +642,6 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   }
 
   const { alku, loppu } = asemat[asema];
-  const osa = kohta && asemat[asema].osat.length > 1 ? kohdanOsa(layout, asema, kohta.i) : null;
   const layoutValmis = ampujat.every((a) => tila.keskeyttaneet.includes(a.nro) || taytetyt(merkitOf(tila.kortit, layout, a.nro)) === layout.kohteita);
   const viimeHistoria = tila.historia[tila.historia.length - 1];
   const vahvistusAuki = kuittaamatta && vahvistus?.avain === vahvistusAvain;
@@ -826,11 +820,11 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           <>
             <div className={`mb-1 flex h-6 items-center gap-2 text-sm ${kuittaus ? 'rounded bg-amber-100 px-1 text-amber-900' : ''}`}>
               <span className="min-w-0 flex-1 truncate">
+                {/* Vuorossa oleva näkyy korostettuna listassa; ampujan voi vaihtaa napauttamalla nimeä. */}
                 {kuittaus || (kohta
-                  ? <>Vuorossa <b>{kohta.nro} {nimi(kohta.nro)}</b>{osa ? ` · ${osa.nimi}` : ''} · kiekko {kohta.i - alku + 1}/{loppu - alku}</>
+                  ? ''
                   : kuittaamatta ? 'Hyväksykää aseman tulokset.' : seuraavaKesken !== null ? 'Asema valmis.' : 'Layout valmis.')}
               </span>
-              {kohta && <button type="button" className="shrink-0 rounded border border-slate-400 px-2 text-xs leading-6" onClick={seuraava}>Seuraava ampuja ›</button>}
               {!kohta && seuraavaKesken !== null && (
                 <button type="button" className="shrink-0 rounded bg-blue-800 px-2 text-xs leading-6 text-white" onClick={() => valitseAsema(seuraavaKesken)}>Asema {asemat[seuraavaKesken].id} ›</button>
               )}
