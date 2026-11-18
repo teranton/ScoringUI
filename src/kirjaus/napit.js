@@ -12,6 +12,34 @@ export const TOIMINNOT = [
 // (useNapit). Lyhyt painallus on aina merkintä, joten tavallinen kirjaus ei voi hyväksyä vahingossa.
 export const PITKA_PAINALLUS_MS = 1000;
 
+// Pohjassa olevat näppäimet. Pidetty näppäin on yksi painallus: Android-tabletti voi toistaa Bluetooth-näppäimistön
+// pidettyä näppäintä keydown-tapahtumina ilman repeat-merkintää, joten toisto tunnistetaan siitä, ettei välissä
+// tullut keyupia. alas() kertoo, onko kyse uudesta painalluksesta; ylos() kertoo, oliko painallus pitkä ja odottiko
+// se pitkää painallusta (odota()). Kirjauksen aikana painallus merkitsee heti eikä odota, joten pitkä painallus
+// ei silloin tee mitään ylimääräistä.
+export function luoPainallukset() {
+  const pohjassa = new Map();
+  return {
+    alas(koodi, aika) {
+      if (pohjassa.has(koodi)) return false;
+      pohjassa.set(koodi, { alku: aika, odottaa: false });
+      return true;
+    },
+    odota(koodi) {
+      const p = pohjassa.get(koodi);
+      if (p) p.odottaa = true;
+    },
+    ylos(koodi, aika) {
+      const p = pohjassa.get(koodi);
+      pohjassa.delete(koodi);
+      return Boolean(p && p.odottaa && aika - p.alku >= PITKA_PAINALLUS_MS);
+    },
+    tyhjenna() {
+      pohjassa.clear();
+    }
+  };
+}
+
 // Oletukset: käsiohjaimen kirjaimet ja tavallisen esittelykaukosäätimen näppäimet (seuraava, edellinen, musta ruutu).
 export const OLETUSNAPIT = {
   X: ['KeyX', 'PageDown'],

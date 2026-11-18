@@ -1,7 +1,7 @@
 // Ulkoisten nappien painallukset kirjaukseen (napit.js). Käsittelijä luetaan viitteestä, joten se näkee aina
 // tuoreimman tilan ilman, että kuuntelija vaihtuu joka piirrossa.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PITKA_PAINALLUS_MS, toimintoNappaimesta } from './napit.js';
+import { luoPainallukset, toimintoNappaimesta } from './napit.js';
 import { lueNapit, tallennaNapit } from './varasto.js';
 import { soita } from './aanet.js';
 
@@ -9,7 +9,8 @@ import { soita } from './aanet.js';
 // mahdollista pitkää painallusta, ja false, jos mitään ei tehty (väärä näkymä, valikko auki, mitään ei peruttavaa,
 // liian nopea toisto): silloin kuuluu hylkäysääni ja värinä, koska kirjaaja ei välttämättä katso näyttöä.
 // 'HYVAKSY' tulee, kun OSUMA vapautetaan vähintään PITKA_PAINALLUS_MS pohjassa pidettynä, mutta vain jos saman
-// painalluksen 'X' palautti null. Painallus, joka merkitsi kiekon, ei siis koskaan hyväksy.
+// painalluksen 'X' palautti null. Painallus, joka merkitsi kiekon, ei siis koskaan hyväksy. Pohjassa pidetty
+// näppäin on yksi painallus, vaikka laite toistaisi keydownia ilman repeat-merkintää (luoPainallukset).
 export function useNapit(kaytossa, onToiminto, aanet = true) {
   const [napit, setNapit] = useState(lueNapit);
   const kasittelija = useRef(onToiminto);
@@ -21,7 +22,7 @@ export function useNapit(kaytossa, onToiminto, aanet = true) {
 
   useEffect(() => {
     if (!kaytossa) return undefined;
-    const alhaalla = new Map();
+    const painallukset = luoPainallukset();
     const tee = (toiminto) => {
       const tulos = kasittelija.current(toiminto);
       if (tulos === false) {
@@ -35,27 +36,28 @@ export function useNapit(kaytossa, onToiminto, aanet = true) {
       if (!toiminto) return;
       // Ei sivun vieritystä (PageDown) eikä kohdistetun painikkeen painallusta.
       e.preventDefault();
-      const tulos = tee(toiminto);
-      if (tulos === null) alhaalla.set(e.code, Date.now());
-      else alhaalla.delete(e.code);
+      if (!painallukset.alas(e.code, Date.now())) return;
+      if (tee(toiminto) === null) painallukset.odota(e.code);
     };
     // Välilyönti ja Enter painavat kohdistettua painiketta myös näppäintä vapautettaessa.
     const vapauta = (e) => {
       const toiminto = toimintoNappaimesta(e, napit);
       if (!toiminto) return;
       e.preventDefault();
-      const alku = alhaalla.get(e.code);
-      alhaalla.delete(e.code);
-      if (toiminto === 'X' && alku && Date.now() - alku >= PITKA_PAINALLUS_MS) tee('HYVAKSY');
+      const pitka = painallukset.ylos(e.code, Date.now());
+      if (toiminto === 'X' && pitka) tee('HYVAKSY');
     };
-    const unohda = () => alhaalla.clear();
+    // Kadonnut keyup (sovelluksen vaihto, näytön lukitus) ei saa jättää näppäintä pohjaan.
+    const unohda = () => painallukset.tyhjenna();
     window.addEventListener('keydown', kuuntele);
     window.addEventListener('keyup', vapauta);
     window.addEventListener('blur', unohda);
+    document.addEventListener('visibilitychange', unohda);
     return () => {
       window.removeEventListener('keydown', kuuntele);
       window.removeEventListener('keyup', vapauta);
       window.removeEventListener('blur', unohda);
+      document.removeEventListener('visibilitychange', unohda);
     };
   }, [kaytossa, napit]);
 

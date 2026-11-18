@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { OLETUSNAPIT, jasennaNapit, nappiTekstina, onOletus, opetaNappi, toimintoNappaimesta } from './napit.js';
+import { OLETUSNAPIT, PITKA_PAINALLUS_MS, jasennaNapit, luoPainallukset, nappiTekstina, onOletus, opetaNappi, toimintoNappaimesta } from './napit.js';
 
 const painallus = (code, lisat = {}) => ({ code, repeat: false, ctrlKey: false, metaKey: false, altKey: false, target: { tagName: 'BODY' }, ...lisat });
 
@@ -56,4 +56,32 @@ test('näppäin luettavaksi', () => {
   assert.equal(nappiTekstina('Digit3'), '3');
   assert.equal(nappiTekstina('Period'), '.');
   assert.equal(nappiTekstina('PageDown'), 'PageDown');
+});
+
+test('pidetty näppäin on yksi painallus, vaikka keydown toistuisi ilman repeat-merkintää', () => {
+  const p = luoPainallukset();
+  assert.equal(p.alas('KeyX', 0), true);
+  assert.equal(p.alas('KeyX', 500), false);
+  assert.equal(p.alas('KeyX', 1500), false);
+  assert.equal(p.alas('KeyO', 600), true);
+  // Merkitsevä painallus ei odottanut, joten pitkäkään vapautus ei hyväksy.
+  assert.equal(p.ylos('KeyX', 2000), false);
+  assert.equal(p.alas('KeyX', 2100), true);
+});
+
+test('pitkä painallus vain, kun painallus odotti ja oli pohjassa riittävän kauan', () => {
+  const p = luoPainallukset();
+  p.alas('KeyX', 0);
+  p.odota('KeyX');
+  assert.equal(p.ylos('KeyX', PITKA_PAINALLUS_MS - 1), false);
+  p.alas('KeyX', 0);
+  p.odota('KeyX');
+  p.alas('KeyX', 300);
+  assert.equal(p.ylos('KeyX', PITKA_PAINALLUS_MS), true);
+  assert.equal(p.ylos('KeyX', 5000), false);
+  p.alas('KeyX', 0);
+  p.odota('KeyX');
+  p.tyhjenna();
+  assert.equal(p.ylos('KeyX', 5000), false);
+  assert.equal(p.alas('KeyX', 5000), true);
 });
