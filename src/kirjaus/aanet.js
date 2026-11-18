@@ -22,7 +22,9 @@ const AANET = {
   // Ammuttu asema odottaa hyväksyntää: lyhyt OSUMA-painallus muistuttaa, että pitkä painallus hyväksyy.
   vahvista: { aalto: 'square', voimakkuus: 0.6, savelet: [[880, 0, 0.07], [1100, 0.1, 0.07], [1320, 0.2, 0.07]] },
   // Ulkoinen nappi siirsi seuraavalle asemalle tai layoutille.
-  siirto: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[784, 0, 0.08], [784, 0.12, 0.08]] }
+  siirto: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[784, 0, 0.08], [784, 0.12, 0.08]] },
+  // Pitkä painallus on kestänyt tarpeeksi: nappi voidaan vapauttaa (useNapit).
+  pitka: { aalto: 'square', voimakkuus: 0.7, savelet: [[1568, 0, 0.18]] }
 };
 
 // Nollan äänivaihtoehdot (valitaan laitteella). nolla laskee; nolla2 (tuplan molemmat ohi, toinen) nousee.

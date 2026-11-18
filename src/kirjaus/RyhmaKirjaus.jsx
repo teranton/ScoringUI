@@ -791,7 +791,7 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
             <div className="mb-1 min-h-10 text-sm">
               {vahvistusAuki
                 ? <>Hyväksyvätkö <b>kaikki ampujat</b> aseman {asemat[asema].id} tuloksensa?</>
-                : <>Asema {asemat[asema].id} ammuttu: ampujat tarkistavat tuloksensa yltä. Huomautus? <b>Korjaa</b> ensin. <span className="text-slate-600">Käsiohjain: pidä OSUMA pohjassa = kaikki hyväksyvät.</span></>}
+                : <>Asema {asemat[asema].id} ammuttu: ampujat tarkistavat tuloksensa yltä. Huomautus? <b>Korjaa</b> ensin. <span className="text-slate-600">Käsiohjain: pidä OSUMA pohjassa piippaukseen asti ja päästä irti = kaikki hyväksyvät.</span></>}
             </div>
             {vahvistusAuki ? (
               // PERU pysyy paikallaan; vahvistus on Korjaa-napin kohdalla ja Peruuta hyväksyntänapin kohdalla,
