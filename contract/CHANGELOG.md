@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Mobile entry records malfunctions and warnings: a new column `TAPAHTUMAT` at the end of `MOBIILI Rata N` and
+  `MOBIILI Layout N` (existing tabs are widened on the next save) and a new optional `KISANSPEKSIT` key
+  `TOIMINTAHAIRIOT` (allowed malfunctions per card, per stand in English Sporting; default 1 for Compak and FITASC,
+  2 otherwise). Events don't change results: a malfunction over the limit or a repeated warning marks the target `O`.
+  Additive: cards without events read as before.
+
 - Mobile entry can use up to four writer service accounts (`KIRJURI_CLIENT_EMAIL_2..4`); ScoringLib's `KIRJURI_PALVELUTILI`
   lists them and shares the sheet with every one. No tab or header change.
 
