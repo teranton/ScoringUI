@@ -28,6 +28,8 @@ import Lukitus from './Lukitus.jsx';
 import { KohdeMerkki, PinLomake } from './Haltija.jsx';
 import { soita } from './aanet.js';
 import { Asennus, NapitAsetus, SynkMerkki } from './Yhteiset.jsx';
+import { TapahtumaNapit, VetoKahva } from './TapahtumaVeto.jsx';
+import { useVeto } from './veto.js';
 
 const SYNKRONOINTI_VALI_MS = 15000;
 const TARKISTUS_VALI_MS = 60000;
@@ -66,6 +68,9 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
   const [korjaustila, setKorjaustila] = useState(false);
   // Tuomarin merkintä (varoitus) kiekkoon: { nro, i } tai null; korjaustilassa tuomaritila valitsee kiekon napautuksella.
   const [tuomio, setTuomio] = useState(null);
+  // Häiriö- ja varoitusnapit näkyvissä (tilarivi pyyhkäisty ylös, TapahtumaVeto.jsx).
+  const [tapahtumaNapit, setTapahtumaNapit] = useState(false);
+  const veto = useVeto(() => setTapahtumaNapit(true), () => setTapahtumaNapit(false));
   const [tuomaritila, setTuomaritila] = useState(false);
   // Aseman hyväksyntä vaatii vahvistuksen, ettei vahinkopainallus hyväksy: { avain, avattu }. Avain sisältää aseman
   // merkit ja keskeyttäneet, joten vahvistus raukeaa, jos tulokset muuttuvat sen ollessa auki.
@@ -913,21 +918,19 @@ export default function RyhmaNakyma({ koodi, onVaihda }) {
           </>
         ) : (
           <>
-            <div className={`mb-1 flex h-6 items-center gap-2 text-sm ${kuittaus ? 'rounded bg-amber-100 px-1 text-amber-900' : ''}`}>
+            {tapahtumaNapit && kohta && (
+              <TapahtumaNapit hairioTeksti={`Häiriö${vuorossaHairiot > 0 ? ` ${vuorossaHairiot}/${hairioRaja}` : ''}`} onHairio={kirjaaHairio}
+                onVaroitus={() => setTuomio({ nro: kohta.nro, i: kohta.i })} onSulje={() => setTapahtumaNapit(false)} />
+            )}
+            <div className={`mb-1 flex h-6 touch-none items-center gap-2 text-sm ${kuittaus ? 'rounded bg-amber-100 px-1 text-amber-900' : ''}`} {...veto}>
               <span className="min-w-0 flex-1 truncate">
                 {/* Vuorossa oleva näkyy korostettuna listassa; ampujan voi vaihtaa napauttamalla nimeä. */}
                 {kuittaus || (kohta
                   ? ''
                   : kuittaamatta ? 'Hyväksykää aseman tulokset.' : seuraavaKesken !== null ? 'Asema valmis.' : 'Layout valmis.')}
               </span>
-              {kohta && (
-                <>
-                  <button type="button" aria-label="Toimintahäiriö" className="shrink-0 rounded border border-amber-500 bg-amber-50 px-2 text-xs font-semibold leading-6 text-amber-900 active:bg-amber-200" onClick={kirjaaHairio}>
-                    Häiriö{vuorossaHairiot > 0 ? ` ${vuorossaHairiot}/${hairioRaja}` : ''}
-                  </button>
-                  <button type="button" aria-label="Varoitus" className="shrink-0 rounded border border-purple-500 bg-purple-50 px-2 text-xs font-semibold leading-6 text-purple-900 active:bg-purple-200" onClick={() => setTuomio({ nro: kohta.nro, i: kohta.i })}>⚑</button>
-                </>
-              )}
+              {/* Häiriö ja varoitus piilossa: tilarivin pyyhkäisy ylös tai kahva tuo isot napit (ei vahinkopainalluksia). */}
+              {kohta && <VetoKahva auki={tapahtumaNapit} onClick={() => setTapahtumaNapit((v) => !v)} />}
               {!kohta && seuraavaKesken !== null && (
                 <button type="button" className="shrink-0 rounded bg-blue-800 px-2 text-xs leading-6 text-white" onClick={() => valitseAsema(seuraavaKesken)}>Asema {asemat[seuraavaKesken].id} ›</button>
               )}

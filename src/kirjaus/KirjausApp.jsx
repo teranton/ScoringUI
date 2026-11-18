@@ -29,6 +29,8 @@ import { useNapit } from './useNapit.js';
 import { pyydaTaustalahetys, useAsennus, toisaallaTeksti, useIkkunaVahti, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import AmpujaRivi from './AmpujaRivi.jsx';
+import { TapahtumaNapit, VetoKahva } from './TapahtumaVeto.jsx';
+import { useVeto } from './veto.js';
 import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
 import RyhmaNakyma from './RyhmaKirjaus.jsx';
 import { Asennus, NapitAsetus, SynkMerkki } from './Yhteiset.jsx';
@@ -167,6 +169,9 @@ function RataNakyma({ koodi, onVaihda }) {
   const [valinta, setValinta] = useState(null);
   // Varoitus vuorossa olevaan kiekkoon (kirjausnäkymän ⚑-nappi): { nro, i } tai null.
   const [tuomio, setTuomio] = useState(null);
+  // Häiriö- ja varoitusnapit näkyvissä (tilarivi pyyhkäisty ylös, TapahtumaVeto.jsx).
+  const [tapahtumaNapit, setTapahtumaNapit] = useState(false);
+  const veto = useVeto(() => setTapahtumaNapit(true), () => setTapahtumaNapit(false));
   const [naytetty, setNaytetty] = useState(null);
   // Korjauksen tai perumisen kuittaus hetken näytöllä: mitä muutettiin ja mistä jatketaan.
   const [kuittaus, setKuittaus] = useState(null);
@@ -1143,7 +1148,11 @@ function RataNakyma({ koodi, onVaihda }) {
           </>
         ) : (
           <>
-            <div className="mb-1 flex h-6 items-center gap-1 sm:mb-2 sm:h-7">
+            {tapahtumaNapit && tilanne && (
+              <TapahtumaNapit hairioTeksti={`Häiriö${vuorossaHairiot > 0 ? ` ${vuorossaHairiot}/${hairioRaja}` : ''}`} onHairio={kirjaaHairio}
+                onVaroitus={() => setTuomio(tilanne.kohta)} onSulje={() => setTapahtumaNapit(false)} />
+            )}
+            <div className="mb-1 flex h-6 touch-none items-center gap-1 sm:mb-2 sm:h-7" {...veto}>
               <div className={`min-w-0 flex-1 truncate text-center text-sm ${kuittaus ? 'rounded bg-amber-100 text-amber-900' : ''}`}>
                 {kuittaus ? (
                   <>{kuittaus} {vuorossa ? <>Jatka: <b>{vuorossa.nro} {nimi(vuorossa.nro)}</b>, asema {vuorossa.asema + 1}</> : ''}</>
@@ -1154,13 +1163,8 @@ function RataNakyma({ koodi, onVaihda }) {
                   </>
                 )}
               </div>
-              {/* Toimintahäiriö ja tuomarin merkinnät pieninä, etteivät ne vie tilaa eivätkä osu vahingossa. */}
-              <button type="button" aria-label="Toimintahäiriö" className="h-full shrink-0 rounded border border-amber-500 bg-amber-50 px-2 text-xs font-semibold text-amber-900 active:bg-amber-200 disabled:opacity-30" disabled={!tilanne} onClick={kirjaaHairio}>
-                Häiriö{vuorossaHairiot > 0 ? ` ${vuorossaHairiot}/${hairioRaja}` : ''}
-              </button>
-              <button type="button" aria-label="Varoitus" className="h-full shrink-0 rounded border border-purple-500 bg-purple-50 px-2 text-xs font-semibold text-purple-900 active:bg-purple-200 disabled:opacity-30" disabled={!tilanne} onClick={() => tilanne && setTuomio(tilanne.kohta)}>
-                ⚑
-              </button>
+              {/* Häiriö ja varoitus piilossa: tilarivin pyyhkäisy ylös tai kahva tuo isot napit (ei vahinkopainalluksia). */}
+              <VetoKahva auki={tapahtumaNapit && Boolean(tilanne)} disabled={!tilanne} onClick={() => setTapahtumaNapit((v) => !v)} />
             </div>
             <div className="grid grid-cols-[1fr_2fr_2fr] gap-2">
               <button type="button" className="flex h-14 flex-col items-center justify-center rounded-lg border-2 border-slate-400 font-semibold active:bg-slate-200 disabled:opacity-30 sm:h-20" disabled={!edellinen} onClick={peruViimeisin}>
