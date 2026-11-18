@@ -26,7 +26,7 @@ import { kohdistaValilehdet, valilehtiAlue } from './_lib/sheetsData.js';
 import { tarkistaAvain } from './_lib/kirjausAvain.js';
 import {
   AIKATAULU_VALILEHDET, KOHTEITA, KORTTI_OTSIKKO, LOKI_OTSIKKO, LOKI_VALILEHTI, MAKS_NRO, VIIMEINEN_SARAKE,
-  aikaleima, korttiRivi, lueKorttiRivi, mobiiliValilehti, onLaitetunnus, radanJono, solu, speksiArvo, taydenna,
+  aikaleima, kiekkoSarakkeidenLeveys, korttiRivi, lueKorttiRivi, mobiiliValilehti, onLaitetunnus, radanJono, solu, speksiArvo, taydenna,
   tarkistaTallennus
 } from './_lib/kirjausData.js';
 import {
@@ -176,6 +176,7 @@ const uusiId = () => 100000000 + Math.floor(Math.random() * 1900000000);
 // Kaksi laitetta voi yrittää samaan aikaan: silloin toinen saa "already exists" ja lukee välilehdet uudelleen.
 // tarvittavat: [{ nimi, otsikko, rivit }]. Liian kapea olemassa oleva välilehti (loki ennen HUOM-saraketta, laitteet
 // ennen TÄYDENNYKSET-saraketta, layoutin kortit kiekkomäärän kasvettua) levennetään ja sen otsikko kirjoitetaan uudelleen.
+// Korttivälilehtien kiekkosarakkeet kavennetaan (KIEKKO_LEVEYS) luotaessa ja levennettäessä; muuten käyttäjän leveydet jäävät.
 // Palauttaa tuoreet metatiedot.
 async function varmista(request, sheetId, tarvittavat) {
   let meta = await metatiedot(request, sheetId);
@@ -186,7 +187,8 @@ async function varmista(request, sheetId, tarvittavat) {
   if (kapeat.length > 0) {
     await batchUpdate(request, sheetId, kapeat.flatMap(({ tab, otsikko }) => [
       { appendDimension: { sheetId: tab.id, dimension: 'COLUMNS', length: otsikko.length - tab.sarakkeita } },
-      solut(tab, 0, 0, otsikko)
+      solut(tab, 0, 0, otsikko),
+      ...kiekkoSarakkeidenLeveys(tab.id, otsikko)
     ]));
     if (puuttuvat.length === 0) meta = await metatiedot(request, sheetId, { tuore: true });
   }
@@ -197,7 +199,8 @@ async function varmista(request, sheetId, tarvittavat) {
       try {
         await batchUpdate(request, sheetId, [
           { addSheet: { properties: { sheetId: id, title: t.nimi, gridProperties: { rowCount: t.rivit, columnCount: t.otsikko.length, frozenRowCount: 1 } } } },
-          { updateCells: { start: { sheetId: id, rowIndex: 0, columnIndex: 0 }, rows: [riviSoluiksi(t.otsikko)], fields: 'userEnteredValue' } }
+          { updateCells: { start: { sheetId: id, rowIndex: 0, columnIndex: 0 }, rows: [riviSoluiksi(t.otsikko)], fields: 'userEnteredValue' } },
+          ...kiekkoSarakkeidenLeveys(id, t.otsikko)
         ]);
       } catch (error) {
         if (!onJoOlemassa(error)) throw error;

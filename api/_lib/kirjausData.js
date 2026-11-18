@@ -20,6 +20,30 @@ export const KORTTI_OTSIKKO = ['NRO', 'NIMI', 'TULOS', 'PÄIVITETTY', 'LAITE', '
 // HUOM: tyhjä tavalliselle tallennukselle; haltijan vaihdot ja korvatun laitteen hylätyt kortit (ristiriidat).
 export const LOKI_OTSIKKO = ['AIKA', 'RATA', 'NRO', 'LAITE', 'VERSIO', 'ENNEN', 'JÄLKEEN', 'HUOM'];
 
+// Kiekkosarakkeiden leveys pikseleinä: X/O ja otsikko "25" tai "6/10" mahtuvat, joten kortti näkyy taulukossa
+// kerralla (oletus 100 px). Kiekkosarake tunnistetaan otsikosta: Compakin "1".."25", ryhmäkortin "<asema>/<kiekko>".
+export const KIEKKO_LEVEYS = 30;
+const KIEKKO_OTSIKKO = /^\d+(\/\d+)?$/;
+
+// updateDimensionProperties-pyynnöt, jotka kaventavat välilehden kiekkosarakkeet (yksi per yhtenäinen sarakejakso).
+export function kiekkoSarakkeidenLeveys(sheetId, otsikko) {
+  const pyynnot = [];
+  let alku = -1;
+  otsikko.forEach((o, i) => {
+    const kiekko = KIEKKO_OTSIKKO.test(String(o));
+    if (kiekko && alku < 0) alku = i;
+    const loppu = kiekko && (i === otsikko.length - 1 || !KIEKKO_OTSIKKO.test(String(otsikko[i + 1])));
+    if (loppu) {
+      pyynnot.push({ updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: alku, endIndex: i + 1 },
+        properties: { pixelSize: KIEKKO_LEVEYS }, fields: 'pixelSize'
+      } });
+      alku = -1;
+    }
+  });
+  return pyynnot;
+}
+
 // Merkit: X osuma, O ohi, - ampumatta. Aina KOHTEITA merkkiä.
 const MERKIT = new RegExp(`^[XO-]{${KOHTEITA}}$`);
 export const onkoMerkit = (merkit) => typeof merkit === 'string' && MERKIT.test(merkit);

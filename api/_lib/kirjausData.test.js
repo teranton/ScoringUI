@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  VIIMEINEN_SARAKE, jasennaRataruudukko, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, taydenna, tarkistaTallennus
+  KIEKKO_LEVEYS, KORTTI_OTSIKKO, VIIMEINEN_SARAKE, jasennaRataruudukko, kiekkoSarakkeidenLeveys, korttiRivi, lueKorttiRivi, radanJono, sarakeKirjain, solu, speksiArvo, taydenna, tarkistaTallennus
 } from './kirjausData.js';
+import { ryhmaKorttiOtsikko } from './kirjausRyhma.js';
 
 const MERKIT = 'XXXXO' + 'XOXXX' + '-'.repeat(15);
 
@@ -150,4 +151,16 @@ test('tallennuksen tarkistus', () => {
 test('täydennys: vain ampumattomat kohteet, eri merkinnät lasketaan', () => {
   assert.deepEqual(taydenna('XO---', 'XXOO-'), { merkit: 'XOOO-', taytetty: 2, eri: 1 });
   assert.deepEqual(taydenna('XO', 'XO'), { merkit: 'XO', taytetty: 0, eri: 0 });
+});
+
+test('kiekkosarakkeet kavennetaan: Compak 1..25, ryhmäkortin asema/kiekko, muut sarakkeet ennallaan', () => {
+  const vali = (p) => [p.updateDimensionProperties.range.startIndex, p.updateDimensionProperties.range.endIndex];
+  const compak = kiekkoSarakkeidenLeveys(7, KORTTI_OTSIKKO);
+  assert.deepEqual(compak.map(vali), [[6, 31]]);
+  assert.equal(compak[0].updateDimensionProperties.range.sheetId, 7);
+  assert.equal(compak[0].updateDimensionProperties.properties.pixelSize, KIEKKO_LEVEYS);
+  const ryhma = ryhmaKorttiOtsikko({ asemat: [{ sarake: 1, kohteita: 8 }, { sarake: 2, kohteita: 6 }] });
+  // NRO..HYVÄKSYTTY (8), ASEMA 1, ASEMA 2, kiekot 1/1..2/6, KUITATUT, TAPAHTUMAT
+  assert.deepEqual(kiekkoSarakkeidenLeveys(1, ryhma).map(vali), [[10, 24]]);
+  assert.deepEqual(kiekkoSarakkeidenLeveys(1, ['AIKA', 'RATA', 'NRO']), []);
 });
