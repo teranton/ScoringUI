@@ -14,9 +14,18 @@ function kontekstiKayttoon() {
 // Äänet: [taajuus Hz, alku s, kesto s, lopputaajuus Hz (valinnainen liuku)] samalla aaltomuodolla.
 // voimakkuus: huippu 0–1 (pehmeämmät äänet hiljempaa, ettei kuulosta säröltä).
 const AANET = {
-  osuma: { aalto: 'square', voimakkuus: 0.8, savelet: [[1320, 0, 0.09]] },
+  // Osuma on yleisin merkintä, joten ääni on lyhyt ja neutraali (pehmeä keskitaajuus); nolla erottuu matalana.
+  osuma: { aalto: 'sine', voimakkuus: 0.6, savelet: [[620, 0, 0.06]] },
   peru: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[660, 0, 0.08], [440, 0.1, 0.12]] },
-  korjaus: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[523, 0, 0.08], [784, 0.1, 0.12]] }
+  korjaus: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[523, 0, 0.08], [784, 0.1, 0.12]] },
+  // Ulkoisen napin painallus, jota ei kirjattu (valikko auki, korjaustila): kirjaaja kuulee sen katsomatta näyttöä.
+  hylatty: { aalto: 'sawtooth', voimakkuus: 0.5, savelet: [[180, 0, 0.12], [180, 0.18, 0.12]] },
+  // Ammuttu asema odottaa hyväksyntää: lyhyt OSUMA-painallus muistuttaa, että pitkä painallus hyväksyy.
+  vahvista: { aalto: 'square', voimakkuus: 0.6, savelet: [[880, 0, 0.07], [1100, 0.1, 0.07], [1320, 0.2, 0.07]] },
+  // Ulkoinen nappi siirsi seuraavalle asemalle tai layoutille.
+  siirto: { aalto: 'triangle', voimakkuus: 0.8, savelet: [[784, 0, 0.08], [784, 0.12, 0.08]] },
+  // Pitkä painallus on kestänyt tarpeeksi: nappi voidaan vapauttaa (useNapit).
+  pitka: { aalto: 'square', voimakkuus: 0.7, savelet: [[1568, 0, 0.18]] }
 };
 
 // Nollan äänivaihtoehdot (valitaan laitteella). nolla laskee; nolla2 (tuplan molemmat ohi, toinen) nousee.

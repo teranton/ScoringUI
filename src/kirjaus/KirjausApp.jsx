@@ -25,12 +25,13 @@ import {
 import { HaltijaNakyma, SiirtoNakyma } from './Haltija.jsx';
 import { useHereilla } from './useHereilla.js';
 import { useAkku } from './useAkku.js';
+import { useNapit } from './useNapit.js';
 import { pyydaTaustalahetys, useAsennus, useTakaisinVahti } from './sovellus.js';
 import Lukitus from './Lukitus.jsx';
 import AmpujaRivi from './AmpujaRivi.jsx';
 import { NOLLA_AANET, OLETUS_NOLLA_AANI, soita } from './aanet.js';
 import RyhmaNakyma from './RyhmaKirjaus.jsx';
-import { Asennus, SynkMerkki } from './Yhteiset.jsx';
+import { Asennus, NapitAsetus, SynkMerkki } from './Yhteiset.jsx';
 
 const SYNKRONOINTI_VALI_MS = 15000;
 // Ilman lähetettävää haltija tarkistaa radan näin usein: korvattujen laitteiden täydennykset ja oma korvaus.
@@ -518,7 +519,7 @@ function RataNakyma({ koodi, onVaihda }) {
   };
 
   const merkitseKohta = (merkki) => {
-    if (korjaustila || valinta || !tilanne || liianPian()) return;
+    if (korjaustila || valinta || !tilanne || liianPian()) return false;
     kirjaa('merkintä', tilanne.kohta, merkitOf(tila.kortit, tilanne.kohta.nro)[tilanne.kohta.i], merkki);
     setTila((t) => ({ ...t, ...merkitse(t, tilanne.kohta, merkki) }));
     const { nro, asema, alku, loppu } = tilanne.vuoro;
@@ -528,6 +529,7 @@ function RataNakyma({ koodi, onVaihda }) {
     const molemmatOhi = merkki === 'O' && tilanne.kohta.i > alku && merkitOf(tila.kortit, nro)[alku] === 'O';
     if (tila.aanet !== false) soita(merkki === 'X' ? 'osuma' : molemmatOhi ? 'nolla2' : 'nolla', tila.nollaAani);
     navigator.vibrate?.(merkki === 'O' ? [40, 60, 40] : 30);
+    return true;
   };
 
   // Korjaus vaihtaa jo merkityn kiekon osumasta nollaksi tai päinvastoin; ampumattomaan ei voi merkitä.
@@ -544,10 +546,11 @@ function RataNakyma({ koodi, onVaihda }) {
     navigator.vibrate?.(30);
   };
 
+  // Palauttaa false, jos mitään ei peruttu (ulkoisen napin hylkäysääni).
   const peruViimeisin = () => {
-    if (liianPian()) return;
+    if (liianPian()) return false;
     const p = peru(tila);
-    if (!p) return;
+    if (!p) return false;
     kirjaa('peru', p.kohta, merkitOf(tila.kortit, p.kohta.nro)[p.kohta.i], merkitOf(p.kortit, p.kohta.nro)[p.kohta.i]);
     // Peru lasketaan uudelleen tuoreimmasta tilasta, ettei välissä tullut kuittaus tai avaus katoa.
     setTila((t) => {
@@ -557,6 +560,7 @@ function RataNakyma({ koodi, onVaihda }) {
     setKuittaus(`Peruttu: ${kohdeTeksti(p.kohta)}.`);
     if (tila.aanet !== false) soita('peru');
     setValinta(null);
+    return true;
   };
 
   // Toimintahäiriö vuorossa olevaan kiekkoon: rajan sisällä kiekko uusitaan, rajan yli se on nolla (vahvistetaan).
@@ -753,6 +757,20 @@ function RataNakyma({ koodi, onVaihda }) {
     linja: linjaTilasta(tila)
   });
 
+  // Rata ei ole tällä laitteella: korvattu, luovutettu tai toisen laitteen käytössä.
+  const haltijanTila = avaus?.haltija;
+  const varattu = !tila.haltija && !tila.siirtoAvain && haltijanTila && !haltijanTila.oma && !haltijanTila.vapaa && !haltijanTila.tamaLaite;
+
+  // Ulkoiset napit (tuomarin käsiohjain) kirjaavat vain kirjausnäkymässä: ei ohjelman muokkauksessa, siirrossa eikä
+  // kun rata ei ole tällä laitteella. Lukitus ei estä: napin painallus on aina tarkoituksellinen. Muualla (myös valikon
+  // ollessa auki ja korjaustilassa) painallus hylätään äänellä, koska kirjaaja ei välttämättä katso näyttöä.
+  const kirjausNakyvissa = Boolean(avaus) && Boolean(ohjelma) && !muokkaaOhjelmaa
+    && !(siirto && tila.haltija) && !tila.korvattu && !tila.luovutettu && !varattu;
+  const [napit, setNapit] = useNapit(Boolean(avaus), (toiminto) => {
+    if (!kirjausNakyvissa || valikko || korjaustila || valinta) return false;
+    return toiminto === 'PERU' ? peruViimeisin() : merkitseKohta(toiminto);
+  }, tila.aanet !== false);
+
   if (!avaus) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 bg-white p-6 text-slate-900">
@@ -817,12 +835,11 @@ function RataNakyma({ koodi, onVaihda }) {
       asennus={asennus}
       onKopioiKoodi={kopioiKoodi}
       onLataaLoki={lataaLoki}
+      napit={napit}
+      onNapit={setNapit}
     />
   );
 
-  // Rata ei ole tällä laitteella: korvattu, luovutettu tai toisen laitteen käytössä.
-  const haltijanTila = avaus.haltija;
-  const varattu = !tila.haltija && !tila.siirtoAvain && haltijanTila && !haltijanTila.oma && !haltijanTila.vapaa && !haltijanTila.tamaLaite;
   if (tila.korvattu || tila.luovutettu || varattu) {
     return (
       <main className="flex min-h-screen flex-col bg-slate-100 text-slate-900">
@@ -1195,7 +1212,8 @@ function OhjelmaEditori({ alku, kisanArvo, kisanOhjelma, sarake, onTallenna, onP
 
 function Valikko({
   ohjelma, onMuokkaaOhjelmaa, onHaeNumero, onVaihdaRata, onKorjaa, aanet, onAanet, nollaAani, onNollaAani, onTyhjenna,
-  hereilla, lataus, viimeksi, tallennus, asennus, onKopioiKoodi, onLataaLoki, laitteenNimi: nimi, onLuovuta, onSiirra
+  hereilla, lataus, viimeksi, tallennus, asennus, onKopioiKoodi, onLataaLoki, laitteenNimi: nimi, onLuovuta, onSiirra,
+  napit, onNapit
 }) {
   const [nro, setNro] = useState('');
   return (
@@ -1235,6 +1253,7 @@ function Valikko({
           ))}
         </div>
       )}
+      <NapitAsetus napit={napit} onNapit={onNapit} />
       <div className="flex items-center justify-between gap-2">
         <span>Ohjelma: <b>{ohjelma || '–'}</b></span>
         <button type="button" className="rounded border border-slate-400 px-3 py-2" onClick={onMuokkaaOhjelmaa}>Muuta</button>
