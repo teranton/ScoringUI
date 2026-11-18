@@ -5,7 +5,9 @@
 //   V  varoitus (tuomarin). Ensimmäinen ei vaikuta tulokseen; seuraavasta kiekko merkitään yleensä nollaksi
 //      (laite kysyy, merkki O kiekkoon). Tapahtumat eivät muuta tulosta: tulos on kiekkojen osumat.
 // Taulukossa (sarake TAPAHTUMAT) puolipisteillä: "H5; N12; V12 Ase auki; V20 Myöhästyi" (kiekot 1-alkuisina).
-// Puhtaat funktiot, käytössä laitteella ja API:ssa (tapahtumat.test.js).
+// Puhtaat funktiot, käytössä laitteella ja API:ssa (tapahtumat.test.js). Laitteen tekstit: i18n.js kirjausTapahtumat.
+
+import { haeTekstit, tayta } from '../i18n.js';
 
 export const TYYPIT = ['H', 'N', 'V'];
 export const OLETUS_HAIRIORAJA = 2;
@@ -65,16 +67,21 @@ export function kiekonKorostus(tapahtumat, i) {
 
 // Kiekon sävy kulmakolmiona (kiekon väri näkyy yhä): inline-tyyli laitteen ruudulle.
 export const KOROSTUSVARIT = { hairio: '#f59e0b', varoitus: '#a855f7' };
-export const KOROSTUSNIMET = { hairio: 'toimintahäiriö', varoitus: 'varoitus' };
+// Korostuksen nimi luettavana (aria-label, kun kiekolla ei ole selitettä).
+export const korostusNimi = (korostus, locale) => {
+  const tx = haeTekstit('kirjausTapahtumat', locale);
+  return korostus === 'hairio' ? tx.nimiHairio : korostus === 'varoitus' ? tx.nimiVaroitus : '';
+};
 export function korostusTyyli(korostus) {
   const vari = KOROSTUSVARIT[korostus];
   return vari ? { backgroundImage: `linear-gradient(225deg, ${vari} 0 38%, transparent 38%)` } : undefined;
 }
 
 // Kiekon tapahtumat luettavana tekstinä (aria-label, kuittaus).
-export function kiekonSelite(tapahtumat, i) {
+export function kiekonSelite(tapahtumat, i, locale) {
+  const tx = haeTekstit('kirjausTapahtumat', locale);
   return kiekonTapahtumat(tapahtumat, i).map((x) => {
-    const nimi = x.t === 'H' ? 'toimintahäiriö' : x.t === 'N' ? 'toimintahäiriö yli rajan (nolla)' : 'varoitus';
+    const nimi = x.t === 'H' ? tx.nimiHairio : x.t === 'N' ? tx.nimiHairioNolla : tx.nimiVaroitus;
     return x.syy ? `${nimi}: ${x.syy}` : nimi;
   }).join(', ');
 }
@@ -95,7 +102,7 @@ export function hairioRaja(arvo, tyyppi = '') {
 
 // Kortilla on jo enimmäismäärä tapahtumia: uutta ei voi lisätä (laite kertoo sen kirjaajalle).
 export const taynna = (tapahtumat) => jasennaTapahtumat(tapahtumat).length >= MAKS_TAPAHTUMIA;
-export const TAYNNA_VIESTI = `Kortilla on jo ${MAKS_TAPAHTUMIA} häiriötä tai varoitusta. Kirjaa lisät paperille ja kerro toimistolle.`;
+export const taynnaViesti = (locale) => tayta(haeTekstit('kirjausTapahtumat', locale).taynna, { maks: MAKS_TAPAHTUMIA });
 
 export function lisaa(tapahtumat, tapahtuma) {
   return tapahtumaTeksti([...jasennaTapahtumat(tapahtumat), tapahtuma]);
@@ -107,12 +114,13 @@ export function poista(tapahtumat, i, tyypit = TYYPIT) {
 }
 
 // Viimeisimmän muutoksen nimi (PERU-napin selite): uusin lisätty tapahtuma tai poisto.
-export function tapahtumaMuutos(ennen, nyt) {
+export function tapahtumaMuutos(ennen, nyt, locale) {
+  const tx = haeTekstit('kirjausTapahtumat', locale);
   const a = jasennaTapahtumat(ennen);
   const b = jasennaTapahtumat(nyt);
-  if (b.length <= a.length) return 'poisto';
+  if (b.length <= a.length) return tx.muutosPoisto;
   const t = b[b.length - 1].t;
-  return t === 'H' ? 'häiriö' : t === 'N' ? 'häiriö, nolla' : 'varoitus';
+  return t === 'H' ? tx.muutosHairio : t === 'N' ? tx.muutosHairioNolla : tx.muutosVaroitus;
 }
 
 // Lyhyt yhteenveto lokiin ja toimistolle: "HÄIRIÖT 2, VAROITUKSET 1" tai ''.

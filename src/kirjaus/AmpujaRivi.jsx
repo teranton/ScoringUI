@@ -2,9 +2,9 @@
 // keskeytystä voi napauttaa korjaustilassa; julkisessa ratanäkymässä (src/LiveRadat.jsx) kortti on vain luettava.
 // Toimintahäiriö ja varoitus näkyvät kiekon kulman sävynä (tapahtumat.js), joten kortti ei kasva.
 import { ASEMAN_KOHTEET, KOHTEITA, osumat, taytetyt } from './kortit.js';
-import { KOROSTUSNIMET, jasennaTapahtumat, kiekonKorostus, kiekonSelite, korostusTyyli } from './tapahtumat.js';
+import { jasennaTapahtumat, kiekonKorostus, kiekonSelite, korostusNimi, korostusTyyli } from './tapahtumat.js';
 
-export default function AmpujaRivi({ ampuja, merkit, tapahtumat = '', lahetetty, kohta, korostus, valmis, keskeyttanyt, onKeskeyta, onValitse }) {
+export default function AmpujaRivi({ ampuja, merkit, tapahtumat = '', lahetetty, kohta, korostus, valmis, keskeyttanyt, onKeskeyta, onValitse, locale = 'fi' }) {
   const aktiivinen = kohta !== null;
   // Tapahtumat jäsennetään kerran kortille, ei joka kiekolle.
   const lista = tapahtumat ? jasennaTapahtumat(tapahtumat) : [];
@@ -41,7 +41,7 @@ export default function AmpujaRivi({ ampuja, merkit, tapahtumat = '', lahetetty,
               const teksti = m === 'X' ? 'X' : m === 'O' ? '0' : '';
               const korostus = lista.length ? kiekonKorostus(lista, i) : null;
               const tyyli = korostusTyyli(korostus);
-              const selite = korostus ? kiekonSelite(lista, i) || KOROSTUSNIMET[korostus] : '';
+              const selite = korostus ? kiekonSelite(lista, i, locale) || korostusNimi(korostus, locale) : '';
               // Kiekkoa voi napauttaa vain korjaustilassa ja vain, jos se on jo merkitty.
               return onValitse && m !== '-' ? (
                 <button key={i} type="button" aria-label={`Korjaa asema ${a + 1}, kiekko ${k + 1}${selite ? ` (${selite})` : ''}`} title={selite || undefined} style={tyyli} className={`${luokat} ring-1 ring-amber-500`} onClick={() => onValitse(i)}>

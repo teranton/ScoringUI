@@ -57,3 +57,13 @@ test('lisäys, poisto ja raja', () => {
   assert.ok(!hairiotAsemittain('SPORTING'));
   assert.equal(hairiot('H1; H2; N7', 5, 10), 1, 'aseman kiekot');
 });
+
+test('tekstit kielen mukaan (i18n.js kirjausTapahtumat)', async () => {
+  const { kiekonSelite, korostusNimi, taynnaViesti, tapahtumaMuutos } = await import('./tapahtumat.js');
+  assert.equal(kiekonSelite('V3 Ase auki; N3', 2, 'en'), 'warning: Ase auki, malfunction over the limit (miss)');
+  assert.equal(korostusNimi('hairio', 'en'), 'malfunction');
+  assert.equal(korostusNimi('varoitus'), 'varoitus');
+  assert.match(taynnaViesti('fi'), /^Kortilla on jo 40 /);
+  assert.equal(tapahtumaMuutos('H1', 'H1; V2', 'en'), 'warning');
+  assert.equal(tapahtumaMuutos('H1', '', 'fi'), 'poisto');
+});
