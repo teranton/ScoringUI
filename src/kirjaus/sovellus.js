@@ -1,6 +1,7 @@
 // Mobiilikirjaus sovelluksena: palvelutyöntekijä (public/kirjaus-sw.js), asennus aloitusnäytölle,
 // taustalähetys ja Takaisin-painikkeen vahti.
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 const SYNK_TAGI = 'kirjaus-lahetys';
 const POISTUMISEN_ODOTUS_MS = 1500;
@@ -102,4 +103,135 @@ export function useTakaisinVahti(kasittele) {
       window.removeEventListener('popstate', takaisin);
     };
   }, []);
+}
+
+// Androidin ja tietokoneen Chromessa selain ja asennettu sovellus jakavat saman tallennuksen ja laitetunnuksen.
+// Chromen "Vaihda sovellukseen" / "Avaa sovelluksessa" avaa sovelluksen mutta jättää välilehden auki, eikä sivu voi
+// sulkea välilehteä itse. Vanha välilehti voisi silloin tallentaa vanhemman tilansa sovelluksen tilan päälle, joten
+// rata tai ryhmä kirjaa vain yhdessä ikkunassa. Omistaja on localStoragessa (yhteinen kaikille ikkunoille): ikkuna,
+// joka huomaa omistajan vaihtuneen (storage-tapahtuma tai paluu näkyviin, myös taustalla jäädytetty), pysähtyy ja kertoo,
+// missä kirjaus jatkuu. (iPhonessa Safari ja sovellus eivät jaa tallennusta: ne ovat palvelimelle eri laitteita, ja
+// rata siirtyy niiden välillä siirtolinkillä.)
+const IKKUNAKANAVA = 'kirjaus-ikkuna';
+const OMISTAJA_AVAIN = 'kirjaus-ikkuna:';
+// Näin kauan selain odottaa avatessaan, vastaako auki oleva sovellus (vastaa heti, jos se on käynnissä).
+const KYSELYN_ODOTUS_MS = 400;
+
+const lueOmistaja = (kohde) => {
+  try {
+    return JSON.parse(window.localStorage.getItem(OMISTAJA_AVAIN + kohde) || 'null');
+  } catch {
+    return null;
+  }
+};
+const asetaOmistaja = (kohde, oma) => {
+  try {
+    window.localStorage.setItem(OMISTAJA_AVAIN + kohde, JSON.stringify({ id: oma.id, sovellus: oma.sovellus }));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Avautuva ikkuna: 'ota' (ottaa kirjauksen heti) tai 'kysy' (selain kysyy ensin, onko omistajana oleva sovellus
+// käynnissä; käynnissä oleva sovellus pitää kirjauksen). Sovellus ottaa aina, samoin selain, jos omistaja ei ole sovellus.
+export function avautuvanPaatos(oma, omistaja) {
+  if (oma.sovellus || !omistaja?.sovellus || omistaja.id === oma.id) return 'ota';
+  return 'kysy';
+}
+
+// Missä kirjaus jatkuu, kun tämä ikkuna on pysäytetty.
+export function toisaallaTeksti(omaSovellus, omistajaSovellus) {
+  if (omaSovellus === omistajaSovellus) return omaSovellus ? 'toisessa sovellusikkunassa' : 'toisessa välilehdessä';
+  return omistajaSovellus ? 'asennetussa sovelluksessa' : 'selaimessa';
+}
+
+// { tila, toisaalla, jatkaTassa, kierros, sovellus }: tila 'avataan' (selain odottaa sovelluksen vastausta),
+// 'kirjaa' tai 'toisaalla' ({ sovellus } = missä kirjaus jatkuu). jatkaTassa ottaa kirjauksen tähän ikkunaan;
+// kierros kasvaa silloin, jotta näkymä luetaan uudelleen tallennuksesta.
+export function useIkkunaVahti(kohde) {
+  const [oma] = useState(() => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, sovellus: onAsennettu() }));
+  const [vahti, setVahti] = useState({ kohde: '', tila: 'avataan', toisaalla: null });
+  const [kierros, setKierros] = useState(0);
+  const tilaRef = useRef('avataan');
+  // "Jatka tässä": otetaan kirjaus kysymättä, vaikka sovellus olisi auki.
+  const pakotaRef = useRef(false);
+
+  useEffect(() => {
+    if (!kohde) return undefined;
+    const aseta = (tila, toisaalla = null) => {
+      tilaRef.current = tila;
+      // Pysähtyminen piirretään heti (flushSync), jotta näkymän omat näkyvyys- ja tallennuskuuntelijat poistuvat
+      // ennen kuin ne ehtivät ajaa: DOM ei kutsu kuuntelijaa, joka poistettiin saman tapahtuman aikana.
+      const paivita = () => setVahti({ kohde, tila, toisaalla });
+      if (tila === 'toisaalla') flushSync(paivita);
+      else paivita();
+    };
+    const ota = () => {
+      if (!asetaOmistaja(kohde, oma)) {
+        // Ilman localStoragea ikkunat eivät näe toisiaan: kirjataan kuten ennenkin.
+        aseta('kirjaa');
+        return;
+      }
+      kanava?.postMessage({ tyyppi: 'otettu', kohde, id: oma.id });
+      aseta('kirjaa');
+    };
+    // Omistaja vaihtui toisessa ikkunassa: pysähdytään (luetaan nykyinen arvo, joten yhtä aikaa avautuneista
+    // ikkunoista viimeksi kirjoittanut jää kirjaamaan).
+    const tarkista = () => {
+      if (tilaRef.current !== 'kirjaa') return;
+      const omistaja = lueOmistaja(kohde);
+      if (omistaja && omistaja.id !== oma.id) aseta('toisaalla', { sovellus: Boolean(omistaja.sovellus) });
+    };
+    const kanava = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(IKKUNAKANAVA);
+    let odotus = null;
+    if (kanava) {
+      kanava.onmessage = (e) => {
+        const viesti = e.data;
+        if (viesti?.kohde !== kohde || viesti.id === oma.id) return;
+        if (viesti.tyyppi === 'kysy' && tilaRef.current === 'kirjaa') kanava.postMessage({ tyyppi: 'kirjaan', kohde, id: oma.id });
+        if (viesti.tyyppi === 'kirjaan' && tilaRef.current === 'avataan') {
+          clearTimeout(odotus);
+          aseta('toisaalla', { sovellus: Boolean(lueOmistaja(kohde)?.sovellus) });
+        }
+        if (viesti.tyyppi === 'otettu') tarkista();
+      };
+    }
+    const nakyvyys = () => {
+      if (document.visibilityState === 'visible') tarkista();
+    };
+    const muutos = (e) => {
+      if (e.key === OMISTAJA_AVAIN + kohde) tarkista();
+    };
+    // Kaappausvaiheessa ikkunassa: ennen näkymien omia document-kuuntelijoita (ne lähettävät näkyviin palatessa).
+    window.addEventListener('visibilitychange', nakyvyys, true);
+    window.addEventListener('storage', muutos);
+
+    tilaRef.current = 'avataan';
+    const pakota = pakotaRef.current;
+    pakotaRef.current = false;
+    if (!pakota && avautuvanPaatos(oma, lueOmistaja(kohde)) === 'kysy' && kanava) {
+      setVahti({ kohde, tila: 'avataan', toisaalla: null });
+      kanava.postMessage({ tyyppi: 'kysy', kohde, id: oma.id });
+      odotus = setTimeout(ota, KYSELYN_ODOTUS_MS);
+    } else {
+      ota();
+    }
+    return () => {
+      clearTimeout(odotus);
+      kanava?.close();
+      window.removeEventListener('visibilitychange', nakyvyys, true);
+      window.removeEventListener('storage', muutos);
+    };
+  }, [kohde, oma, kierros]);
+
+  const jatkaTassa = () => {
+    pakotaRef.current = true;
+    setKierros((n) => n + 1);
+  };
+
+  // Koodin vaihtuessa näytetään 'avataan', kunnes vahti on ratkaissut uuden kohteen.
+  let nykyinen = vahti.kohde === kohde ? vahti : { tila: 'avataan', toisaalla: null };
+  if (!kohde) nykyinen = { tila: 'kirjaa', toisaalla: null };
+  return { ...nykyinen, jatkaTassa, kierros, sovellus: oma.sovellus };
 }
